@@ -3,7 +3,6 @@ package cvo
 import (
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 
 	"github.com/golang/glog"
@@ -17,7 +16,8 @@ const (
 	// checks. Jitter will vary between 0% and 100% of updateCheckPeriod.
 	updateCheckPeriod = time.Minute
 
-	// customResourceName is the name of the CVO's OperatorStatus.
+	// customResourceName is the name of the CVO's OperatorStatus and the
+	// CVOConfig.
 	customResourceName = "cluster-version-operator"
 
 	// XXX: namespace is the hardcoded namespace that will be used for the
@@ -30,7 +30,7 @@ const (
 //   - ensuring the OperatorStatus CRD exists and is correct
 //   - checking for updates and writing the available updates into the CVO's
 //     OperatorStatus.
-func StartWorkers(stopCh <-chan struct{}, config *rest.Config, cinClient cincinnati.Client) {
+func StartWorkers(stopCh <-chan struct{}, config *rest.Config) {
 	apiExtClient, err := clientset.NewForConfig(config)
 	if err != nil {
 		glog.Errorf("Failed to create Kubernetes client (API Extensions): %v", err)
@@ -43,6 +43,9 @@ func StartWorkers(stopCh <-chan struct{}, config *rest.Config, cinClient cincinn
 		return
 	}
 
-	go wait.Until(func() { ensureOperatorStatusExists(apiExtClient) }, updateCheckPeriod, stopCh)
-	go wait.Until(func() { checkForUpdate(cvoClient, &cinClient) }, updateCheckPeriod, stopCh)
+	// Create the CRDs before attempting to run the reconciliation loops.
+	ensureCRDsExist(apiExtClient)
+
+	go wait.Until(func() { ensureCRDsExist(apiExtClient) }, updateCheckPeriod, stopCh)
+	go wait.Until(func() { checkForUpdate(cvoClient) }, updateCheckPeriod, stopCh)
 }

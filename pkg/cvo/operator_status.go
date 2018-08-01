@@ -14,7 +14,7 @@ import (
 
 // XXX: this needs to ensure that the CRD is correct (e.g. hasn't been modified
 //      by the user) rather than just ensuring it exists.
-func ensureOperatorStatusExists(apiExtClient clientset.Interface) {
+func ensureCRDsExist(apiExtClient clientset.Interface) {
 	_, err := apiExtClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(&v1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("operatorstatuses.%s", apis.GroupName),
@@ -34,6 +34,28 @@ func ensureOperatorStatusExists(apiExtClient clientset.Interface) {
 	})
 	if err != nil && !errors.IsAlreadyExists(err) {
 		glog.Errorf("Failed to create OperatorStatus CRD: %v", err)
+		return
+	}
+
+	_, err = apiExtClient.ApiextensionsV1beta1().CustomResourceDefinitions().Create(&v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("cvoconfigs.%s", apis.GroupName),
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: v1beta1.CustomResourceDefinitionSpec{
+			Group:   apis.GroupName,
+			Version: "v1",
+			Scope:   "Namespaced",
+			Names: v1beta1.CustomResourceDefinitionNames{
+				Plural:   "cvoconfigs",
+				Singular: "cvoconfig",
+				Kind:     "CVOConfig",
+				ListKind: "CVOConfigList",
+			},
+		},
+	})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		glog.Errorf("Failed to create CVOConfig CRD: %v", err)
 		return
 	}
 }

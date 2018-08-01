@@ -34,7 +34,7 @@ func NewClient(id uuid.UUID) Client {
 // then finding all of the children. These children are the available updates
 // for the current version and their payloads indicate from where the actual
 // update image can be downloaded.
-func (c *Client) GetUpdatePayloads(upstream string, version semver.Version, channel string) ([]string, error) {
+func (c Client) GetUpdatePayloads(upstream string, channel string, version semver.Version) ([]string, error) {
 	// Download the update graph.
 	req, err := http.NewRequest("GET", upstream, nil)
 	if err != nil {
