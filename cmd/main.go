@@ -54,6 +54,8 @@ func main() {
 		return
 	}
 
+	glog.Infof(version.String)
+
 	id, err := uuid.Parse(flags.clusterID)
 	if err != nil {
 		glog.Fatalf("Invalid clusterID %q, must be a UUID: %s", flags.clusterID, err)
