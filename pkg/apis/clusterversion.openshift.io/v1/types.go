@@ -5,9 +5,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // OperatorStatusList is a list of OperatorStatus resources.
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorStatusList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
@@ -15,12 +15,12 @@ type OperatorStatusList struct {
 	Items []OperatorStatus `json:"items"`
 }
 
-// +genclient
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // OperatorStatus is the Custom Resource object which holds the current state
 // of an operator. This object is used by operators to convey their state to
 // the rest of the cluster.
+// +genclient
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type OperatorStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -75,11 +75,11 @@ const (
 	OperatorStatusConditionTypeDegraded OperatorStatusConditionType = "Degraded"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // CVOStatus contains information specific to the ClusterVersionOperator. This
 // object is inserted into the Extension attribute of the generic
 // OperatorStatus object.
+// +k8s:deepcopy-gen=true
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CVOStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
