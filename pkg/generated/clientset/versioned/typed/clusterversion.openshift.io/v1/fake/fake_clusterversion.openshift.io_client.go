@@ -28,6 +28,10 @@ type FakeClusterversionV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeClusterversionV1) CVOConfigs(namespace string) v1.CVOConfigInterface {
+	return &FakeCVOConfigs{c, namespace}
+}
+
 func (c *FakeClusterversionV1) OperatorStatuses(namespace string) v1.OperatorStatusInterface {
 	return &FakeOperatorStatuses{c, namespace}
 }
