@@ -62,9 +62,9 @@ func (in *CVOStatus) DeepCopyInto(out *CVOStatus) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	if in.AvailablePayloads != nil {
-		in, out := &in.AvailablePayloads, &out.AvailablePayloads
-		*out = make([]string, len(*in))
+	if in.AvailableUpdates != nil {
+		in, out := &in.AvailableUpdates, &out.AvailableUpdates
+		*out = make([]AvailableUpdate, len(*in))
 		copy(*out, *in)
 	}
 	return
