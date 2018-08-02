@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/version"
 
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -100,9 +101,14 @@ func createResourceLock(config *rest.Config) resourcelock.Interface {
 		glog.Fatalf("Failed to create leader-election client: %v", err)
 	}
 
-	id := os.Getenv("POD_NAME")
-	if id == "" {
-		glog.Fatalf("Failed to find POD_NAME in environment")
+	id, err := os.Hostname()
+	if err != nil {
+		glog.Fatalf("Failed to determine hostname: %v", err)
+	}
+
+	uuid, err := uuid.NewRandom()
+	if err != nil {
+		glog.Fatalf("Failed to generate UUID: %v", err)
 	}
 
 	return &resourcelock.ConfigMapLock{
@@ -112,7 +118,7 @@ func createResourceLock(config *rest.Config) resourcelock.Interface {
 		},
 		Client: leaderElectionClient.CoreV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
-			Identity:      id,
+			Identity:      id + "_" + uuid.String(),
 			EventRecorder: recorder,
 		},
 	}
