@@ -110,5 +110,11 @@ type CVOStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	AvailablePayloads []string `json:"availablePayloads"`
+	AvailableUpdates []AvailableUpdate `json:"availableUpdates"`
+}
+
+// AvailableUpdate represents a potential update to the cluster.
+type AvailableUpdate struct {
+	Version string `json:"version"`
+	Payload string `json:"payload"`
 }
