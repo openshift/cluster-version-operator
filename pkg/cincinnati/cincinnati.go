@@ -27,14 +27,17 @@ func NewClient(id uuid.UUID) Client {
 	return Client{id: id}
 }
 
-// GetUpdatePayloads fetches the next-applicable update payloads from the
-// specified upstream Cincinnati stack given the current version and channel.
-// The next-applicable updates are determined by downloading the update graph,
-// finding the current version within that graph (typically the root node), and
-// then finding all of the children. These children are the available updates
-// for the current version and their payloads indicate from where the actual
-// update image can be downloaded.
-func (c Client) GetUpdatePayloads(upstream string, channel string, version semver.Version) ([]string, error) {
+// Update is a single node from the update graph.
+type Update node
+
+// GetUpdates fetches the next-applicable update payloads from the specified
+// upstream Cincinnati stack given the current version and channel. The next-
+// applicable updates are determined by downloading the update graph, finding
+// the current version within that graph (typically the root node), and then
+// finding all of the children. These children are the available updates for
+// the current version and their payloads indicate from where the actual update
+// image can be downloaded.
+func (c Client) GetUpdates(upstream string, channel string, version semver.Version) ([]Update, error) {
 	// Download the update graph.
 	req, err := http.NewRequest("GET", upstream, nil)
 	if err != nil {
@@ -81,13 +84,12 @@ func (c Client) GetUpdatePayloads(upstream string, channel string, version semve
 		}
 	}
 
-	// Extract the payloads from the children.
-	var payloads []string
+	var updates []Update
 	for _, i := range nextIdxs {
-		payloads = append(payloads, graph.Nodes[i].Payload)
+		updates = append(updates, Update(graph.Nodes[i]))
 	}
 
-	return payloads, nil
+	return updates, nil
 }
 
 type graph struct {
