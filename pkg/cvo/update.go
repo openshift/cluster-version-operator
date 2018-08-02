@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	defaultUpstream = v1.URL("http://localhost:8080")
+	defaultUpstream = v1.URL("http://localhost:8080/graph")
 	defaultChannel  = "fast"
 )
 
