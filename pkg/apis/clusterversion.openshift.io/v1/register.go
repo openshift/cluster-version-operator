@@ -38,6 +38,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&OperatorStatus{},
 		&OperatorStatusList{},
+		&CVOConfig{},
 		&CVOStatus{},
 	)
 

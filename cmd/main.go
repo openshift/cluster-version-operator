@@ -6,12 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/version"
 
 	"github.com/golang/glog"
-	"github.com/google/uuid"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,7 +38,6 @@ var (
 
 func init() {
 	flag.StringVar(&flags.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster. Warning: For testing only, do not use in production.")
-	flag.StringVar(&flags.clusterID, "cluster-id", "", "UUID of the cluster that the channel operator is managing, MUST be set")
 	flag.BoolVar(&flags.version, "version", false, "Print the version")
 	flag.Parse()
 }
@@ -54,14 +51,7 @@ func main() {
 		return
 	}
 
-	id, err := uuid.Parse(flags.clusterID)
-	if err != nil {
-		glog.Fatalf("Invalid clusterID %q, must be a UUID: %s", flags.clusterID, err)
-	} else if id.Variant() != uuid.RFC4122 {
-		glog.Fatalf("Invalid clusterID %q, must be an RFC4122-variant UUID: found %s", flags.clusterID, id.Variant())
-	} else if id.Version() != 4 {
-		glog.Fatalf("Invalid clusterID %q, must be a version-4 UUID: found %s", flags.clusterID, id.Version())
-	}
+	glog.Infof(version.String)
 
 	config, err := loadClientConfig(flags.kubeconfig)
 	if err != nil {
@@ -74,15 +64,15 @@ func main() {
 		RenewDeadline: renewDeadline,
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: startedLeading(config, cincinnati.NewClient(id)),
+			OnStartedLeading: startedLeading(config),
 			OnStoppedLeading: stoppedLeading,
 		},
 	})
 }
 
-func startedLeading(config *rest.Config, client cincinnati.Client) func(<-chan struct{}) {
+func startedLeading(config *rest.Config) func(<-chan struct{}) {
 	return func(stopCh <-chan struct{}) {
-		cvo.StartWorkers(stopCh, config, client)
+		cvo.StartWorkers(stopCh, config)
 	}
 }
 
