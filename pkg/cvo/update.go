@@ -28,14 +28,14 @@ func checkForUpdate(cvoClient versioned.Interface) {
 	}
 	glog.V(4).Infof("Found CVO config: %s", config)
 
-	payloads, err := cincinnati.NewClient(config.ClusterID).GetUpdatePayloads(string(config.Upstream), config.Channel, version.Version)
+	updates, err := cincinnati.NewClient(config.ClusterID).GetUpdates(string(config.Upstream), config.Channel, version.Version)
 	if err != nil {
 		glog.Errorf("Failed to check for update: %v", err)
 		return
 	}
-	glog.V(4).Infof("Found update payloads: %v", payloads)
+	glog.V(4).Infof("Found available updates: %v", updates)
 
-	if updateStatus(cvoClient, payloads) != nil {
+	if updateStatus(cvoClient, updates) != nil {
 		glog.Errorf("Failed to update OperatorStatus for ClusterVersionOperator")
 	}
 }
@@ -82,11 +82,19 @@ func getConfig(cvoClient versioned.Interface) (v1.CVOConfig, error) {
 	return *config, nil
 }
 
-func updateStatus(cvoClient versioned.Interface, payloads []string) error {
+func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) error {
 	status, err := cvoClient.ClusterversionV1().OperatorStatuses(namespace).Get(customResourceName, metav1.GetOptions{})
 	if err != nil && !errors.IsNotFound(err) {
 		glog.Errorf("Failed to get custom resource: %v", err)
 		return err
+	}
+
+	var avUpdates []v1.AvailableUpdate
+	for _, update := range updates {
+		avUpdates = append(avUpdates, v1.AvailableUpdate{
+			Version: update.Version.String(),
+			Payload: update.Payload,
+		})
 	}
 
 	if errors.IsNotFound(err) {
@@ -101,7 +109,7 @@ func updateStatus(cvoClient versioned.Interface, payloads []string) error {
 			LastUpdate: metav1.Now(),
 			Extension: runtime.RawExtension{
 				Object: &v1.CVOStatus{
-					AvailablePayloads: payloads,
+					AvailableUpdates: avUpdates,
 				},
 			},
 		}
@@ -115,7 +123,7 @@ func updateStatus(cvoClient versioned.Interface, payloads []string) error {
 		status.Version = version.Raw
 		status.LastUpdate = metav1.Now()
 		status.Extension.Object = &v1.CVOStatus{
-			AvailablePayloads: payloads,
+			AvailableUpdates: avUpdates,
 		}
 
 		_, err = cvoClient.ClusterversionV1().OperatorStatuses(namespace).Update(status)
