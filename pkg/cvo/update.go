@@ -122,6 +122,10 @@ func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) er
 	} else {
 		status.Version = version.Raw
 		status.LastUpdate = metav1.Now()
+		// The Raw member of runtime.RawExtension needs to be set to nil in
+		// order for Object to be considered when marshalling. Otherwise, it's
+		// assumed that Raw should be used.
+		status.Extension.Raw = nil
 		status.Extension.Object = &v1.CVOStatus{
 			AvailableUpdates: avUpdates,
 		}
