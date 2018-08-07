@@ -413,9 +413,14 @@
   packages = ["pkg/util/proto"]
   revision = "d8ea2fe547a448256204cfc68dfee7b26c720acb"
 
+[[projects]]
+  name = "k8s.io/utils"
+  packages = ["pointer"]
+  revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "d3d5ed6137879663dcb88416859853d626d3ccdf09bafe9978a98752a84c7848"
+  inputs-digest = "d6350b8f225ad080e2c449b52991e636d7627f4b9375e279c9373821b3f7ae65"
   solver-name = "gps-cdcl"
   solver-version = 1
