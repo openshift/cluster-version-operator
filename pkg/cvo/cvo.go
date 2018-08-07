@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
 )
 
@@ -31,6 +32,12 @@ const (
 //   - checking for updates and writing the available updates into the CVO's
 //     OperatorStatus.
 func StartWorkers(stopCh <-chan struct{}, config *rest.Config) {
+	kubeClient, err := v1.NewForConfig(config)
+	if err != nil {
+		glog.Errorf("Failed to create Kubernetes client (Apps): %v", err)
+		return
+	}
+
 	apiExtClient, err := clientset.NewForConfig(config)
 	if err != nil {
 		glog.Errorf("Failed to create Kubernetes client (API Extensions): %v", err)
@@ -39,7 +46,7 @@ func StartWorkers(stopCh <-chan struct{}, config *rest.Config) {
 
 	cvoClient, err := versioned.NewForConfig(config)
 	if err != nil {
-		glog.Errorf("Failed to create Kubernetes client: %v", err)
+		glog.Errorf("Failed to create Kubernetes client (CVO): %v", err)
 		return
 	}
 
@@ -48,4 +55,5 @@ func StartWorkers(stopCh <-chan struct{}, config *rest.Config) {
 
 	go wait.Until(func() { ensureCRDsExist(apiExtClient) }, updateCheckPeriod, stopCh)
 	go wait.Until(func() { checkForUpdate(cvoClient) }, updateCheckPeriod, stopCh)
+	go wait.Until(func() { applyUpdate(cvoClient, kubeClient) }, updateCheckPeriod, stopCh)
 }

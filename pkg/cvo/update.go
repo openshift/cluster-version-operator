@@ -10,9 +10,14 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	typedv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
+	"k8s.io/utils/pointer"
 )
 
 var (
@@ -138,4 +143,72 @@ func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) er
 	}
 
 	return nil
+}
+
+func applyUpdate(cvoClient versioned.Interface, kubeClient typedv1.AppsV1Interface) {
+	config, err := getConfig(cvoClient)
+	if err != nil {
+		glog.Errorf("Failed to get CVO config: %v", err)
+		return
+	}
+	glog.V(4).Infof("Found CVO config: %s", config)
+
+	if config.DesiredUpdate.Payload == "" || config.DesiredUpdate.Version == "" || config.DesiredUpdate.Version == version.Version.String() {
+		return
+	}
+
+	cvo := appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster-version-operator",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"k8s-app": "cluster-version-operator",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32Ptr(1),
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &appsv1.RollingUpdateDeployment{
+					MaxUnavailable: intOrStringPtr(intstr.FromInt(0)),
+					MaxSurge:       intOrStringPtr(intstr.FromInt(1)),
+				},
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k8s-app": "cluster-version-operator",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"k8s-app": "cluster-version-operator",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "cluster-version-operator",
+						Image: config.DesiredUpdate.Payload,
+					}},
+					NodeSelector: map[string]string{
+						"node-role.kubernetes.io/master": "",
+					},
+					Tolerations: []corev1.Toleration{{
+						Key: "node-role.kubernetes.io/master",
+					}},
+				},
+			},
+			RevisionHistoryLimit: pointer.Int32Ptr(0),
+		},
+	}
+
+	glog.Infof("Updating CVO to %s...", config.DesiredUpdate.Version)
+	_, err = kubeClient.Deployments(namespace).Update(&cvo)
+	if err != nil {
+		glog.Errorf("Failed to update CVO: %v", err)
+	}
+}
+
+func intOrStringPtr(v intstr.IntOrString) *intstr.IntOrString {
+	return &v
 }
