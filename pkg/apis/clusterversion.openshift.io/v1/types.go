@@ -96,6 +96,8 @@ type CVOConfig struct {
 	Upstream  URL       `json:"upstream"`
 	Channel   string    `json:"channel"`
 	ClusterID uuid.UUID `json:"clusterId"`
+
+	DesiredUpdate Update `json:"desiredUpdate"`
 }
 
 // URL is a thin wrapper around string that ensures the string is a valid URL.
@@ -110,11 +112,12 @@ type CVOStatus struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	AvailableUpdates []AvailableUpdate `json:"availableUpdates"`
+	AvailableUpdates []Update `json:"availableUpdates"`
 }
 
-// AvailableUpdate represents a potential update to the cluster.
-type AvailableUpdate struct {
+// Update represents a release of the ClusterVersionOperator, referenced by the
+// Payload member.
+type Update struct {
 	Version string `json:"version"`
 	Payload string `json:"payload"`
 }
