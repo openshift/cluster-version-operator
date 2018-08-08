@@ -89,9 +89,9 @@ func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) er
 		return err
 	}
 
-	var avUpdates []v1.AvailableUpdate
+	var cvoUpdates []v1.Update
 	for _, update := range updates {
-		avUpdates = append(avUpdates, v1.AvailableUpdate{
+		cvoUpdates = append(cvoUpdates, v1.Update{
 			Version: update.Version.String(),
 			Payload: update.Payload,
 		})
@@ -109,7 +109,7 @@ func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) er
 			LastUpdate: metav1.Now(),
 			Extension: runtime.RawExtension{
 				Object: &v1.CVOStatus{
-					AvailableUpdates: avUpdates,
+					AvailableUpdates: cvoUpdates,
 				},
 			},
 		}
@@ -127,7 +127,7 @@ func updateStatus(cvoClient versioned.Interface, updates []cincinnati.Update) er
 		// assumed that Raw should be used.
 		status.Extension.Raw = nil
 		status.Extension.Object = &v1.CVOStatus{
-			AvailableUpdates: avUpdates,
+			AvailableUpdates: cvoUpdates,
 		}
 
 		_, err = cvoClient.ClusterversionV1().OperatorStatuses(namespace).Update(status)
