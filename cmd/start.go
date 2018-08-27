@@ -45,12 +45,14 @@ var (
 
 	startOpts struct {
 		kubeconfig string
+		nodeName   string
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
+	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
 }
 
 func runStartCmd(cmd *cobra.Command, args []string) {
@@ -59,6 +61,14 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 
 	// To help debugging, immediately log version
 	glog.Infof("%s", version.String)
+
+	if startOpts.nodeName == "" {
+		name, ok := os.LookupEnv("NODE_NAME")
+		if !ok || name == "" {
+			glog.Fatalf("node-name is required")
+		}
+		startOpts.nodeName = name
+	}
 
 	cb, err := newClientBuilder(startOpts.kubeconfig)
 	if err != nil {
@@ -137,6 +147,11 @@ type clientBuilder struct {
 	config *rest.Config
 }
 
+func (cb *clientBuilder) RestConfig() *rest.Config {
+	c := rest.CopyConfig(cb.config)
+	return c
+}
+
 func (cb *clientBuilder) ClientOrDie(name string) clientset.Interface {
 	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
@@ -205,11 +220,13 @@ func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controlle
 
 func startControllers(ctx *controllerContext) error {
 	go cvo.New(
+		startOpts.nodeName,
 		componentNamespace, componentName,
 		ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
 		ctx.InformerFactory.Clusterversion().V1().OperatorStatuses(),
 		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
 		ctx.KubeInformerFactory.Apps().V1().Deployments(),
+		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.APIExtClientOrDie(componentName),

@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -42,10 +43,18 @@ const (
 	workQueueKey = "kube-system/installconfig"
 )
 
+// ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
+var ownerKind = v1.SchemeGroupVersion.WithKind("CVOConfig")
+
 // Operator defines cluster version operator.
 type Operator struct {
+	// nodename allows CVO to sync fetchPayload to same node as itself.
+	nodename string
 	// namespace and name are used to find the CVOConfig, OperatorStatus.
 	namespace, name string
+
+	// restConfig is used to create resourcebuilder.
+	restConfig *rest.Config
 
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
@@ -68,11 +77,13 @@ type Operator struct {
 
 // New returns a new cluster version operator.
 func New(
+	nodename string,
 	namespace, name string,
 	cvoConfigInformer informersv1.CVOConfigInformer,
 	operatorStatusInformer informersv1.OperatorStatusInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
+	restConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	apiExtClient apiextclientset.Interface,
@@ -82,8 +93,10 @@ func New(
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	optr := &Operator{
+		nodename:      nodename,
 		namespace:     namespace,
 		name:          name,
+		restConfig:    restConfig,
 		client:        client,
 		kubeClient:    kubeClient,
 		apiExtClient:  apiExtClient,
@@ -180,6 +193,7 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
+	// We always run this to make sure CVOConfig can be synced.
 	if err := optr.syncCVOCRDs(); err != nil {
 		return err
 	}
@@ -193,7 +207,12 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	if err := optr.syncCVODeploy(config); err != nil {
+	payload, err := optr.syncUpdatePayloadContents(updatePayloadsPathPrefix, config)
+	if err != nil {
+		return err
+	}
+
+	if err := optr.syncUpdatePayload(config, payload); err != nil {
 		return err
 	}
 

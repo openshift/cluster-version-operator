@@ -5,6 +5,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 )
 
+// EnsureConfigMap ensures that the existing matches the required.
+// modified is set to true when existing had to be updated with required.
+func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1.ConfigMap) {
+	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+
+	mergeMap(modified, &existing.Data, required.Data)
+}
+
 // ensurePodTemplateSpec ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, required corev1.PodTemplateSpec) {

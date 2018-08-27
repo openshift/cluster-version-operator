@@ -346,7 +346,7 @@
   version = "kubernetes-1.11.1"
 
 [[projects]]
-  digest = "1:c6d38303d9da335700612bb53b1bb1f6fd18e8335b76049a798a2303eb9231d3"
+  digest = "1:159c095dfb7597e624380203dc6151fe870f7c52b4950a3459ecf1890f6500e2"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -380,6 +380,7 @@
     "pkg/util/json",
     "pkg/util/mergepatch",
     "pkg/util/net",
+    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/strategicpatch",
@@ -584,11 +585,14 @@
   analyzer-version = 1
   input-imports = [
     "github.com/blang/semver",
+    "github.com/davecgh/go-spew/spew",
     "github.com/golang/glog",
     "github.com/google/uuid",
     "github.com/spf13/cobra",
     "k8s.io/api/apps/v1",
+    "k8s.io/api/batch/v1",
     "k8s.io/api/core/v1",
+    "k8s.io/api/rbac/v1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
@@ -598,14 +602,18 @@
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
+    "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
+    "k8s.io/apimachinery/pkg/util/errors",
     "k8s.io/apimachinery/pkg/util/intstr",
+    "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/wait",
+    "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/discovery/fake",
@@ -614,7 +622,9 @@
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/apps/v1",
+    "k8s.io/client-go/kubernetes/typed/batch/v1",
     "k8s.io/client-go/kubernetes/typed/core/v1",
+    "k8s.io/client-go/kubernetes/typed/rbac/v1",
     "k8s.io/client-go/listers/apps/v1",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/testing",

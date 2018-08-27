@@ -43,11 +43,14 @@ func EnsureCVOConfig(modified *bool, existing *v1.CVOConfig, required v1.CVOConf
 		*modified = true
 		existing.ClusterID = required.ClusterID
 	}
-	if existing.DesiredUpdate.Payload != required.DesiredUpdate.Payload {
+
+	if required.DesiredUpdate.Payload != "" &&
+		existing.DesiredUpdate.Payload != required.DesiredUpdate.Payload {
 		*modified = true
 		existing.DesiredUpdate.Payload = required.DesiredUpdate.Payload
 	}
-	if existing.DesiredUpdate.Version != required.DesiredUpdate.Version {
+	if required.DesiredUpdate.Version != "" &&
+		existing.DesiredUpdate.Version != required.DesiredUpdate.Version {
 		*modified = true
 		existing.DesiredUpdate.Version = required.DesiredUpdate.Version
 	}
