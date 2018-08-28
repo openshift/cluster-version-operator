@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	informers "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions"
@@ -46,6 +47,8 @@ var (
 	startOpts struct {
 		kubeconfig string
 		nodeName   string
+
+		enableAutoUpdate bool
 	}
 )
 
@@ -53,6 +56,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
+	startCmd.PersistentFlags().BoolVar(&startOpts.enableAutoUpdate, "enable-auto-update", true, "Enables the autoupdate controller.")
 }
 
 func runStartCmd(cmd *cobra.Command, args []string) {
@@ -203,13 +207,13 @@ func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controlle
 	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
 	apiExtClient := cb.APIExtClientOrDie("apiext-shared-informer")
 
-	sharedNamespacedInformers := informers.NewSharedInformerFactory(client, resyncPeriod()())
+	sharedInformers := informers.NewSharedInformerFactory(client, resyncPeriod()())
 	kubeSharedInformer := kubeinformers.NewSharedInformerFactory(kubeClient, resyncPeriod()())
 	apiExtSharedInformer := apiextinformers.NewSharedInformerFactory(apiExtClient, resyncPeriod()())
 
 	return &controllerContext{
 		ClientBuilder:         cb,
-		InformerFactory:       sharedNamespacedInformers,
+		InformerFactory:       sharedInformers,
 		KubeInformerFactory:   kubeSharedInformer,
 		APIExtInformerFactory: apiExtSharedInformer,
 		Stop:             stop,
@@ -231,6 +235,16 @@ func startControllers(ctx *controllerContext) error {
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.APIExtClientOrDie(componentName),
 	).Run(2, ctx.Stop)
+
+	if startOpts.enableAutoUpdate {
+		go autoupdate.New(
+			componentNamespace, componentName,
+			ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
+			ctx.InformerFactory.Clusterversion().V1().OperatorStatuses(),
+			ctx.ClientBuilder.ClientOrDie(componentName),
+			ctx.ClientBuilder.KubeClientOrDie(componentName),
+		).Run(2, ctx.Stop)
+	}
 
 	return nil
 }
