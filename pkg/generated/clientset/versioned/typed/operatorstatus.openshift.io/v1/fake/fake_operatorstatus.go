@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	operatorstatusopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,29 +30,29 @@ import (
 
 // FakeOperatorStatuses implements OperatorStatusInterface
 type FakeOperatorStatuses struct {
-	Fake *FakeClusterversionV1
+	Fake *FakeOperatorstatusV1
 	ns   string
 }
 
-var operatorstatusesResource = schema.GroupVersionResource{Group: "clusterversion.openshift.io", Version: "v1", Resource: "operatorstatuses"}
+var operatorstatusesResource = schema.GroupVersionResource{Group: "operatorstatus.openshift.io", Version: "v1", Resource: "operatorstatuses"}
 
-var operatorstatusesKind = schema.GroupVersionKind{Group: "clusterversion.openshift.io", Version: "v1", Kind: "OperatorStatus"}
+var operatorstatusesKind = schema.GroupVersionKind{Group: "operatorstatus.openshift.io", Version: "v1", Kind: "OperatorStatus"}
 
 // Get takes name of the operatorStatus, and returns the corresponding operatorStatus object, and an error if there is any.
-func (c *FakeOperatorStatuses) Get(name string, options v1.GetOptions) (result *clusterversionopenshiftiov1.OperatorStatus, err error) {
+func (c *FakeOperatorStatuses) Get(name string, options v1.GetOptions) (result *operatorstatusopenshiftiov1.OperatorStatus, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(operatorstatusesResource, c.ns, name), &clusterversionopenshiftiov1.OperatorStatus{})
+		Invokes(testing.NewGetAction(operatorstatusesResource, c.ns, name), &operatorstatusopenshiftiov1.OperatorStatus{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*clusterversionopenshiftiov1.OperatorStatus), err
+	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
 }
 
 // List takes label and field selectors, and returns the list of OperatorStatuses that match those selectors.
-func (c *FakeOperatorStatuses) List(opts v1.ListOptions) (result *clusterversionopenshiftiov1.OperatorStatusList, err error) {
+func (c *FakeOperatorStatuses) List(opts v1.ListOptions) (result *operatorstatusopenshiftiov1.OperatorStatusList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(operatorstatusesResource, operatorstatusesKind, c.ns, opts), &clusterversionopenshiftiov1.OperatorStatusList{})
+		Invokes(testing.NewListAction(operatorstatusesResource, operatorstatusesKind, c.ns, opts), &operatorstatusopenshiftiov1.OperatorStatusList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeOperatorStatuses) List(opts v1.ListOptions) (result *clusterversion
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &clusterversionopenshiftiov1.OperatorStatusList{ListMeta: obj.(*clusterversionopenshiftiov1.OperatorStatusList).ListMeta}
-	for _, item := range obj.(*clusterversionopenshiftiov1.OperatorStatusList).Items {
+	list := &operatorstatusopenshiftiov1.OperatorStatusList{ListMeta: obj.(*operatorstatusopenshiftiov1.OperatorStatusList).ListMeta}
+	for _, item := range obj.(*operatorstatusopenshiftiov1.OperatorStatusList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,31 +79,31 @@ func (c *FakeOperatorStatuses) Watch(opts v1.ListOptions) (watch.Interface, erro
 }
 
 // Create takes the representation of a operatorStatus and creates it.  Returns the server's representation of the operatorStatus, and an error, if there is any.
-func (c *FakeOperatorStatuses) Create(operatorStatus *clusterversionopenshiftiov1.OperatorStatus) (result *clusterversionopenshiftiov1.OperatorStatus, err error) {
+func (c *FakeOperatorStatuses) Create(operatorStatus *operatorstatusopenshiftiov1.OperatorStatus) (result *operatorstatusopenshiftiov1.OperatorStatus, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(operatorstatusesResource, c.ns, operatorStatus), &clusterversionopenshiftiov1.OperatorStatus{})
+		Invokes(testing.NewCreateAction(operatorstatusesResource, c.ns, operatorStatus), &operatorstatusopenshiftiov1.OperatorStatus{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*clusterversionopenshiftiov1.OperatorStatus), err
+	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
 }
 
 // Update takes the representation of a operatorStatus and updates it. Returns the server's representation of the operatorStatus, and an error, if there is any.
-func (c *FakeOperatorStatuses) Update(operatorStatus *clusterversionopenshiftiov1.OperatorStatus) (result *clusterversionopenshiftiov1.OperatorStatus, err error) {
+func (c *FakeOperatorStatuses) Update(operatorStatus *operatorstatusopenshiftiov1.OperatorStatus) (result *operatorstatusopenshiftiov1.OperatorStatus, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(operatorstatusesResource, c.ns, operatorStatus), &clusterversionopenshiftiov1.OperatorStatus{})
+		Invokes(testing.NewUpdateAction(operatorstatusesResource, c.ns, operatorStatus), &operatorstatusopenshiftiov1.OperatorStatus{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*clusterversionopenshiftiov1.OperatorStatus), err
+	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
 }
 
 // Delete takes name of the operatorStatus and deletes it. Returns an error if one occurs.
 func (c *FakeOperatorStatuses) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(operatorstatusesResource, c.ns, name), &clusterversionopenshiftiov1.OperatorStatus{})
+		Invokes(testing.NewDeleteAction(operatorstatusesResource, c.ns, name), &operatorstatusopenshiftiov1.OperatorStatus{})
 
 	return err
 }
@@ -112,17 +112,17 @@ func (c *FakeOperatorStatuses) Delete(name string, options *v1.DeleteOptions) er
 func (c *FakeOperatorStatuses) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(operatorstatusesResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &clusterversionopenshiftiov1.OperatorStatusList{})
+	_, err := c.Fake.Invokes(action, &operatorstatusopenshiftiov1.OperatorStatusList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched operatorStatus.
-func (c *FakeOperatorStatuses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *clusterversionopenshiftiov1.OperatorStatus, err error) {
+func (c *FakeOperatorStatuses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operatorstatusopenshiftiov1.OperatorStatus, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(operatorstatusesResource, c.ns, name, data, subresources...), &clusterversionopenshiftiov1.OperatorStatus{})
+		Invokes(testing.NewPatchSubresourceAction(operatorstatusesResource, c.ns, name, data, subresources...), &operatorstatusopenshiftiov1.OperatorStatus{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*clusterversionopenshiftiov1.OperatorStatus), err
+	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
 }

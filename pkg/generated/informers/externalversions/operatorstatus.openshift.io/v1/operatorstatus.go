@@ -21,10 +21,10 @@ package v1
 import (
 	time "time"
 
-	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	operatorstatusopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	versioned "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	v1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -61,16 +61,16 @@ func NewFilteredOperatorStatusInformer(client versioned.Interface, namespace str
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ClusterversionV1().OperatorStatuses(namespace).List(options)
+				return client.OperatorstatusV1().OperatorStatuses(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ClusterversionV1().OperatorStatuses(namespace).Watch(options)
+				return client.OperatorstatusV1().OperatorStatuses(namespace).Watch(options)
 			},
 		},
-		&clusterversionopenshiftiov1.OperatorStatus{},
+		&operatorstatusopenshiftiov1.OperatorStatus{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *operatorStatusInformer) defaultInformer(client versioned.Interface, res
 }
 
 func (f *operatorStatusInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&clusterversionopenshiftiov1.OperatorStatus{}, f.defaultInformer)
+	return f.factory.InformerFor(&operatorstatusopenshiftiov1.OperatorStatus{}, f.defaultInformer)
 }
 
 func (f *operatorStatusInformer) Lister() v1.OperatorStatusLister {

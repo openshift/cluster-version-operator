@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// CVOConfigs returns a CVOConfigInformer.
-	CVOConfigs() CVOConfigInformer
+	// OperatorStatuses returns a OperatorStatusInformer.
+	OperatorStatuses() OperatorStatusInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// CVOConfigs returns a CVOConfigInformer.
-func (v *version) CVOConfigs() CVOConfigInformer {
-	return &cVOConfigInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// OperatorStatuses returns a OperatorStatusInformer.
+func (v *version) OperatorStatuses() OperatorStatusInformer {
+	return &operatorStatusInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
