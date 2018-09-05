@@ -8,7 +8,7 @@ import (
 )
 
 // SchemeGroupVersion is group version used to register these objects.
-var SchemeGroupVersion = schema.GroupVersion{Group: apis.ClusterVersionGroupName, Version: "v1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: apis.OperatorStatusGroupName, Version: "v1"}
 
 // Resource takes an unqualified resource and returns a Group qualified
 // GroupResource.
@@ -36,8 +36,8 @@ func init() {
 // Adds the list of known types to api.Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&CVOConfig{},
-		&CVOStatus{},
+		&OperatorStatus{},
+		&OperatorStatusList{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
