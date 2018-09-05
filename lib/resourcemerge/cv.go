@@ -1,11 +1,12 @@
 package resourcemerge
 
 import (
-	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-func EnsureOperatorStatus(modified *bool, existing *v1.OperatorStatus, required v1.OperatorStatus) {
+func EnsureOperatorStatus(modified *bool, existing *osv1.OperatorStatus, required osv1.OperatorStatus) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Condition, required.Condition) {
 		*modified = true
@@ -29,7 +30,7 @@ func EnsureOperatorStatus(modified *bool, existing *v1.OperatorStatus, required 
 	}
 }
 
-func EnsureCVOConfig(modified *bool, existing *v1.CVOConfig, required v1.CVOConfig) {
+func EnsureCVOConfig(modified *bool, existing *cvv1.CVOConfig, required cvv1.CVOConfig) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if existing.Upstream != required.Upstream {
 		*modified = true

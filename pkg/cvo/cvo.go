@@ -7,10 +7,13 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	informersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
-	listersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
+	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextinformersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1"
@@ -44,7 +47,7 @@ const (
 )
 
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
-var ownerKind = v1.SchemeGroupVersion.WithKind("CVOConfig")
+var ownerKind = cvv1.SchemeGroupVersion.WithKind("CVOConfig")
 
 // Operator defines cluster version operator.
 type Operator struct {
@@ -63,8 +66,8 @@ type Operator struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister      listersv1.CVOConfigLister
-	operatorStatusLister listersv1.OperatorStatusLister
+	cvoConfigLister      cvlistersv1.CVOConfigLister
+	operatorStatusLister oslistersv1.OperatorStatusLister
 
 	crdLister          apiextlistersv1beta1.CustomResourceDefinitionLister
 	deployLister       appslisterv1.DeploymentLister
@@ -79,8 +82,8 @@ type Operator struct {
 func New(
 	nodename string,
 	namespace, name string,
-	cvoConfigInformer informersv1.CVOConfigInformer,
-	operatorStatusInformer informersv1.OperatorStatusInformer,
+	cvoConfigInformer cvinformersv1.CVOConfigInformer,
+	operatorStatusInformer osinformersv1.OperatorStatusInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
 	restConfig *rest.Config,
@@ -203,7 +206,7 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	if err := optr.syncStatus(config, v1.OperatorStatusCondition{Type: v1.OperatorStatusConditionTypeWorking, Message: fmt.Sprintf("Working towards %s", config)}); err != nil {
+	if err := optr.syncStatus(config, osv1.OperatorStatusCondition{Type: osv1.OperatorStatusConditionTypeWorking, Message: fmt.Sprintf("Working towards %s", config)}); err != nil {
 		return err
 	}
 
@@ -216,17 +219,17 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	return optr.syncStatus(config, v1.OperatorStatusCondition{Type: v1.OperatorStatusConditionTypeDone, Message: fmt.Sprintf("Done applying %s", config)})
+	return optr.syncStatus(config, osv1.OperatorStatusCondition{Type: osv1.OperatorStatusConditionTypeDone, Message: fmt.Sprintf("Done applying %s", config)})
 }
 
-func (optr *Operator) getConfig() (*v1.CVOConfig, error) {
+func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 	// XXX: fetch upstream, channel, cluster ID from InstallConfig
-	upstream := v1.URL("http://localhost:8080/graph")
+	upstream := cvv1.URL("http://localhost:8080/graph")
 	channel := "fast"
 	id, _ := uuid.NewRandom()
 
 	// XXX: generate CVOConfig from options calculated above.
-	config := &v1.CVOConfig{
+	config := &cvv1.CVOConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: optr.namespace,
 			Name:      optr.name,

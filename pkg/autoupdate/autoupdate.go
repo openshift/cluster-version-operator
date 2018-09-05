@@ -12,8 +12,10 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
-	informersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
-	listersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
+	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -44,8 +46,8 @@ type Controller struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister      listersv1.CVOConfigLister
-	operatorStatusLister listersv1.OperatorStatusLister
+	cvoConfigLister      cvlistersv1.CVOConfigLister
+	operatorStatusLister oslistersv1.OperatorStatusLister
 
 	cvoConfigListerSynced cache.InformerSynced
 	operatorStatusSynced  cache.InformerSynced
@@ -57,8 +59,8 @@ type Controller struct {
 // New returns a new autoupdate controller.
 func New(
 	namespace, name string,
-	cvoConfigInformer informersv1.CVOConfigInformer,
-	operatorStatusInformer informersv1.OperatorStatusInformer,
+	cvoConfigInformer cvinformersv1.CVOConfigInformer,
+	operatorStatusInformer osinformersv1.OperatorStatusInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 ) *Controller {

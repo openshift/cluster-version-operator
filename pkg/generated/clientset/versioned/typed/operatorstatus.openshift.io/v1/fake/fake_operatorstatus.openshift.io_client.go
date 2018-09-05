@@ -19,22 +19,22 @@ limitations under the License.
 package fake
 
 import (
-	v1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/clusterversion.openshift.io/v1"
+	v1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeClusterversionV1 struct {
+type FakeOperatorstatusV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeClusterversionV1) CVOConfigs(namespace string) v1.CVOConfigInterface {
-	return &FakeCVOConfigs{c, namespace}
+func (c *FakeOperatorstatusV1) OperatorStatuses(namespace string) v1.OperatorStatusInterface {
+	return &FakeOperatorStatuses{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeClusterversionV1) RESTClient() rest.Interface {
+func (c *FakeOperatorstatusV1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }
