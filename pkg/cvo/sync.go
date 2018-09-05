@@ -188,11 +188,11 @@ func updatedesired(desired v1.Update) bool {
 func (optr *Operator) syncCVOCRDs() error {
 	crds := []*apiextv1beta1.CustomResourceDefinition{{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("operatorstatuses.%s", apis.GroupName),
+			Name:      fmt.Sprintf("operatorstatuses.%s", apis.OperatorStatusGroupName),
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-			Group:   apis.GroupName,
+			Group:   apis.OperatorStatusGroupName,
 			Version: "v1",
 			Scope:   "Namespaced",
 			Names: apiextv1beta1.CustomResourceDefinitionNames{
@@ -204,11 +204,11 @@ func (optr *Operator) syncCVOCRDs() error {
 		},
 	}, {
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("cvoconfigs.%s", apis.GroupName),
+			Name:      fmt.Sprintf("cvoconfigs.%s", apis.ClusterVersionGroupName),
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-			Group:   apis.GroupName,
+			Group:   apis.ClusterVersionGroupName,
 			Version: "v1",
 			Scope:   "Namespaced",
 			Names: apiextv1beta1.CustomResourceDefinitionNames{
