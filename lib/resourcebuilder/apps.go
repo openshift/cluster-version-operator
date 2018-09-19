@@ -17,38 +17,29 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func newAppsBuilder(config *rest.Config, m lib.Manifest) (Interface, error) {
-	kind := m.GVK.Kind
-	switch kind {
-	case DeploymentKind:
-		return newDeploymentBuilder(config, m), nil
-	default:
-		return nil, fmt.Errorf("no Apps builder found for %s", kind)
-	}
-}
-
-const (
-	// DeploymentKind is kind for Deployment.
-	DeploymentKind = "Deployment"
-)
-
 type deploymentBuilder struct {
-	client *appsclientv1.AppsV1Client
-	raw    []byte
+	client   *appsclientv1.AppsV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newDeploymentBuilder(config *rest.Config, m lib.Manifest) *deploymentBuilder {
+func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &deploymentBuilder{
 		client: appsclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *deploymentBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *deploymentBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *deploymentBuilder) Do() error {
 	deployment := resourceread.ReadDeploymentV1OrDie(b.raw)
-
-	modifier(deployment)
-
+	if b.modifier != nil {
+		b.modifier(deployment)
+	}
 	_, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
 		return err

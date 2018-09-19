@@ -1,8 +1,6 @@
 package resourcebuilder
 
 import (
-	"fmt"
-
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -10,60 +8,83 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func newCoreBuilder(config *rest.Config, m lib.Manifest) (Interface, error) {
-	kind := m.GVK.Kind
-	switch kind {
-	case serviceAccountKind:
-		return newServiceAccountBuilder(config, m), nil
-	case configMapKind:
-		return newConfigMapBuilder(config, m), nil
-	default:
-		return nil, fmt.Errorf("no Core builder found for %s", kind)
-	}
-}
-
-const (
-	serviceAccountKind = "ServiceAccount"
-)
-
 type serviceAccountBuilder struct {
-	client *coreclientv1.CoreV1Client
-	raw    []byte
+	client   *coreclientv1.CoreV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newServiceAccountBuilder(config *rest.Config, m lib.Manifest) *serviceAccountBuilder {
+func newServiceAccountBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &serviceAccountBuilder{
 		client: coreclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *serviceAccountBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *serviceAccountBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *serviceAccountBuilder) Do() error {
 	serviceAccount := resourceread.ReadServiceAccountV1OrDie(b.raw)
-	modifier(serviceAccount)
+	if b.modifier != nil {
+		b.modifier(serviceAccount)
+	}
 	_, _, err := resourceapply.ApplyServiceAccount(b.client, serviceAccount)
 	return err
 }
 
-const (
-	configMapKind = "ConfigMap"
-)
-
 type configMapBuilder struct {
-	client *coreclientv1.CoreV1Client
-	raw    []byte
+	client   *coreclientv1.CoreV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newConfigMapBuilder(config *rest.Config, m lib.Manifest) *configMapBuilder {
+func newConfigMapBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &configMapBuilder{
 		client: coreclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *configMapBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *configMapBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *configMapBuilder) Do() error {
 	configMap := resourceread.ReadConfigMapV1OrDie(b.raw)
-	modifier(configMap)
+	if b.modifier != nil {
+		b.modifier(configMap)
+	}
 	_, _, err := resourceapply.ApplyConfigMap(b.client, configMap)
+	return err
+}
+
+type namespaceBuilder struct {
+	client   *coreclientv1.CoreV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
+}
+
+func newNamespaceBuilder(config *rest.Config, m lib.Manifest) Interface {
+	return &namespaceBuilder{
+		client: coreclientv1.NewForConfigOrDie(config),
+		raw:    m.Raw,
+	}
+}
+
+func (b *namespaceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *namespaceBuilder) Do() error {
+	namespace := resourceread.ReadNamespaceV1OrDie(b.raw)
+	if b.modifier != nil {
+		b.modifier(namespace)
+	}
+	_, _, err := resourceapply.ApplyNamespace(b.client, namespace)
 	return err
 }
