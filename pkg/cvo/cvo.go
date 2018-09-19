@@ -224,7 +224,7 @@ func (optr *Operator) sync(key string) error {
 	if err != nil {
 		return err
 	}
-	payload, err := optr.loadUpdatePayload(payloadDir)
+	payload, err := loadUpdatePayload(payloadDir)
 	if err != nil {
 		return err
 	}

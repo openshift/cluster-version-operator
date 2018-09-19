@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	imagev1 "github.com/openshift/api/image/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,13 +17,14 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
 )
 
 type updatePayload struct {
 	// XXX: cincinatti.json struct
 
-	// XXX: image-references
+	imageRef *imagev1.ImageStream
 
 	manifests []lib.Manifest
 }
@@ -35,7 +37,7 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-func (optr *Operator) loadUpdatePayload(dir string) (*updatePayload, error) {
+func loadUpdatePayload(dir string) (*updatePayload, error) {
 	glog.V(4).Info("Loading updatepayload from %q", dir)
 	if err := validateUpdatePayload(dir); err != nil {
 		return nil, err
@@ -45,6 +47,11 @@ func (optr *Operator) loadUpdatePayload(dir string) (*updatePayload, error) {
 	cjf := filepath.Join(dir, cincinnatiJSONFile)
 	// XXX: load imageReferencesFile
 	irf := filepath.Join(dir, imageReferencesFile)
+	imageRefData, err := ioutil.ReadFile(irf)
+	if err != nil {
+		return nil, err
+	}
+	imageRef := resourceread.ReadImageStreamV1OrDie(imageRefData)
 
 	var mfs []string
 	skipFiles := sets.NewString(cjf, irf)
@@ -69,6 +76,7 @@ func (optr *Operator) loadUpdatePayload(dir string) (*updatePayload, error) {
 	}
 
 	return &updatePayload{
+		imageRef:  imageRef,
 		manifests: manifests,
 	}, nil
 }
