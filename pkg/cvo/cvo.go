@@ -6,18 +6,11 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
-	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
-	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextinformersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1"
 	apiextlistersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -30,6 +23,15 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
+	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
+	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 )
 
 const (
@@ -39,11 +41,6 @@ const (
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
-
-	// installconfigKey is the key in ConfigMap that stores the InstallConfig.
-	installconfigKey = "installconfig"
-
-	workQueueKey = "kube-system/installconfig"
 )
 
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
@@ -146,6 +143,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 }
 
 func (optr *Operator) eventHandler() cache.ResourceEventHandler {
+	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { optr.queue.Add(workQueueKey) },
 		UpdateFunc: func(old, new interface{}) { optr.queue.Add(workQueueKey) },
@@ -197,20 +195,36 @@ func (optr *Operator) sync(key string) error {
 	}()
 
 	// We always run this to make sure CVOConfig can be synced.
-	if err := optr.syncCVOCRDs(); err != nil {
+	if err := optr.syncCustomResourceDefinitions(); err != nil {
 		return err
 	}
 
-	config, err := optr.getConfig()
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
 	}
+
+	var obj *cvv1.CVOConfig
+	obj, err = optr.cvoConfigLister.CVOConfigs(namespace).Get(name)
+	if apierrors.IsNotFound(err) {
+		obj, err = optr.getConfig()
+	}
+	if err != nil {
+		return err
+	}
+
+	config := &cvv1.CVOConfig{}
+	obj.DeepCopyInto(config)
 
 	if err := optr.syncStatus(config, osv1.OperatorStatusCondition{Type: osv1.OperatorStatusConditionTypeWorking, Message: fmt.Sprintf("Working towards %s", config)}); err != nil {
 		return err
 	}
 
-	payload, err := optr.syncUpdatePayloadContents(updatePayloadsPathPrefix, config)
+	payloadDir, err := optr.updatePayloadDir(config)
+	if err != nil {
+		return err
+	}
+	payload, err := optr.loadUpdatePayload(payloadDir)
 	if err != nil {
 		return err
 	}
@@ -223,7 +237,6 @@ func (optr *Operator) sync(key string) error {
 }
 
 func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
-	// XXX: fetch upstream, channel, cluster ID from InstallConfig
 	upstream := cvv1.URL("http://localhost:8080/graph")
 	channel := "fast"
 	id, _ := uuid.NewRandom()
