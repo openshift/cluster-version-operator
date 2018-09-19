@@ -166,6 +166,18 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:2b1e83b42600b0f89e6e9cb239c6cc9e1e3b9ab14cf205f5846b94e101a8e7d7"
+  name = "github.com/openshift/api"
+  packages = [
+    "image/docker10",
+    "image/dockerpre012",
+    "image/v1",
+  ]
+  pruneopts = "NUT"
+  revision = "4507dcb6a81f6593aa336c5b47927cf0ae297b72"
+
+[[projects]]
+  branch = "master"
   digest = "1:3bf17a6e6eaa6ad24152148a631d18662f7212e21637c2699bff3369b7f00fa2"
   name = "github.com/petar/GoLLRB"
   packages = ["llrb"]
@@ -588,6 +600,7 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/golang/glog",
     "github.com/google/uuid",
+    "github.com/openshift/api/image/v1",
     "github.com/spf13/cobra",
     "k8s.io/api/apps/v1",
     "k8s.io/api/batch/v1",
