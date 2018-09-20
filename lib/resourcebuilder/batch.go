@@ -16,37 +16,29 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func newBatchBuilder(config *rest.Config, m lib.Manifest) (Interface, error) {
-	kind := m.GVK.Kind
-	switch kind {
-	case jobKind:
-		return newJobBuilder(config, m), nil
-	default:
-		return nil, fmt.Errorf("no Batch builder found for %s", kind)
-	}
-}
-
-const (
-	jobKind = "Job"
-)
-
 type jobBuilder struct {
-	client *batchclientv1.BatchV1Client
-	raw    []byte
+	client   *batchclientv1.BatchV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newJobBuilder(config *rest.Config, m lib.Manifest) *jobBuilder {
+func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &jobBuilder{
 		client: batchclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *jobBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *jobBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *jobBuilder) Do() error {
 	job := resourceread.ReadJobV1OrDie(b.raw)
-
-	modifier(job)
-
+	if b.modifier != nil {
+		b.modifier(job)
+	}
 	_, updated, err := resourceapply.ApplyJob(b.client, job)
 	if err != nil {
 		return err

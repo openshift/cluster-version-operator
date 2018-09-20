@@ -1,7 +1,6 @@
 package resourcebuilder
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -17,38 +16,29 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func newAPIExtBuilder(config *rest.Config, m lib.Manifest) (Interface, error) {
-	kind := m.GVK.Kind
-	switch kind {
-	case CRDKind:
-		return newCRDBuilder(config, m), nil
-	default:
-		return nil, fmt.Errorf("no APIExt builder found for %s", kind)
-	}
-}
-
-const (
-	// CRDKind is kind for CustomResourceDefinitions
-	CRDKind = "CustomResourceDefinition"
-)
-
 type crdBuilder struct {
-	client *apiextclientv1beta1.ApiextensionsV1beta1Client
-	raw    []byte
+	client   *apiextclientv1beta1.ApiextensionsV1beta1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newCRDBuilder(config *rest.Config, m lib.Manifest) *crdBuilder {
+func newCRDBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &crdBuilder{
 		client: apiextclientv1beta1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *crdBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *crdBuilder) Do() error {
 	crd := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(b.raw)
-
-	modifier(crd)
-
+	if b.modifier != nil {
+		b.modifier(crd)
+	}
 	_, updated, err := resourceapply.ApplyCustomResourceDefinition(b.client, crd)
 	if err != nil {
 		return err

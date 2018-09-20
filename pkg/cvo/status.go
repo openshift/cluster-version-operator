@@ -17,16 +17,14 @@ func (optr *Operator) syncStatus(config *cvv1.CVOConfig, cond osv1.OperatorStatu
 		return fmt.Errorf("invalid cond %s", cond.Type)
 	}
 
-	updates, err := checkForUpdate(*config)
-	if err != nil {
-		return err
-	}
 	var cvoUpdates []cvv1.Update
-	for _, update := range updates {
-		cvoUpdates = append(cvoUpdates, cvv1.Update{
-			Version: update.Version.String(),
-			Payload: update.Payload,
-		})
+	if updates, err := checkForUpdate(*config); err == nil {
+		for _, update := range updates {
+			cvoUpdates = append(cvoUpdates, cvv1.Update{
+				Version: update.Version.String(),
+				Payload: update.Payload,
+			})
+		}
 	}
 
 	status := &osv1.OperatorStatus{
@@ -44,7 +42,7 @@ func (optr *Operator) syncStatus(config *cvv1.CVOConfig, cond osv1.OperatorStatu
 			},
 		},
 	}
-	_, _, err = resourceapply.ApplyOperatorStatusFromCache(optr.operatorStatusLister, optr.client.OperatorstatusV1(), status)
+	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.operatorStatusLister, optr.client.OperatorstatusV1(), status)
 	return err
 }
 

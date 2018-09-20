@@ -1,8 +1,6 @@
 package resourcebuilder
 
 import (
-	"fmt"
-
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -10,60 +8,110 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func newRbacBuilder(config *rest.Config, m lib.Manifest) (Interface, error) {
-	kind := m.GVK.Kind
-	switch kind {
-	case clusterRoleKind:
-		return newClusterRoleBuilder(config, m), nil
-	case clusterRoleBindingKind:
-		return newClusterRoleBindingBuilder(config, m), nil
-	default:
-		return nil, fmt.Errorf("no Rbac builder found for %s", kind)
-	}
-}
-
-const (
-	clusterRoleKind = "ClusterRole"
-)
-
 type clusterRoleBuilder struct {
-	client *rbacclientv1.RbacV1Client
-	raw    []byte
+	client   *rbacclientv1.RbacV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newClusterRoleBuilder(config *rest.Config, m lib.Manifest) *clusterRoleBuilder {
+func newClusterRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &clusterRoleBuilder{
 		client: rbacclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *clusterRoleBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *clusterRoleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *clusterRoleBuilder) Do() error {
 	clusterRole := resourceread.ReadClusterRoleV1OrDie(b.raw)
-	modifier(clusterRole)
+	if b.modifier != nil {
+		b.modifier(clusterRole)
+	}
 	_, _, err := resourceapply.ApplyClusterRole(b.client, clusterRole)
 	return err
 }
 
-const (
-	clusterRoleBindingKind = "ClusterRoleBinding"
-)
-
 type clusterRoleBindingBuilder struct {
-	client *rbacclientv1.RbacV1Client
-	raw    []byte
+	client   *rbacclientv1.RbacV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
 }
 
-func newClusterRoleBindingBuilder(config *rest.Config, m lib.Manifest) *clusterRoleBindingBuilder {
+func newClusterRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &clusterRoleBindingBuilder{
 		client: rbacclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *clusterRoleBindingBuilder) Do(modifier MetaV1ObjectModifierFunc) error {
+func (b *clusterRoleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *clusterRoleBindingBuilder) Do() error {
 	clusterRoleBinding := resourceread.ReadClusterRoleBindingV1OrDie(b.raw)
-	modifier(clusterRoleBinding)
+	if b.modifier != nil {
+		b.modifier(clusterRoleBinding)
+	}
 	_, _, err := resourceapply.ApplyClusterRoleBinding(b.client, clusterRoleBinding)
+	return err
+}
+
+type roleBuilder struct {
+	client   *rbacclientv1.RbacV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
+}
+
+func newRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
+	return &roleBuilder{
+		client: rbacclientv1.NewForConfigOrDie(config),
+		raw:    m.Raw,
+	}
+}
+
+func (b *roleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *roleBuilder) Do() error {
+	role := resourceread.ReadRoleV1OrDie(b.raw)
+	if b.modifier != nil {
+		b.modifier(role)
+	}
+	_, _, err := resourceapply.ApplyRole(b.client, role)
+	return err
+}
+
+type roleBindingBuilder struct {
+	client   *rbacclientv1.RbacV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
+}
+
+func newRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
+	return &roleBindingBuilder{
+		client: rbacclientv1.NewForConfigOrDie(config),
+		raw:    m.Raw,
+	}
+}
+
+func (b *roleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *roleBindingBuilder) Do() error {
+	roleBinding := resourceread.ReadRoleBindingV1OrDie(b.raw)
+	if b.modifier != nil {
+		b.modifier(roleBinding)
+	}
+	_, _, err := resourceapply.ApplyRoleBinding(b.client, roleBinding)
 	return err
 }
