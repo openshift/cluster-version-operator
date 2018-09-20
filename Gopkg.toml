@@ -54,3 +54,7 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 [[constraint]]
   name = "github.com/spf13/cobra"
   version = "v0.0.3"
+
+[[constraint]]
+  name = "github.com/openshift/api"
+  branch = "master"
