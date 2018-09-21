@@ -1,6 +1,7 @@
 package resourcebuilder
 
 import (
+	securityv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -25,6 +26,7 @@ func init() {
 	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newClusterRoleBindingBuilder)
 	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("Role"), newRoleBuilder)
 	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("RoleBinding"), newRoleBindingBuilder)
+	rm.RegisterGVK(securityv1.SchemeGroupVersion.WithKind("SecurityContextConstraints"), newSecurityBuilder)
 
 	rm.AddToMap(Mapper)
 }
