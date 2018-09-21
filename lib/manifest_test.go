@@ -132,7 +132,7 @@ data:
 	}}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := parseManifests(strings.NewReader(test.raw))
+			got, err := ParseManifests(strings.NewReader(test.raw))
 			if err != nil {
 				t.Fatalf("failed to parse manifest: %v", err)
 			}

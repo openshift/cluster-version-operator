@@ -71,7 +71,7 @@ func ManifestsFromFiles(files []string) ([]Manifest, error) {
 		}
 		defer file.Close()
 
-		ms, err := parseManifests(file)
+		ms, err := ParseManifests(file)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
 			continue
@@ -87,9 +87,9 @@ func ManifestsFromFiles(files []string) ([]Manifest, error) {
 	return manifests, nil
 }
 
-// parseManifests parses a YAML or JSON document that may contain one or more
+// ParseManifests parses a YAML or JSON document that may contain one or more
 // kubernetes resources.
-func parseManifests(r io.Reader) ([]Manifest, error) {
+func ParseManifests(r io.Reader) ([]Manifest, error) {
 	d := yaml.NewYAMLOrJSONDecoder(r, 1024)
 	var manifests []Manifest
 	for {

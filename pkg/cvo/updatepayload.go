@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -53,12 +54,15 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	}
 	imageRef := resourceread.ReadImageStreamV1OrDie(imageRefData)
 
-	var mfs []string
 	skipFiles := sets.NewString(cjf, irf)
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
+
+	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	var manifests []lib.Manifest
+	var errs []error
 	for _, file := range files {
 		if file.IsDir() {
 			continue
@@ -68,21 +72,23 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 		if skipFiles.Has(p) {
 			continue
 		}
-		mfs = append(mfs, p)
-	}
-	manifests, err := lib.ManifestsFromFiles(mfs)
-	if err != nil {
-		return nil, err
-	}
 
-	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
-	for idx := range manifests {
-		mname := fmt.Sprintf("(%s) %s/%s", manifests[idx].GVK.String(), manifests[idx].Object().GetNamespace(), manifests[idx].Object().GetName())
-		rendered, err := renderManifest(mrc, manifests[idx].Raw)
+		raw, err := ioutil.ReadFile(p)
 		if err != nil {
-			return nil, fmt.Errorf("error when rendering Manifest %s: %v", mname, err)
+			errs = append(errs, fmt.Errorf("error reading file %s: %v", file.Name(), err))
+			continue
 		}
-		manifests[idx].Raw = rendered
+		rraw, err := renderManifest(mrc, raw)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error rendering file %s: %v", file.Name(), err))
+			continue
+		}
+		ms, err := lib.ParseManifests(bytes.NewReader(rraw))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
+			continue
+		}
+		manifests = append(manifests, ms...)
 	}
 
 	return &updatePayload{
