@@ -52,6 +52,8 @@ type Operator struct {
 	nodename string
 	// namespace and name are used to find the CVOConfig, OperatorStatus.
 	namespace, name string
+	// releaseImage allows templating CVO deployment manifest.
+	releaseImage string
 
 	// restConfig is used to create resourcebuilder.
 	restConfig *rest.Config
@@ -79,6 +81,7 @@ type Operator struct {
 func New(
 	nodename string,
 	namespace, name string,
+	releaseImage string,
 	cvoConfigInformer cvinformersv1.CVOConfigInformer,
 	operatorStatusInformer osinformersv1.OperatorStatusInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
@@ -96,6 +99,7 @@ func New(
 		nodename:      nodename,
 		namespace:     namespace,
 		name:          name,
+		releaseImage:  releaseImage,
 		restConfig:    restConfig,
 		client:        client,
 		kubeClient:    kubeClient,
@@ -224,7 +228,11 @@ func (optr *Operator) sync(key string) error {
 	if err != nil {
 		return err
 	}
-	payload, err := loadUpdatePayload(payloadDir)
+	releaseImage := optr.releaseImage
+	if config.DesiredUpdate.Payload != "" {
+		releaseImage = config.DesiredUpdate.Payload
+	}
+	payload, err := loadUpdatePayload(payloadDir, releaseImage)
 	if err != nil {
 		return err
 	}

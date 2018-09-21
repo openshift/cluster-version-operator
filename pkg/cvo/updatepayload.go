@@ -37,7 +37,7 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-func loadUpdatePayload(dir string) (*updatePayload, error) {
+func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	glog.V(4).Info("Loading updatepayload from %q", dir)
 	if err := validateUpdatePayload(dir); err != nil {
 		return nil, err
@@ -73,6 +73,16 @@ func loadUpdatePayload(dir string) (*updatePayload, error) {
 	manifests, err := lib.ManifestsFromFiles(mfs)
 	if err != nil {
 		return nil, err
+	}
+
+	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	for idx := range manifests {
+		mname := fmt.Sprintf("(%s) %s/%s", manifests[idx].GVK.String(), manifests[idx].Object().GetNamespace(), manifests[idx].Object().GetName())
+		rendered, err := renderManifest(mrc, manifests[idx].Raw)
+		if err != nil {
+			return nil, fmt.Errorf("error when rendering Manifest %s: %v", mname, err)
+		}
+		manifests[idx].Raw = rendered
 	}
 
 	return &updatePayload{

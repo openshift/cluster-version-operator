@@ -74,6 +74,10 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		startOpts.nodeName = name
 	}
 
+	if rootOpts.releaseImage == "" {
+		glog.Fatalf("missing --release-image flag, it is required")
+	}
+
 	cb, err := newClientBuilder(startOpts.kubeconfig)
 	if err != nil {
 		glog.Fatalf("error creating clients: %v", err)
@@ -226,6 +230,7 @@ func startControllers(ctx *controllerContext) error {
 	go cvo.New(
 		startOpts.nodeName,
 		componentNamespace, componentName,
+		rootOpts.releaseImage,
 		ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
 		ctx.InformerFactory.Operatorstatus().V1().OperatorStatuses(),
 		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
