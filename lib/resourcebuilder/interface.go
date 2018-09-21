@@ -33,6 +33,12 @@ func (rm *ResourceMapper) AddToMap(irm *ResourceMapper) {
 	}
 }
 
+// Exist returns true when gvk is known.
+func (rm *ResourceMapper) Exists(gvk schema.GroupVersionKind) bool {
+	_, ok := rm.gvkToNew[gvk]
+	return ok
+}
+
 // RegisterGVK adds GVK to NewInteraceFunc mapping.
 // It does not lock before adding the mapping.
 func (rm *ResourceMapper) RegisterGVK(gvk schema.GroupVersionKind, f NewInteraceFunc) {

@@ -15,10 +15,11 @@ spec:
     spec:
       containers:
       - name: cluster-version-operator
-        image: docker.io/origin/origin-cluster-version-operator:v4.0.0
+        image: {{.ReleaseImage}}
         imagePullPolicy: Always
         args:
           - "start"
+          - "--release-image={{.ReleaseImage}}"
           - "--enable-auto-update=false"
           - "--v=4"
         volumeMounts:
