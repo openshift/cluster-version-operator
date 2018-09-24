@@ -31,7 +31,7 @@ type updatePayload struct {
 }
 
 const (
-	defaultUpdatePayloadDir = "/etc/cvo/updatepayload"
+	defaultUpdatePayloadDir = "/release-manifests"
 	targetUpdatePayloadsDir = "/etc/cvo/updatepayloads"
 
 	cincinnatiJSONFile  = "cincinnati.json"
