@@ -22,4 +22,4 @@ if [ -z ${VERSION+a} ]; then
 fi
 
 set -x
-podman build -t "cluster-version-operator:${VERSION}" -f Dockerfile
+podman build -t "cluster-version-operator:${VERSION}" -f Dockerfile --no-cache
