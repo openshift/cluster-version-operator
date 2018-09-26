@@ -2,6 +2,11 @@
 
 set -eu
 
+
+function print_info {
+	echo "INFO: $1" >&2
+}
+
 REPO=${REPO:-"openshift"}
 
 if [ -z ${VERSION+a} ]; then

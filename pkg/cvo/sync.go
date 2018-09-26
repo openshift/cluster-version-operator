@@ -21,6 +21,15 @@ func (optr *Operator) syncUpdatePayload(config *cvv1.CVOConfig, payload *updateP
 		taskName := fmt.Sprintf("(%s) %s/%s", manifest.GVK.String(), manifest.Object().GetNamespace(), manifest.Object().GetName())
 		glog.V(4).Infof("Running sync for %s", taskName)
 		glog.V(4).Infof("Manifest: %s", string(manifest.Raw))
+
+		// FIXME: skip manifests that CVO doesn't know how to handle for now.
+		// such manifests should be handled by a generic resourcebuilder that
+		// can mimic behavior of `kubectl apply` in terms of replace.
+		if !resourcebuilder.Mapper.Exists(manifest.GVK) {
+			glog.Info("Cannot handle %s as it is currently unsupported, skipping for now", taskName)
+			continue
+		}
+
 		b, err := resourcebuilder.New(resourcebuilder.Mapper, optr.restConfig, manifest)
 		if err != nil {
 			return fmt.Errorf("error creating New resourcebuilder for %s: %v", taskName, err)
