@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"text/template"
-
-	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 
 	"github.com/golang/glog"
 	batchv1 "k8s.io/api/batch/v1"
@@ -44,11 +43,8 @@ func Render(outputDir, releaseImage string) error {
 			continue
 		}
 
-		if !resourcebuilder.Mapper.Exists(manifest.GVK) {
-			return fmt.Errorf("error: Unknown GVK: %v; Operator will not be able to manage this Manifest %s", manifest.GVK, mname)
-		}
-
-		path := filepath.Join(outputDir, fmt.Sprintf("%03d-manifest.json", idx))
+		filename := strings.ToLower(fmt.Sprintf("%03d-%s-%s-%s-%s-%s", idx, manifest.GVK.Group, manifest.GVK.Version, manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()))
+		path := filepath.Join(outputDir, filename)
 		if err := ioutil.WriteFile(path, manifest.Raw, 0644); err != nil {
 			errs = append(errs, err)
 		}
