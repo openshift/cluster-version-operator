@@ -1,4 +1,4 @@
-package cvo
+package internal
 
 import (
 	"time"

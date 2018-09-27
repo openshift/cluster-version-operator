@@ -14,29 +14,42 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/apis"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
 
 func (optr *Operator) syncUpdatePayload(config *cvv1.CVOConfig, payload *updatePayload) error {
 	for _, manifest := range payload.manifests {
 		taskName := fmt.Sprintf("(%s) %s/%s", manifest.GVK.String(), manifest.Object().GetNamespace(), manifest.Object().GetName())
 		glog.V(4).Infof("Running sync for %s", taskName)
-		glog.V(4).Infof("Manifest: %s", string(manifest.Raw))
+		glog.V(6).Infof("Manifest: %s", string(manifest.Raw))
 
-		// FIXME: skip manifests that CVO doesn't know how to handle for now.
-		// such manifests should be handled by a generic resourcebuilder that
-		// can mimic behavior of `kubectl apply` in terms of replace.
-		if !resourcebuilder.Mapper.Exists(manifest.GVK) {
-			glog.Info("Cannot handle %s as it is currently unsupported, skipping for now", taskName)
-			continue
+		if err := wait.ExponentialBackoff(wait.Backoff{
+			Duration: time.Second * 10,
+			Factor:   1.3,
+			Steps:    3,
+		}, func() (bool, error) {
+			// build resource builder for manifest
+			var b resourcebuilder.Interface
+			var err error
+			if resourcebuilder.Mapper.Exists(manifest.GVK) {
+				b, err = resourcebuilder.New(resourcebuilder.Mapper, optr.restConfig, manifest)
+			} else {
+				b, err = internal.NewGenericBuilder(optr.restConfig, manifest)
+			}
+			if err != nil {
+				glog.Errorf("error creating resourcebuilder for %s: %v", taskName, err)
+				return false, nil
+			}
+			// run builder for the manifest
+			if err := b.Do(); err != nil {
+				glog.Errorf("error running apply for %s: %v", taskName, err)
+				return false, nil
+			}
+			return true, nil
+		}); err != nil {
+			return fmt.Errorf("timed out trying to apply %s", taskName)
 		}
 
-		b, err := resourcebuilder.New(resourcebuilder.Mapper, optr.restConfig, manifest)
-		if err != nil {
-			return fmt.Errorf("error creating New resourcebuilder for %s: %v", taskName, err)
-		}
-		if err := b.WithModifier(ownerRefModifier(config)).Do(); err != nil {
-			return fmt.Errorf("error running apply for %s: %v", taskName, err)
-		}
 		glog.V(4).Infof("Done syncing for %s", taskName)
 	}
 	return nil
