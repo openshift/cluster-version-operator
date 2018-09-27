@@ -44,6 +44,10 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
   version = "kubernetes-1.11.1"
 
 [[constraint]]
+  name = "k8s.io/kube-aggregator"
+  version = "kubernetes-1.11.1"
+
+[[constraint]]
   name = "k8s.io/utils"
   revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
 
@@ -62,3 +66,4 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 [[constraint]]
   name = "github.com/openshift/client-go"
   branch = "master"
+
