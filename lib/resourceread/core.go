@@ -42,3 +42,11 @@ func ReadNamespaceV1OrDie(objBytes []byte) *corev1.Namespace {
 	}
 	return requiredObj.(*corev1.Namespace)
 }
+
+func ReadServiceV1OrDie(objBytes []byte) *corev1.Service {
+	requiredObj, err := runtime.Decode(coreCodecs.UniversalDecoder(corev1.SchemeGroupVersion), objBytes)
+	if err != nil {
+		panic(err)
+	}
+	return requiredObj.(*corev1.Service)
+}

@@ -88,3 +88,30 @@ func (b *namespaceBuilder) Do() error {
 	_, _, err := resourceapply.ApplyNamespace(b.client, namespace)
 	return err
 }
+
+type serviceBuilder struct {
+	client   *coreclientv1.CoreV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
+}
+
+func newServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
+	return &serviceBuilder{
+		client: coreclientv1.NewForConfigOrDie(config),
+		raw:    m.Raw,
+	}
+}
+
+func (b *serviceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *serviceBuilder) Do() error {
+	service := resourceread.ReadServiceV1OrDie(b.raw)
+	if b.modifier != nil {
+		b.modifier(service)
+	}
+	_, _, err := resourceapply.ApplyService(b.client, service)
+	return err
+}
