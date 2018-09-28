@@ -8,16 +8,21 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	apiregv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 )
 
 func init() {
 	rm := NewResourceMapper()
 	rm.RegisterGVK(apiextv1beta1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newCRDBuilder)
+	rm.RegisterGVK(apiregv1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
+	rm.RegisterGVK(apiregv1beta1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newDeploymentBuilder)
 	rm.RegisterGVK(batchv1.SchemeGroupVersion.WithKind("Job"), newJobBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ServiceAccount"), newServiceAccountBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ConfigMap"), newConfigMapBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Namespace"), newNamespaceBuilder)
+	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Service"), newServiceBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), newClusterRoleBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newClusterRoleBindingBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("Role"), newRoleBuilder)

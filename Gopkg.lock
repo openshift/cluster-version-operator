@@ -2,61 +2,12 @@
 
 
 [[projects]]
-  branch = "go15"
-  digest = "1:8dab0033e231d02909f00a501a1f1ac01e63fd267dcb374a5de71b99ba1ee74f"
-  name = "github.com/ajeddeloh/go-json"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "6a2fe990e08303c82d966297ddb29a58678a4783"
-
-[[projects]]
   digest = "1:aba270497eb2d49f5cba6f4162d524b9a1195a24cbce8be20bf56a0051f47deb"
   name = "github.com/blang/semver"
   packages = ["."]
   pruneopts = "NUT"
   revision = "2ee87856327ba09384cabd113bc6b5d174e9ec0f"
   version = "v3.5.1"
-
-[[projects]]
-  digest = "1:0ef770954bca104ee99b3b6b7f9b240605ac03517d9f98cbc1893daa03f3c038"
-  name = "github.com/coreos/go-semver"
-  packages = ["semver"]
-  pruneopts = "NUT"
-  revision = "8ab6407b697782a06568d4b7f1db25550ec2e4c6"
-  version = "v0.2.0"
-
-[[projects]]
-  digest = "1:2ed7e62c94645be6b47be0911035fbabaa6271b20138d3643488716b5c6cad41"
-  name = "github.com/coreos/go-systemd"
-  packages = ["unit"]
-  pruneopts = "NUT"
-  revision = "39ca1b05acc7ad1220e09f133283b8859a8b71ab"
-  version = "v17"
-
-[[projects]]
-  digest = "1:fb5b2aed0d774e210c1f2c0893e620cb3fa98957d3b925d0378f93b9613eb605"
-  name = "github.com/coreos/ignition"
-  packages = [
-    "config/shared/errors",
-    "config/shared/validations",
-    "config/util",
-    "config/v1",
-    "config/v1/types",
-    "config/v2_0",
-    "config/v2_0/types",
-    "config/v2_1",
-    "config/v2_1/types",
-    "config/v2_2",
-    "config/v2_2/types",
-    "config/v2_3_experimental/types",
-    "config/validate",
-    "config/validate/astjson",
-    "config/validate/astnode",
-    "config/validate/report",
-  ]
-  pruneopts = "NUT"
-  revision = "76107251acd117c6d3e5b4dae2b47f82f944984b"
-  version = "v0.26.0"
 
 [[projects]]
   digest = "1:a2c1d0e43bd3baaa071d1b9ed72c27d78169b2b269f71c105ac4ba34b1be4a39"
@@ -227,27 +178,15 @@
   revision = "4507dcb6a81f6593aa336c5b47927cf0ae297b72"
 
 [[projects]]
-  digest = "1:5379fd636367542abf1db1f9d982fc149f6bd81ae32971477a9f4725d532db4b"
+  branch = "master"
+  digest = "1:31493a29ce9941368a58428e797b24764b6faf801aad841ac2311d4496b6114a"
   name = "github.com/openshift/client-go"
   packages = [
     "security/clientset/versioned/scheme",
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "1fa528d3be060e4c7178eb69e76d37cf7e699e3c"
-  version = "v3.9.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:f27bbc0afa52db0fe7604719889f3b87f687ff14c7aba0f5595815b0c2387663"
-  name = "github.com/openshift/machine-config-operator"
-  packages = [
-    "lib/resourcemerge",
-    "pkg/apis",
-    "pkg/apis/machineconfiguration.openshift.io/v1",
-  ]
-  pruneopts = "NUT"
-  revision = "d948fb8baa63a18dc7c217cffe60bc4162fdb6f5"
+  revision = "431ec9a26e5021f35fa41ee9a89842db9bfdb370"
 
 [[projects]]
   branch = "master"
@@ -280,22 +219,6 @@
   pruneopts = "NUT"
   revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
   version = "v1.0.1"
-
-[[projects]]
-  branch = "master"
-  digest = "1:c9b456727ce4101594aabddaa816c80464cd21a1e5fcd145297a902303be0085"
-  name = "github.com/vincent-petithory/dataurl"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "9a301d65acbb728fcc3ace14f45f511a4cfeea9c"
-
-[[projects]]
-  branch = "master"
-  digest = "1:91ed6116b126ec7fa7b9f9460356ee6b3005e5ed320b8e85510937f44d3d62d5"
-  name = "go4.org"
-  packages = ["errorutil"]
-  pruneopts = "NUT"
-  revision = "417644f6feb5ed3a356ca5d6d8e3a3fac7dfd33f"
 
 [[projects]]
   branch = "master"
@@ -499,11 +422,13 @@
   version = "kubernetes-1.11.1"
 
 [[projects]]
-  digest = "1:1012185179ab34771276fd8b9e8b0e0775ae92dc2de4b38199a4e63dfb7f7238"
+  digest = "1:e9232c127196055e966ae56877363f82fb494dd8c7fda0112b477e1339082d05"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
+    "discovery/cached",
     "discovery/fake",
+    "dynamic",
     "informers",
     "informers/admissionregistration",
     "informers/admissionregistration/v1alpha1",
@@ -608,6 +533,7 @@
     "plugin/pkg/client/auth/exec",
     "rest",
     "rest/watch",
+    "restmapper",
     "testing",
     "tools/auth",
     "tools/cache",
@@ -667,6 +593,20 @@
   revision = "fdcf9f9480fdd5bf2b3c3df9bf4ecd22b25b87e2"
 
 [[projects]]
+  digest = "1:03ab6a5fd79eb77eff18da6eb498ea0d68010b5af0cfa195230db43708459520"
+  name = "k8s.io/kube-aggregator"
+  packages = [
+    "pkg/apis/apiregistration",
+    "pkg/apis/apiregistration/v1",
+    "pkg/apis/apiregistration/v1beta1",
+    "pkg/client/clientset_generated/clientset/scheme",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
+  ]
+  pruneopts = "NUT"
+  revision = "89cd614e9090a2f1e78316ed459857c49c55d276"
+  version = "kubernetes-1.11.1"
+
+[[projects]]
   branch = "master"
   digest = "1:a2c842a1e0aed96fd732b535514556323a6f5edfded3b63e5e0ab1bce188aa54"
   name = "k8s.io/kube-openapi"
@@ -692,7 +632,6 @@
     "github.com/openshift/api/image/v1",
     "github.com/openshift/api/security/v1",
     "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1",
-    "github.com/openshift/machine-config-operator/lib/resourcemerge",
     "github.com/spf13/cobra",
     "k8s.io/api/apps/v1",
     "k8s.io/api/batch/v1",
@@ -708,6 +647,7 @@
     "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1",
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
+    "k8s.io/apimachinery/pkg/api/meta",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured",
     "k8s.io/apimachinery/pkg/labels",
@@ -719,11 +659,14 @@
     "k8s.io/apimachinery/pkg/util/rand",
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/sets",
+    "k8s.io/apimachinery/pkg/util/strategicpatch",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
+    "k8s.io/client-go/discovery/cached",
     "k8s.io/client-go/discovery/fake",
+    "k8s.io/client-go/dynamic",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/informers/apps/v1",
     "k8s.io/client-go/kubernetes",
@@ -734,6 +677,7 @@
     "k8s.io/client-go/kubernetes/typed/rbac/v1",
     "k8s.io/client-go/listers/apps/v1",
     "k8s.io/client-go/rest",
+    "k8s.io/client-go/restmapper",
     "k8s.io/client-go/testing",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
@@ -744,6 +688,9 @@
     "k8s.io/client-go/util/workqueue",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/gengo/types",
+    "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1",
+    "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1",
+    "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
     "k8s.io/utils/pointer",
   ]
   solver-name = "gps-cdcl"

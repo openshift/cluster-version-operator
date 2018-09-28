@@ -40,11 +40,11 @@ func (b *deploymentBuilder) Do() error {
 	if b.modifier != nil {
 		b.modifier(deployment)
 	}
-	_, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
+	actual, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
 		return err
 	}
-	if updated {
+	if updated && actual.Generation > 1 {
 		return waitForDeploymentCompletion(b.client, deployment)
 	}
 	return nil
