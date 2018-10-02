@@ -11,6 +11,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
@@ -31,66 +32,94 @@ type updatePayload struct {
 }
 
 const (
-	defaultUpdatePayloadDir = "/release-manifests"
+	defaultUpdatePayloadDir = "/"
 	targetUpdatePayloadsDir = "/etc/cvo/updatepayloads"
+
+	cvoManifestDir     = "manifests"
+	releaseManifestDir = "release-manifests"
 
 	cincinnatiJSONFile  = "cincinnati.json"
 	imageReferencesFile = "image-references"
 )
 
 func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
-	glog.V(4).Info("Loading updatepayload from %q", dir)
+	glog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := validateUpdatePayload(dir); err != nil {
 		return nil, err
 	}
+	var (
+		cvoDir     = filepath.Join(dir, cvoManifestDir)
+		releaseDir = filepath.Join(dir, releaseManifestDir)
+	)
 
 	// XXX: load cincinnatiJSONFile
-	cjf := filepath.Join(dir, cincinnatiJSONFile)
+	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	// XXX: load imageReferencesFile
-	irf := filepath.Join(dir, imageReferencesFile)
+	irf := filepath.Join(releaseDir, imageReferencesFile)
 	imageRefData, err := ioutil.ReadFile(irf)
 	if err != nil {
 		return nil, err
 	}
+
 	imageRef := resourceread.ReadImageStreamV1OrDie(imageRefData)
-
-	skipFiles := sets.NewString(cjf, irf)
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}
-
 	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+
 	var manifests []lib.Manifest
 	var errs []error
-	for _, file := range files {
-		if file.IsDir() {
-			continue
+	tasks := []struct {
+		idir       string
+		preprocess func([]byte) ([]byte, error)
+		skipFiles  sets.String
+	}{{
+		idir:       cvoDir,
+		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
+		skipFiles:  sets.NewString(),
+	}, {
+		idir:       releaseDir,
+		preprocess: nil,
+		skipFiles:  sets.NewString(cjf, irf),
+	}}
+	for _, task := range tasks {
+		files, err := ioutil.ReadDir(task.idir)
+		if err != nil {
+			return nil, err
 		}
 
-		p := filepath.Join(dir, file.Name())
-		if skipFiles.Has(p) {
-			continue
-		}
+		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
 
-		raw, err := ioutil.ReadFile(p)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error reading file %s: %v", file.Name(), err))
-			continue
+			p := filepath.Join(task.idir, file.Name())
+			if task.skipFiles.Has(p) {
+				continue
+			}
+
+			raw, err := ioutil.ReadFile(p)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error reading file %s: %v", file.Name(), err))
+				continue
+			}
+			if task.preprocess != nil {
+				raw, err = task.preprocess(raw)
+				if err != nil {
+					errs = append(errs, fmt.Errorf("error running preprocess on %s: %v", file.Name(), err))
+					continue
+				}
+			}
+			ms, err := lib.ParseManifests(bytes.NewReader(raw))
+			if err != nil {
+				errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
+				continue
+			}
+			manifests = append(manifests, ms...)
 		}
-		rraw, err := renderManifest(mrc, raw)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error rendering file %s: %v", file.Name(), err))
-			continue
-		}
-		ms, err := lib.ParseManifests(bytes.NewReader(rraw))
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
-			continue
-		}
-		manifests = append(manifests, ms...)
 	}
 
+	agg := utilerrors.NewAggregate(errs)
+	if agg != nil {
+		return nil, fmt.Errorf("error loading manifests from %s: %v", dir, agg.Error())
+	}
 	return &updatePayload{
 		imageRef:  imageRef,
 		manifests: manifests,
@@ -114,20 +143,19 @@ func (optr *Operator) targetUpdatePayloadDir(config *cvv1.CVOConfig) (string, er
 		return "", nil
 	}
 
-	// XXX: check if target and default versions are equal
-	// 		requires cincinati.json
-
 	tdir := filepath.Join(targetUpdatePayloadsDir, config.DesiredUpdate.Version)
-	_, err := os.Stat(tdir)
-	if err != nil && !os.IsNotExist(err) {
-		return "", err
-	}
-
+	err := validateUpdatePayload(tdir)
 	if os.IsNotExist(err) {
+		// the dirs don't exist, try fetching the payload to tdir.
 		if err := optr.fetchUpdatePayloadToDir(tdir, config); err != nil {
 			return "", err
 		}
 	}
+	if err != nil {
+		return "", err
+	}
+
+	// now that payload has been loaded check validation.
 	if err := validateUpdatePayload(tdir); err != nil {
 		return "", err
 	}
@@ -137,6 +165,23 @@ func (optr *Operator) targetUpdatePayloadDir(config *cvv1.CVOConfig) (string, er
 func validateUpdatePayload(dir string) error {
 	// XXX: validate that cincinnati.json is correct
 	// 		validate image-references files is correct.
+
+	// make sure cvo and release manifests dirs exist.
+	_, err := os.Stat(filepath.Join(dir, cvoManifestDir))
+	if err != nil {
+		return err
+	}
+	releaseDir := filepath.Join(dir, releaseManifestDir)
+	_, err = os.Stat(releaseDir)
+	if err != nil {
+		return err
+	}
+
+	// make sure image-references file exists in releaseDir
+	_, err = os.Stat(filepath.Join(releaseDir, imageReferencesFile))
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -150,7 +195,7 @@ func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.CVOConfig
 		nodeSelectorKey = "node-role.kubernetes.io/master"
 		nodename        = optr.nodename
 		cmd             = []string{"/bin/sh"}
-		args            = []string{"-c", fmt.Sprintf("cp -r %s %s", defaultUpdatePayloadDir, dir)}
+		args            = []string{"-c", copyPayloadCmd(dir)}
 	)
 
 	job := &batchv1.Job{
@@ -201,6 +246,24 @@ func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.CVOConfig
 		return err
 	}
 	return resourcebuilder.WaitForJobCompletion(optr.kubeClient.BatchV1(), job)
+}
+
+// copyPayloadCmd returns command that copies cvo and release manifests from deafult location
+// to the target dir.
+// It is made up of 2 commands:
+// `mkdir -p <target dir> && mv <default cvo manifest dir> <target cvo manifests dir>`
+// `mkdir -p <target dir> && mv <default release manifest dir> <target release manifests dir>`
+func copyPayloadCmd(tdir string) string {
+	var (
+		fromCVOPath = filepath.Join(defaultUpdatePayloadDir, cvoManifestDir)
+		toCVOPath   = filepath.Join(tdir, cvoManifestDir)
+		cvoCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromCVOPath, toCVOPath)
+
+		fromReleasePath = filepath.Join(defaultUpdatePayloadDir, releaseManifestDir)
+		toReleasePath   = filepath.Join(tdir, releaseManifestDir)
+		releaseCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromReleasePath, toReleasePath)
+	)
+	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
 func isTargetSet(desired cvv1.Update) bool {
