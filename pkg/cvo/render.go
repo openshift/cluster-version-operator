@@ -15,7 +15,7 @@ import (
 // Render renders all the manifests from /manifests to outputDir.
 func Render(outputDir, releaseImage string) error {
 	var (
-		manifestsDir  = "/manifests"
+		manifestsDir  = filepath.Join(defaultUpdatePayloadDir, cvoManifestDir)
 		oManifestsDir = filepath.Join(outputDir, "manifests")
 		bootstrapDir  = "/bootstrap"
 		oBootstrapDir = filepath.Join(outputDir, "bootstrap")

@@ -13,4 +13,3 @@ COPY install /manifests
 COPY bootstrap /bootstrap
 
 ENTRYPOINT ["/bin/cluster-version-operator"]
-LABEL io.openshift.release.operator true
