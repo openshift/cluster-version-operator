@@ -54,7 +54,17 @@ func New(config *rest.Config, gvk schema.GroupVersionKind, namespace string) (dy
 
 // getResourceClient returns the dynamic client for the resource specified by the gvk.
 func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, namespace string) (dynamic.ResourceInterface, error) {
-	gvr, namespaced, err := gvkToGVR(gvk, c.restMapper)
+	var (
+		gvr        *schema.GroupVersionResource
+		namespaced bool
+		err        error
+	)
+	gvr, namespaced, err = gvkToGVR(gvk, c.restMapper)
+	if meta.IsNoMatchError(err) {
+		// refresh the restMapperCache and try once more.
+		c.restMapper.Reset()
+		gvr, namespaced, err = gvkToGVR(gvk, c.restMapper)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get resource type: %v", err)
 	}
@@ -71,6 +81,9 @@ func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, n
 
 func gvkToGVR(gvk schema.GroupVersionKind, restMapper *restmapper.DeferredDiscoveryRESTMapper) (*schema.GroupVersionResource, bool, error) {
 	mapping, err := restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if meta.IsNoMatchError(err) {
+		return nil, false, err
+	}
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get the resource REST mapping for GroupVersionKind(%s): %v", gvk.String(), err)
 	}
