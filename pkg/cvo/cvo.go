@@ -65,13 +65,14 @@ type Operator struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister      cvlistersv1.CVOConfigLister
 	operatorStatusLister oslistersv1.OperatorStatusLister
 
-	crdLister          apiextlistersv1beta1.CustomResourceDefinitionLister
-	deployLister       appslisterv1.DeploymentLister
-	crdListerSynced    cache.InformerSynced
-	deployListerSynced cache.InformerSynced
+	crdLister             apiextlistersv1beta1.CustomResourceDefinitionLister
+	deployLister          appslisterv1.DeploymentLister
+	cvoConfigLister       cvlistersv1.CVOConfigLister
+	crdListerSynced       cache.InformerSynced
+	deployListerSynced    cache.InformerSynced
+	cvoConfigListerSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue workqueue.RateLimitingInterface
@@ -113,13 +114,14 @@ func New(
 
 	optr.syncHandler = optr.sync
 
-	optr.cvoConfigLister = cvoConfigInformer.Lister()
 	optr.operatorStatusLister = operatorStatusInformer.Lister()
 
 	optr.crdLister = crdInformer.Lister()
 	optr.crdListerSynced = crdInformer.Informer().HasSynced
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
+	optr.cvoConfigLister = cvoConfigInformer.Lister()
+	optr.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
 
 	return optr
 }
@@ -135,6 +137,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	if !cache.WaitForCacheSync(stopCh,
 		optr.crdListerSynced,
 		optr.deployListerSynced,
+		optr.cvoConfigListerSynced,
 	) {
 		return
 	}
