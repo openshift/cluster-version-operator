@@ -248,6 +248,12 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 	upstream := cvv1.URL("http://localhost:8080/graph")
 	channel := "fast"
 	id, _ := uuid.NewRandom()
+	if id.Variant() != uuid.RFC4122 {
+		return nil, fmt.Errorf("invalid %q, must be an RFC4122-variant UUID: found %s", id, id.Variant())
+	}
+	if id.Version() != 4 {
+		return nil, fmt.Errorf("Invalid %q, must be a version-4 UUID: found %s", id, id.Version())
+	}
 
 	// XXX: generate CVOConfig from options calculated above.
 	config := &cvv1.CVOConfig{
@@ -257,13 +263,7 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 		},
 		Upstream:  upstream,
 		Channel:   channel,
-		ClusterID: id,
-	}
-	if config.ClusterID.Variant() != uuid.RFC4122 {
-		return nil, fmt.Errorf("invalid ClusterID %q, must be an RFC4122-variant UUID: found %s", config.ClusterID, config.ClusterID.Variant())
-	}
-	if config.ClusterID.Version() != 4 {
-		return nil, fmt.Errorf("Invalid ClusterID %q, must be a version-4 UUID: found %s", config.ClusterID, config.ClusterID.Version())
+		ClusterID: cvv1.ClusterID(id.String()),
 	}
 
 	actual, _, err := resourceapply.ApplyCVOConfigFromCache(optr.cvoConfigLister, optr.client.ClusterversionV1(), config)

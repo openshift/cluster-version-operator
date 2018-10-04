@@ -1,7 +1,6 @@
 package v1
 
 import (
-	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -24,10 +23,14 @@ type CVOConfig struct {
 
 	Upstream  URL       `json:"upstream"`
 	Channel   string    `json:"channel"`
-	ClusterID uuid.UUID `json:"clusterId"`
+	ClusterID ClusterID `json:"clusterID"`
 
 	DesiredUpdate Update `json:"desiredUpdate"`
 }
+
+// ClusterID is string RFC4122 uuid.
+type ClusterID string
+
 
 // URL is a thin wrapper around string that ensures the string is a valid URL.
 type URL string

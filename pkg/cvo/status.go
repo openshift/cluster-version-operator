@@ -3,6 +3,8 @@ package cvo
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
 	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
@@ -76,5 +78,9 @@ func (optr *Operator) syncDegradedStatus(ierr error) error {
 }
 
 func checkForUpdate(config cvv1.CVOConfig) ([]cincinnati.Update, error) {
-	return cincinnati.NewClient(config.ClusterID).GetUpdates(string(config.Upstream), config.Channel, version.Version)
+	uuid, err := uuid.Parse(string(config.ClusterID))
+	if err != nil {
+		return nil, err
+	}
+	return cincinnati.NewClient(uuid).GetUpdates(string(config.Upstream), config.Channel, version.Version)
 }
