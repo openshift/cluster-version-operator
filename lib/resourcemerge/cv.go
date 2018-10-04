@@ -14,7 +14,7 @@ func EnsureCVOConfig(modified *bool, existing *cvv1.CVOConfig, required cvv1.CVO
 		*modified = true
 		existing.Channel = required.Channel
 	}
-	if existing.ClusterID.String() != required.ClusterID.String() {
+	if existing.ClusterID != required.ClusterID {
 		*modified = true
 		existing.ClusterID = required.ClusterID
 	}

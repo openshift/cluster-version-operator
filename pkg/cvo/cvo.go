@@ -65,13 +65,14 @@ type Operator struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister      cvlistersv1.CVOConfigLister
 	operatorStatusLister oslistersv1.OperatorStatusLister
 
-	crdLister          apiextlistersv1beta1.CustomResourceDefinitionLister
-	deployLister       appslisterv1.DeploymentLister
-	crdListerSynced    cache.InformerSynced
-	deployListerSynced cache.InformerSynced
+	crdLister             apiextlistersv1beta1.CustomResourceDefinitionLister
+	deployLister          appslisterv1.DeploymentLister
+	cvoConfigLister       cvlistersv1.CVOConfigLister
+	crdListerSynced       cache.InformerSynced
+	deployListerSynced    cache.InformerSynced
+	cvoConfigListerSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue workqueue.RateLimitingInterface
@@ -113,13 +114,14 @@ func New(
 
 	optr.syncHandler = optr.sync
 
-	optr.cvoConfigLister = cvoConfigInformer.Lister()
 	optr.operatorStatusLister = operatorStatusInformer.Lister()
 
 	optr.crdLister = crdInformer.Lister()
 	optr.crdListerSynced = crdInformer.Informer().HasSynced
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
+	optr.cvoConfigLister = cvoConfigInformer.Lister()
+	optr.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
 
 	return optr
 }
@@ -135,6 +137,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	if !cache.WaitForCacheSync(stopCh,
 		optr.crdListerSynced,
 		optr.deployListerSynced,
+		optr.cvoConfigListerSynced,
 	) {
 		return
 	}
@@ -248,6 +251,12 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 	upstream := cvv1.URL("http://localhost:8080/graph")
 	channel := "fast"
 	id, _ := uuid.NewRandom()
+	if id.Variant() != uuid.RFC4122 {
+		return nil, fmt.Errorf("invalid %q, must be an RFC4122-variant UUID: found %s", id, id.Variant())
+	}
+	if id.Version() != 4 {
+		return nil, fmt.Errorf("Invalid %q, must be a version-4 UUID: found %s", id, id.Version())
+	}
 
 	// XXX: generate CVOConfig from options calculated above.
 	config := &cvv1.CVOConfig{
@@ -257,13 +266,7 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 		},
 		Upstream:  upstream,
 		Channel:   channel,
-		ClusterID: id,
-	}
-	if config.ClusterID.Variant() != uuid.RFC4122 {
-		return nil, fmt.Errorf("invalid ClusterID %q, must be an RFC4122-variant UUID: found %s", config.ClusterID, config.ClusterID.Variant())
-	}
-	if config.ClusterID.Version() != 4 {
-		return nil, fmt.Errorf("Invalid ClusterID %q, must be a version-4 UUID: found %s", config.ClusterID, config.ClusterID.Version())
+		ClusterID: cvv1.ClusterID(id.String()),
 	}
 
 	actual, _, err := resourceapply.ApplyCVOConfigFromCache(optr.cvoConfigLister, optr.client.ClusterversionV1(), config)
