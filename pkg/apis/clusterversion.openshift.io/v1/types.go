@@ -26,11 +26,29 @@ type CVOConfig struct {
 	ClusterID ClusterID `json:"clusterID"`
 
 	DesiredUpdate Update `json:"desiredUpdate"`
+
+	// Overrides is list of overides for components that are managed by
+	// cluster version operator
+	Overrides []ComponentOverride `json:"overrides,omitempty"`
 }
 
 // ClusterID is string RFC4122 uuid.
 type ClusterID string
 
+// ComponentOverride allows overriding cluster version operator's behavior
+// for a component.
+type ComponentOverride struct {
+	// Kind should match the TypeMeta.Kind for object.
+	Kind string `json:"kind"`
+
+	// The Namespace and Name for the component.
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+
+	// Unmanaged controls if cluster version operator should stop managing.
+	// Default: false
+	Unmanaged bool `json:"unmanaged"`
+}
 
 // URL is a thin wrapper around string that ensures the string is a valid URL.
 type URL string

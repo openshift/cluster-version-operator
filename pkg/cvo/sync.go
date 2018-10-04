@@ -10,6 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/apis"
@@ -22,6 +23,12 @@ func (optr *Operator) syncUpdatePayload(config *cvv1.CVOConfig, payload *updateP
 		taskName := fmt.Sprintf("(%s) %s/%s", manifest.GVK.String(), manifest.Object().GetNamespace(), manifest.Object().GetName())
 		glog.V(4).Infof("Running sync for %s", taskName)
 		glog.V(6).Infof("Manifest: %s", string(manifest.Raw))
+
+		ov, ok := getOverrideForManifest(config.Overrides, manifest)
+		if ok && ov.Unmanaged {
+			glog.V(4).Infof("Skipping %s as unmanaged", taskName)
+			continue
+		}
 
 		if err := wait.ExponentialBackoff(wait.Backoff{
 			Duration: time.Second * 10,
@@ -53,6 +60,19 @@ func (optr *Operator) syncUpdatePayload(config *cvv1.CVOConfig, payload *updateP
 		glog.V(4).Infof("Done syncing for %s", taskName)
 	}
 	return nil
+}
+
+// getOverrideForManifest returns the override and true when override exists for manifest.
+func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest lib.Manifest) (cvv1.ComponentOverride, bool) {
+	for idx, ov := range overrides {
+		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
+		if ov.Kind == kind &&
+			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
+			ov.Name == name {
+			return overrides[idx], true
+		}
+	}
+	return cvv1.ComponentOverride{}, false
 }
 
 func ownerRefModifier(config *cvv1.CVOConfig) resourcebuilder.MetaV1ObjectModifierFunc {
