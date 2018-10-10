@@ -18,6 +18,7 @@ func init() {
 	rm.RegisterGVK(apiregv1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
 	rm.RegisterGVK(apiregv1beta1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newDeploymentBuilder)
+	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("DaemonSet"), newDaemonsetBuilder)
 	rm.RegisterGVK(batchv1.SchemeGroupVersion.WithKind("Job"), newJobBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ServiceAccount"), newServiceAccountBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ConfigMap"), newConfigMapBuilder)
