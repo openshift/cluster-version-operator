@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"fmt"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,9 @@ func readUnstructuredV1OrDie(objBytes []byte) *unstructured.Unstructured {
 }
 
 func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
+	if required.GetName() == "" {
+		return nil, false, fmt.Errorf("invalid object: name cannot be empty")
+	}
 	existing, err := client.Get(required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Create(required)
