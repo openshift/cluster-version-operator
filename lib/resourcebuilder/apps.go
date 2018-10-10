@@ -80,3 +80,67 @@ func waitForDeploymentCompletion(client appsclientv1.DeploymentsGetter, deployme
 		return false, nil
 	})
 }
+
+type daemonsetBuilder struct {
+	client   *appsclientv1.AppsV1Client
+	raw      []byte
+	modifier MetaV1ObjectModifierFunc
+}
+
+func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
+	return &daemonsetBuilder{
+		client: appsclientv1.NewForConfigOrDie(config),
+		raw:    m.Raw,
+	}
+}
+
+func (b *daemonsetBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
+	b.modifier = f
+	return b
+}
+
+func (b *daemonsetBuilder) Do() error {
+	daemonset := resourceread.ReadDaemonSetV1OrDie(b.raw)
+	if b.modifier != nil {
+		b.modifier(daemonset)
+	}
+	actual, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
+	if err != nil {
+		return err
+	}
+	if updated && actual.Generation > 1 {
+		return waitForDaemonsetRollout(b.client, daemonset)
+	}
+	return nil
+}
+
+const (
+	daemonsetPollInterval = 1 * time.Second
+	daemonsetPollTimeout  = 5 * time.Minute
+)
+
+func waitForDaemonsetRollout(client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
+	return wait.Poll(daemonsetPollInterval, daemonsetPollTimeout, func() (bool, error) {
+		d, err := client.DaemonSets(daemonset.Namespace).Get(daemonset.Name, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			// exit early to recreate the daemonset.
+			return false, err
+		}
+		if err != nil {
+			// Do not return error here, as we could be updating the API Server itself, in which case we
+			// want to continue waiting.
+			glog.Errorf("error getting Daemonset %s during rollout: %v", daemonset.Name, err)
+			return false, nil
+		}
+
+		if d.DeletionTimestamp != nil {
+			return false, fmt.Errorf("Daemonset %s is being deleted", daemonset.Name)
+		}
+
+		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
+			return true, nil
+		}
+		glog.V(4).Infof("Daemonset %s is not ready. status: (desired: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberReady, d.Status.NumberAvailable)
+		return false, nil
+	})
+}
