@@ -5,7 +5,7 @@ import "fmt"
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
-	up, err := loadUpdatePayload(defaultUpdatePayloadDir, "")
+	up, err := loadUpdatePayload(defaultUpdatePayloadDir, "", "")
 	if err != nil {
 		return "", fmt.Errorf("error loading update payload from %q: %v", defaultUpdatePayloadDir, err)
 	}

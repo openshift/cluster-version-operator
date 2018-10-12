@@ -42,7 +42,7 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
+func loadUpdatePayload(dir, releaseImage, imageRepositoryOverride string) (*updatePayload, error) {
 	glog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := validateUpdatePayload(dir); err != nil {
 		return nil, err
@@ -64,6 +64,15 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	imageRef := resourceread.ReadImageStreamV1OrDie(imageRefData)
 	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
 
+	payloadPreprocess := func(ib []byte) ([]byte, error) { return ib, nil }
+	if len(imageRepositoryOverride) > 0 {
+		fn, err := newManifestOverrideMapper(imageRepositoryOverride, imageRef)
+		if err != nil {
+			return nil, err
+		}
+		payloadPreprocess = fn
+	}
+
 	var manifests []lib.Manifest
 	var errs []error
 	tasks := []struct {
@@ -76,7 +85,7 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 		skipFiles:  sets.NewString(),
 	}, {
 		idir:       releaseDir,
-		preprocess: nil,
+		preprocess: payloadPreprocess,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
 	for _, task := range tasks {

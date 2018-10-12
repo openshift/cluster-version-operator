@@ -70,4 +70,11 @@ type CVOStatus struct {
 type Update struct {
 	Version string `json:"version"`
 	Payload string `json:"payload"`
+
+	// PayloadRepository is an optional field that instructs the ClusterVersionOperator
+	// to load images in the payload from a specific image repository, instead of
+	// from the location the payload specified. The images are still loaded via their
+	// unique identifier (digest) in order to prevent the linked content from being
+	// altered. This value matches the location you mirror an update to.
+	PayloadRepository string `json:"payloadRepository"`
 }

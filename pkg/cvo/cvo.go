@@ -235,7 +235,7 @@ func (optr *Operator) sync(key string) error {
 	if config.DesiredUpdate.Payload != "" {
 		releaseImage = config.DesiredUpdate.Payload
 	}
-	payload, err := loadUpdatePayload(payloadDir, releaseImage)
+	payload, err := loadUpdatePayload(payloadDir, releaseImage, config.DesiredUpdate.PayloadRepository)
 	if err != nil {
 		return err
 	}
