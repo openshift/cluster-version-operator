@@ -190,6 +190,18 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:d7da23741e2be291bda3be66c16887a9bbebf48a1ea133a5fcd210c02b8ccee0"
+  name = "github.com/openshift/library-go"
+  packages = [
+    "pkg/image/internal/digest",
+    "pkg/image/internal/reference",
+    "pkg/image/reference",
+  ]
+  pruneopts = "NUT"
+  revision = "c01b3a0b77b43b7de296d5a0df884da60a16d907"
+
+[[projects]]
+  branch = "master"
   digest = "1:3bf17a6e6eaa6ad24152148a631d18662f7212e21637c2699bff3369b7f00fa2"
   name = "github.com/petar/GoLLRB"
   packages = ["llrb"]
@@ -632,10 +644,10 @@
     "github.com/openshift/api/image/v1",
     "github.com/openshift/api/security/v1",
     "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1",
+    "github.com/openshift/library-go/pkg/image/reference",
     "github.com/spf13/cobra",
     "k8s.io/api/apps/v1",
     "k8s.io/api/batch/v1",
-    "k8s.io/api/batch/v1beta1",
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1",
     "k8s.io/api/rbac/v1beta1",
