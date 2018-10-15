@@ -15,13 +15,13 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyOperatorStatus(client osclientv1.OperatorStatusesGetter, required *osv1.OperatorStatus) (*osv1.OperatorStatus, bool, error) {
-	if required.Extension.Raw != nil && required.Extension.Object != nil {
+func ApplyOperatorStatus(client osclientv1.ClusterOperatorsGetter, required *osv1.ClusterOperator) (*osv1.ClusterOperator, bool, error) {
+	if required.Status.Extension.Raw != nil && required.Status.Extension.Object != nil {
 		return nil, false, fmt.Errorf("both extension.Raw and extension.Object should not be set")
 	}
-	existing, err := client.OperatorStatuses(required.Namespace).Get(required.Name, metav1.GetOptions{})
+	existing, err := client.ClusterOperators(required.Namespace).Get(required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		actual, err := client.OperatorStatuses(required.Namespace).Create(required)
+		actual, err := client.ClusterOperators(required.Namespace).Create(required)
 		return actual, true, err
 	}
 	if err != nil {
@@ -34,17 +34,17 @@ func ApplyOperatorStatus(client osclientv1.OperatorStatusesGetter, required *osv
 		return existing, false, nil
 	}
 
-	actual, err := client.OperatorStatuses(required.Namespace).Update(existing)
+	actual, err := client.ClusterOperators(required.Namespace).Update(existing)
 	return actual, true, err
 }
 
-func ApplyOperatorStatusFromCache(lister oslistersv1.OperatorStatusLister, client osclientv1.OperatorStatusesGetter, required *osv1.OperatorStatus) (*osv1.OperatorStatus, bool, error) {
-	if required.Extension.Raw != nil && required.Extension.Object != nil {
+func ApplyOperatorStatusFromCache(lister oslistersv1.ClusterOperatorLister, client osclientv1.ClusterOperatorsGetter, required *osv1.ClusterOperator) (*osv1.ClusterOperator, bool, error) {
+	if required.Status.Extension.Raw != nil && required.Status.Extension.Object != nil {
 		return nil, false, fmt.Errorf("both extension.Raw and extension.Object should not be set")
 	}
-	existing, err := lister.OperatorStatuses(required.Namespace).Get(required.Name)
+	existing, err := lister.ClusterOperators(required.Namespace).Get(required.Name)
 	if errors.IsNotFound(err) {
-		actual, err := client.OperatorStatuses(required.Namespace).Create(required)
+		actual, err := client.ClusterOperators(required.Namespace).Create(required)
 		return actual, true, err
 	}
 	if err != nil {
@@ -59,7 +59,7 @@ func ApplyOperatorStatusFromCache(lister oslistersv1.OperatorStatusLister, clien
 		return existing, false, nil
 	}
 
-	actual, err := client.OperatorStatuses(required.Namespace).Update(existing)
+	actual, err := client.ClusterOperators(required.Namespace).Update(existing)
 	return actual, true, err
 }
 

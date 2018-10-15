@@ -37,6 +37,7 @@ type OperatorStatusesGetter interface {
 type OperatorStatusInterface interface {
 	Create(*v1.OperatorStatus) (*v1.OperatorStatus, error)
 	Update(*v1.OperatorStatus) (*v1.OperatorStatus, error)
+	UpdateStatus(*v1.OperatorStatus) (*v1.OperatorStatus, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions) (*v1.OperatorStatus, error)
@@ -114,6 +115,22 @@ func (c *operatorStatuses) Update(operatorStatus *v1.OperatorStatus) (result *v1
 		Namespace(c.ns).
 		Resource("operatorstatuses").
 		Name(operatorStatus.Name).
+		Body(operatorStatus).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *operatorStatuses) UpdateStatus(operatorStatus *v1.OperatorStatus) (result *v1.OperatorStatus, err error) {
+	result = &v1.OperatorStatus{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("operatorstatuses").
+		Name(operatorStatus.Name).
+		SubResource("status").
 		Body(operatorStatus).
 		Do().
 		Into(result)

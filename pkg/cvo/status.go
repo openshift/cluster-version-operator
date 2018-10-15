@@ -5,20 +5,18 @@ import (
 
 	"github.com/google/uuid"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
 	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/cluster-version-operator/pkg/version"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func (optr *Operator) syncStatus(config *cvv1.CVOConfig, cond osv1.OperatorStatusCondition) error {
-	if cond.Type == osv1.OperatorStatusConditionTypeDegraded {
-		return fmt.Errorf("invalid cond %s", cond.Type)
-	}
-
+func (optr *Operator) syncProgressingStatus(config *cvv1.CVOConfig) error {
 	var cvoUpdates []cvv1.Update
 	if updates, err := checkForUpdate(*config); err == nil {
 		for _, update := range updates {
@@ -29,22 +27,66 @@ func (optr *Operator) syncStatus(config *cvv1.CVOConfig, cond osv1.OperatorStatu
 		}
 	}
 
-	status := &osv1.OperatorStatus{
+	status := &osv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: optr.namespace,
 			Name:      optr.name,
 		},
-		Condition:  cond,
-		Version:    version.Raw,
-		LastUpdate: metav1.Now(),
-		Extension: runtime.RawExtension{
-			Raw: nil,
-			Object: &cvv1.CVOStatus{
-				AvailableUpdates: cvoUpdates,
+		Status: osv1.ClusterOperatorStatus{
+			Version: version.Raw,
+			Extension: runtime.RawExtension{
+				Raw: nil,
+				Object: &cvv1.CVOStatus{
+					AvailableUpdates: cvoUpdates,
+				},
 			},
 		},
 	}
-	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.operatorStatusLister, optr.client.OperatorstatusV1(), status)
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{
+		Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue,
+		Message: fmt.Sprintf("Working towards %s", config),
+	})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse})
+
+	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.clusterOperatorLister, optr.client.OperatorstatusV1(), status)
+	return err
+}
+
+func (optr *Operator) syncAvailableStatus(config *cvv1.CVOConfig) error {
+	var cvoUpdates []cvv1.Update
+	if updates, err := checkForUpdate(*config); err == nil {
+		for _, update := range updates {
+			cvoUpdates = append(cvoUpdates, cvv1.Update{
+				Version: update.Version.String(),
+				Payload: update.Payload,
+			})
+		}
+	}
+
+	status := &osv1.ClusterOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: optr.namespace,
+			Name:      optr.name,
+		},
+		Status: osv1.ClusterOperatorStatus{
+			Version: version.Raw,
+			Extension: runtime.RawExtension{
+				Raw: nil,
+				Object: &cvv1.CVOStatus{
+					AvailableUpdates: cvoUpdates,
+				},
+			},
+		},
+	}
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{
+		Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue,
+		Message: fmt.Sprintf("Done applying %s", config),
+	})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse})
+
+	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.clusterOperatorLister, optr.client.OperatorstatusV1(), status)
 	return err
 }
 
@@ -55,22 +97,25 @@ func (optr *Operator) syncDegradedStatus(ierr error) error {
 	if ierr == nil {
 		return nil
 	}
-	cond := osv1.OperatorStatusCondition{
-		Type:    osv1.OperatorStatusConditionTypeDegraded,
-		Message: fmt.Sprintf("error syncing: %v", ierr),
-	}
 
-	status := &osv1.OperatorStatus{
+	status := &osv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: optr.namespace,
 			Name:      optr.name,
 		},
-		Condition:  cond,
-		Version:    version.Raw,
-		LastUpdate: metav1.Now(),
-		Extension:  runtime.RawExtension{},
+		Status: osv1.ClusterOperatorStatus{
+			Version:   version.Raw,
+			Extension: runtime.RawExtension{},
+		},
 	}
-	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.operatorStatusLister, optr.client.OperatorstatusV1(), status)
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse})
+	resourcemerge.SetOperatorStatusCondition(&status.Status.Conditions, osv1.ClusterOperatorStatusCondition{
+		Type: osv1.OperatorFailing, Status: osv1.ConditionTrue,
+		Message: fmt.Sprintf("error syncing: %v", ierr),
+	})
+
+	_, _, err := resourceapply.ApplyOperatorStatusFromCache(optr.clusterOperatorLister, optr.client.OperatorstatusV1(), status)
 	if err != nil {
 		return err
 	}

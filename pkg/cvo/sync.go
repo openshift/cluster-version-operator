@@ -83,23 +83,42 @@ func ownerRefModifier(config *cvv1.CVOConfig) resourcebuilder.MetaV1ObjectModifi
 }
 
 func (optr *Operator) syncCustomResourceDefinitions() error {
-	crds := []*apiextv1beta1.CustomResourceDefinition{{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("operatorstatuses.%s", apis.OperatorStatusGroupName),
-			Namespace: metav1.NamespaceDefault,
-		},
-		Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-			Group:   apis.OperatorStatusGroupName,
-			Version: "v1",
-			Scope:   "Namespaced",
-			Names: apiextv1beta1.CustomResourceDefinitionNames{
-				Plural:   "operatorstatuses",
-				Singular: "operatorstatus",
-				Kind:     "OperatorStatus",
-				ListKind: "OperatorStatusList",
+	crds := []*apiextv1beta1.CustomResourceDefinition{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("operatorstatuses.%s", apis.OperatorStatusGroupName),
+				Namespace: metav1.NamespaceDefault,
+			},
+			Spec: apiextv1beta1.CustomResourceDefinitionSpec{
+				Group:   apis.OperatorStatusGroupName,
+				Version: "v1",
+				Scope:   "Namespaced",
+				Names: apiextv1beta1.CustomResourceDefinitionNames{
+					Plural:   "operatorstatuses",
+					Singular: "operatorstatus",
+					Kind:     "OperatorStatus",
+					ListKind: "OperatorStatusList",
+				},
 			},
 		},
-	}}
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("clusteroperators.%s", apis.OperatorStatusGroupName),
+				Namespace: metav1.NamespaceDefault,
+			},
+			Spec: apiextv1beta1.CustomResourceDefinitionSpec{
+				Group:   apis.OperatorStatusGroupName,
+				Version: "v1",
+				Scope:   "Namespaced",
+				Names: apiextv1beta1.CustomResourceDefinitionNames{
+					Plural:   "clusteroperators",
+					Singular: "clusteroperator",
+					Kind:     "ClusterOperator",
+					ListKind: "ClusterOperatorList",
+				},
+			},
+		},
+	}
 
 	for _, crd := range crds {
 		_, updated, err := resourceapply.ApplyCustomResourceDefinitionFromCache(optr.crdLister, optr.apiExtClient.ApiextensionsV1beta1(), crd)

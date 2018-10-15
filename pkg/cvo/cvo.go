@@ -26,7 +26,6 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
 	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
@@ -65,7 +64,7 @@ type Operator struct {
 
 	syncHandler func(key string) error
 
-	operatorStatusLister oslistersv1.OperatorStatusLister
+	clusterOperatorLister oslistersv1.ClusterOperatorLister
 
 	crdLister             apiextlistersv1beta1.CustomResourceDefinitionLister
 	deployLister          appslisterv1.DeploymentLister
@@ -84,7 +83,7 @@ func New(
 	namespace, name string,
 	releaseImage string,
 	cvoConfigInformer cvinformersv1.CVOConfigInformer,
-	operatorStatusInformer osinformersv1.OperatorStatusInformer,
+	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
 	restConfig *rest.Config,
@@ -114,7 +113,7 @@ func New(
 
 	optr.syncHandler = optr.sync
 
-	optr.operatorStatusLister = operatorStatusInformer.Lister()
+	optr.clusterOperatorLister = clusterOperatorInformer.Lister()
 
 	optr.crdLister = crdInformer.Lister()
 	optr.crdListerSynced = crdInformer.Informer().HasSynced
@@ -223,7 +222,7 @@ func (optr *Operator) sync(key string) error {
 	config := &cvv1.CVOConfig{}
 	obj.DeepCopyInto(config)
 
-	if err := optr.syncStatus(config, osv1.OperatorStatusCondition{Type: osv1.OperatorStatusConditionTypeWorking, Message: fmt.Sprintf("Working towards %s", config)}); err != nil {
+	if err := optr.syncProgressingStatus(config); err != nil {
 		return err
 	}
 
@@ -244,7 +243,7 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	return optr.syncStatus(config, osv1.OperatorStatusCondition{Type: osv1.OperatorStatusConditionTypeDone, Message: fmt.Sprintf("Done applying %s", config)})
+	return optr.syncAvailableStatus(config)
 }
 
 func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {

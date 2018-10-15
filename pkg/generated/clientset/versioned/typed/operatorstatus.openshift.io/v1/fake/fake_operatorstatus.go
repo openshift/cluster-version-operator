@@ -100,6 +100,18 @@ func (c *FakeOperatorStatuses) Update(operatorStatus *operatorstatusopenshiftiov
 	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeOperatorStatuses) UpdateStatus(operatorStatus *operatorstatusopenshiftiov1.OperatorStatus) (*operatorstatusopenshiftiov1.OperatorStatus, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(operatorstatusesResource, "status", c.ns, operatorStatus), &operatorstatusopenshiftiov1.OperatorStatus{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*operatorstatusopenshiftiov1.OperatorStatus), err
+}
+
 // Delete takes name of the operatorStatus and deletes it. Returns an error if one occurs.
 func (c *FakeOperatorStatuses) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.

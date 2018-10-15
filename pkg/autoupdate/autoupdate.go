@@ -38,7 +38,7 @@ const (
 
 // Controller defines autoupdate controller.
 type Controller struct {
-	// namespace and name are used to find the CVOConfig, OperatorStatus.
+	// namespace and name are used to find the CVOConfig, ClusterOperator.
 	namespace, name string
 
 	client        clientset.Interface
@@ -46,8 +46,8 @@ type Controller struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister      cvlistersv1.CVOConfigLister
-	operatorStatusLister oslistersv1.OperatorStatusLister
+	cvoConfigLister       cvlistersv1.CVOConfigLister
+	clusterOperatorLister oslistersv1.ClusterOperatorLister
 
 	cvoConfigListerSynced cache.InformerSynced
 	operatorStatusSynced  cache.InformerSynced
@@ -60,7 +60,7 @@ type Controller struct {
 func New(
 	namespace, name string,
 	cvoConfigInformer cvinformersv1.CVOConfigInformer,
-	operatorStatusInformer osinformersv1.OperatorStatusInformer,
+	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 ) *Controller {
@@ -77,15 +77,15 @@ func New(
 	}
 
 	cvoConfigInformer.Informer().AddEventHandler(ctrl.eventHandler())
-	operatorStatusInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	clusterOperatorInformer.Informer().AddEventHandler(ctrl.eventHandler())
 
 	ctrl.syncHandler = ctrl.sync
 
 	ctrl.cvoConfigLister = cvoConfigInformer.Lister()
-	ctrl.operatorStatusLister = operatorStatusInformer.Lister()
+	ctrl.clusterOperatorLister = clusterOperatorInformer.Lister()
 
 	ctrl.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
-	ctrl.operatorStatusSynced = operatorStatusInformer.Informer().HasSynced
+	ctrl.operatorStatusSynced = clusterOperatorInformer.Informer().HasSynced
 
 	return ctrl
 }
@@ -168,9 +168,9 @@ func (ctrl *Controller) sync(key string) error {
 		return err
 	}
 
-	operatorstatus, err := ctrl.operatorStatusLister.OperatorStatuses(namespace).Get(name)
+	operatorstatus, err := ctrl.clusterOperatorLister.ClusterOperators(namespace).Get(name)
 	if errors.IsNotFound(err) {
-		glog.V(2).Infof("OperatorStatus %v has been deleted", key)
+		glog.V(2).Infof("ClusterOperator %v has been deleted", key)
 		return nil
 	}
 	if err != nil {
@@ -192,7 +192,7 @@ func (ctrl *Controller) sync(key string) error {
 	config := new(v1.CVOConfig)
 	cvoconfig.DeepCopyInto(config)
 
-	obji, _, err := scheme.Codecs.UniversalDecoder().Decode(ops.Extension.Raw, nil, &v1.CVOStatus{})
+	obji, _, err := scheme.Codecs.UniversalDecoder().Decode(ops.Status.Extension.Raw, nil, &v1.CVOStatus{})
 	if err != nil {
 		return fmt.Errorf("unable to decode CVOStatus from extension.Raw: %v", err)
 	}
