@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// OperatorStatuses returns a OperatorStatusInformer.
-	OperatorStatuses() OperatorStatusInformer
+	// ClusterOperators returns a ClusterOperatorInformer.
+	ClusterOperators() ClusterOperatorInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// OperatorStatuses returns a OperatorStatusInformer.
-func (v *version) OperatorStatuses() OperatorStatusInformer {
-	return &operatorStatusInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// ClusterOperators returns a ClusterOperatorInformer.
+func (v *version) ClusterOperators() ClusterOperatorInformer {
+	return &clusterOperatorInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

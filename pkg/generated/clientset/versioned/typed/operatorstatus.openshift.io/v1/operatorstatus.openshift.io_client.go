@@ -27,7 +27,7 @@ import (
 
 type OperatorstatusV1Interface interface {
 	RESTClient() rest.Interface
-	OperatorStatusesGetter
+	ClusterOperatorsGetter
 }
 
 // OperatorstatusV1Client is used to interact with features provided by the operatorstatus.openshift.io group.
@@ -35,8 +35,8 @@ type OperatorstatusV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *OperatorstatusV1Client) OperatorStatuses(namespace string) OperatorStatusInterface {
-	return newOperatorStatuses(c, namespace)
+func (c *OperatorstatusV1Client) ClusterOperators(namespace string) ClusterOperatorInterface {
+	return newClusterOperators(c, namespace)
 }
 
 // NewForConfig creates a new OperatorstatusV1Client for the given config.

@@ -28,8 +28,8 @@ type FakeOperatorstatusV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeOperatorstatusV1) OperatorStatuses(namespace string) v1.OperatorStatusInterface {
-	return &FakeOperatorStatuses{c, namespace}
+func (c *FakeOperatorstatusV1) ClusterOperators(namespace string) v1.ClusterOperatorInterface {
+	return &FakeClusterOperators{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

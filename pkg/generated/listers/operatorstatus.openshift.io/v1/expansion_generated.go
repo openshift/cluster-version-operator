@@ -18,10 +18,10 @@ limitations under the License.
 
 package v1
 
-// OperatorStatusListerExpansion allows custom methods to be added to
-// OperatorStatusLister.
-type OperatorStatusListerExpansion interface{}
+// ClusterOperatorListerExpansion allows custom methods to be added to
+// ClusterOperatorLister.
+type ClusterOperatorListerExpansion interface{}
 
-// OperatorStatusNamespaceListerExpansion allows custom methods to be added to
-// OperatorStatusNamespaceLister.
-type OperatorStatusNamespaceListerExpansion interface{}
+// ClusterOperatorNamespaceListerExpansion allows custom methods to be added to
+// ClusterOperatorNamespaceLister.
+type ClusterOperatorNamespaceListerExpansion interface{}

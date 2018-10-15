@@ -3,6 +3,8 @@ package internal
 import (
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,12 +35,12 @@ func init() {
 }
 
 // readOperatorStatusV1OrDie reads operatorstatus object from bytes. Panics on error.
-func readOperatorStatusV1OrDie(objBytes []byte) *osv1.OperatorStatus {
+func readOperatorStatusV1OrDie(objBytes []byte) *osv1.ClusterOperator {
 	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(osv1.SchemeGroupVersion), objBytes)
 	if err != nil {
 		panic(err)
 	}
-	return requiredObj.(*osv1.OperatorStatus)
+	return requiredObj.(*osv1.ClusterOperator)
 }
 
 type operatorStatusBuilder struct {
@@ -73,21 +75,41 @@ const (
 	osPollTimeout  = 1 * time.Minute
 )
 
-func waitForOperatorStatusToBeDone(client osclientv1.OperatorStatusesGetter, os *osv1.OperatorStatus) error {
+func waitForOperatorStatusToBeDone(client osclientv1.ClusterOperatorsGetter, os *osv1.ClusterOperator) error {
 	return wait.Poll(osPollInternal, osPollTimeout, func() (bool, error) {
-		eos, err := client.OperatorStatuses(os.Namespace).Get(os.Name, metav1.GetOptions{})
+		eos, err := client.ClusterOperators(os.Namespace).Get(os.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
+		glog.V(4).Infof("OperatorStatus %s/%s is reporting %v",
+			eos.Namespace, eos.Name, spew.Sdump(eos.Status))
 
-		if eos.Version == os.Version && eos.Condition.Type == osv1.OperatorStatusConditionTypeDone {
+		if eos.Status.Version != os.Status.Version {
+			return false, nil
+		}
+
+		available := false
+		progressing := true
+		failing := true
+		for _, condition := range eos.Status.Conditions {
+			switch {
+			case condition.Type == osv1.OperatorAvailable && condition.Status == osv1.ConditionTrue:
+				available = true
+			case condition.Type == osv1.OperatorProgressing && condition.Status == osv1.ConditionFalse:
+				progressing = false
+			case condition.Type == osv1.OperatorFailing && condition.Status == osv1.ConditionFalse:
+				failing = false
+			}
+		}
+
+		// if we're at the correct version, and available, not progressing, and not failing, we are done
+		if available && !progressing && !failing {
 			return true, nil
 		}
-		glog.V(4).Infof("OperatorStatus %s/%s is not reporting %s for version %s; it is reporting %s for version %s",
-			eos.Namespace, eos.Name,
-			osv1.OperatorStatusConditionTypeDone, os.Version,
-			eos.Condition.Type, eos.Version,
-		)
+		glog.V(3).Infof("OperatorStatus %s/%s is not done for version %s; it is version=%v, available=%v, progressing=%v, failing=%v",
+			eos.Namespace, eos.Name, os.Status.Version,
+			eos.Status.Version, available, progressing, failing)
+
 		return false, nil
 	})
 }
