@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// OperatorStatusInformer provides access to a shared informer and lister for
-// OperatorStatuses.
-type OperatorStatusInformer interface {
+// ClusterOperatorInformer provides access to a shared informer and lister for
+// ClusterOperators.
+type ClusterOperatorInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.OperatorStatusLister
+	Lister() v1.ClusterOperatorLister
 }
 
-type operatorStatusInformer struct {
+type clusterOperatorInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewOperatorStatusInformer constructs a new informer for OperatorStatus type.
+// NewClusterOperatorInformer constructs a new informer for ClusterOperator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewOperatorStatusInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredOperatorStatusInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewClusterOperatorInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredClusterOperatorInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredOperatorStatusInformer constructs a new informer for OperatorStatus type.
+// NewFilteredClusterOperatorInformer constructs a new informer for ClusterOperator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredOperatorStatusInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredClusterOperatorInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorstatusV1().OperatorStatuses(namespace).List(options)
+				return client.OperatorstatusV1().ClusterOperators(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.OperatorstatusV1().OperatorStatuses(namespace).Watch(options)
+				return client.OperatorstatusV1().ClusterOperators(namespace).Watch(options)
 			},
 		},
-		&operatorstatusopenshiftiov1.OperatorStatus{},
+		&operatorstatusopenshiftiov1.ClusterOperator{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *operatorStatusInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredOperatorStatusInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *clusterOperatorInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredClusterOperatorInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *operatorStatusInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operatorstatusopenshiftiov1.OperatorStatus{}, f.defaultInformer)
+func (f *clusterOperatorInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&operatorstatusopenshiftiov1.ClusterOperator{}, f.defaultInformer)
 }
 
-func (f *operatorStatusInformer) Lister() v1.OperatorStatusLister {
-	return v1.NewOperatorStatusLister(f.Informer().GetIndexer())
+func (f *clusterOperatorInformer) Lister() v1.ClusterOperatorLister {
+	return v1.NewClusterOperatorLister(f.Informer().GetIndexer())
 }

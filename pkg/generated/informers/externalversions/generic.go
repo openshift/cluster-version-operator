@@ -58,8 +58,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusterversion().V1().CVOConfigs().Informer()}, nil
 
 		// Group=operatorstatus.openshift.io, Version=v1
-	case operatorstatusopenshiftiov1.SchemeGroupVersion.WithResource("operatorstatuses"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Operatorstatus().V1().OperatorStatuses().Informer()}, nil
+	case operatorstatusopenshiftiov1.SchemeGroupVersion.WithResource("clusteroperators"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operatorstatus().V1().ClusterOperators().Informer()}, nil
 
 	}
 
