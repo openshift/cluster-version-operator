@@ -30,12 +30,12 @@ func init() {
 		panic(err)
 	}
 
-	osMapper.RegisterGVK(osv1.SchemeGroupVersion.WithKind("OperatorStatus"), newOperatorStatusBuilder)
+	osMapper.RegisterGVK(osv1.SchemeGroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
 	osMapper.AddToMap(resourcebuilder.Mapper)
 }
 
-// readOperatorStatusV1OrDie reads operatorstatus object from bytes. Panics on error.
-func readOperatorStatusV1OrDie(objBytes []byte) *osv1.ClusterOperator {
+// readClusterOperatorV1OrDie reads clusteroperator object from bytes. Panics on error.
+func readClusterOperatorV1OrDie(objBytes []byte) *osv1.ClusterOperator {
 	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(osv1.SchemeGroupVersion), objBytes)
 	if err != nil {
 		panic(err)
@@ -43,26 +43,26 @@ func readOperatorStatusV1OrDie(objBytes []byte) *osv1.ClusterOperator {
 	return requiredObj.(*osv1.ClusterOperator)
 }
 
-type operatorStatusBuilder struct {
+type clusterOperatorBuilder struct {
 	client   *osclientv1.OperatorstatusV1Client
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
 }
 
-func newOperatorStatusBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
-	return &operatorStatusBuilder{
+func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
+	return &clusterOperatorBuilder{
 		client: osclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
 
-func (b *operatorStatusBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
+func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
 	b.modifier = f
 	return b
 }
 
-func (b *operatorStatusBuilder) Do() error {
-	os := readOperatorStatusV1OrDie(b.raw)
+func (b *clusterOperatorBuilder) Do() error {
+	os := readClusterOperatorV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(os)
 	}
@@ -81,7 +81,7 @@ func waitForOperatorStatusToBeDone(client osclientv1.ClusterOperatorsGetter, os 
 		if err != nil {
 			return false, err
 		}
-		glog.V(4).Infof("OperatorStatus %s/%s is reporting %v",
+		glog.V(4).Infof("ClusterOperator %s/%s is reporting %v",
 			eos.Namespace, eos.Name, spew.Sdump(eos.Status))
 
 		if eos.Status.Version != os.Status.Version {
@@ -106,7 +106,7 @@ func waitForOperatorStatusToBeDone(client osclientv1.ClusterOperatorsGetter, os 
 		if available && !progressing && !failing {
 			return true, nil
 		}
-		glog.V(3).Infof("OperatorStatus %s/%s is not done for version %s; it is version=%v, available=%v, progressing=%v, failing=%v",
+		glog.V(3).Infof("ClusterOperator %s/%s is not done for version %s; it is version=%v, available=%v, progressing=%v, failing=%v",
 			eos.Namespace, eos.Name, os.Status.Version,
 			eos.Status.Version, available, progressing, failing)
 
