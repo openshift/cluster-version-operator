@@ -1,8 +1,10 @@
 # Second Level Operator integration with CVO
 
 ## How do I get added to the release payload?
+
 Add the following to your Dockerfile
-```
+
+```Dockerfile
 FROM …
 
 ADD manifests-for-operator/ /manifests
@@ -18,13 +20,13 @@ You need the following:
 
 1..N manifest yaml or JSON files (preferably YAML for readability) that deploy your operator, including:
 
-  - Namespace for your operator
-  - Roles your operator needs
-  - A service account and a service account role binding
-  - Deployment for your operator
-  - An OperatorStatus CR
-  - Any other config objects your operator might need
-  - An image-references file (See below)
+- Namespace for your operator
+- Roles your operator needs
+- A service account and a service account role binding
+- Deployment for your operator
+- A ClusterOperator CR [more info here](clusteroperator.md)
+- Any other config objects your operator might need
+- An image-references file (See below)
 
 In your deployment you can reference the latest development version of your operator image (quay.io/openshift/origin-machine-api-operator:latest).  If you have other hard-coded image strings, try to put them as environment variables on your deployment or as a config map.
 
@@ -56,6 +58,7 @@ When your manifests are added to the release payload, they’ll be given a prefi
 ```
 
 ### How do I get added as a special run level?
+
 Some operators need to run at a specific time in the release process (OLM, kube, openshift core operators, network, service CA).  These components can ensure they run in a specific order across operators by prefixing their manifests with:
 
     0000_<runlevel>_<dash-separated_component>-<manifest_filename>
@@ -66,22 +69,23 @@ For example, the Kube core operators run in runlevel 10-19 and have filenames li
 
 Assigned runlevels
 
-  - 00-04 - CVO
-  - 07 - Network operator
-  - 08 - DNS operator
-  - 09 - Service signer CA
-  - 10-19 - Kube operators (master team)
-  - 20-29 - OpenShift core operators (master team)
-  - 30-39 - OLM
+- 00-04 - CVO
+- 07 - Network operator
+- 08 - DNS operator
+- 09 - Service signer CA
+- 10-19 - Kube operators (master team)
+- 20-29 - OpenShift core operators (master team)
+- 30-39 - OLM
 
 ## How do I ensure the right images get used by my manifests?
+
 Your manifests can contain a tag to the latest development image published by Origin.  You’ll annotate your manifests by creating a file that identifies those images.
 
 Assume you have two images in your manifests - `quay.io/openshift/origin-ingress-operator:latest` and `quay.io/openshift/origin-haproxy-router:latest`.  Those correspond to the following tags `ingress-operator` and `haproxy-router` when the CI runs.
 
 Create a file `image-references` in the /manifests dir with the following contents:
 
-```
+```yaml
 kind: ImageStream
 apiVersion: image.openshift.io/v1
 spec:
