@@ -70,6 +70,7 @@ For example, the Kube core operators run in runlevel 10-19 and have filenames li
 Assigned runlevels
 
 - 00-04 - CVO
+- 05 - Checkpointer operator
 - 07 - Network operator
 - 08 - DNS operator
 - 09 - Service signer CA
