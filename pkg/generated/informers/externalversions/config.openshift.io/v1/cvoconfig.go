@@ -21,10 +21,10 @@ package v1
 import (
 	time "time"
 
-	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	versioned "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/internalinterfaces"
-	v1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	v1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

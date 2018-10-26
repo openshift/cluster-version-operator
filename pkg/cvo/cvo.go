@@ -25,11 +25,11 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
+	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
 	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
 	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 )
 

@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	v1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	rest "k8s.io/client-go/rest"
@@ -30,7 +30,7 @@ type ClusterversionV1Interface interface {
 	CVOConfigsGetter
 }
 
-// ClusterversionV1Client is used to interact with features provided by the clusterversion.openshift.io group.
+// ClusterversionV1Client is used to interact with features provided by the config.openshift.io group.
 type ClusterversionV1Client struct {
 	restClient rest.Interface
 }

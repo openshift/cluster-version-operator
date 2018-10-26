@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -34,9 +34,9 @@ type FakeCVOConfigs struct {
 	ns   string
 }
 
-var cvoconfigsResource = schema.GroupVersionResource{Group: "clusterversion.openshift.io", Version: "v1", Resource: "cvoconfigs"}
+var cvoconfigsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "cvoconfigs"}
 
-var cvoconfigsKind = schema.GroupVersionKind{Group: "clusterversion.openshift.io", Version: "v1", Kind: "CVOConfig"}
+var cvoconfigsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "CVOConfig"}
 
 // Get takes name of the cVOConfig, and returns the corresponding cVOConfig object, and an error if there is any.
 func (c *FakeCVOConfigs) Get(name string, options v1.GetOptions) (result *clusterversionopenshiftiov1.CVOConfig, err error) {

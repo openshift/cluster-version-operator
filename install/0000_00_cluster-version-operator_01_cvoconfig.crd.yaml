@@ -2,10 +2,10 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   # name must match the spec fields below, and be in the form: <plural>.<group>
-  name: cvoconfigs.clusterversion.openshift.io
+  name: cvoconfigs.config.openshift.io
 spec:
   # group name to use for REST API: /apis/<group>/<version>
-  group: clusterversion.openshift.io
+  group: config.openshift.io
   # list of versions supported by this CustomResourceDefinition
   versions:
     - name: v1
