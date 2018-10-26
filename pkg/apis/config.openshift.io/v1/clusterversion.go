@@ -6,23 +6,23 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// DeepCopyObject copies the CVOConfig into an Object. This doesn't actually
+// DeepCopyObject copies the ClusterVersion into an Object. This doesn't actually
 // require a deep copy, but the code generator (and Go itself) isn't advanced
 // enough to determine that.
-func (c *CVOConfig) DeepCopyObject() runtime.Object {
+func (c *ClusterVersion) DeepCopyObject() runtime.Object {
 	out := *c
 	c.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	return &out
 }
 
-// DeepCopyInto copies the CVOConfig into another CVOConfig. This doesn't
+// DeepCopyInto copies the ClusterVersion into another ClusterVersion. This doesn't
 // actually require a deep copy, but the code generator (and Go itself) isn't
 // advanced enough to determine that.
-func (c *CVOConfig) DeepCopyInto(out *CVOConfig) {
+func (c *ClusterVersion) DeepCopyInto(out *ClusterVersion) {
 	*out = *c
 	c.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 }
 
-func (c CVOConfig) String() string {
+func (c ClusterVersion) String() string {
 	return fmt.Sprintf("{ Upstream: %s Channel: %s ClusterID: %s }", c.Upstream, c.Channel, c.ClusterID)
 }

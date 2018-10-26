@@ -24,8 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// CVOConfigs returns a CVOConfigInformer.
-	CVOConfigs() CVOConfigInformer
+	// ClusterVersions returns a ClusterVersionInformer.
+	ClusterVersions() ClusterVersionInformer
 }
 
 type version struct {
@@ -39,7 +39,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// CVOConfigs returns a CVOConfigInformer.
-func (v *version) CVOConfigs() CVOConfigInformer {
-	return &cVOConfigInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// ClusterVersions returns a ClusterVersionInformer.
+func (v *version) ClusterVersions() ClusterVersionInformer {
+	return &clusterVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

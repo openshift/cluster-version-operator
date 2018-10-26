@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
 
-func (optr *Operator) syncUpdatePayload(config *cvv1.CVOConfig, payload *updatePayload) error {
+func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *updatePayload) error {
 	for _, manifest := range payload.manifests {
 		taskName := fmt.Sprintf("(%s) %s/%s", manifest.GVK.String(), manifest.Object().GetNamespace(), manifest.Object().GetName())
 		glog.V(4).Infof("Running sync for %s", taskName)
@@ -75,7 +75,7 @@ func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest lib.Man
 	return cvv1.ComponentOverride{}, false
 }
 
-func ownerRefModifier(config *cvv1.CVOConfig) resourcebuilder.MetaV1ObjectModifierFunc {
+func ownerRefModifier(config *cvv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
 	oref := metav1.NewControllerRef(config, ownerKind)
 	return func(obj metav1.Object) {
 		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})

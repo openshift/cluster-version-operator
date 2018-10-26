@@ -4,7 +4,7 @@ import (
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 )
 
-func EnsureCVOConfig(modified *bool, existing *cvv1.CVOConfig, required cvv1.CVOConfig) {
+func EnsureClusterVersion(modified *bool, existing *cvv1.ClusterVersion, required cvv1.ClusterVersion) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if existing.Upstream != required.Upstream {
 		*modified = true

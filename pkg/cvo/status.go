@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
-func (optr *Operator) syncProgressingStatus(config *cvv1.CVOConfig) error {
+func (optr *Operator) syncProgressingStatus(config *cvv1.ClusterVersion) error {
 	var cvoUpdates []cvv1.Update
 	if updates, err := checkForUpdate(*config); err == nil {
 		for _, update := range updates {
@@ -53,7 +53,7 @@ func (optr *Operator) syncProgressingStatus(config *cvv1.CVOConfig) error {
 	return err
 }
 
-func (optr *Operator) syncAvailableStatus(config *cvv1.CVOConfig) error {
+func (optr *Operator) syncAvailableStatus(config *cvv1.ClusterVersion) error {
 	var cvoUpdates []cvv1.Update
 	if updates, err := checkForUpdate(*config); err == nil {
 		for _, update := range updates {
@@ -122,7 +122,7 @@ func (optr *Operator) syncDegradedStatus(ierr error) error {
 	return ierr
 }
 
-func checkForUpdate(config cvv1.CVOConfig) ([]cincinnati.Update, error) {
+func checkForUpdate(config cvv1.ClusterVersion) ([]cincinnati.Update, error) {
 	uuid, err := uuid.Parse(string(config.ClusterID))
 	if err != nil {
 		return nil, err

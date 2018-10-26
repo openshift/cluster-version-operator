@@ -4,20 +4,20 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// CVOConfigList is a list of CVOConfig resources.
+// ClusterVersionList is a list of ClusterVersion resources.
 // +k8s:deepcopy-gen=true
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type CVOConfigList struct {
+type ClusterVersionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []CVOConfig `json:"items"`
+	Items []ClusterVersion `json:"items"`
 }
 
-// CVOConfig is the configuration for the ClusterVersionOperator. This is where
+// ClusterVersion is the configuration for the ClusterVersionOperator. This is where
 // parameters related to automatic updates can be set.
 // +genclient
-type CVOConfig struct {
+type ClusterVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 

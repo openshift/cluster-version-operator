@@ -43,13 +43,13 @@ const (
 )
 
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
-var ownerKind = cvv1.SchemeGroupVersion.WithKind("CVOConfig")
+var ownerKind = cvv1.SchemeGroupVersion.WithKind("ClusterVersion")
 
 // Operator defines cluster version operator.
 type Operator struct {
 	// nodename allows CVO to sync fetchPayload to same node as itself.
 	nodename string
-	// namespace and name are used to find the CVOConfig, OperatorStatus.
+	// namespace and name are used to find the ClusterVersion, OperatorStatus.
 	namespace, name string
 	// releaseImage allows templating CVO deployment manifest.
 	releaseImage string
@@ -68,7 +68,7 @@ type Operator struct {
 
 	crdLister             apiextlistersv1beta1.CustomResourceDefinitionLister
 	deployLister          appslisterv1.DeploymentLister
-	cvoConfigLister       cvlistersv1.CVOConfigLister
+	cvoConfigLister       cvlistersv1.ClusterVersionLister
 	crdListerSynced       cache.InformerSynced
 	deployListerSynced    cache.InformerSynced
 	cvoConfigListerSynced cache.InformerSynced
@@ -82,7 +82,7 @@ func New(
 	nodename string,
 	namespace, name string,
 	releaseImage string,
-	cvoConfigInformer cvinformersv1.CVOConfigInformer,
+	cvoConfigInformer cvinformersv1.ClusterVersionInformer,
 	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
@@ -200,7 +200,7 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	// We always run this to make sure CVOConfig can be synced.
+	// We always run this to make sure ClusterVersion can be synced.
 	if err := optr.syncCustomResourceDefinitions(); err != nil {
 		return err
 	}
@@ -210,8 +210,8 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	var obj *cvv1.CVOConfig
-	obj, err = optr.cvoConfigLister.CVOConfigs(namespace).Get(name)
+	var obj *cvv1.ClusterVersion
+	obj, err = optr.cvoConfigLister.ClusterVersions(namespace).Get(name)
 	if apierrors.IsNotFound(err) {
 		obj, err = optr.getConfig()
 	}
@@ -219,7 +219,7 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	config := &cvv1.CVOConfig{}
+	config := &cvv1.ClusterVersion{}
 	obj.DeepCopyInto(config)
 
 	if err := optr.syncProgressingStatus(config); err != nil {
@@ -246,7 +246,7 @@ func (optr *Operator) sync(key string) error {
 	return optr.syncAvailableStatus(config)
 }
 
-func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
+func (optr *Operator) getConfig() (*cvv1.ClusterVersion, error) {
 	upstream := cvv1.URL("http://localhost:8080/graph")
 	channel := "fast"
 	id, _ := uuid.NewRandom()
@@ -257,8 +257,8 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 		return nil, fmt.Errorf("Invalid %q, must be a version-4 UUID: found %s", id, id.Version())
 	}
 
-	// XXX: generate CVOConfig from options calculated above.
-	config := &cvv1.CVOConfig{
+	// XXX: generate ClusterVersion from options calculated above.
+	config := &cvv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: optr.namespace,
 			Name:      optr.name,
@@ -268,6 +268,6 @@ func (optr *Operator) getConfig() (*cvv1.CVOConfig, error) {
 		ClusterID: cvv1.ClusterID(id.String()),
 	}
 
-	actual, _, err := resourceapply.ApplyCVOConfigFromCache(optr.cvoConfigLister, optr.client.ClusterversionV1(), config)
+	actual, _, err := resourceapply.ApplyClusterVersionFromCache(optr.cvoConfigLister, optr.client.ConfigV1(), config)
 	return actual, err
 }
