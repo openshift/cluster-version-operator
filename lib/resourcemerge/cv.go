@@ -1,7 +1,7 @@
 package resourcemerge
 
 import (
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 )
 
 func EnsureCVOConfig(modified *bool, existing *cvv1.CVOConfig, required cvv1.CVOConfig) {

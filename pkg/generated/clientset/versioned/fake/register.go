@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"

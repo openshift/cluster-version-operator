@@ -24,7 +24,7 @@ import (
 	time "time"
 
 	versioned "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	clusterversionopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io"
+	clusterversionopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io"
 	internalinterfaces "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/internalinterfaces"
 	operatorstatusopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

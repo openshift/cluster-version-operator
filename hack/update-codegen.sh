@@ -6,5 +6,5 @@ ${PROJECT_ROOT}/vendor/k8s.io/code-generator/generate-groups.sh \
 	all \
 	github.com/openshift/cluster-version-operator/pkg/generated \
 	github.com/openshift/cluster-version-operator/pkg/apis \
-	"clusterversion.openshift.io:v1 operatorstatus.openshift.io:v1" \
+	"config.openshift.io:v1 operatorstatus.openshift.io:v1" \
 	$@ \
