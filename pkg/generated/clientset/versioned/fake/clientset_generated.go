@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/clusterversion.openshift.io/v1"
-	fakeclusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/clusterversion.openshift.io/v1/fake"
+	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
+	fakeclusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1/fake"
 	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
 	fakeoperatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
