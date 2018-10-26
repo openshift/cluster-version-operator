@@ -24,7 +24,7 @@ import (
 	time "time"
 
 	versioned "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	clusterversionopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io"
+	configopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io"
 	internalinterfaces "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/internalinterfaces"
 	operatorstatusopenshiftio "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -173,12 +173,12 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Clusterversion() clusterversionopenshiftio.Interface
+	Config() configopenshiftio.Interface
 	Operatorstatus() operatorstatusopenshiftio.Interface
 }
 
-func (f *sharedInformerFactory) Clusterversion() clusterversionopenshiftio.Interface {
-	return clusterversionopenshiftio.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Config() configopenshiftio.Interface {
+	return configopenshiftio.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Operatorstatus() operatorstatusopenshiftio.Interface {

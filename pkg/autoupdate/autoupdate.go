@@ -38,7 +38,7 @@ const (
 
 // Controller defines autoupdate controller.
 type Controller struct {
-	// namespace and name are used to find the CVOConfig, ClusterOperator.
+	// namespace and name are used to find the ClusterVersion, ClusterOperator.
 	namespace, name string
 
 	client        clientset.Interface
@@ -46,7 +46,7 @@ type Controller struct {
 
 	syncHandler func(key string) error
 
-	cvoConfigLister       cvlistersv1.CVOConfigLister
+	cvoConfigLister       cvlistersv1.ClusterVersionLister
 	clusterOperatorLister oslistersv1.ClusterOperatorLister
 
 	cvoConfigListerSynced cache.InformerSynced
@@ -59,7 +59,7 @@ type Controller struct {
 // New returns a new autoupdate controller.
 func New(
 	namespace, name string,
-	cvoConfigInformer cvinformersv1.CVOConfigInformer,
+	cvoConfigInformer cvinformersv1.ClusterVersionInformer,
 	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -177,9 +177,9 @@ func (ctrl *Controller) sync(key string) error {
 		return err
 	}
 
-	cvoconfig, err := ctrl.cvoConfigLister.CVOConfigs(namespace).Get(name)
+	clusterversion, err := ctrl.cvoConfigLister.ClusterVersions(namespace).Get(name)
 	if errors.IsNotFound(err) {
-		glog.V(2).Infof("CVOConfig %v has been deleted", key)
+		glog.V(2).Infof("ClusterVersion %v has been deleted", key)
 		return nil
 	}
 	if err != nil {
@@ -189,8 +189,8 @@ func (ctrl *Controller) sync(key string) error {
 	// Deep-copy otherwise we are mutating our cache.
 	// TODO: Deep-copy only when needed.
 	ops := operatorstatus.DeepCopy()
-	config := new(v1.CVOConfig)
-	cvoconfig.DeepCopyInto(config)
+	config := new(v1.ClusterVersion)
+	clusterversion.DeepCopyInto(config)
 
 	obji, _, err := scheme.Codecs.UniversalDecoder().Decode(ops.Status.Extension.Raw, nil, &v1.CVOStatus{})
 	if err != nil {
@@ -207,7 +207,7 @@ func (ctrl *Controller) sync(key string) error {
 	up := nextUpdate(cvoststatus.AvailableUpdates)
 	config.DesiredUpdate = up
 
-	_, updated, err := resourceapply.ApplyCVOConfigFromCache(ctrl.cvoConfigLister, ctrl.client.ClusterversionV1(), config)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvoConfigLister, ctrl.client.ConfigV1(), config)
 	if updated {
 		glog.Infof("Auto Update set to %s", up)
 	}

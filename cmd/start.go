@@ -231,7 +231,7 @@ func startControllers(ctx *controllerContext) error {
 		startOpts.nodeName,
 		componentNamespace, componentName,
 		rootOpts.releaseImage,
-		ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
+		ctx.InformerFactory.Config().V1().ClusterVersions(),
 		ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
 		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
 		ctx.KubeInformerFactory.Apps().V1().Deployments(),
@@ -244,7 +244,7 @@ func startControllers(ctx *controllerContext) error {
 	if startOpts.enableAutoUpdate {
 		go autoupdate.New(
 			componentNamespace, componentName,
-			ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
+			ctx.InformerFactory.Config().V1().ClusterVersions(),
 			ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
 			ctx.ClientBuilder.ClientOrDie(componentName),
 			ctx.ClientBuilder.KubeClientOrDie(componentName),

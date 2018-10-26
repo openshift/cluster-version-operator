@@ -21,7 +21,7 @@ package v1
 import (
 	time "time"
 
-	clusterversionopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
+	configopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	versioned "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	internalinterfaces "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/internalinterfaces"
 	v1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
@@ -31,59 +31,59 @@ import (
 	cache "k8s.io/client-go/tools/cache"
 )
 
-// CVOConfigInformer provides access to a shared informer and lister for
-// CVOConfigs.
-type CVOConfigInformer interface {
+// ClusterVersionInformer provides access to a shared informer and lister for
+// ClusterVersions.
+type ClusterVersionInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.CVOConfigLister
+	Lister() v1.ClusterVersionLister
 }
 
-type cVOConfigInformer struct {
+type clusterVersionInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	namespace        string
 }
 
-// NewCVOConfigInformer constructs a new informer for CVOConfig type.
+// NewClusterVersionInformer constructs a new informer for ClusterVersion type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewCVOConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredCVOConfigInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewClusterVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredClusterVersionInformer(client, namespace, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredCVOConfigInformer constructs a new informer for CVOConfig type.
+// NewFilteredClusterVersionInformer constructs a new informer for ClusterVersion type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredCVOConfigInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredClusterVersionInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ClusterversionV1().CVOConfigs(namespace).List(options)
+				return client.ConfigV1().ClusterVersions(namespace).List(options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ClusterversionV1().CVOConfigs(namespace).Watch(options)
+				return client.ConfigV1().ClusterVersions(namespace).Watch(options)
 			},
 		},
-		&clusterversionopenshiftiov1.CVOConfig{},
+		&configopenshiftiov1.ClusterVersion{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *cVOConfigInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredCVOConfigInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *clusterVersionInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredClusterVersionInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *cVOConfigInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&clusterversionopenshiftiov1.CVOConfig{}, f.defaultInformer)
+func (f *clusterVersionInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&configopenshiftiov1.ClusterVersion{}, f.defaultInformer)
 }
 
-func (f *cVOConfigInformer) Lister() v1.CVOConfigLister {
-	return v1.NewCVOConfigLister(f.Informer().GetIndexer())
+func (f *clusterVersionInformer) Lister() v1.ClusterVersionLister {
+	return v1.NewClusterVersionLister(f.Informer().GetIndexer())
 }

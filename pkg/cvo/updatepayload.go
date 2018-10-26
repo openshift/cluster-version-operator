@@ -126,7 +126,7 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	}, nil
 }
 
-func (optr *Operator) updatePayloadDir(config *cvv1.CVOConfig) (string, error) {
+func (optr *Operator) updatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
 	ret := defaultUpdatePayloadDir
 	tdir, err := optr.targetUpdatePayloadDir(config)
 	if err != nil {
@@ -138,7 +138,7 @@ func (optr *Operator) updatePayloadDir(config *cvv1.CVOConfig) (string, error) {
 	return ret, nil
 }
 
-func (optr *Operator) targetUpdatePayloadDir(config *cvv1.CVOConfig) (string, error) {
+func (optr *Operator) targetUpdatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
 	if !isTargetSet(config.DesiredUpdate) {
 		return "", nil
 	}
@@ -185,7 +185,7 @@ func validateUpdatePayload(dir string) error {
 	return nil
 }
 
-func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.CVOConfig) error {
+func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.ClusterVersion) error {
 	var (
 		version         = config.DesiredUpdate.Version
 		payload         = config.DesiredUpdate.Payload

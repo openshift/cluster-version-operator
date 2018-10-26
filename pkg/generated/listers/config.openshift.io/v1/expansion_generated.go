@@ -18,10 +18,10 @@ limitations under the License.
 
 package v1
 
-// CVOConfigListerExpansion allows custom methods to be added to
-// CVOConfigLister.
-type CVOConfigListerExpansion interface{}
+// ClusterVersionListerExpansion allows custom methods to be added to
+// ClusterVersionLister.
+type ClusterVersionListerExpansion interface{}
 
-// CVOConfigNamespaceListerExpansion allows custom methods to be added to
-// CVOConfigNamespaceLister.
-type CVOConfigNamespaceListerExpansion interface{}
+// ClusterVersionNamespaceListerExpansion allows custom methods to be added to
+// ClusterVersionNamespaceLister.
+type ClusterVersionNamespaceListerExpansion interface{}

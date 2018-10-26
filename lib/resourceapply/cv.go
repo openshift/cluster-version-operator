@@ -63,10 +63,10 @@ func ApplyOperatorStatusFromCache(lister oslistersv1.ClusterOperatorLister, clie
 	return actual, true, err
 }
 
-func ApplyCVOConfig(client cvclientv1.CVOConfigsGetter, required *cvv1.CVOConfig) (*cvv1.CVOConfig, bool, error) {
-	existing, err := client.CVOConfigs(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyClusterVersion(client cvclientv1.ClusterVersionsGetter, required *cvv1.ClusterVersion) (*cvv1.ClusterVersion, bool, error) {
+	existing, err := client.ClusterVersions(required.Namespace).Get(required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		actual, err := client.CVOConfigs(required.Namespace).Create(required)
+		actual, err := client.ClusterVersions(required.Namespace).Create(required)
 		return actual, true, err
 	}
 	if err != nil {
@@ -74,19 +74,19 @@ func ApplyCVOConfig(client cvclientv1.CVOConfigsGetter, required *cvv1.CVOConfig
 	}
 
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureCVOConfig(modified, existing, *required)
+	resourcemerge.EnsureClusterVersion(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
 
-	actual, err := client.CVOConfigs(required.Namespace).Update(existing)
+	actual, err := client.ClusterVersions(required.Namespace).Update(existing)
 	return actual, true, err
 }
 
-func ApplyCVOConfigFromCache(lister cvlistersv1.CVOConfigLister, client cvclientv1.CVOConfigsGetter, required *cvv1.CVOConfig) (*cvv1.CVOConfig, bool, error) {
-	obj, err := lister.CVOConfigs(required.Namespace).Get(required.Name)
+func ApplyClusterVersionFromCache(lister cvlistersv1.ClusterVersionLister, client cvclientv1.ClusterVersionsGetter, required *cvv1.ClusterVersion) (*cvv1.ClusterVersion, bool, error) {
+	obj, err := lister.ClusterVersions(required.Namespace).Get(required.Name)
 	if errors.IsNotFound(err) {
-		actual, err := client.CVOConfigs(required.Namespace).Create(required)
+		actual, err := client.ClusterVersions(required.Namespace).Create(required)
 		return actual, true, err
 	}
 	if err != nil {
@@ -94,14 +94,14 @@ func ApplyCVOConfigFromCache(lister cvlistersv1.CVOConfigLister, client cvclient
 	}
 
 	// Don't want to mutate cache.
-	existing := new(cvv1.CVOConfig)
+	existing := new(cvv1.ClusterVersion)
 	obj.DeepCopyInto(existing)
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureCVOConfig(modified, existing, *required)
+	resourcemerge.EnsureClusterVersion(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
 
-	actual, err := client.CVOConfigs(required.Namespace).Update(existing)
+	actual, err := client.ClusterVersions(required.Namespace).Update(existing)
 	return actual, true, err
 }

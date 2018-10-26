@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
-	fakeclusterversionv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1/fake"
+	configv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
+	fakeconfigv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1/fake"
 	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
 	fakeoperatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,14 +73,14 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// ClusterversionV1 retrieves the ClusterversionV1Client
-func (c *Clientset) ClusterversionV1() clusterversionv1.ClusterversionV1Interface {
-	return &fakeclusterversionv1.FakeClusterversionV1{Fake: &c.Fake}
+// ConfigV1 retrieves the ConfigV1Client
+func (c *Clientset) ConfigV1() configv1.ConfigV1Interface {
+	return &fakeconfigv1.FakeConfigV1{Fake: &c.Fake}
 }
 
-// Clusterversion retrieves the ClusterversionV1Client
-func (c *Clientset) Clusterversion() clusterversionv1.ClusterversionV1Interface {
-	return &fakeclusterversionv1.FakeClusterversionV1{Fake: &c.Fake}
+// Config retrieves the ConfigV1Client
+func (c *Clientset) Config() configv1.ConfigV1Interface {
+	return &fakeconfigv1.FakeConfigV1{Fake: &c.Fake}
 }
 
 // OperatorstatusV1 retrieves the OperatorstatusV1Client

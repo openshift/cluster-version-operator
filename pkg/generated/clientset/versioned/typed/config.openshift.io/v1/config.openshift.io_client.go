@@ -25,22 +25,22 @@ import (
 	rest "k8s.io/client-go/rest"
 )
 
-type ClusterversionV1Interface interface {
+type ConfigV1Interface interface {
 	RESTClient() rest.Interface
-	CVOConfigsGetter
+	ClusterVersionsGetter
 }
 
-// ClusterversionV1Client is used to interact with features provided by the config.openshift.io group.
-type ClusterversionV1Client struct {
+// ConfigV1Client is used to interact with features provided by the config.openshift.io group.
+type ConfigV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ClusterversionV1Client) CVOConfigs(namespace string) CVOConfigInterface {
-	return newCVOConfigs(c, namespace)
+func (c *ConfigV1Client) ClusterVersions(namespace string) ClusterVersionInterface {
+	return newClusterVersions(c, namespace)
 }
 
-// NewForConfig creates a new ClusterversionV1Client for the given config.
-func NewForConfig(c *rest.Config) (*ClusterversionV1Client, error) {
+// NewForConfig creates a new ConfigV1Client for the given config.
+func NewForConfig(c *rest.Config) (*ConfigV1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -49,12 +49,12 @@ func NewForConfig(c *rest.Config) (*ClusterversionV1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ClusterversionV1Client{client}, nil
+	return &ConfigV1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new ClusterversionV1Client for the given config and
+// NewForConfigOrDie creates a new ConfigV1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *ClusterversionV1Client {
+func NewForConfigOrDie(c *rest.Config) *ConfigV1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -62,9 +62,9 @@ func NewForConfigOrDie(c *rest.Config) *ClusterversionV1Client {
 	return client
 }
 
-// New creates a new ClusterversionV1Client for the given RESTClient.
-func New(c rest.Interface) *ClusterversionV1Client {
-	return &ClusterversionV1Client{c}
+// New creates a new ConfigV1Client for the given RESTClient.
+func New(c rest.Interface) *ConfigV1Client {
+	return &ConfigV1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -82,7 +82,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *ClusterversionV1Client) RESTClient() rest.Interface {
+func (c *ConfigV1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}
