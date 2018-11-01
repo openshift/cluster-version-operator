@@ -144,6 +144,10 @@ func New(
 	optr.cvoConfigLister = cvoConfigInformer.Lister()
 	optr.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
 
+	if err := optr.registerMetrics(); err != nil {
+		panic(err)
+	}
+
 	if meta, _, err := loadUpdatePayloadMetadata(optr.baseDirectory(), releaseImage); err != nil {
 		glog.Warningf("The local payload is invalid - no current version can be determined from disk: %v", err)
 	} else {

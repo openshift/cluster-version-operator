@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"math/rand"
+	"net/http"
 	"os"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	informers "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/version"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -47,6 +49,7 @@ var (
 	startOpts struct {
 		kubeconfig string
 		nodeName   string
+		listenAddr string
 
 		enableAutoUpdate bool
 	}
@@ -54,6 +57,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:11345", "Address to listen on for metrics")
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
 	startCmd.PersistentFlags().BoolVar(&startOpts.enableAutoUpdate, "enable-auto-update", true, "Enables the autoupdate controller.")
@@ -76,6 +80,16 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 
 	if rootOpts.releaseImage == "" {
 		glog.Fatalf("missing --release-image flag, it is required")
+	}
+
+	if len(startOpts.listenAddr) > 0 {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		go func() {
+			if err := http.ListenAndServe(startOpts.listenAddr, mux); err != nil {
+				glog.Fatalf("Unable to start metrics server: %v", err)
+			}
+		}()
 	}
 
 	cb, err := newClientBuilder(startOpts.kubeconfig)
