@@ -29,8 +29,8 @@ import (
 type ClusterVersionLister interface {
 	// List lists all ClusterVersions in the indexer.
 	List(selector labels.Selector) (ret []*v1.ClusterVersion, err error)
-	// ClusterVersions returns an object that can list and get ClusterVersions.
-	ClusterVersions(namespace string) ClusterVersionNamespaceLister
+	// Get retrieves the ClusterVersion from the index for a given name.
+	Get(name string) (*v1.ClusterVersion, error)
 	ClusterVersionListerExpansion
 }
 
@@ -52,38 +52,9 @@ func (s *clusterVersionLister) List(selector labels.Selector) (ret []*v1.Cluster
 	return ret, err
 }
 
-// ClusterVersions returns an object that can list and get ClusterVersions.
-func (s *clusterVersionLister) ClusterVersions(namespace string) ClusterVersionNamespaceLister {
-	return clusterVersionNamespaceLister{indexer: s.indexer, namespace: namespace}
-}
-
-// ClusterVersionNamespaceLister helps list and get ClusterVersions.
-type ClusterVersionNamespaceLister interface {
-	// List lists all ClusterVersions in the indexer for a given namespace.
-	List(selector labels.Selector) (ret []*v1.ClusterVersion, err error)
-	// Get retrieves the ClusterVersion from the indexer for a given namespace and name.
-	Get(name string) (*v1.ClusterVersion, error)
-	ClusterVersionNamespaceListerExpansion
-}
-
-// clusterVersionNamespaceLister implements the ClusterVersionNamespaceLister
-// interface.
-type clusterVersionNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all ClusterVersions in the indexer for a given namespace.
-func (s clusterVersionNamespaceLister) List(selector labels.Selector) (ret []*v1.ClusterVersion, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.ClusterVersion))
-	})
-	return ret, err
-}
-
-// Get retrieves the ClusterVersion from the indexer for a given namespace and name.
-func (s clusterVersionNamespaceLister) Get(name string) (*v1.ClusterVersion, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
+// Get retrieves the ClusterVersion from the index for a given name.
+func (s *clusterVersionLister) Get(name string) (*v1.ClusterVersion, error) {
+	obj, exists, err := s.indexer.GetByKey(name)
 	if err != nil {
 		return nil, err
 	}

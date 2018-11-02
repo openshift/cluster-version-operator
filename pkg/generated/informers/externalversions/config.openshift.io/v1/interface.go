@@ -41,5 +41,5 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 
 // ClusterVersions returns a ClusterVersionInformer.
 func (v *version) ClusterVersions() ClusterVersionInformer {
-	return &clusterVersionInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+	return &clusterVersionInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

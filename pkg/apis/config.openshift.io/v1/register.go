@@ -38,7 +38,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&ClusterVersion{},
 		&ClusterVersionList{},
-		&CVOStatus{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

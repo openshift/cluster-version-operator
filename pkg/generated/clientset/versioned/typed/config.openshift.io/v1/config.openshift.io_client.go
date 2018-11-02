@@ -35,8 +35,8 @@ type ConfigV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ConfigV1Client) ClusterVersions(namespace string) ClusterVersionInterface {
-	return newClusterVersions(c, namespace)
+func (c *ConfigV1Client) ClusterVersions() ClusterVersionInterface {
+	return newClusterVersions(c)
 }
 
 // NewForConfig creates a new ConfigV1Client for the given config.

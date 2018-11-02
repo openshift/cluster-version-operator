@@ -28,8 +28,8 @@ type FakeConfigV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeConfigV1) ClusterVersions(namespace string) v1.ClusterVersionInterface {
-	return &FakeClusterVersions{c, namespace}
+func (c *FakeConfigV1) ClusterVersions() v1.ClusterVersionInterface {
+	return &FakeClusterVersions{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

@@ -30,13 +30,14 @@ import (
 // ClusterVersionsGetter has a method to return a ClusterVersionInterface.
 // A group's client should implement this interface.
 type ClusterVersionsGetter interface {
-	ClusterVersions(namespace string) ClusterVersionInterface
+	ClusterVersions() ClusterVersionInterface
 }
 
 // ClusterVersionInterface has methods to work with ClusterVersion resources.
 type ClusterVersionInterface interface {
 	Create(*v1.ClusterVersion) (*v1.ClusterVersion, error)
 	Update(*v1.ClusterVersion) (*v1.ClusterVersion, error)
+	UpdateStatus(*v1.ClusterVersion) (*v1.ClusterVersion, error)
 	Delete(name string, options *metav1.DeleteOptions) error
 	DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error
 	Get(name string, options metav1.GetOptions) (*v1.ClusterVersion, error)
@@ -49,14 +50,12 @@ type ClusterVersionInterface interface {
 // clusterVersions implements ClusterVersionInterface
 type clusterVersions struct {
 	client rest.Interface
-	ns     string
 }
 
 // newClusterVersions returns a ClusterVersions
-func newClusterVersions(c *ConfigV1Client, namespace string) *clusterVersions {
+func newClusterVersions(c *ConfigV1Client) *clusterVersions {
 	return &clusterVersions{
 		client: c.RESTClient(),
-		ns:     namespace,
 	}
 }
 
@@ -64,7 +63,6 @@ func newClusterVersions(c *ConfigV1Client, namespace string) *clusterVersions {
 func (c *clusterVersions) Get(name string, options metav1.GetOptions) (result *v1.ClusterVersion, err error) {
 	result = &v1.ClusterVersion{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -77,7 +75,6 @@ func (c *clusterVersions) Get(name string, options metav1.GetOptions) (result *v
 func (c *clusterVersions) List(opts metav1.ListOptions) (result *v1.ClusterVersionList, err error) {
 	result = &v1.ClusterVersionList{}
 	err = c.client.Get().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
@@ -89,7 +86,6 @@ func (c *clusterVersions) List(opts metav1.ListOptions) (result *v1.ClusterVersi
 func (c *clusterVersions) Watch(opts metav1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
@@ -99,7 +95,6 @@ func (c *clusterVersions) Watch(opts metav1.ListOptions) (watch.Interface, error
 func (c *clusterVersions) Create(clusterVersion *v1.ClusterVersion) (result *v1.ClusterVersion, err error) {
 	result = &v1.ClusterVersion{}
 	err = c.client.Post().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		Body(clusterVersion).
 		Do().
@@ -111,9 +106,23 @@ func (c *clusterVersions) Create(clusterVersion *v1.ClusterVersion) (result *v1.
 func (c *clusterVersions) Update(clusterVersion *v1.ClusterVersion) (result *v1.ClusterVersion, err error) {
 	result = &v1.ClusterVersion{}
 	err = c.client.Put().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		Name(clusterVersion.Name).
+		Body(clusterVersion).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *clusterVersions) UpdateStatus(clusterVersion *v1.ClusterVersion) (result *v1.ClusterVersion, err error) {
+	result = &v1.ClusterVersion{}
+	err = c.client.Put().
+		Resource("clusterversions").
+		Name(clusterVersion.Name).
+		SubResource("status").
 		Body(clusterVersion).
 		Do().
 		Into(result)
@@ -123,7 +132,6 @@ func (c *clusterVersions) Update(clusterVersion *v1.ClusterVersion) (result *v1.
 // Delete takes name of the clusterVersion and deletes it. Returns an error if one occurs.
 func (c *clusterVersions) Delete(name string, options *metav1.DeleteOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		Name(name).
 		Body(options).
@@ -134,7 +142,6 @@ func (c *clusterVersions) Delete(name string, options *metav1.DeleteOptions) err
 // DeleteCollection deletes a collection of objects.
 func (c *clusterVersions) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
 	return c.client.Delete().
-		Namespace(c.ns).
 		Resource("clusterversions").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
@@ -146,7 +153,6 @@ func (c *clusterVersions) DeleteCollection(options *metav1.DeleteOptions, listOp
 func (c *clusterVersions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1.ClusterVersion, err error) {
 	result = &v1.ClusterVersion{}
 	err = c.client.Patch(pt).
-		Namespace(c.ns).
 		Resource("clusterversions").
 		SubResource(subresources...).
 		Name(name).

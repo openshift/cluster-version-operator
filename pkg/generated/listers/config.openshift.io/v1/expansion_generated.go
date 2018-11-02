@@ -21,7 +21,3 @@ package v1
 // ClusterVersionListerExpansion allows custom methods to be added to
 // ClusterVersionLister.
 type ClusterVersionListerExpansion interface{}
-
-// ClusterVersionNamespaceListerExpansion allows custom methods to be added to
-// ClusterVersionNamespaceLister.
-type ClusterVersionNamespaceListerExpansion interface{}
