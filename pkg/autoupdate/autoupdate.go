@@ -44,7 +44,8 @@ type Controller struct {
 	client        clientset.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler func(key string) error
+	syncHandler       func(key string) error
+	statusSyncHandler func(key string) error
 
 	cvoConfigLister       cvlistersv1.ClusterVersionLister
 	clusterOperatorLister oslistersv1.ClusterOperatorLister
@@ -52,7 +53,7 @@ type Controller struct {
 	cvoConfigListerSynced cache.InformerSynced
 	operatorStatusSynced  cache.InformerSynced
 
-	// queue only ever has one item, but it has nice error handling backoff/retry semantics
+	// queue tracks keeping the list of available updates on a cluster version
 	queue workqueue.RateLimitingInterface
 }
 
@@ -158,26 +159,12 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 
 func (ctrl *Controller) sync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing controller %q (%v)", key, startTime)
+	glog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing controller %q (%v)", key, time.Since(startTime))
+		glog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
 	}()
 
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		return err
-	}
-
-	operatorstatus, err := ctrl.clusterOperatorLister.ClusterOperators(namespace).Get(name)
-	if errors.IsNotFound(err) {
-		glog.V(2).Infof("ClusterOperator %v has been deleted", key)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	clusterversion, err := ctrl.cvoConfigLister.ClusterVersions(namespace).Get(name)
+	clusterversion, err := ctrl.cvoConfigLister.Get(ctrl.name)
 	if errors.IsNotFound(err) {
 		glog.V(2).Infof("ClusterVersion %v has been deleted", key)
 		return nil
@@ -188,26 +175,15 @@ func (ctrl *Controller) sync(key string) error {
 
 	// Deep-copy otherwise we are mutating our cache.
 	// TODO: Deep-copy only when needed.
-	ops := operatorstatus.DeepCopy()
-	config := new(v1.ClusterVersion)
-	clusterversion.DeepCopyInto(config)
+	clusterversion = clusterversion.DeepCopy()
 
-	obji, _, err := scheme.Codecs.UniversalDecoder().Decode(ops.Status.Extension.Raw, nil, &v1.CVOStatus{})
-	if err != nil {
-		return fmt.Errorf("unable to decode CVOStatus from extension.Raw: %v", err)
-	}
-	cvoststatus, ok := obji.(*v1.CVOStatus)
-	if !ok {
-		return fmt.Errorf("expected *v1.CVOStatus found %T", obji)
-	}
-
-	if !updateAvail(cvoststatus.AvailableUpdates) {
+	if !updateAvail(clusterversion.Status.AvailableUpdates) {
 		return nil
 	}
-	up := nextUpdate(cvoststatus.AvailableUpdates)
-	config.DesiredUpdate = up
+	up := nextUpdate(clusterversion.Status.AvailableUpdates)
+	clusterversion.Spec.DesiredUpdate = &up
 
-	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvoConfigLister, ctrl.client.ConfigV1(), config)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvoConfigLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
 		glog.Infof("Auto Update set to %s", up)
 	}

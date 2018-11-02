@@ -5,26 +5,36 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/openshift/cluster-version-operator/lib"
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	"github.com/openshift/cluster-version-operator/pkg/apis"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
 
+// loadUpdatePayload reads the payload from disk or remote, as necessary.
+func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePayload, error) {
+	payloadDir, err := optr.updatePayloadDir(config)
+	if err != nil {
+		return nil, err
+	}
+	releaseImage := optr.releaseImage
+	if config.Spec.DesiredUpdate != nil {
+		releaseImage = config.Spec.DesiredUpdate.Payload
+	}
+	return loadUpdatePayload(payloadDir, releaseImage)
+}
+
+// syncUpdatePayload applies the manifests in the payload to the cluster.
 func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *updatePayload) error {
 	for _, manifest := range payload.manifests {
 		taskName := fmt.Sprintf("(%s) %s/%s", manifest.GVK.String(), manifest.Object().GetNamespace(), manifest.Object().GetName())
 		glog.V(4).Infof("Running sync for %s", taskName)
 		glog.V(6).Infof("Manifest: %s", string(manifest.Raw))
 
-		ov, ok := getOverrideForManifest(config.Overrides, manifest)
+		ov, ok := getOverrideForManifest(config.Spec.Overrides, manifest)
 		if ok && ov.Unmanaged {
 			glog.V(4).Infof("Skipping %s as unmanaged", taskName)
 			continue
@@ -80,83 +90,4 @@ func ownerRefModifier(config *cvv1.ClusterVersion) resourcebuilder.MetaV1ObjectM
 	return func(obj metav1.Object) {
 		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})
 	}
-}
-
-func (optr *Operator) syncCustomResourceDefinitions() error {
-	crds := []*apiextv1beta1.CustomResourceDefinition{
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("operatorstatuses.%s", apis.OperatorStatusGroupName),
-				Namespace: metav1.NamespaceDefault,
-			},
-			Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-				Group:   apis.OperatorStatusGroupName,
-				Version: "v1",
-				Scope:   "Namespaced",
-				Names: apiextv1beta1.CustomResourceDefinitionNames{
-					Plural:   "operatorstatuses",
-					Singular: "operatorstatus",
-					Kind:     "OperatorStatus",
-					ListKind: "OperatorStatusList",
-				},
-			},
-		},
-		{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("clusteroperators.%s", apis.OperatorStatusGroupName),
-				Namespace: metav1.NamespaceDefault,
-			},
-			Spec: apiextv1beta1.CustomResourceDefinitionSpec{
-				Group:   apis.OperatorStatusGroupName,
-				Version: "v1",
-				Scope:   "Namespaced",
-				Names: apiextv1beta1.CustomResourceDefinitionNames{
-					Plural:   "clusteroperators",
-					Singular: "clusteroperator",
-					Kind:     "ClusterOperator",
-					ListKind: "ClusterOperatorList",
-				},
-			},
-		},
-	}
-
-	for _, crd := range crds {
-		_, updated, err := resourceapply.ApplyCustomResourceDefinitionFromCache(optr.crdLister, optr.apiExtClient.ApiextensionsV1beta1(), crd)
-		if err != nil {
-			return err
-		}
-		if updated {
-			if err := optr.waitForCustomResourceDefinition(crd); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-const (
-	customResourceReadyInterval = time.Second
-	customResourceReadyTimeout  = 1 * time.Minute
-)
-
-func (optr *Operator) waitForCustomResourceDefinition(resource *apiextv1beta1.CustomResourceDefinition) error {
-	return wait.Poll(customResourceReadyInterval, customResourceReadyTimeout, func() (bool, error) {
-		crd, err := optr.crdLister.Get(resource.Name)
-		if errors.IsNotFound(err) {
-			// exit early to recreate the crd.
-			return false, err
-		}
-		if err != nil {
-			glog.Errorf("error getting CustomResourceDefinition %s: %v", resource.Name, err)
-			return false, nil
-		}
-
-		for _, condition := range crd.Status.Conditions {
-			if condition.Type == apiextv1beta1.Established && condition.Status == apiextv1beta1.ConditionTrue {
-				return true, nil
-			}
-		}
-		glog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", crd.Name, crd.Status.Conditions)
-		return false, nil
-	})
 }

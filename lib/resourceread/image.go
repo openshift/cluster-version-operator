@@ -17,11 +17,11 @@ func init() {
 	}
 }
 
-// ReadImageStreamV1OrDie reads imagestream object from bytes. Panics on error.
-func ReadImageStreamV1OrDie(objBytes []byte) *imagev1.ImageStream {
+// ReadImageStreamV1 reads imagestream object from bytes or reports an error.
+func ReadImageStreamV1(objBytes []byte) (*imagev1.ImageStream, error) {
 	requiredObj, err := runtime.Decode(imageCodecs.UniversalDecoder(imagev1.SchemeGroupVersion), objBytes)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return requiredObj.(*imagev1.ImageStream)
+	return requiredObj.(*imagev1.ImageStream), nil
 }

@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	minResyncPeriod = 10 * time.Second
+	minResyncPeriod = 2 * time.Minute
 
 	leaseDuration = 90 * time.Second
 	renewDeadline = 45 * time.Second
@@ -227,14 +227,19 @@ func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controlle
 }
 
 func startControllers(ctx *controllerContext) error {
+	overrideDirectory := os.Getenv("PAYLOAD_OVERRIDE")
+	if len(overrideDirectory) > 0 {
+		glog.Warningf("Using an override payload directory for testing only: %s", overrideDirectory)
+	}
+
 	go cvo.New(
 		startOpts.nodeName,
 		componentNamespace, componentName,
 		rootOpts.releaseImage,
+		overrideDirectory,
+		ctx.ResyncPeriod(),
 		ctx.InformerFactory.Config().V1().ClusterVersions(),
 		ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
-		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
-		ctx.KubeInformerFactory.Apps().V1().Deployments(),
 		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),

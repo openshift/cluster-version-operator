@@ -2,7 +2,9 @@ package cvo
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
+	"hash/fnv"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -24,11 +26,15 @@ import (
 )
 
 type updatePayload struct {
+	releaseImage   string
+	releaseVersion string
 	// XXX: cincinatti.json struct
 
 	imageRef *imagev1.ImageStream
 
-	manifests []lib.Manifest
+	// manifestHash is a hash of the manifests included in this payload
+	manifestHash string
+	manifests    []lib.Manifest
 }
 
 const (
@@ -42,10 +48,16 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
+type payloadTasks struct {
+	idir       string
+	preprocess func([]byte) ([]byte, error)
+	skipFiles  sets.String
+}
+
+func loadUpdatePayloadMetadata(dir, releaseImage string) (*updatePayload, []payloadTasks, error) {
 	glog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := validateUpdatePayload(dir); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	var (
 		cvoDir     = filepath.Join(dir, cvoManifestDir)
@@ -58,19 +70,16 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 	imageRefData, err := ioutil.ReadFile(irf)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	imageRef := resourceread.ReadImageStreamV1OrDie(imageRefData)
-	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	imageRef, err := resourceread.ReadImageStreamV1(imageRefData)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid image-references data %s: %v", irf, err)
+	}
 
-	var manifests []lib.Manifest
-	var errs []error
-	tasks := []struct {
-		idir       string
-		preprocess func([]byte) ([]byte, error)
-		skipFiles  sets.String
-	}{{
+	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	tasks := []payloadTasks{{
 		idir:       cvoDir,
 		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
 		skipFiles:  sets.NewString(),
@@ -79,6 +88,17 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 		preprocess: nil,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
+	return &updatePayload{imageRef: imageRef, releaseImage: releaseImage, releaseVersion: imageRef.Name}, tasks, nil
+}
+
+func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
+	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+	if err != nil {
+		return nil, err
+	}
+
+	var manifests []lib.Manifest
+	var errs []error
 	for _, task := range tasks {
 		files, err := ioutil.ReadDir(task.idir)
 		if err != nil {
@@ -120,30 +140,41 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	if agg != nil {
 		return nil, fmt.Errorf("error loading manifests from %s: %v", dir, agg.Error())
 	}
-	return &updatePayload{
-		imageRef:  imageRef,
-		manifests: manifests,
-	}, nil
+
+	hash := fnv.New64()
+	for _, manifest := range manifests {
+		hash.Write(manifest.Raw)
+	}
+
+	payload.manifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	payload.manifests = manifests
+	return payload, nil
+}
+
+func (optr *Operator) baseDirectory() string {
+	if len(optr.payloadDir) == 0 {
+		return defaultUpdatePayloadDir
+	}
+	return optr.payloadDir
 }
 
 func (optr *Operator) updatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
-	ret := defaultUpdatePayloadDir
 	tdir, err := optr.targetUpdatePayloadDir(config)
 	if err != nil {
 		return "", fmt.Errorf("error fetching targetUpdatePayloadDir: %v", err)
 	}
 	if len(tdir) > 0 {
-		ret = tdir
+		return tdir, nil
 	}
-	return ret, nil
+	return optr.baseDirectory(), nil
 }
 
 func (optr *Operator) targetUpdatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
-	if !isTargetSet(config.DesiredUpdate) {
+	if !isTargetSet(config.Spec.DesiredUpdate) {
 		return "", nil
 	}
 
-	tdir := filepath.Join(targetUpdatePayloadsDir, config.DesiredUpdate.Version)
+	tdir := filepath.Join(targetUpdatePayloadsDir, config.Spec.DesiredUpdate.Version)
 	err := validateUpdatePayload(tdir)
 	if os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
@@ -186,9 +217,12 @@ func validateUpdatePayload(dir string) error {
 }
 
 func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.ClusterVersion) error {
+	if config.Spec.DesiredUpdate == nil {
+		return fmt.Errorf("cannot fetch payload for empty desired update")
+	}
 	var (
-		version         = config.DesiredUpdate.Version
-		payload         = config.DesiredUpdate.Payload
+		version         = config.Spec.DesiredUpdate.Version
+		payload         = config.Spec.DesiredUpdate.Payload
 		name            = fmt.Sprintf("%s-%s-%s", optr.name, version, randutil.String(5))
 		namespace       = optr.namespace
 		deadline        = pointer.Int64Ptr(2 * 60)
@@ -266,7 +300,7 @@ func copyPayloadCmd(tdir string) string {
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
-func isTargetSet(desired cvv1.Update) bool {
-	return desired.Payload != "" &&
+func isTargetSet(desired *cvv1.Update) bool {
+	return desired != nil && desired.Payload != "" &&
 		desired.Version != ""
 }
