@@ -138,7 +138,10 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 
 	agg := utilerrors.NewAggregate(errs)
 	if agg != nil {
-		return nil, fmt.Errorf("error loading manifests from %s: %v", dir, agg.Error())
+		return nil, &updateError{
+			Reason:  "UpdatePayloadIntegrity",
+			Message: fmt.Sprintf("Error loading manifests from %s: %v", dir, agg.Error()),
+		}
 	}
 
 	hash := fnv.New64()
@@ -161,7 +164,10 @@ func (optr *Operator) baseDirectory() string {
 func (optr *Operator) updatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
 	tdir, err := optr.targetUpdatePayloadDir(config)
 	if err != nil {
-		return "", fmt.Errorf("error fetching targetUpdatePayloadDir: %v", err)
+		return "", &updateError{
+			Reason:  "UpdatePayloadRetrievalFailed",
+			Message: fmt.Sprintf("Unable to download and prepare the update: %v", err),
+		}
 	}
 	if len(tdir) > 0 {
 		return tdir, nil

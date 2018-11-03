@@ -8,7 +8,24 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
+var (
+	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "cluster_version_payload",
+		Help: "Report the number of entries in the payload.",
+	}, []string{"version", "type"})
+	metricPayloadErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "cluster_operator_payload_errors",
+		Help: "Report the number of errors encountered applying the payload.",
+	}, []string{"version"})
+)
+
 func (optr *Operator) registerMetrics() error {
+	if err := prometheus.Register(metricPayload); err != nil {
+		return err
+	}
+	if err := prometheus.Register(metricPayloadErrors); err != nil {
+		return err
+	}
 	m := newOperatorMetrics(optr)
 	return prometheus.Register(m)
 }
@@ -54,7 +71,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	g := m.version.WithLabelValues("current", current.Version, current.Payload)
 	g.Set(1)
 	ch <- g
-	if cv, err := m.optr.cvoConfigLister.Get(m.optr.name); err == nil {
+	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
 		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, osv1.OperatorFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Payload != current.Payload {

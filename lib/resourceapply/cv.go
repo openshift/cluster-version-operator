@@ -41,8 +41,7 @@ func ApplyClusterVersionFromCache(lister cvlistersv1.ClusterVersionLister, clien
 	}
 
 	// Don't want to mutate cache.
-	existing := new(cvv1.ClusterVersion)
-	obj.DeepCopyInto(existing)
+	existing := obj.DeepCopy()
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureClusterVersion(modified, existing, *required)
 	if !*modified {

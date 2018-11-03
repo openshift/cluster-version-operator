@@ -206,6 +206,19 @@ func TestOperator_sync(t *testing.T) {
 			`,
 		},
 	}
+	contentWithoutManifests := map[string]interface{}{
+		"release-manifests": map[string]interface{}{
+			"image-references": `
+			{
+				"kind": "ImageStream",
+				"apiVersion": "image.openshift.io/v1",
+				"metadata": {
+					"name": "0.0.1-abc"
+				}
+			}
+			`,
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -214,7 +227,7 @@ func TestOperator_sync(t *testing.T) {
 		optr        Operator
 		init        func(optr *Operator)
 		want        bool
-		errFn       func(*testing.T, error)
+		wantErr     func(*testing.T, error)
 		wantActions func(*testing.T, *Operator)
 	}{
 		{
@@ -241,6 +254,336 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: cvv1.ClusterVersionSpec{
 						Channel: "fast",
+					},
+				})
+			},
+		},
+		{
+			name:    "progressing and previously failed",
+			content: content1,
+			optr: Operator{
+				releaseVersion: "4.0.1",
+				releaseImage:   "payload/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fake.NewSimpleClientset(
+					&cvv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: cvv1.ClusterVersionSpec{
+							Channel: "fast",
+						},
+						Status: cvv1.ClusterVersionStatus{
+							Current: cvv1.Update{
+								Version: "4.0.1",
+								Payload: "payload/image:v4.0.1",
+							},
+							VersionHash: "",
+							Conditions: []osv1.ClusterOperatorStatusCondition{
+								{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 3 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "4.0.1",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 4.0.1: the contents of the update are invalid"},
+						},
+					},
+				})
+				expectUpdateStatus(t, act[2], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "progressing and encounters error during payload sync",
+			content: content1,
+			optr: Operator{
+				releaseVersion: "4.0.1",
+				releaseImage:   "payload/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				updatePayloadHandler: func(config *cvv1.ClusterVersion, payload *updatePayload) error {
+					return fmt.Errorf("injected error")
+				},
+				client: fake.NewSimpleClientset(
+					&cvv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: cvv1.ClusterVersionSpec{
+							Channel: "fast",
+						},
+						Status: cvv1.ClusterVersionStatus{
+							Current: cvv1.Update{
+								Version: "4.0.1",
+								Payload: "payload/image:v4.0.1",
+							},
+							VersionHash: "",
+							Conditions: []osv1.ClusterOperatorStatusCondition{
+								{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			wantErr: func(t *testing.T, err error) {
+				if err == nil || err.Error() != "injected error" {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 5 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectGet(t, act[1], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[2], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "4.0.1",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						},
+					},
+				})
+				expectGet(t, act[3], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[4], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "injected error"},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: injected error"},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "invalid payload reports payload error",
+			content: contentWithoutManifests,
+			optr: Operator{
+				releaseVersion: "4.0.1",
+				releaseImage:   "payload/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fake.NewSimpleClientset(
+					&cvv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: cvv1.ClusterVersionSpec{
+							Channel: "fast",
+						},
+					},
+				),
+			},
+			wantErr: func(t *testing.T, err error) {
+				if err == nil || !os.IsNotExist(err) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 5 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectGet(t, act[1], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[2], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "4.0.1",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						},
+					},
+				})
+				expectGet(t, act[3], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[4], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "invalid payload while progressing reports payload error and preserves progressing",
+			content: contentWithoutManifests,
+			optr: Operator{
+				releaseVersion: "4.0.1",
+				releaseImage:   "payload/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fake.NewSimpleClientset(
+					&cvv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: cvv1.ClusterVersionSpec{
+							Channel: "fast",
+						},
+						Status: cvv1.ClusterVersionStatus{
+							Current: cvv1.Update{
+								Version: "4.0.1",
+								Payload: "payload/image:v4.0.1",
+							},
+							VersionHash: "",
+							Conditions: []osv1.ClusterOperatorStatusCondition{
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+							},
+						},
+					},
+				),
+			},
+			wantErr: func(t *testing.T, err error) {
+				if err == nil || !os.IsNotExist(err) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 5 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectGet(t, act[1], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[2], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "4.0.1",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						},
+					},
+				})
+				expectGet(t, act[3], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[4], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "default",
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Channel: "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						},
 					},
 				})
 			},
@@ -287,8 +630,8 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []osv1.ClusterOperatorStatusCondition{
 							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
 							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
 						},
 					},
 				})
@@ -309,8 +652,8 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []osv1.ClusterOperatorStatusCondition{
 							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -340,8 +683,8 @@ func TestOperator_sync(t *testing.T) {
 							Generation: 2,
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							},
 						},
 					},
@@ -476,8 +819,8 @@ func TestOperator_sync(t *testing.T) {
 							Generation:  2,
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							},
 						},
 					},
@@ -492,6 +835,96 @@ func TestOperator_sync(t *testing.T) {
 				expectGet(t, act[0], "clusterversions", "", "default")
 			},
 		},
+		{
+			name:    "payload hash does not match content hash, act as reconcile, no need to apply",
+			content: content1,
+			optr: Operator{
+				releaseImage: "payload/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				client: fake.NewSimpleClientset(
+					&cvv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:       "default",
+							Generation: 2,
+						},
+						Spec: cvv1.ClusterVersionSpec{
+							ClusterID: "abcdef01-0000-1111-2222-0123456789abcdef",
+							Upstream:  pointerURL("http://localhost:8080/graph"),
+							Channel:   "fast",
+						},
+						Status: cvv1.ClusterVersionStatus{
+							Current: cvv1.Update{
+								Payload: "payload/image:v4.0.1",
+								// loads the version from the payload on disk
+								Version: "0.0.1-abc",
+							},
+							VersionHash: "unknown_hash",
+							Generation:  2,
+							Conditions: []osv1.ClusterOperatorStatusCondition{
+								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							},
+						},
+					},
+				),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 3 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Upstream: pointerURL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Payload: "payload/image:v4.0.1",
+						},
+						Generation:  2,
+						VersionHash: "unknown_hash",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
+						},
+					},
+				})
+				expectUpdateStatus(t, act[2], "clusterversions", "", &cvv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: cvv1.ClusterVersionSpec{
+						Upstream: pointerURL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: cvv1.ClusterVersionStatus{
+						Current: cvv1.Update{
+							Payload: "payload/image:v4.0.1",
+							// loads the version from the payload on disk
+							Version: "0.0.1-abc",
+						},
+						Generation:  2,
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []osv1.ClusterOperatorStatusCondition{
+							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						},
+					},
+				})
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -499,7 +932,12 @@ func TestOperator_sync(t *testing.T) {
 			if tt.init != nil {
 				tt.init(optr)
 			}
-			optr.cvoConfigLister = &clientCVLister{client: optr.client}
+			optr.cvLister = &clientCVLister{client: optr.client}
+			if optr.updatePayloadHandler == nil {
+				optr.updatePayloadHandler = func(config *cvv1.ClusterVersion, payload *updatePayload) error {
+					return nil
+				}
+			}
 			optr.clusterOperatorLister = &clientCOLister{client: optr.client}
 			dir, err := ioutil.TempDir("", "cvo-test")
 			if err != nil {
@@ -511,11 +949,11 @@ func TestOperator_sync(t *testing.T) {
 				t.Fatal(err)
 			}
 			err = optr.sync(optr.queueKey())
-			if err != nil && tt.errFn == nil {
+			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}
-			if tt.errFn != nil {
-				tt.errFn(t, err)
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
 			}
 			if err != nil {
 				return
@@ -533,7 +971,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		key         string
 		handler     http.HandlerFunc
 		optr        Operator
-		errFn       func(*testing.T, error)
+		wantErr     func(*testing.T, error)
 		wantUpdates *availableUpdates
 	}{
 		{
@@ -609,8 +1047,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 							},
 						},
 					},
@@ -652,8 +1090,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
@@ -707,8 +1145,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
@@ -763,8 +1201,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Generation: 2,
 							Conditions: []osv1.ClusterOperatorStatusCondition{
 								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
 								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
@@ -777,8 +1215,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			optr := tt.optr
 			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-			optr.cvoConfigLister = &clientCVLister{client: optr.client}
 			optr.clusterOperatorLister = &clientCOLister{client: optr.client}
+			optr.cvLister = &clientCVLister{client: optr.client}
 
 			if tt.handler != nil {
 				s := httptest.NewServer(http.HandlerFunc(tt.handler))
@@ -790,11 +1228,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			old := optr.availableUpdates
 
 			err := optr.availableUpdatesSync(optr.queueKey())
-			if err != nil && tt.errFn == nil {
+			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}
-			if tt.errFn != nil {
-				tt.errFn(t, err)
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
 			}
 			if err != nil {
 				return

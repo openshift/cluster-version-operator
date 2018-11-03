@@ -94,7 +94,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects available updates",
 			optr: &Operator{
 				name: "test",
-				cvoConfigLister: &cvLister{
+				cvLister: &cvLister{
 					Items: []*cvv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
@@ -122,7 +122,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects available updates and reports 0 when updates fetched",
 			optr: &Operator{
 				name: "test",
-				cvoConfigLister: &cvLister{
+				cvLister: &cvLister{
 					Items: []*cvv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
@@ -151,7 +151,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				name:           "test",
-				cvoConfigLister: &cvLister{
+				cvLister: &cvLister{
 					Items: []*cvv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
@@ -178,7 +178,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				name:           "test",
-				cvoConfigLister: &cvLister{
+				cvLister: &cvLister{
 					Items: []*cvv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
@@ -212,7 +212,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				name:           "test",
-				cvoConfigLister: &cvLister{
+				cvLister: &cvLister{
 					Items: []*cvv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
@@ -238,8 +238,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.optr.cvoConfigLister == nil {
-				tt.optr.cvoConfigLister = &cvLister{}
+			if tt.optr.cvLister == nil {
+				tt.optr.cvLister = &cvLister{}
 			}
 			if tt.optr.clusterOperatorLister == nil {
 				tt.optr.clusterOperatorLister = &coLister{}
