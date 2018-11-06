@@ -19,7 +19,7 @@ limitations under the License.
 package scheme
 
 import (
-	clusterversionv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	configv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -51,6 +51,6 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	clusterversionv1.AddToScheme(scheme)
+	configv1.AddToScheme(scheme)
 	operatorstatusv1.AddToScheme(scheme)
 }

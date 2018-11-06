@@ -9,12 +9,12 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	"github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
-	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/clusterversion.openshift.io/v1"
+	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
 	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/clusterversion.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
 	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -38,28 +38,29 @@ const (
 
 // Controller defines autoupdate controller.
 type Controller struct {
-	// namespace and name are used to find the CVOConfig, ClusterOperator.
+	// namespace and name are used to find the ClusterVersion, ClusterOperator.
 	namespace, name string
 
 	client        clientset.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler func(key string) error
+	syncHandler       func(key string) error
+	statusSyncHandler func(key string) error
 
-	cvoConfigLister       cvlistersv1.CVOConfigLister
+	cvoConfigLister       cvlistersv1.ClusterVersionLister
 	clusterOperatorLister oslistersv1.ClusterOperatorLister
 
 	cvoConfigListerSynced cache.InformerSynced
 	operatorStatusSynced  cache.InformerSynced
 
-	// queue only ever has one item, but it has nice error handling backoff/retry semantics
+	// queue tracks keeping the list of available updates on a cluster version
 	queue workqueue.RateLimitingInterface
 }
 
 // New returns a new autoupdate controller.
 func New(
 	namespace, name string,
-	cvoConfigInformer cvinformersv1.CVOConfigInformer,
+	cvoConfigInformer cvinformersv1.ClusterVersionInformer,
 	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -158,28 +159,14 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 
 func (ctrl *Controller) sync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing controller %q (%v)", key, startTime)
+	glog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing controller %q (%v)", key, time.Since(startTime))
+		glog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
 	}()
 
-	namespace, name, err := cache.SplitMetaNamespaceKey(key)
-	if err != nil {
-		return err
-	}
-
-	operatorstatus, err := ctrl.clusterOperatorLister.ClusterOperators(namespace).Get(name)
+	clusterversion, err := ctrl.cvoConfigLister.Get(ctrl.name)
 	if errors.IsNotFound(err) {
-		glog.V(2).Infof("ClusterOperator %v has been deleted", key)
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
-	cvoconfig, err := ctrl.cvoConfigLister.CVOConfigs(namespace).Get(name)
-	if errors.IsNotFound(err) {
-		glog.V(2).Infof("CVOConfig %v has been deleted", key)
+		glog.V(2).Infof("ClusterVersion %v has been deleted", key)
 		return nil
 	}
 	if err != nil {
@@ -188,28 +175,17 @@ func (ctrl *Controller) sync(key string) error {
 
 	// Deep-copy otherwise we are mutating our cache.
 	// TODO: Deep-copy only when needed.
-	ops := operatorstatus.DeepCopy()
-	config := new(v1.CVOConfig)
-	cvoconfig.DeepCopyInto(config)
+	clusterversion = clusterversion.DeepCopy()
 
-	obji, _, err := scheme.Codecs.UniversalDecoder().Decode(ops.Status.Extension.Raw, nil, &v1.CVOStatus{})
-	if err != nil {
-		return fmt.Errorf("unable to decode CVOStatus from extension.Raw: %v", err)
-	}
-	cvoststatus, ok := obji.(*v1.CVOStatus)
-	if !ok {
-		return fmt.Errorf("expected *v1.CVOStatus found %T", obji)
-	}
-
-	if !updateAvail(cvoststatus.AvailableUpdates) {
+	if !updateAvail(clusterversion.Status.AvailableUpdates) {
 		return nil
 	}
-	up := nextUpdate(cvoststatus.AvailableUpdates)
-	config.DesiredUpdate = up
+	up := nextUpdate(clusterversion.Status.AvailableUpdates)
+	clusterversion.Spec.DesiredUpdate = &up
 
-	_, updated, err := resourceapply.ApplyCVOConfigFromCache(ctrl.cvoConfigLister, ctrl.client.ClusterversionV1(), config)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvoConfigLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
-		glog.Info("Auto Update set to %s", up)
+		glog.Infof("Auto Update set to %s", up)
 	}
 	return err
 }

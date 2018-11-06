@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"math/rand"
+	"net/http"
 	"os"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	informers "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/version"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -29,7 +31,7 @@ import (
 )
 
 const (
-	minResyncPeriod = 10 * time.Second
+	minResyncPeriod = 2 * time.Minute
 
 	leaseDuration = 90 * time.Second
 	renewDeadline = 45 * time.Second
@@ -47,6 +49,7 @@ var (
 	startOpts struct {
 		kubeconfig string
 		nodeName   string
+		listenAddr string
 
 		enableAutoUpdate bool
 	}
@@ -54,6 +57,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:11345", "Address to listen on for metrics")
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
 	startCmd.PersistentFlags().BoolVar(&startOpts.enableAutoUpdate, "enable-auto-update", true, "Enables the autoupdate controller.")
@@ -76,6 +80,16 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 
 	if rootOpts.releaseImage == "" {
 		glog.Fatalf("missing --release-image flag, it is required")
+	}
+
+	if len(startOpts.listenAddr) > 0 {
+		mux := http.NewServeMux()
+		mux.Handle("/metrics", promhttp.Handler())
+		go func() {
+			if err := http.ListenAndServe(startOpts.listenAddr, mux); err != nil {
+				glog.Fatalf("Unable to start metrics server: %v", err)
+			}
+		}()
 	}
 
 	cb, err := newClientBuilder(startOpts.kubeconfig)
@@ -227,14 +241,19 @@ func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controlle
 }
 
 func startControllers(ctx *controllerContext) error {
+	overrideDirectory := os.Getenv("PAYLOAD_OVERRIDE")
+	if len(overrideDirectory) > 0 {
+		glog.Warningf("Using an override payload directory for testing only: %s", overrideDirectory)
+	}
+
 	go cvo.New(
 		startOpts.nodeName,
 		componentNamespace, componentName,
 		rootOpts.releaseImage,
-		ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
+		overrideDirectory,
+		ctx.ResyncPeriod(),
+		ctx.InformerFactory.Config().V1().ClusterVersions(),
 		ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
-		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
-		ctx.KubeInformerFactory.Apps().V1().Deployments(),
 		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
@@ -244,7 +263,7 @@ func startControllers(ctx *controllerContext) error {
 	if startOpts.enableAutoUpdate {
 		go autoupdate.New(
 			componentNamespace, componentName,
-			ctx.InformerFactory.Clusterversion().V1().CVOConfigs(),
+			ctx.InformerFactory.Config().V1().ClusterVersions(),
 			ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
 			ctx.ClientBuilder.ClientOrDie(componentName),
 			ctx.ClientBuilder.KubeClientOrDie(componentName),

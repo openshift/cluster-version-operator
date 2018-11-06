@@ -9,12 +9,12 @@ import (
 	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 )
 
-func EnsureOperatorStatus(modified *bool, existing *osv1.ClusterOperator, required osv1.ClusterOperator) {
+func EnsureClusterOperatorStatus(modified *bool, existing *osv1.ClusterOperator, required osv1.ClusterOperator) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-	ensureOperatorStatusStatus(modified, &existing.Status, required.Status)
+	ensureClusterOperatorStatus(modified, &existing.Status, required.Status)
 }
 
-func ensureOperatorStatusStatus(modified *bool, existing *osv1.ClusterOperatorStatus, required osv1.ClusterOperatorStatus) {
+func ensureClusterOperatorStatus(modified *bool, existing *osv1.ClusterOperatorStatus, required osv1.ClusterOperatorStatus) {
 	if !equality.Semantic.DeepEqual(existing.Conditions, required.Conditions) {
 		*modified = true
 		existing.Conditions = required.Conditions

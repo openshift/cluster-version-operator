@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	componentName      = "cluster-version-operator"
+	componentName      = "version"
 	componentNamespace = "openshift-cluster-version"
 )
 
