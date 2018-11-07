@@ -93,3 +93,17 @@ func IsOperatorStatusConditionPresentAndEqual(conditions []osv1.ClusterOperatorS
 	}
 	return false
 }
+
+func IsOperatorStatusConditionNotIn(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType, status ...osv1.ConditionStatus) bool {
+	for _, condition := range conditions {
+		if condition.Type == conditionType {
+			for _, s := range status {
+				if s == condition.Status {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return true
+}

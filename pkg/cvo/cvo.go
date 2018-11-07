@@ -46,7 +46,26 @@ const (
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
 var ownerKind = cvv1.SchemeGroupVersion.WithKind("ClusterVersion")
 
-// Operator defines cluster version operator.
+// Operator defines cluster version operator. The CVO attempts to reconcile the appropriate payload
+// onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
+// periodically checks for new updates from a server described by spec.upstream and spec.channel.
+// The main CVO sync loop is the single writer of ClusterVersion status.
+//
+// The CVO updates multiple conditions, but synthesizes them into a summary message on the
+// Progressing condition to answer the question of "what version is available on the cluster".
+// When errors occur, the Failing condition of the status is updated with a detailed message and
+// reason, and then the reason is used to summarize the error onto the Progressing condition's
+// message for a simple overview.
+//
+// The CVO periodically syncs the whole payload to the cluster even if no version transition is
+// detected in order to undo accidental actions.
+//
+// A release image is expected to contain a CVO binary, the manifests necessary to update the
+// CVO, and the manifests of the other operators on the cluster. During an update the operator
+// attempts to copy the contents of the image manifests into a temporary directory using a
+// batch job and a shared host-path, then applies the CVO manifests using the payload image
+// for the CVO deployment. The deployment is then expected to launch the new process, and the
+// new operator picks up the lease and applies the rest of the payload.
 type Operator struct {
 	// nodename allows CVO to sync fetchPayload to same node as itself.
 	nodename string
@@ -60,10 +79,6 @@ type Operator struct {
 	// which case no available updates will be returned.
 	releaseVersion string
 
-	// minimumUpdateCheckInterval is the minimum duration to check for updates from
-	// the upstream.
-	minimumUpdateCheckInterval time.Duration
-
 	// restConfig is used to create resourcebuilder.
 	restConfig *rest.Config
 
@@ -72,27 +87,32 @@ type Operator struct {
 	apiExtClient  apiextclientset.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler                 func(key string) error
-	availableUpdatesSyncHandler func(key string) error
+	// updatePayloadHandler allows unit tests to inject arbitrary payload errors
+	updatePayloadHandler func(config *cvv1.ClusterVersion, payload *updatePayload) error
 
+	// minimumUpdateCheckInterval is the minimum duration to check for updates from
+	// the upstream.
+	minimumUpdateCheckInterval time.Duration
 	// payloadDir is intended for testing. If unset it will default to '/'
 	payloadDir string
 	// defaultUpstreamServer is intended for testing.
 	defaultUpstreamServer string
 
+	cvLister              cvlistersv1.ClusterVersionLister
+	cvListerSynced        cache.InformerSynced
 	clusterOperatorLister oslistersv1.ClusterOperatorLister
-	cvoConfigLister       cvlistersv1.ClusterVersionLister
 	clusterOperatorSynced cache.InformerSynced
-	cvoConfigListerSynced cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.RateLimitingInterface
 	// availableUpdatesQueue tracks checking for updates from the update server.
 	availableUpdatesQueue workqueue.RateLimitingInterface
 
+	// statusLock guards access to modifying available updates
 	statusLock       sync.Mutex
 	availableUpdates *availableUpdates
 
+	// lastAtLock guards access to controller memory about the sync loop
 	lastAtLock          sync.Mutex
 	lastSyncAt          time.Time
 	lastResourceVersion int64
@@ -105,7 +125,7 @@ func New(
 	releaseImage string,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
-	cvoConfigInformer cvinformersv1.ClusterVersionInformer,
+	cvInformer cvinformersv1.ClusterVersionInformer,
 	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	restConfig *rest.Config,
 	client clientset.Interface,
@@ -121,32 +141,31 @@ func New(
 		namespace:    namespace,
 		name:         name,
 		releaseImage: releaseImage,
-		payloadDir:   overridePayloadDir,
 
 		minimumUpdateCheckInterval: minimumInterval,
+		payloadDir:                 overridePayloadDir,
+		defaultUpstreamServer:      "http://localhost:8080/graph",
 
-		defaultUpstreamServer: "http://localhost:8080/graph",
+		restConfig:    restConfig,
+		client:        client,
+		kubeClient:    kubeClient,
+		apiExtClient:  apiExtClient,
+		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "clusterversionoperator"}),
 
-		restConfig:            restConfig,
-		client:                client,
-		kubeClient:            kubeClient,
-		apiExtClient:          apiExtClient,
-		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "clusterversionoperator"}),
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
-	cvoConfigInformer.Informer().AddEventHandler(optr.eventHandler())
-	clusterOperatorInformer.Informer().AddEventHandler(optr.eventHandler())
+	optr.updatePayloadHandler = optr.syncUpdatePayload
 
-	optr.syncHandler = optr.sync
-	optr.availableUpdatesSyncHandler = optr.availableUpdatesSync
+	cvInformer.Informer().AddEventHandler(optr.eventHandler())
+	clusterOperatorInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.clusterOperatorLister = clusterOperatorInformer.Lister()
 	optr.clusterOperatorSynced = clusterOperatorInformer.Informer().HasSynced
 
-	optr.cvoConfigLister = cvoConfigInformer.Lister()
-	optr.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
+	optr.cvLister = cvInformer.Lister()
+	optr.cvListerSynced = cvInformer.Informer().HasSynced
 
 	if err := optr.registerMetrics(); err != nil {
 		panic(err)
@@ -176,7 +195,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 
 	if !cache.WaitForCacheSync(stopCh,
 		optr.clusterOperatorSynced,
-		optr.cvoConfigListerSynced,
+		optr.cvListerSynced,
 	) {
 		return
 	}
@@ -184,8 +203,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	// trigger the first cluster version reconcile always
 	optr.queue.Add(optr.queueKey())
 
-	go wait.Until(func() { optr.worker(optr.queue, optr.syncHandler) }, time.Second, stopCh)
-	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSyncHandler) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(optr.queue, optr.sync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
 
 	<-stopCh
 }
@@ -212,11 +231,13 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 }
 
 func (optr *Operator) worker(queue workqueue.RateLimitingInterface, syncHandler func(string) error) {
-	for processNextWorkItem(queue, syncHandler, optr.syncDegradedStatus) {
+	for processNextWorkItem(queue, syncHandler, optr.syncFailingStatus) {
 	}
 }
 
-func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncDegradedStatus func(config *cvv1.ClusterVersion, err error) error) bool {
+type syncFailingStatusFunc func(config *cvv1.ClusterVersion, err error) error
+
+func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncFailingStatus syncFailingStatusFunc) bool {
 	key, quit := queue.Get()
 	if quit {
 		return false
@@ -224,11 +245,11 @@ func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func
 	defer queue.Done(key)
 
 	err := syncHandler(key.(string))
-	handleErr(queue, err, key, syncDegradedStatus)
+	handleErr(queue, err, key, syncFailingStatus)
 	return true
 }
 
-func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}, syncDegradedStatus func(config *cvv1.ClusterVersion, err error) error) {
+func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
 	if err == nil {
 		queue.Forget(key)
 		return
@@ -240,7 +261,7 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 		return
 	}
 
-	err = syncDegradedStatus(nil, err)
+	err = syncFailingStatus(nil, err)
 	utilruntime.HandleError(err)
 	glog.V(2).Infof("Dropping operator %q out of the queue %v: %v", key, queue, err)
 	queue.Forget(key)
@@ -278,7 +299,7 @@ func (optr *Operator) sync(key string) error {
 		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, osv1.OperatorAvailable)
 	hasRecentlySynced := availableAndUpdated && optr.hasRecentlySynced()
 	if hasRecentlySynced {
-		glog.V(2).Infof("Cluster version has been recently synced and no new changes detected")
+		glog.V(4).Infof("Cluster version has been recently synced and no new changes detected")
 		return nil
 	}
 
@@ -288,7 +309,7 @@ func (optr *Operator) sync(key string) error {
 	payload, err := optr.loadUpdatePayload(original)
 	if err != nil {
 		// the payload is invalid, try and update the status to indicate that
-		if sErr := optr.syncDegradedStatus(original, err); sErr != nil {
+		if sErr := optr.syncPayloadFailingStatus(original, err); sErr != nil {
 			glog.V(2).Infof("Unable to write status when payload was invalid: %v", sErr)
 		}
 		return err
@@ -310,7 +331,10 @@ func (optr *Operator) sync(key string) error {
 		}
 	}
 
-	if err := optr.syncUpdatePayload(original, payload); err != nil {
+	if err := optr.updatePayloadHandler(original, payload); err != nil {
+		if applyErr := optr.syncUpdateFailingStatus(original, err); applyErr != nil {
+			glog.V(2).Infof("Unable to write status when sync error occurred: %v", applyErr)
+		}
 		return err
 	}
 
@@ -330,7 +354,7 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 		glog.V(4).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
 	}()
 
-	config, err := optr.cvoConfigLister.Get(optr.name)
+	config, err := optr.cvLister.Get(optr.name)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -387,7 +411,7 @@ func (optr *Operator) rememberLastUpdate(config *cvv1.ClusterVersion) {
 }
 
 func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, error) {
-	obj, err := optr.cvoConfigLister.Get(optr.name)
+	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		return obj, false, nil
 	}
@@ -420,7 +444,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, e
 		},
 	}
 
-	actual, _, err := resourceapply.ApplyClusterVersionFromCache(optr.cvoConfigLister, optr.client.ConfigV1(), config)
+	actual, _, err := resourceapply.ApplyClusterVersionFromCache(optr.cvLister, optr.client.ConfigV1(), config)
 	if apierrors.IsAlreadyExists(err) {
 		return nil, true, nil
 	}

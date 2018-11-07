@@ -47,11 +47,11 @@ type Controller struct {
 	syncHandler       func(key string) error
 	statusSyncHandler func(key string) error
 
-	cvoConfigLister       cvlistersv1.ClusterVersionLister
+	cvLister              cvlistersv1.ClusterVersionLister
 	clusterOperatorLister oslistersv1.ClusterOperatorLister
 
-	cvoConfigListerSynced cache.InformerSynced
-	operatorStatusSynced  cache.InformerSynced
+	cvListerSynced       cache.InformerSynced
+	operatorStatusSynced cache.InformerSynced
 
 	// queue tracks keeping the list of available updates on a cluster version
 	queue workqueue.RateLimitingInterface
@@ -60,7 +60,7 @@ type Controller struct {
 // New returns a new autoupdate controller.
 func New(
 	namespace, name string,
-	cvoConfigInformer cvinformersv1.ClusterVersionInformer,
+	cvInformer cvinformersv1.ClusterVersionInformer,
 	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -77,15 +77,15 @@ func New(
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
 	}
 
-	cvoConfigInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
 	clusterOperatorInformer.Informer().AddEventHandler(ctrl.eventHandler())
 
 	ctrl.syncHandler = ctrl.sync
 
-	ctrl.cvoConfigLister = cvoConfigInformer.Lister()
+	ctrl.cvLister = cvInformer.Lister()
 	ctrl.clusterOperatorLister = clusterOperatorInformer.Lister()
 
-	ctrl.cvoConfigListerSynced = cvoConfigInformer.Informer().HasSynced
+	ctrl.cvListerSynced = cvInformer.Informer().HasSynced
 	ctrl.operatorStatusSynced = clusterOperatorInformer.Informer().HasSynced
 
 	return ctrl
@@ -100,7 +100,7 @@ func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down AutoUpdateController")
 
 	if !cache.WaitForCacheSync(stopCh,
-		ctrl.cvoConfigListerSynced,
+		ctrl.cvListerSynced,
 		ctrl.operatorStatusSynced,
 	) {
 		return
@@ -164,7 +164,7 @@ func (ctrl *Controller) sync(key string) error {
 		glog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
 	}()
 
-	clusterversion, err := ctrl.cvoConfigLister.Get(ctrl.name)
+	clusterversion, err := ctrl.cvLister.Get(ctrl.name)
 	if errors.IsNotFound(err) {
 		glog.V(2).Infof("ClusterVersion %v has been deleted", key)
 		return nil
@@ -183,7 +183,7 @@ func (ctrl *Controller) sync(key string) error {
 	up := nextUpdate(clusterversion.Status.AvailableUpdates)
 	clusterversion.Spec.DesiredUpdate = &up
 
-	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvoConfigLister, ctrl.client.ConfigV1(), clusterversion)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
 		glog.Infof("Auto Update set to %s", up)
 	}

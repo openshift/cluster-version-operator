@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -66,7 +68,7 @@ func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, n
 		gvr, namespaced, err = gvkToGVR(gvk, c.restMapper)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to get resource type: %v", err)
+		return nil, errors.WithMessage(err, fmt.Sprintf("failed to get resource type: %v", err))
 	}
 
 	// sometimes manifests of non-namespaced resources
@@ -85,7 +87,7 @@ func gvkToGVR(gvk schema.GroupVersionKind, restMapper *restmapper.DeferredDiscov
 		return nil, false, err
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to get the resource REST mapping for GroupVersionKind(%s): %v", gvk.String(), err)
+		return nil, false, errors.WithMessage(err, fmt.Sprintf("failed to get the resource REST mapping for GroupVersionKind(%s): ", gvk.String()))
 	}
 
 	return &mapping.Resource, mapping.Scope.Name() == meta.RESTScopeNameNamespace, nil
