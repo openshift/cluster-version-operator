@@ -28,10 +28,9 @@ import (
 
 	"github.com/google/uuid"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/fake"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
+	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 )
@@ -60,20 +59,20 @@ type clientCOLister struct {
 	ns     string
 }
 
-func (c *clientCOLister) ClusterOperators(namespace string) oslistersv1.ClusterOperatorNamespaceLister {
+func (c *clientCOLister) ClusterOperators(namespace string) cvlistersv1.ClusterOperatorNamespaceLister {
 	copied := *c
 	copied.ns = namespace
 	return &copied
 }
-func (c *clientCOLister) Get(name string) (*osv1.ClusterOperator, error) {
-	return c.client.Operatorstatus().ClusterOperators(c.ns).Get(name, metav1.GetOptions{})
+func (c *clientCOLister) Get(name string) (*cvv1.ClusterOperator, error) {
+	return c.client.Config().ClusterOperators(c.ns).Get(name, metav1.GetOptions{})
 }
-func (c *clientCOLister) List(selector labels.Selector) (ret []*osv1.ClusterOperator, err error) {
-	list, err := c.client.Operatorstatus().ClusterOperators(c.ns).List(metav1.ListOptions{LabelSelector: selector.String()})
+func (c *clientCOLister) List(selector labels.Selector) (ret []*cvv1.ClusterOperator, err error) {
+	list, err := c.client.Config().ClusterOperators(c.ns).List(metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
-	var items []*osv1.ClusterOperator
+	var items []*cvv1.ClusterOperator
 	for i := range list.Items {
 		items = append(items, &list.Items[i])
 	}
@@ -99,13 +98,13 @@ func (r *cvLister) Get(name string) (*cvv1.ClusterVersion, error) {
 
 type coLister struct {
 	Err   error
-	Items []*osv1.ClusterOperator
+	Items []*cvv1.ClusterOperator
 }
 
-func (r *coLister) List(selector labels.Selector) (ret []*osv1.ClusterOperator, err error) {
+func (r *coLister) List(selector labels.Selector) (ret []*cvv1.ClusterOperator, err error) {
 	return r.Items, r.Err
 }
-func (r *coLister) ClusterOperators(namespace string) oslistersv1.ClusterOperatorNamespaceLister {
+func (r *coLister) ClusterOperators(namespace string) cvlistersv1.ClusterOperatorNamespaceLister {
 	return &nsClusterOperatorLister{r: r, ns: namespace}
 }
 
@@ -114,10 +113,10 @@ type nsClusterOperatorLister struct {
 	ns string
 }
 
-func (r *nsClusterOperatorLister) List(selector labels.Selector) (ret []*osv1.ClusterOperator, err error) {
+func (r *nsClusterOperatorLister) List(selector labels.Selector) (ret []*cvv1.ClusterOperator, err error) {
 	return r.r.Items, r.r.Err
 }
-func (r *nsClusterOperatorLister) Get(name string) (*osv1.ClusterOperator, error) {
+func (r *nsClusterOperatorLister) Get(name string) (*cvv1.ClusterOperator, error) {
 	for _, s := range r.r.Items {
 		if s.Name == name && r.ns == s.Namespace {
 			return s, nil
@@ -280,10 +279,10 @@ func TestOperator_sync(t *testing.T) {
 								Payload: "payload/image:v4.0.1",
 							},
 							VersionHash: "",
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Working towards 4.0.1"},
 							},
 						},
 					},
@@ -309,10 +308,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 4.0.1: the contents of the update are invalid"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 4.0.1: the contents of the update are invalid"},
 						},
 					},
 				})
@@ -329,10 +328,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -363,10 +362,10 @@ func TestOperator_sync(t *testing.T) {
 								Payload: "payload/image:v4.0.1",
 							},
 							VersionHash: "",
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Message: "unable to apply object"},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Working towards 4.0.1"},
 							},
 						},
 					},
@@ -398,10 +397,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
 						},
 					},
 				})
@@ -419,10 +418,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "injected error"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: injected error"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Message: "injected error"},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Unable to apply 4.0.1: injected error"},
 						},
 					},
 				})
@@ -473,10 +472,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
 						},
 					},
 				})
@@ -494,10 +493,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -525,8 +524,8 @@ func TestOperator_sync(t *testing.T) {
 								Payload: "payload/image:v4.0.1",
 							},
 							VersionHash: "",
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
 							},
 						},
 					},
@@ -558,10 +557,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue, Message: "unable to apply object"},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue, Message: "unable to apply object"},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Unable to apply 4.0.1: unable to apply object"},
 						},
 					},
 				})
@@ -579,10 +578,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -628,10 +627,10 @@ func TestOperator_sync(t *testing.T) {
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
 						},
 					},
 				})
@@ -650,10 +649,10 @@ func TestOperator_sync(t *testing.T) {
 							Version: "0.0.1-abc",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -681,10 +680,10 @@ func TestOperator_sync(t *testing.T) {
 						},
 						Status: cvv1.ClusterVersionStatus{
 							Generation: 2,
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							},
 						},
 					},
@@ -716,10 +715,10 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Status: cvv1.ClusterVersionStatus{
 						Generation: 2,
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
 						},
 					},
 				}
@@ -751,9 +750,9 @@ func TestOperator_sync(t *testing.T) {
 						{Version: "4.0.2", Payload: "test/image:1"},
 						{Version: "4.0.3", Payload: "test/image:2"},
 					},
-					Condition: osv1.ClusterOperatorStatusCondition{
+					Condition: cvv1.ClusterOperatorStatusCondition{
 						Type:   cvv1.RetrievedUpdates,
-						Status: osv1.ConditionTrue,
+						Status: cvv1.ConditionTrue,
 					},
 				},
 			},
@@ -781,11 +780,11 @@ func TestOperator_sync(t *testing.T) {
 						},
 						Current:    cvv1.Update{Payload: "payload/image:v4.0.1"},
 						Generation: 2,
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionTrue},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.RetrievedUpdates, Status: cvv1.ConditionTrue},
 						},
 					},
 				})
@@ -817,10 +816,10 @@ func TestOperator_sync(t *testing.T) {
 							},
 							VersionHash: "y_Kc5IQiIyU=",
 							Generation:  2,
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							},
 						},
 					},
@@ -861,10 +860,10 @@ func TestOperator_sync(t *testing.T) {
 							},
 							VersionHash: "unknown_hash",
 							Generation:  2,
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							},
 						},
 					},
@@ -892,10 +891,10 @@ func TestOperator_sync(t *testing.T) {
 						},
 						Generation:  2,
 						VersionHash: "unknown_hash",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
 						},
 					},
 				})
@@ -916,10 +915,10 @@ func TestOperator_sync(t *testing.T) {
 						},
 						Generation:  2,
 						VersionHash: "y_Kc5IQiIyU=",
-						Conditions: []osv1.ClusterOperatorStatusCondition{
-							{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-							{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+						Conditions: []cvv1.ClusterOperatorStatusCondition{
+							{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+							{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 						},
 					},
 				})
@@ -1014,9 +1013,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				Upstream: "<default>",
 				Channel:  "fast",
-				Condition: osv1.ClusterOperatorStatusCondition{
+				Condition: cvv1.ClusterOperatorStatusCondition{
 					Type:    cvv1.RetrievedUpdates,
-					Status:  osv1.ConditionFalse,
+					Status:  cvv1.ConditionFalse,
 					Reason:  "NoCurrentVersion",
 					Message: "The cluster version does not have a semantic version assigned and cannot calculate valid upgrades.",
 				},
@@ -1045,10 +1044,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Current: cvv1.Update{
 								Payload: "payload/image:v4.0.1",
 							},
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse},
 							},
 						},
 					},
@@ -1057,9 +1056,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				Upstream: "<default>",
 				Channel:  "fast",
-				Condition: osv1.ClusterOperatorStatusCondition{
+				Condition: cvv1.ClusterOperatorStatusCondition{
 					Type:    cvv1.RetrievedUpdates,
-					Status:  osv1.ConditionFalse,
+					Status:  cvv1.ConditionFalse,
 					Reason:  "RemoteFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
@@ -1088,11 +1087,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Current: cvv1.Update{
 								Payload: "payload/image:v4.0.1",
 							},
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
-								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.RetrievedUpdates, Status: cvv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
 					},
@@ -1101,9 +1100,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				Upstream: "<default>",
 				Channel:  "fast",
-				Condition: osv1.ClusterOperatorStatusCondition{
+				Condition: cvv1.ClusterOperatorStatusCondition{
 					Type:   cvv1.RetrievedUpdates,
-					Status: osv1.ConditionTrue,
+					Status: cvv1.ConditionTrue,
 				},
 			},
 		},
@@ -1143,11 +1142,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Current: cvv1.Update{
 								Payload: "payload/image:v4.0.1",
 							},
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
-								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.RetrievedUpdates, Status: cvv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
 					},
@@ -1160,9 +1159,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					{Version: "4.0.2-prerelease", Payload: "some.other.registry/payload/image:v4.0.2"},
 					{Version: "4.0.2", Payload: "payload/image:v4.0.2"},
 				},
-				Condition: osv1.ClusterOperatorStatusCondition{
+				Condition: cvv1.ClusterOperatorStatusCondition{
 					Type:   cvv1.RetrievedUpdates,
-					Status: osv1.ConditionTrue,
+					Status: cvv1.ConditionTrue,
 				},
 			},
 		},
@@ -1199,11 +1198,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 								Payload: "payload/image:v4.0.1",
 							},
 							Generation: 2,
-							Conditions: []osv1.ClusterOperatorStatusCondition{
-								{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
-								{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse},
-								{Type: osv1.OperatorProgressing, Status: osv1.ConditionFalse},
-								{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
+							Conditions: []cvv1.ClusterOperatorStatusCondition{
+								{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
+								{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.OperatorProgressing, Status: cvv1.ConditionFalse},
+								{Type: cvv1.RetrievedUpdates, Status: cvv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
 						},
 					},
@@ -1326,7 +1325,7 @@ func expectMutation(t *testing.T, a ktesting.Action, verb string, resource, subr
 				in.Spec.ClusterID = at.GetObject().(*cvv1.ClusterVersion).Spec.ClusterID
 			}
 		}
-		if in, ok := at.GetObject().(*osv1.ClusterOperator); ok {
+		if in, ok := at.GetObject().(*cvv1.ClusterOperator); ok {
 			for i := range in.Status.Conditions {
 				in.Status.Conditions[i].LastTransitionTime.Time = time.Time{}
 			}

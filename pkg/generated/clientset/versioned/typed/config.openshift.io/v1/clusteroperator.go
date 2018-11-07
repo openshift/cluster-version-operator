@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	v1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	scheme "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
@@ -54,7 +54,7 @@ type clusterOperators struct {
 }
 
 // newClusterOperators returns a ClusterOperators
-func newClusterOperators(c *OperatorstatusV1Client, namespace string) *clusterOperators {
+func newClusterOperators(c *ConfigV1Client, namespace string) *clusterOperators {
 	return &clusterOperators{
 		client: c.RESTClient(),
 		ns:     namespace,

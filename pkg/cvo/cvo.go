@@ -26,12 +26,9 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
-	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
 	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 )
 
 const (
@@ -100,7 +97,7 @@ type Operator struct {
 
 	cvLister              cvlistersv1.ClusterVersionLister
 	cvListerSynced        cache.InformerSynced
-	clusterOperatorLister oslistersv1.ClusterOperatorLister
+	clusterOperatorLister cvlistersv1.ClusterOperatorLister
 	clusterOperatorSynced cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
@@ -126,7 +123,7 @@ func New(
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer cvinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
+	clusterOperatorInformer cvinformersv1.ClusterOperatorInformer,
 	restConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -152,7 +149,7 @@ func New(
 		apiExtClient:  apiExtClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "clusterversionoperator"}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
@@ -296,7 +293,7 @@ func (optr *Operator) sync(key string) error {
 
 	// when we're up to date, limit how frequently we check the payload
 	availableAndUpdated := original.Status.Generation == original.Generation &&
-		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, osv1.OperatorAvailable)
+		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, cvv1.OperatorAvailable)
 	hasRecentlySynced := availableAndUpdated && optr.hasRecentlySynced()
 	if hasRecentlySynced {
 		glog.V(4).Infof("Cluster version has been recently synced and no new changes detected")

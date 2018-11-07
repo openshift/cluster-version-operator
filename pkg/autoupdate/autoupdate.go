@@ -13,9 +13,7 @@ import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
 	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
-	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
 	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -48,7 +46,7 @@ type Controller struct {
 	statusSyncHandler func(key string) error
 
 	cvLister              cvlistersv1.ClusterVersionLister
-	clusterOperatorLister oslistersv1.ClusterOperatorLister
+	clusterOperatorLister cvlistersv1.ClusterOperatorLister
 
 	cvListerSynced       cache.InformerSynced
 	operatorStatusSynced cache.InformerSynced
@@ -61,7 +59,7 @@ type Controller struct {
 func New(
 	namespace, name string,
 	cvInformer cvinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
+	clusterOperatorInformer cvinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 ) *Controller {

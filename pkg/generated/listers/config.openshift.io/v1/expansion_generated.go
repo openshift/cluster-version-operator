@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1
 
+// ClusterOperatorListerExpansion allows custom methods to be added to
+// ClusterOperatorLister.
+type ClusterOperatorListerExpansion interface{}
+
+// ClusterOperatorNamespaceListerExpansion allows custom methods to be added to
+// ClusterOperatorNamespaceLister.
+type ClusterOperatorNamespaceListerExpansion interface{}
+
 // ClusterVersionListerExpansion allows custom methods to be added to
 // ClusterVersionLister.
 type ClusterVersionListerExpansion interface{}

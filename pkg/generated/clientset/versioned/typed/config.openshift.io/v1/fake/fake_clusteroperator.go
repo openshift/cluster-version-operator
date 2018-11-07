@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	operatorstatusopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	configopenshiftiov1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,29 +30,29 @@ import (
 
 // FakeClusterOperators implements ClusterOperatorInterface
 type FakeClusterOperators struct {
-	Fake *FakeOperatorstatusV1
+	Fake *FakeConfigV1
 	ns   string
 }
 
-var clusteroperatorsResource = schema.GroupVersionResource{Group: "operatorstatus.openshift.io", Version: "v1", Resource: "clusteroperators"}
+var clusteroperatorsResource = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusteroperators"}
 
-var clusteroperatorsKind = schema.GroupVersionKind{Group: "operatorstatus.openshift.io", Version: "v1", Kind: "ClusterOperator"}
+var clusteroperatorsKind = schema.GroupVersionKind{Group: "config.openshift.io", Version: "v1", Kind: "ClusterOperator"}
 
 // Get takes name of the clusterOperator, and returns the corresponding clusterOperator object, and an error if there is any.
-func (c *FakeClusterOperators) Get(name string, options v1.GetOptions) (result *operatorstatusopenshiftiov1.ClusterOperator, err error) {
+func (c *FakeClusterOperators) Get(name string, options v1.GetOptions) (result *configopenshiftiov1.ClusterOperator, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(clusteroperatorsResource, c.ns, name), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewGetAction(clusteroperatorsResource, c.ns, name), &configopenshiftiov1.ClusterOperator{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*operatorstatusopenshiftiov1.ClusterOperator), err
+	return obj.(*configopenshiftiov1.ClusterOperator), err
 }
 
 // List takes label and field selectors, and returns the list of ClusterOperators that match those selectors.
-func (c *FakeClusterOperators) List(opts v1.ListOptions) (result *operatorstatusopenshiftiov1.ClusterOperatorList, err error) {
+func (c *FakeClusterOperators) List(opts v1.ListOptions) (result *configopenshiftiov1.ClusterOperatorList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(clusteroperatorsResource, clusteroperatorsKind, c.ns, opts), &operatorstatusopenshiftiov1.ClusterOperatorList{})
+		Invokes(testing.NewListAction(clusteroperatorsResource, clusteroperatorsKind, c.ns, opts), &configopenshiftiov1.ClusterOperatorList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeClusterOperators) List(opts v1.ListOptions) (result *operatorstatus
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &operatorstatusopenshiftiov1.ClusterOperatorList{ListMeta: obj.(*operatorstatusopenshiftiov1.ClusterOperatorList).ListMeta}
-	for _, item := range obj.(*operatorstatusopenshiftiov1.ClusterOperatorList).Items {
+	list := &configopenshiftiov1.ClusterOperatorList{ListMeta: obj.(*configopenshiftiov1.ClusterOperatorList).ListMeta}
+	for _, item := range obj.(*configopenshiftiov1.ClusterOperatorList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,43 +79,43 @@ func (c *FakeClusterOperators) Watch(opts v1.ListOptions) (watch.Interface, erro
 }
 
 // Create takes the representation of a clusterOperator and creates it.  Returns the server's representation of the clusterOperator, and an error, if there is any.
-func (c *FakeClusterOperators) Create(clusterOperator *operatorstatusopenshiftiov1.ClusterOperator) (result *operatorstatusopenshiftiov1.ClusterOperator, err error) {
+func (c *FakeClusterOperators) Create(clusterOperator *configopenshiftiov1.ClusterOperator) (result *configopenshiftiov1.ClusterOperator, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(clusteroperatorsResource, c.ns, clusterOperator), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewCreateAction(clusteroperatorsResource, c.ns, clusterOperator), &configopenshiftiov1.ClusterOperator{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*operatorstatusopenshiftiov1.ClusterOperator), err
+	return obj.(*configopenshiftiov1.ClusterOperator), err
 }
 
 // Update takes the representation of a clusterOperator and updates it. Returns the server's representation of the clusterOperator, and an error, if there is any.
-func (c *FakeClusterOperators) Update(clusterOperator *operatorstatusopenshiftiov1.ClusterOperator) (result *operatorstatusopenshiftiov1.ClusterOperator, err error) {
+func (c *FakeClusterOperators) Update(clusterOperator *configopenshiftiov1.ClusterOperator) (result *configopenshiftiov1.ClusterOperator, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(clusteroperatorsResource, c.ns, clusterOperator), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewUpdateAction(clusteroperatorsResource, c.ns, clusterOperator), &configopenshiftiov1.ClusterOperator{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*operatorstatusopenshiftiov1.ClusterOperator), err
+	return obj.(*configopenshiftiov1.ClusterOperator), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeClusterOperators) UpdateStatus(clusterOperator *operatorstatusopenshiftiov1.ClusterOperator) (*operatorstatusopenshiftiov1.ClusterOperator, error) {
+func (c *FakeClusterOperators) UpdateStatus(clusterOperator *configopenshiftiov1.ClusterOperator) (*configopenshiftiov1.ClusterOperator, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(clusteroperatorsResource, "status", c.ns, clusterOperator), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewUpdateSubresourceAction(clusteroperatorsResource, "status", c.ns, clusterOperator), &configopenshiftiov1.ClusterOperator{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*operatorstatusopenshiftiov1.ClusterOperator), err
+	return obj.(*configopenshiftiov1.ClusterOperator), err
 }
 
 // Delete takes name of the clusterOperator and deletes it. Returns an error if one occurs.
 func (c *FakeClusterOperators) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(clusteroperatorsResource, c.ns, name), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewDeleteAction(clusteroperatorsResource, c.ns, name), &configopenshiftiov1.ClusterOperator{})
 
 	return err
 }
@@ -124,17 +124,17 @@ func (c *FakeClusterOperators) Delete(name string, options *v1.DeleteOptions) er
 func (c *FakeClusterOperators) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(clusteroperatorsResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &operatorstatusopenshiftiov1.ClusterOperatorList{})
+	_, err := c.Fake.Invokes(action, &configopenshiftiov1.ClusterOperatorList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched clusterOperator.
-func (c *FakeClusterOperators) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operatorstatusopenshiftiov1.ClusterOperator, err error) {
+func (c *FakeClusterOperators) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *configopenshiftiov1.ClusterOperator, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(clusteroperatorsResource, c.ns, name, data, subresources...), &operatorstatusopenshiftiov1.ClusterOperator{})
+		Invokes(testing.NewPatchSubresourceAction(clusteroperatorsResource, c.ns, name, data, subresources...), &configopenshiftiov1.ClusterOperator{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*operatorstatusopenshiftiov1.ClusterOperator), err
+	return obj.(*configopenshiftiov1.ClusterOperator), err
 }

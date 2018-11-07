@@ -20,7 +20,6 @@ package scheme
 
 import (
 	configv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -52,5 +51,4 @@ func init() {
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
 	configv1.AddToScheme(scheme)
-	operatorstatusv1.AddToScheme(scheme)
 }

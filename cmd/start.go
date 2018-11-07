@@ -253,7 +253,7 @@ func startControllers(ctx *controllerContext) error {
 		overrideDirectory,
 		ctx.ResyncPeriod(),
 		ctx.InformerFactory.Config().V1().ClusterVersions(),
-		ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
+		ctx.InformerFactory.Config().V1().ClusterOperators(),
 		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
@@ -264,7 +264,7 @@ func startControllers(ctx *controllerContext) error {
 		go autoupdate.New(
 			componentNamespace, componentName,
 			ctx.InformerFactory.Config().V1().ClusterVersions(),
-			ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
+			ctx.InformerFactory.Config().V1().ClusterOperators(),
 			ctx.ClientBuilder.ClientOrDie(componentName),
 			ctx.ClientBuilder.KubeClientOrDie(componentName),
 		).Run(2, ctx.Stop)

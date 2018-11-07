@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,16 +32,16 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects cluster operator status failure",
 			optr: &Operator{
 				clusterOperatorLister: &coLister{
-					Items: []*osv1.ClusterOperator{
+					Items: []*cvv1.ClusterOperator{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Status: osv1.ClusterOperatorStatus{
+							Status: cvv1.ClusterOperatorStatus{
 								Version: "10.1.5-1",
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+								Conditions: []cvv1.ClusterOperatorStatusCondition{
+									{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue},
+									{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue},
 								},
 							},
 						},
@@ -63,17 +62,17 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects cluster operator status custom",
 			optr: &Operator{
 				clusterOperatorLister: &coLister{
-					Items: []*osv1.ClusterOperator{
+					Items: []*cvv1.ClusterOperator{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Namespace: "default",
 								Name:      "test",
 							},
-							Status: osv1.ClusterOperatorStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-									{Type: osv1.ClusterStatusConditionType("Custom"), Status: osv1.ConditionFalse},
-									{Type: osv1.ClusterStatusConditionType("Unknown"), Status: osv1.ConditionUnknown},
+							Status: cvv1.ClusterOperatorStatus{
+								Conditions: []cvv1.ClusterOperatorStatusCondition{
+									{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionTrue},
+									{Type: cvv1.ClusterStatusConditionType("Custom"), Status: cvv1.ConditionFalse},
+									{Type: cvv1.ClusterStatusConditionType("Unknown"), Status: cvv1.ConditionUnknown},
 								},
 							},
 						},
@@ -129,8 +128,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name: "test",
 							},
 							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionTrue},
+								Conditions: []cvv1.ClusterOperatorStatusCondition{
+									{Type: cvv1.RetrievedUpdates, Status: cvv1.ConditionTrue},
 								},
 							},
 						},
@@ -188,8 +187,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								DesiredUpdate: &cvv1.Update{Version: "1.0.0", Payload: "test/image:2"},
 							},
 							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+								Conditions: []cvv1.ClusterOperatorStatusCondition{
+									{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue},
 								},
 							},
 						},
@@ -219,8 +218,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name: "test",
 							},
 							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+								Conditions: []cvv1.ClusterOperatorStatusCondition{
+									{Type: cvv1.OperatorFailing, Status: cvv1.ConditionTrue},
 								},
 							},
 						},

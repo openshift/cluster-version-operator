@@ -22,8 +22,6 @@ import (
 	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 	configv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
 	fakeconfigv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1/fake"
-	operatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
-	fakeoperatorstatusv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -81,14 +79,4 @@ func (c *Clientset) ConfigV1() configv1.ConfigV1Interface {
 // Config retrieves the ConfigV1Client
 func (c *Clientset) Config() configv1.ConfigV1Interface {
 	return &fakeconfigv1.FakeConfigV1{Fake: &c.Fake}
-}
-
-// OperatorstatusV1 retrieves the OperatorstatusV1Client
-func (c *Clientset) OperatorstatusV1() operatorstatusv1.OperatorstatusV1Interface {
-	return &fakeoperatorstatusv1.FakeOperatorstatusV1{Fake: &c.Fake}
-}
-
-// Operatorstatus retrieves the OperatorstatusV1Client
-func (c *Clientset) Operatorstatus() operatorstatusv1.OperatorstatusV1Interface {
-	return &fakeoperatorstatusv1.FakeOperatorstatusV1{Fake: &c.Fake}
 }

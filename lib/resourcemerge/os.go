@@ -6,15 +6,15 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 )
 
-func EnsureClusterOperatorStatus(modified *bool, existing *osv1.ClusterOperator, required osv1.ClusterOperator) {
+func EnsureClusterOperatorStatus(modified *bool, existing *cvv1.ClusterOperator, required cvv1.ClusterOperator) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureClusterOperatorStatus(modified, &existing.Status, required.Status)
 }
 
-func ensureClusterOperatorStatus(modified *bool, existing *osv1.ClusterOperatorStatus, required osv1.ClusterOperatorStatus) {
+func ensureClusterOperatorStatus(modified *bool, existing *cvv1.ClusterOperatorStatus, required cvv1.ClusterOperatorStatus) {
 	if !equality.Semantic.DeepEqual(existing.Conditions, required.Conditions) {
 		*modified = true
 		existing.Conditions = required.Conditions
@@ -33,9 +33,9 @@ func ensureClusterOperatorStatus(modified *bool, existing *osv1.ClusterOperatorS
 	}
 }
 
-func SetOperatorStatusCondition(conditions *[]osv1.ClusterOperatorStatusCondition, newCondition osv1.ClusterOperatorStatusCondition) {
+func SetOperatorStatusCondition(conditions *[]cvv1.ClusterOperatorStatusCondition, newCondition cvv1.ClusterOperatorStatusCondition) {
 	if conditions == nil {
-		conditions = &[]osv1.ClusterOperatorStatusCondition{}
+		conditions = &[]cvv1.ClusterOperatorStatusCondition{}
 	}
 	existingCondition := FindOperatorStatusCondition(*conditions, newCondition.Type)
 	if existingCondition == nil {
@@ -53,11 +53,11 @@ func SetOperatorStatusCondition(conditions *[]osv1.ClusterOperatorStatusConditio
 	existingCondition.Message = newCondition.Message
 }
 
-func RemoveOperatorStatusCondition(conditions *[]osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType) {
+func RemoveOperatorStatusCondition(conditions *[]cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType) {
 	if conditions == nil {
-		conditions = &[]osv1.ClusterOperatorStatusCondition{}
+		conditions = &[]cvv1.ClusterOperatorStatusCondition{}
 	}
-	newConditions := []osv1.ClusterOperatorStatusCondition{}
+	newConditions := []cvv1.ClusterOperatorStatusCondition{}
 	for _, condition := range *conditions {
 		if condition.Type != conditionType {
 			newConditions = append(newConditions, condition)
@@ -67,7 +67,7 @@ func RemoveOperatorStatusCondition(conditions *[]osv1.ClusterOperatorStatusCondi
 	*conditions = newConditions
 }
 
-func FindOperatorStatusCondition(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType) *osv1.ClusterOperatorStatusCondition {
+func FindOperatorStatusCondition(conditions []cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType) *cvv1.ClusterOperatorStatusCondition {
 	for i := range conditions {
 		if conditions[i].Type == conditionType {
 			return &conditions[i]
@@ -77,15 +77,15 @@ func FindOperatorStatusCondition(conditions []osv1.ClusterOperatorStatusConditio
 	return nil
 }
 
-func IsOperatorStatusConditionTrue(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType) bool {
-	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, osv1.ConditionTrue)
+func IsOperatorStatusConditionTrue(conditions []cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType) bool {
+	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, cvv1.ConditionTrue)
 }
 
-func IsOperatorStatusConditionFalse(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType) bool {
-	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, osv1.ConditionFalse)
+func IsOperatorStatusConditionFalse(conditions []cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType) bool {
+	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, cvv1.ConditionFalse)
 }
 
-func IsOperatorStatusConditionPresentAndEqual(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType, status osv1.ConditionStatus) bool {
+func IsOperatorStatusConditionPresentAndEqual(conditions []cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType, status cvv1.ConditionStatus) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
 			return condition.Status == status
@@ -94,7 +94,7 @@ func IsOperatorStatusConditionPresentAndEqual(conditions []osv1.ClusterOperatorS
 	return false
 }
 
-func IsOperatorStatusConditionNotIn(conditions []osv1.ClusterOperatorStatusCondition, conditionType osv1.ClusterStatusConditionType, status ...osv1.ConditionStatus) bool {
+func IsOperatorStatusConditionNotIn(conditions []cvv1.ClusterOperatorStatusCondition, conditionType cvv1.ClusterStatusConditionType, status ...cvv1.ConditionStatus) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
 			for _, s := range status {

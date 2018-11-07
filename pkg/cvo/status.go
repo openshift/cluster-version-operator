@@ -9,7 +9,6 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	cvclientv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
 )
 
@@ -35,28 +34,28 @@ func (optr *Operator) syncProgressingStatus(config *cvv1.ClusterVersion) error {
 	now := metav1.Now()
 
 	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse, LastTransitionTime: now})
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse, LastTransitionTime: now})
 
 	// preserve the most recent failing condition
-	if resourcemerge.IsOperatorStatusConditionNotIn(config.Status.Conditions, osv1.OperatorFailing, osv1.ConditionTrue) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse, LastTransitionTime: now})
+	if resourcemerge.IsOperatorStatusConditionNotIn(config.Status.Conditions, cvv1.OperatorFailing, cvv1.ConditionTrue) {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse, LastTransitionTime: now})
 	}
 
 	// set progressing with an accurate summary message
-	if c := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, osv1.OperatorFailing); c != nil && c.Status == osv1.ConditionTrue {
+	if c := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, cvv1.OperatorFailing); c != nil && c.Status == cvv1.ConditionTrue {
 		reason := c.Reason
 		msg := summaryForReason(reason)
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionTrue,
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionTrue,
 			Reason:             reason,
 			Message:            fmt.Sprintf("Unable to apply %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionTrue,
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionTrue,
 			Message:            fmt.Sprintf("Working towards %s", optr.desiredVersionString(config)),
 			LastTransitionTime: now,
 		})
@@ -79,21 +78,21 @@ func (optr *Operator) syncAvailableStatus(config *cvv1.ClusterVersion, current c
 	version := optr.currentVersionString(config)
 
 	// set the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:    osv1.OperatorAvailable,
-		Status:  osv1.ConditionTrue,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:    cvv1.OperatorAvailable,
+		Status:  cvv1.ConditionTrue,
 		Message: fmt.Sprintf("Done applying %s", version),
 
 		LastTransitionTime: now,
 	})
 
 	// clear the failure condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorFailing, Status: osv1.ConditionFalse, LastTransitionTime: now})
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{Type: cvv1.OperatorFailing, Status: cvv1.ConditionFalse, LastTransitionTime: now})
 
 	// clear the progressing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:    osv1.OperatorProgressing,
-		Status:  osv1.ConditionFalse,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:    cvv1.OperatorProgressing,
+		Status:  cvv1.ConditionFalse,
 		Message: fmt.Sprintf("Cluster version is %s", version),
 
 		LastTransitionTime: now,
@@ -121,27 +120,27 @@ func (optr *Operator) syncPayloadFailingStatus(original *cvv1.ClusterVersion, er
 	// leave the available condition alone
 
 	// set the failing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:               osv1.OperatorFailing,
-		Status:             osv1.ConditionTrue,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:               cvv1.OperatorFailing,
+		Status:             cvv1.ConditionTrue,
 		Reason:             reason,
 		Message:            err.Error(),
 		LastTransitionTime: now,
 	})
 
 	// update the progressing condition message to indicate there is an error
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, osv1.OperatorProgressing) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionTrue,
+	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, cvv1.OperatorProgressing) {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionTrue,
 			Reason:             reason,
 			Message:            fmt.Sprintf("Unable to apply %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionFalse,
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionFalse,
 			Reason:             reason,
 			Message:            fmt.Sprintf("Error while reconciling %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
@@ -168,30 +167,30 @@ func (optr *Operator) syncUpdateFailingStatus(original *cvv1.ClusterVersion, err
 	}
 
 	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse, LastTransitionTime: now})
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse, LastTransitionTime: now})
 
 	// set the failing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:               osv1.OperatorFailing,
-		Status:             osv1.ConditionTrue,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:               cvv1.OperatorFailing,
+		Status:             cvv1.ConditionTrue,
 		Reason:             reason,
 		Message:            err.Error(),
 		LastTransitionTime: now,
 	})
 
 	// update the progressing condition message to indicate there is an error
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, osv1.OperatorProgressing) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionTrue,
+	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, cvv1.OperatorProgressing) {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionTrue,
 			Reason:             reason,
 			Message:            fmt.Sprintf("Unable to apply %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-			Type:               osv1.OperatorProgressing,
-			Status:             osv1.ConditionFalse,
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+			Type:               cvv1.OperatorProgressing,
+			Status:             cvv1.ConditionFalse,
 			Reason:             reason,
 			Message:            fmt.Sprintf("Error while reconciling %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
@@ -233,23 +232,23 @@ func (optr *Operator) syncFailingStatus(config *cvv1.ClusterVersion, ierr error)
 	msg := fmt.Sprintf("Error ensuring the cluster version is up to date: %v", ierr)
 
 	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{Type: osv1.OperatorAvailable, Status: osv1.ConditionFalse, LastTransitionTime: now})
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{Type: cvv1.OperatorAvailable, Status: cvv1.ConditionFalse, LastTransitionTime: now})
 
 	// reset the failing message
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:               osv1.OperatorFailing,
-		Status:             osv1.ConditionTrue,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:               cvv1.OperatorFailing,
+		Status:             cvv1.ConditionTrue,
 		Message:            ierr.Error(),
 		LastTransitionTime: now,
 	})
 
 	// preserve the status of the existing progressing condition
-	progressingStatus := osv1.ConditionFalse
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, osv1.OperatorProgressing) {
-		progressingStatus = osv1.ConditionTrue
+	progressingStatus := cvv1.ConditionFalse
+	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, cvv1.OperatorProgressing) {
+		progressingStatus = cvv1.ConditionTrue
 	}
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, osv1.ClusterOperatorStatusCondition{
-		Type:               osv1.OperatorProgressing,
+	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, cvv1.ClusterOperatorStatusCondition{
+		Type:               cvv1.OperatorProgressing,
 		Status:             progressingStatus,
 		Message:            msg,
 		LastTransitionTime: now,

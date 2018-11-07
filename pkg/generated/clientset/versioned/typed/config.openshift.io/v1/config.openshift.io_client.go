@@ -27,12 +27,17 @@ import (
 
 type ConfigV1Interface interface {
 	RESTClient() rest.Interface
+	ClusterOperatorsGetter
 	ClusterVersionsGetter
 }
 
 // ConfigV1Client is used to interact with features provided by the config.openshift.io group.
 type ConfigV1Client struct {
 	restClient rest.Interface
+}
+
+func (c *ConfigV1Client) ClusterOperators(namespace string) ClusterOperatorInterface {
+	return newClusterOperators(c, namespace)
 }
 
 func (c *ConfigV1Client) ClusterVersions() ClusterVersionInterface {
