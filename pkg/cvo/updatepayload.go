@@ -239,6 +239,17 @@ func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.ClusterVe
 		args            = []string{"-c", copyPayloadCmd(dir)}
 	)
 
+	// pull and resolve the payload image to a digest before we launch the job to copy the results - this gives
+	// us better access to messages for helping admins debug why the payload couldn't be retrieved, and also
+	// allows us to leverage the container runtime to resolve the payload string to an image digest.
+	resolvedPayload, err := optr.pullAndResolvePayloadImage(namespace, name, payload, nodename, nodeSelectorKey)
+	if err != nil {
+		return err
+	}
+	payload = resolvedPayload
+	config.Spec.DesiredUpdate.Payload = resolvedPayload
+
+	// copy the exact known payload to the desired location
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -282,11 +293,73 @@ func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.ClusterVe
 		},
 	}
 
-	_, err := optr.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
-	if err != nil {
+	if _, err := optr.kubeClient.BatchV1().Jobs(job.Namespace).Create(job); err != nil {
 		return err
 	}
 	return resourcebuilder.WaitForJobCompletion(optr.kubeClient.BatchV1(), job)
+}
+
+// pullAndResolvePayloadImage attempts to pull the pod and resolve the payload string to a digest.
+// If the container runtime reports no imageID on container status, we use the original payload string.
+func (optr *Operator) pullAndResolvePayloadImage(namespace, name, payload, nodeName, nodeSelectorKey string) (string, error) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{
+				Name:    "verify",
+				Image:   payload,
+				Command: []string{"/bin/sh"},
+				Args:    []string{"-c", `echo "ok" > /tmp/msg`},
+
+				TerminationMessagePath: "/tmp/msg",
+			}},
+			NodeName: nodeName,
+			NodeSelector: map[string]string{
+				nodeSelectorKey: "",
+			},
+			Tolerations: []corev1.Toleration{{
+				Key: nodeSelectorKey,
+			}},
+			RestartPolicy: corev1.RestartPolicyOnFailure,
+		},
+	}
+	_, err := optr.kubeClient.CoreV1().Pods(pod.Namespace).Create(pod)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		optr.kubeClient.CoreV1().Pods(pod.Namespace).Delete(pod.Name, nil)
+	}()
+	pod, err = resourcebuilder.WaitForPodSuccess(optr.kubeClient.CoreV1(), pod)
+	if err != nil {
+		if pod != nil {
+			switch {
+			case pod.Status.Phase == corev1.PodFailed && len(pod.Status.Message) > 0:
+				return "", fmt.Errorf("payload was not accessible: %s", pod.Status.Message)
+			case len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Waiting != nil:
+				w := pod.Status.ContainerStatuses[0].State.Waiting
+				if len(w.Message) > 0 {
+					return "", fmt.Errorf("payload could not be started: %s", w.Message)
+				}
+				// TODO: return more detailed errors here, such as not authorized, image not found, digest
+				// doesn't match tag, image not signed, etc.
+			}
+		}
+		return "", err
+	}
+	imageID := pod.Status.ContainerStatuses[0].ImageID
+	if len(imageID) == 0 {
+		// TODO: should this be a hard error? ImageID has been supported for a long time.
+		// If the container runtime is racy this could result in not locking to a digest
+		// when were perfectly capable of it.
+		glog.V(2).Infof("Unable to resolve the payload image by digest: %s", imageID)
+		return payload, nil
+	}
+	glog.V(2).Infof("Identified the payload image by digest: %s", imageID)
+	return imageID, nil
 }
 
 // copyPayloadCmd returns command that copies cvo and release manifests from deafult location

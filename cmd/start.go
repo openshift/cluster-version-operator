@@ -2,10 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
@@ -78,10 +84,6 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		startOpts.nodeName = name
 	}
 
-	if rootOpts.releaseImage == "" {
-		glog.Fatalf("missing --release-image flag, it is required")
-	}
-
 	if len(startOpts.listenAddr) > 0 {
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", promhttp.Handler())
@@ -96,6 +98,15 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		glog.Fatalf("error creating clients: %v", err)
 	}
+
+	if err := resolveReleaseImageByDigest(cb); err != nil {
+		glog.Fatalf("error: %v", err)
+	}
+
+	if rootOpts.releaseImage == "" {
+		glog.Fatalf("missing --release-image flag, it is required")
+	}
+
 	stopCh := make(chan struct{})
 	run := func(stop <-chan struct{}) {
 
@@ -125,6 +136,51 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		},
 	})
 	panic("unreachable")
+}
+
+// resolveReleaseImageByDigest will attempt to look up the current pod and get the imageID as reported
+// to the apiserver by the kubelet. This allows us to pivot from an image tag to an image digest without
+// having to reproduce the logic to pull and access images with secrets. It will report an error if
+// no imageID could be resolved within the time allotted.
+func resolveReleaseImageByDigest(cb *clientBuilder) error {
+	podName, nsName := os.Getenv("POD_NAME"), os.Getenv("POD_NAMESPACE")
+	if len(podName) == 0 || len(nsName) == 0 {
+		return nil
+	}
+	// TODO: this may be too hacky, but in practice should allow us to bypass this lookup when we don't
+	// need it (after we have updated ourself to a digest during a sync).
+	if strings.Contains(rootOpts.releaseImage, "@") {
+		return nil
+	}
+	// it may take a few seconds for the image URL to become available
+	err := wait.PollImmediate(5*time.Second, time.Minute, func() (bool, error) {
+		pod, err := cb.KubeClientOrDie("initial_info").CoreV1().Pods(nsName).Get(podName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) || errors.IsForbidden(err) || errors.IsUnauthorized(err) {
+				return false, nil
+			}
+			return false, fmt.Errorf("could not look up pod %s/%s to determine authoritative image URL: %v", nsName, podName, err)
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			if status.Name != "cluster-version-operator" {
+				continue
+			}
+			switch {
+			case len(status.ImageID) == 0:
+				// loop until imageID is set
+				return false, nil
+			case rootOpts.releaseImage != status.ImageID:
+				glog.Infof("Exact cluster version operator image is %s, will lock to that version", status.ImageID)
+				rootOpts.releaseImage = status.ImageID
+			}
+			return true, nil
+		}
+		return false, nil
+	})
+	if err == wait.ErrWaitTimeout {
+		return fmt.Errorf("unable to resolve release image tag to digest by looking up cluster-version-operator in pod %s/%s status", nsName, podName)
+	}
+	return err
 }
 
 func createResourceLock(cb *clientBuilder) resourcelock.Interface {
