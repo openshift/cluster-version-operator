@@ -182,27 +182,38 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d19bfb7d7a7ea78247347809f9a1a8c41deab3bc81331a537fa657d590a9f802"
+  digest = "1:bada18f8cc9cf347266c81ee2ab8956b7c20ff6bf798b3d848e92f63a5c57330"
   name = "github.com/openshift/api"
   packages = [
+    "config/v1",
     "image/docker10",
     "image/dockerpre012",
     "image/v1",
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "4507dcb6a81f6593aa336c5b47927cf0ae297b72"
+  revision = "8dce450af78098c96d68dc2a0c2fb8e917993fb4"
 
 [[projects]]
   branch = "master"
-  digest = "1:31493a29ce9941368a58428e797b24764b6faf801aad841ac2311d4496b6114a"
+  digest = "1:53d888e3997c192aaea6ec6de71fc19ae8a4795dba7f5e29999535658ffb64ca"
   name = "github.com/openshift/client-go"
   packages = [
+    "config/clientset/versioned",
+    "config/clientset/versioned/fake",
+    "config/clientset/versioned/scheme",
+    "config/clientset/versioned/typed/config/v1",
+    "config/clientset/versioned/typed/config/v1/fake",
+    "config/informers/externalversions",
+    "config/informers/externalversions/config",
+    "config/informers/externalversions/config/v1",
+    "config/informers/externalversions/internalinterfaces",
+    "config/listers/config/v1",
     "security/clientset/versioned/scheme",
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "431ec9a26e5021f35fa41ee9a89842db9bfdb370"
+  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
 
 [[projects]]
   branch = "master"
@@ -698,8 +709,16 @@
     "github.com/davecgh/go-spew/spew",
     "github.com/golang/glog",
     "github.com/google/uuid",
+    "github.com/openshift/api/config/v1",
     "github.com/openshift/api/image/v1",
     "github.com/openshift/api/security/v1",
+    "github.com/openshift/client-go/config/clientset/versioned",
+    "github.com/openshift/client-go/config/clientset/versioned/fake",
+    "github.com/openshift/client-go/config/clientset/versioned/scheme",
+    "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
+    "github.com/openshift/client-go/config/informers/externalversions",
+    "github.com/openshift/client-go/config/informers/externalversions/config/v1",
+    "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
@@ -737,7 +756,6 @@
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/discovery/cached",
-    "k8s.io/client-go/discovery/fake",
     "k8s.io/client-go/dynamic",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/kubernetes",
@@ -755,7 +773,6 @@
     "k8s.io/client-go/tools/leaderelection",
     "k8s.io/client-go/tools/leaderelection/resourcelock",
     "k8s.io/client-go/tools/record",
-    "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/gengo/types",
