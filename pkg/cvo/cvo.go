@@ -23,15 +23,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
+	configv1 "github.com/openshift/api/config/v1"
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
-	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
-	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 )
 
 const (
@@ -44,7 +41,7 @@ const (
 )
 
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
-var ownerKind = cvv1.SchemeGroupVersion.WithKind("ClusterVersion")
+var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
 
 // Operator defines cluster version operator. The CVO attempts to reconcile the appropriate payload
 // onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
@@ -88,7 +85,7 @@ type Operator struct {
 	eventRecorder record.EventRecorder
 
 	// updatePayloadHandler allows unit tests to inject arbitrary payload errors
-	updatePayloadHandler func(config *cvv1.ClusterVersion, payload *updatePayload) error
+	updatePayloadHandler func(config *configv1.ClusterVersion, payload *updatePayload) error
 
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
 	// the upstream.
@@ -98,9 +95,9 @@ type Operator struct {
 	// defaultUpstreamServer is intended for testing.
 	defaultUpstreamServer string
 
-	cvLister              cvlistersv1.ClusterVersionLister
+	cvLister              configlistersv1.ClusterVersionLister
 	cvListerSynced        cache.InformerSynced
-	clusterOperatorLister oslistersv1.ClusterOperatorLister
+	clusterOperatorLister configlistersv1.ClusterOperatorLister
 	clusterOperatorSynced cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
@@ -125,8 +122,8 @@ func New(
 	releaseImage string,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
-	cvInformer cvinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
+	cvInformer configinformersv1.ClusterVersionInformer,
+	clusterOperatorInformer configinformersv1.ClusterOperatorInformer,
 	restConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -235,7 +232,7 @@ func (optr *Operator) worker(queue workqueue.RateLimitingInterface, syncHandler 
 	}
 }
 
-type syncFailingStatusFunc func(config *cvv1.ClusterVersion, err error) error
+type syncFailingStatusFunc func(config *configv1.ClusterVersion, err error) error
 
 func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncFailingStatus syncFailingStatusFunc) bool {
 	key, quit := queue.Get()
@@ -296,7 +293,7 @@ func (optr *Operator) sync(key string) error {
 
 	// when we're up to date, limit how frequently we check the payload
 	availableAndUpdated := original.Status.Generation == original.Generation &&
-		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, osv1.OperatorAvailable)
+		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, configv1.OperatorAvailable)
 	hasRecentlySynced := availableAndUpdated && optr.hasRecentlySynced()
 	if hasRecentlySynced {
 		glog.V(4).Infof("Cluster version has been recently synced and no new changes detected")
@@ -315,7 +312,7 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	update := cvv1.Update{
+	update := configv1.Update{
 		Version: payload.releaseVersion,
 		Payload: payload.releaseImage,
 	}
@@ -385,7 +382,7 @@ func (optr *Operator) setLastSyncAt(t time.Time) {
 
 // isOlderThanLastUpdate returns true if the cluster version is older than
 // the last update we saw.
-func (optr *Operator) isOlderThanLastUpdate(config *cvv1.ClusterVersion) bool {
+func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) bool {
 	i, err := strconv.ParseInt(config.ResourceVersion, 10, 64)
 	if err != nil {
 		return false
@@ -397,7 +394,7 @@ func (optr *Operator) isOlderThanLastUpdate(config *cvv1.ClusterVersion) bool {
 
 // rememberLastUpdate records the most recent resource version we
 // have seen from the server for cluster versions.
-func (optr *Operator) rememberLastUpdate(config *cvv1.ClusterVersion) {
+func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	if config == nil {
 		return
 	}
@@ -410,7 +407,7 @@ func (optr *Operator) rememberLastUpdate(config *cvv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, error) {
+func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		return obj, false, nil
@@ -418,10 +415,10 @@ func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, e
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
 	}
-	var upstream *cvv1.URL
+	var upstream configv1.URL
 	if len(optr.defaultUpstreamServer) > 0 {
-		u := cvv1.URL(optr.defaultUpstreamServer)
-		upstream = &u
+		u := configv1.URL(optr.defaultUpstreamServer)
+		upstream = u
 	}
 	channel := "fast"
 	id, _ := uuid.NewRandom()
@@ -433,14 +430,14 @@ func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, e
 	}
 
 	// XXX: generate ClusterVersion from options calculated above.
-	config := &cvv1.ClusterVersion{
+	config := &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: optr.name,
 		},
-		Spec: cvv1.ClusterVersionSpec{
+		Spec: configv1.ClusterVersionSpec{
 			Upstream:  upstream,
 			Channel:   channel,
-			ClusterID: cvv1.ClusterID(id.String()),
+			ClusterID: configv1.ClusterID(id.String()),
 		},
 	}
 
@@ -452,7 +449,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*cvv1.ClusterVersion, bool, e
 }
 
 // versionString returns a string describing the current version.
-func (optr *Operator) currentVersionString(config *cvv1.ClusterVersion) string {
+func (optr *Operator) currentVersionString(config *configv1.ClusterVersion) string {
 	if s := config.Status.Current.Version; len(s) > 0 {
 		return s
 	}
@@ -469,7 +466,7 @@ func (optr *Operator) currentVersionString(config *cvv1.ClusterVersion) string {
 }
 
 // versionString returns a string describing the desired version.
-func (optr *Operator) desiredVersionString(config *cvv1.ClusterVersion) string {
+func (optr *Operator) desiredVersionString(config *configv1.ClusterVersion) string {
 	var s string
 	if v := config.Spec.DesiredUpdate; v != nil {
 		if len(v.Payload) > 0 {
@@ -486,8 +483,8 @@ func (optr *Operator) desiredVersionString(config *cvv1.ClusterVersion) string {
 }
 
 // currentVersion returns an update object describing the current known cluster version.
-func (optr *Operator) currentVersion() cvv1.Update {
-	return cvv1.Update{
+func (optr *Operator) currentVersion() configv1.Update {
+	return configv1.Update{
 		Version: optr.releaseVersion,
 		Payload: optr.releaseImage,
 	}

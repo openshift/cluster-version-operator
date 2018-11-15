@@ -1,9 +1,8 @@
 package cvo
 
 import (
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -73,7 +72,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	ch <- g
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
-		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, osv1.OperatorFailing)
+		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.OperatorFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Payload != current.Payload {
 			g := m.version.WithLabelValues("update", update.Version, update.Payload)
 			g.Set(1)
@@ -90,10 +89,10 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 
-		if cv.Spec.Upstream != nil || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, cvv1.RetrievedUpdates) {
+		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
 			upstream := "<default>"
-			if cv.Spec.Upstream != nil {
-				upstream = string(*cv.Spec.Upstream)
+			if len(cv.Spec.Upstream) > 0 {
+				upstream = string(cv.Spec.Upstream)
 			}
 			g := m.availableUpdates.WithLabelValues(upstream, cv.Spec.Channel)
 			g.Set(float64(len(cv.Status.AvailableUpdates)))
@@ -105,8 +104,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	operators, _ := m.optr.clusterOperatorLister.List(labels.Everything())
 	for _, op := range operators {
 		g := m.clusterOperatorUp.WithLabelValues(op.Namespace, op.Name, op.Status.Version)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, osv1.OperatorFailing)
-		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, osv1.OperatorAvailable)
+		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorFailing)
+		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
 			g.Set(1)
 		} else {
@@ -114,11 +113,11 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 		ch <- g
 		for _, condition := range op.Status.Conditions {
-			if condition.Status == osv1.ConditionUnknown {
+			if condition.Status == configv1.ConditionUnknown {
 				continue
 			}
 			g := m.clusterOperatorConditions.WithLabelValues(op.Namespace, op.Name, string(condition.Type))
-			if condition.Status == osv1.ConditionTrue {
+			if condition.Status == configv1.ConditionTrue {
 				g.Set(1)
 			} else {
 				g.Set(0)

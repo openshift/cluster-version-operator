@@ -12,19 +12,18 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncAvailableUpdates(config *cvv1.ClusterVersion) error {
-	upstream := optr.defaultUpstreamServer
-	if config.Spec.Upstream != nil {
-		upstream = string(*config.Spec.Upstream)
+func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+	upstream := string(config.Spec.Upstream)
+	if len(upstream) == 0 {
+		upstream = optr.defaultUpstreamServer
 	}
 	channel := config.Spec.Channel
 
@@ -53,15 +52,15 @@ type availableUpdates struct {
 
 	At time.Time
 
-	Updates   []cvv1.Update
-	Condition osv1.ClusterOperatorStatusCondition
+	Updates   []configv1.Update
+	Condition configv1.ClusterOperatorStatusCondition
 }
 
 func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
 	return u.At.After(time.Now().Add(-interval))
 }
 
-func (u *availableUpdates) NeedsUpdate(original *cvv1.ClusterVersion) *cvv1.ClusterVersion {
+func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
 	if u == nil {
 		return nil
 	}
@@ -95,17 +94,17 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version string) ([]cvv1.Update, osv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
-		return nil, osv1.ClusterOperatorStatusCondition{
-			Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "NoUpstream",
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
 			Message: "No upstream server has been set to retrieve updates.",
 		}
 	}
 
 	if len(version) == 0 {
-		return nil, osv1.ClusterOperatorStatusCondition{
-			Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "NoCurrentVersion",
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoCurrentVersion",
 			Message: "The cluster version does not have a semantic version assigned and cannot calculate valid upgrades.",
 		}
 	}
@@ -113,8 +112,8 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 	currentVersion, err := semver.Parse(version)
 	if err != nil {
 		glog.V(2).Infof("Unable to parse current semantic version %q: %v", version, err)
-		return nil, osv1.ClusterOperatorStatusCondition{
-			Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "InvalidCurrentVersion",
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidCurrentVersion",
 			Message: "The current cluster version is not a valid semantic version and cannot be used to calculate upgrades.",
 		}
 	}
@@ -122,23 +121,23 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 	updates, err := checkForUpdate(clusterID, upstream, channel, currentVersion)
 	if err != nil {
 		glog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
-		return nil, osv1.ClusterOperatorStatusCondition{
-			Type: cvv1.RetrievedUpdates, Status: osv1.ConditionFalse, Reason: "RemoteFailed",
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed",
 			Message: fmt.Sprintf("Unable to retrieve available updates: %v", err),
 		}
 	}
 
-	var cvoUpdates []cvv1.Update
+	var cvoUpdates []configv1.Update
 	for _, update := range updates {
-		cvoUpdates = append(cvoUpdates, cvv1.Update{
+		cvoUpdates = append(cvoUpdates, configv1.Update{
 			Version: update.Version.String(),
 			Payload: update.Payload,
 		})
 	}
 
-	return cvoUpdates, osv1.ClusterOperatorStatusCondition{
-		Type:   cvv1.RetrievedUpdates,
-		Status: osv1.ConditionTrue,
+	return cvoUpdates, configv1.ClusterOperatorStatusCondition{
+		Type:   configv1.RetrievedUpdates,
+		Status: configv1.ConditionTrue,
 
 		LastTransitionTime: metav1.Now(),
 	}

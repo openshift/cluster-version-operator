@@ -13,14 +13,14 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
 
 // loadUpdatePayload reads the payload from disk or remote, as necessary.
-func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePayload, error) {
+func (optr *Operator) loadUpdatePayload(config *configv1.ClusterVersion) (*updatePayload, error) {
 	payloadDir, err := optr.updatePayloadDir(config)
 	if err != nil {
 		return nil, err
@@ -33,7 +33,7 @@ func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePay
 }
 
 // syncUpdatePayload applies the manifests in the payload to the cluster.
-func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *updatePayload) error {
+func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload *updatePayload) error {
 	version := payload.releaseVersion
 	if len(version) == 0 {
 		version = payload.releaseImage
@@ -180,7 +180,7 @@ func taskName(manifest *lib.Manifest, index, total int) string {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest lib.Manifest) (cvv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest lib.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -189,10 +189,10 @@ func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest lib.Man
 			return overrides[idx], true
 		}
 	}
-	return cvv1.ComponentOverride{}, false
+	return configv1.ComponentOverride{}, false
 }
 
-func ownerRefModifier(config *cvv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
+func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
 	oref := metav1.NewControllerRef(config, ownerKind)
 	return func(obj metav1.Object) {
 		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})
