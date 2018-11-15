@@ -1,16 +1,16 @@
 package resourceapply
 
 import (
+	configv1 "github.com/openshift/api/config/v1"
+	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	cvclientv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/config.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
-func ApplyClusterVersion(client cvclientv1.ClusterVersionsGetter, required *cvv1.ClusterVersion) (*cvv1.ClusterVersion, bool, error) {
+func ApplyClusterVersion(client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	existing, err := client.ClusterVersions().Get(required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		actual, err := client.ClusterVersions().Create(required)
@@ -30,7 +30,7 @@ func ApplyClusterVersion(client cvclientv1.ClusterVersionsGetter, required *cvv1
 	return actual, true, err
 }
 
-func ApplyClusterVersionFromCache(lister cvlistersv1.ClusterVersionLister, client cvclientv1.ClusterVersionsGetter, required *cvv1.ClusterVersion) (*cvv1.ClusterVersion, bool, error) {
+func ApplyClusterVersionFromCache(lister configlistersv1.ClusterVersionLister, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	obj, err := lister.Get(required.Name)
 	if errors.IsNotFound(err) {
 		actual, err := client.ClusterVersions().Create(required)

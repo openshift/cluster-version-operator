@@ -9,10 +9,10 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	informers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
-	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	informers "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -253,7 +253,7 @@ func startControllers(ctx *controllerContext) error {
 		overrideDirectory,
 		ctx.ResyncPeriod(),
 		ctx.InformerFactory.Config().V1().ClusterVersions(),
-		ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
+		ctx.InformerFactory.Config().V1().ClusterOperators(),
 		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
@@ -264,7 +264,7 @@ func startControllers(ctx *controllerContext) error {
 		go autoupdate.New(
 			componentNamespace, componentName,
 			ctx.InformerFactory.Config().V1().ClusterVersions(),
-			ctx.InformerFactory.Operatorstatus().V1().ClusterOperators(),
+			ctx.InformerFactory.Config().V1().ClusterOperators(),
 			ctx.ClientBuilder.ClientOrDie(componentName),
 			ctx.ClientBuilder.KubeClientOrDie(componentName),
 		).Run(2, ctx.Stop)

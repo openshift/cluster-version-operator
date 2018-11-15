@@ -8,14 +8,12 @@ import (
 	"github.com/blang/semver"
 
 	"github.com/golang/glog"
+	"github.com/openshift/api/config/v1"
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/client-go/config/clientset/versioned/scheme"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	clientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
-	cvinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/config.openshift.io/v1"
-	osinformersv1 "github.com/openshift/cluster-version-operator/pkg/generated/informers/externalversions/operatorstatus.openshift.io/v1"
-	cvlistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/config.openshift.io/v1"
-	oslistersv1 "github.com/openshift/cluster-version-operator/pkg/generated/listers/operatorstatus.openshift.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -47,8 +45,8 @@ type Controller struct {
 	syncHandler       func(key string) error
 	statusSyncHandler func(key string) error
 
-	cvLister              cvlistersv1.ClusterVersionLister
-	clusterOperatorLister oslistersv1.ClusterOperatorLister
+	cvLister              configlistersv1.ClusterVersionLister
+	clusterOperatorLister configlistersv1.ClusterOperatorLister
 
 	cvListerSynced       cache.InformerSynced
 	operatorStatusSynced cache.InformerSynced
@@ -60,8 +58,8 @@ type Controller struct {
 // New returns a new autoupdate controller.
 func New(
 	namespace, name string,
-	cvInformer cvinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer osinformersv1.ClusterOperatorInformer,
+	cvInformer configinformersv1.ClusterVersionInformer,
+	clusterOperatorInformer configinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 ) *Controller {

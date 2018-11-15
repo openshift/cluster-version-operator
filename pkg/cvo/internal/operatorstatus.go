@@ -12,10 +12,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
+	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
-	osclientv1 "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1"
 )
 
 var (
@@ -26,32 +26,32 @@ var (
 )
 
 func init() {
-	if err := osv1.AddToScheme(osScheme); err != nil {
+	if err := configv1.AddToScheme(osScheme); err != nil {
 		panic(err)
 	}
 
-	osMapper.RegisterGVK(osv1.SchemeGroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
+	osMapper.RegisterGVK(configv1.SchemeGroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
 	osMapper.AddToMap(resourcebuilder.Mapper)
 }
 
 // readClusterOperatorV1OrDie reads clusteroperator object from bytes. Panics on error.
-func readClusterOperatorV1OrDie(objBytes []byte) *osv1.ClusterOperator {
-	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(osv1.SchemeGroupVersion), objBytes)
+func readClusterOperatorV1OrDie(objBytes []byte) *configv1.ClusterOperator {
+	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(configv1.SchemeGroupVersion), objBytes)
 	if err != nil {
 		panic(err)
 	}
-	return requiredObj.(*osv1.ClusterOperator)
+	return requiredObj.(*configv1.ClusterOperator)
 }
 
 type clusterOperatorBuilder struct {
-	client   *osclientv1.OperatorstatusV1Client
+	client   configclientv1.ConfigV1Interface
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
 }
 
 func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
 	return &clusterOperatorBuilder{
-		client: osclientv1.NewForConfigOrDie(config),
+		client: configclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
@@ -75,9 +75,9 @@ const (
 	osPollTimeout  = 1 * time.Minute
 )
 
-func waitForOperatorStatusToBeDone(client osclientv1.ClusterOperatorsGetter, os *osv1.ClusterOperator) error {
+func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter, os *configv1.ClusterOperator) error {
 	return wait.Poll(osPollInternal, osPollTimeout, func() (bool, error) {
-		eos, err := client.ClusterOperators(os.Namespace).Get(os.Name, metav1.GetOptions{})
+		eos, err := client.ClusterOperators().Get(os.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -93,11 +93,11 @@ func waitForOperatorStatusToBeDone(client osclientv1.ClusterOperatorsGetter, os 
 		failing := true
 		for _, condition := range eos.Status.Conditions {
 			switch {
-			case condition.Type == osv1.OperatorAvailable && condition.Status == osv1.ConditionTrue:
+			case condition.Type == configv1.OperatorAvailable && condition.Status == configv1.ConditionTrue:
 				available = true
-			case condition.Type == osv1.OperatorProgressing && condition.Status == osv1.ConditionFalse:
+			case condition.Type == configv1.OperatorProgressing && condition.Status == configv1.ConditionFalse:
 				progressing = false
-			case condition.Type == osv1.OperatorFailing && condition.Status == osv1.ConditionFalse:
+			case condition.Type == configv1.OperatorFailing && condition.Status == configv1.ConditionFalse:
 				failing = false
 			}
 		}

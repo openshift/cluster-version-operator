@@ -2,7 +2,7 @@
 
 The ClusterOperator is a custom resource object which holds the current state of an operator. This object is used by operators to convey their state to the rest of the cluster.
 
-Ref: [godoc](https://godoc.org/github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1#ClusterOperator) for more info on the ClusterOperator type.
+Ref: [godoc](https://godoc.org/github.com/openshift/api/config/v1#ClusterOperator) for more info on the ClusterOperator type.
 
 ## Why I want ClusterOperator Custom Resource in /manifests
 
@@ -58,4 +58,4 @@ The operator should report a version which indicates the components that it is a
 
 ### Conditions
 
-Refer [the godocs](https://godoc.org/github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1#ClusterStatusConditionType) for conditions.
+Refer [the godocs](https://godoc.org/github.com/openshift/api/config/v1#ClusterStatusConditionType) for conditions.

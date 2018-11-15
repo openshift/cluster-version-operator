@@ -3,8 +3,7 @@ package cvo
 import (
 	"testing"
 
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,16 +32,16 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects cluster operator status failure",
 			optr: &Operator{
 				clusterOperatorLister: &coLister{
-					Items: []*osv1.ClusterOperator{
+					Items: []*configv1.ClusterOperator{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Status: osv1.ClusterOperatorStatus{
+							Status: configv1.ClusterOperatorStatus{
 								Version: "10.1.5-1",
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+									{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue},
 								},
 							},
 						},
@@ -63,17 +62,17 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			name: "collects cluster operator status custom",
 			optr: &Operator{
 				clusterOperatorLister: &coLister{
-					Items: []*osv1.ClusterOperator{
+					Items: []*configv1.ClusterOperator{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Namespace: "default",
 								Name:      "test",
 							},
-							Status: osv1.ClusterOperatorStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorAvailable, Status: osv1.ConditionTrue},
-									{Type: osv1.ClusterStatusConditionType("Custom"), Status: osv1.ConditionFalse},
-									{Type: osv1.ClusterStatusConditionType("Unknown"), Status: osv1.ConditionUnknown},
+							Status: configv1.ClusterOperatorStatus{
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+									{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse},
+									{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionUnknown},
 								},
 							},
 						},
@@ -95,13 +94,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			optr: &Operator{
 				name: "test",
 				cvLister: &cvLister{
-					Items: []*cvv1.ClusterVersion{
+					Items: []*configv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Status: cvv1.ClusterVersionStatus{
-								AvailableUpdates: []cvv1.Update{
+							Status: configv1.ClusterVersionStatus{
+								AvailableUpdates: []configv1.Update{
 									{Version: "1.0.1"},
 									{Version: "1.0.2"},
 								},
@@ -123,14 +122,14 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			optr: &Operator{
 				name: "test",
 				cvLister: &cvLister{
-					Items: []*cvv1.ClusterVersion{
+					Items: []*configv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: cvv1.RetrievedUpdates, Status: osv1.ConditionTrue},
+							Status: configv1.ClusterVersionStatus{
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.RetrievedUpdates, Status: configv1.ConditionTrue},
 								},
 							},
 						},
@@ -152,13 +151,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseImage:   "test/image:1",
 				name:           "test",
 				cvLister: &cvLister{
-					Items: []*cvv1.ClusterVersion{
+					Items: []*configv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Spec: cvv1.ClusterVersionSpec{
-								DesiredUpdate: &cvv1.Update{Version: "1.0.0", Payload: "test/image:2"},
+							Spec: configv1.ClusterVersionSpec{
+								DesiredUpdate: &configv1.Update{Version: "1.0.0", Payload: "test/image:2"},
 							},
 						},
 					},
@@ -179,17 +178,17 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseImage:   "test/image:1",
 				name:           "test",
 				cvLister: &cvLister{
-					Items: []*cvv1.ClusterVersion{
+					Items: []*configv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Spec: cvv1.ClusterVersionSpec{
-								DesiredUpdate: &cvv1.Update{Version: "1.0.0", Payload: "test/image:2"},
+							Spec: configv1.ClusterVersionSpec{
+								DesiredUpdate: &configv1.Update{Version: "1.0.0", Payload: "test/image:2"},
 							},
-							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+							Status: configv1.ClusterVersionStatus{
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue},
 								},
 							},
 						},
@@ -213,14 +212,14 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseImage:   "test/image:1",
 				name:           "test",
 				cvLister: &cvLister{
-					Items: []*cvv1.ClusterVersion{
+					Items: []*configv1.ClusterVersion{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name: "test",
 							},
-							Status: cvv1.ClusterVersionStatus{
-								Conditions: []osv1.ClusterOperatorStatusCondition{
-									{Type: osv1.OperatorFailing, Status: osv1.ConditionTrue},
+							Status: configv1.ClusterVersionStatus{
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue},
 								},
 							},
 						},

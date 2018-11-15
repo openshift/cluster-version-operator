@@ -13,10 +13,10 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
+	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
-	"github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned/scheme"
 )
 
 // readUnstructuredV1OrDie reads operatorstatus object from bytes. Panics on error.
