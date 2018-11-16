@@ -3,10 +3,12 @@ kind: Service
 metadata:
   name: cluster-version-operator
   namespace: openshift-cluster-version
+  labels:
+    k8s-app: cluster-version-operator
 spec:
   type: ClusterIP
   selector:
     k8s-app: cluster-version-operator
   ports:
   - name: metrics
-    port: 11345
+    port: 9101 # chosen to be in the internal open range
