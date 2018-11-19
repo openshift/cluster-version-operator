@@ -21,8 +21,10 @@ import (
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
 func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
+		usedDefaultUpstream = true
 		upstream = optr.defaultUpstreamServer
 	}
 	channel := config.Spec.Channel
@@ -35,6 +37,10 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 	}
 
 	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), upstream, channel, optr.releaseVersion)
+
+	if usedDefaultUpstream {
+		upstream = ""
+	}
 	optr.setAvailableUpdates(&availableUpdates{
 		Upstream:  upstream,
 		Channel:   config.Spec.Channel,
@@ -62,6 +68,9 @@ func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
 
 func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
 	if u == nil {
+		return nil
+	}
+	if u.Upstream != string(original.Spec.Upstream) || u.Channel != original.Spec.Channel {
 		return nil
 	}
 	if equality.Semantic.DeepEqual(u.Updates, original.Status.AvailableUpdates) &&

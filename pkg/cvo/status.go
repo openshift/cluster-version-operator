@@ -1,7 +1,10 @@
 package cvo
 
 import (
+	"bytes"
 	"fmt"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,16 +15,81 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
-func (optr *Operator) syncAvailableUpdatesStatus(original *configv1.ClusterVersion) (bool, error) {
-	config := optr.getAvailableUpdates().NeedsUpdate(original)
-	if config == nil {
-		return false, nil
-	}
+// ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
+// taking action. The cluster version operator will only reconcile the current state as long as this
+// condition is set.
+const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
+
+// syncInitialObjectStatus ensures that every known condition is either set or primed. errs is a list of
+// known validation errors for the cluster version.
+func (optr *Operator) syncInitialObjectStatus(original *configv1.ClusterVersion, errs field.ErrorList) (bool, error) {
+	config := original.DeepCopy()
 
 	config.Status.Current = optr.currentVersion()
+	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
+		config = updated
+	}
 
-	// only report change if we actually updated the server
+	now := metav1.Now()
+
+	// ensure the initial state of all conditions is set
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorAvailable) == nil {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse, LastTransitionTime: now})
+	}
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorFailing) == nil {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
+	}
+	// We default towards progressing because we know we will at least need to sync
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorProgressing) == nil {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorProgressing,
+			Status:             configv1.ConditionTrue,
+			Message:            fmt.Sprintf("Initializing, will work towards %s", optr.desiredVersionString(config)),
+			LastTransitionTime: now,
+		})
+	}
+	// other conditions
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.RetrievedUpdates) == nil {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, LastTransitionTime: now})
+	}
+
+	// update the invalid condition
+	if len(errs) > 0 {
+		buf := &bytes.Buffer{}
+		if len(errs) == 1 {
+			fmt.Fprintf(buf, "The cluster version is invalid: %s", errs[0].Error())
+		} else {
+			fmt.Fprintf(buf, "The cluster version is invalid:\n")
+			for _, err := range errs {
+				fmt.Fprintf(buf, "* %s\n", err.Error())
+			}
+		}
+		reason := "InvalidClusterVersion"
+
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               ClusterVersionInvalid,
+			Status:             configv1.ConditionTrue,
+			Reason:             reason,
+			Message:            buf.String(),
+			LastTransitionTime: now,
+		})
+
+		if !resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorFailing) {
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionFalse,
+				Reason:             reason,
+				Message:            fmt.Sprintf("Stopped at %s: the cluster version is invalid", optr.desiredVersionString(config)),
+				LastTransitionTime: now,
+			})
+		}
+
+	} else {
+		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
+	}
+
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
+	optr.rememberLastUpdate(updated)
 	return updated != nil && updated.ResourceVersion != original.ResourceVersion, err
 }
 
@@ -52,6 +120,13 @@ func (optr *Operator) syncProgressingStatus(config *configv1.ClusterVersion) err
 			Message:            fmt.Sprintf("Unable to apply %s: %s", optr.desiredVersionString(config), msg),
 			LastTransitionTime: now,
 		})
+	} else if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, ClusterVersionInvalid) {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorProgressing,
+			Status:             configv1.ConditionTrue,
+			Message:            fmt.Sprintf("Reconciling %s: the cluster version is invalid", optr.desiredVersionString(config)),
+			LastTransitionTime: now,
+		})
 	} else {
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorProgressing,
@@ -59,7 +134,6 @@ func (optr *Operator) syncProgressingStatus(config *configv1.ClusterVersion) err
 			Message:            fmt.Sprintf("Working towards %s", optr.desiredVersionString(config)),
 			LastTransitionTime: now,
 		})
-
 	}
 
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
@@ -90,13 +164,23 @@ func (optr *Operator) syncAvailableStatus(config *configv1.ClusterVersion, curre
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
 
 	// clear the progressing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:    configv1.OperatorProgressing,
-		Status:  configv1.ConditionFalse,
-		Message: fmt.Sprintf("Cluster version is %s", version),
+	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, ClusterVersionInvalid) {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorProgressing,
+			Status:             configv1.ConditionFalse,
+			Reason:             "InvalidClusterVersion",
+			Message:            fmt.Sprintf("Stopped at %s: the cluster version is invalid", optr.desiredVersionString(config)),
+			LastTransitionTime: now,
+		})
+	} else {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:    configv1.OperatorProgressing,
+			Status:  configv1.ConditionFalse,
+			Message: fmt.Sprintf("Cluster version is %s", version),
 
-		LastTransitionTime: now,
-	})
+			LastTransitionTime: now,
+		})
+	}
 
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)

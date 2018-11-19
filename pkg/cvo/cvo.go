@@ -29,6 +29,7 @@ import (
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/lib/validation"
 )
 
 const (
@@ -278,25 +279,18 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
 
-	// ensure the cluster version exists
-	original, created, err := optr.getOrCreateClusterVersion()
+	// ensure the cluster version exists, that the object is valid, and that
+	// all initial conditions are set.
+	original, changed, err := optr.getOrCreateClusterVersion()
 	if err != nil {
 		return err
 	}
-	if created || optr.isOlderThanLastUpdate(original) {
+	if changed {
+		glog.V(4).Infof("Cluster version changed, waiting for newer event")
 		return nil
 	}
 
 	glog.V(3).Infof("ClusterVersion: %#v", original)
-
-	// sync any available updates to status
-	if ok, err := optr.syncAvailableUpdatesStatus(original); ok {
-		if err == nil {
-			glog.V(4).Infof("Updating available updates onto status")
-			return nil
-		}
-		glog.Errorf("Unable to sync available updates to the cluster version: %v", err)
-	}
 
 	// when we're up to date, limit how frequently we check the payload
 	availableAndUpdated := original.Status.Generation == original.Generation &&
@@ -365,6 +359,9 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	if err != nil {
 		return err
 	}
+	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+		return nil
+	}
 
 	return optr.syncAvailableUpdates(config)
 }
@@ -417,24 +414,35 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
-		return obj, false, nil
+		// if we are waiting to see a newer cached version, just exit
+		if optr.isOlderThanLastUpdate(obj) {
+			return nil, true, nil
+		}
+
+		// ensure that the object we do have is valid
+		errs := validation.ValidateClusterVersion(obj)
+		changed, err := optr.syncInitialObjectStatus(obj, errs)
+		if err != nil {
+			return nil, false, err
+		}
+
+		// for fields that have meaning that are incomplete, clear them
+		// prevents us from loading clearly malformed payloads
+		obj = validation.ClearInvalidFields(obj, errs)
+
+		return obj, changed, nil
 	}
+
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
 	}
+
 	var upstream configv1.URL
 	if len(optr.defaultUpstreamServer) > 0 {
 		u := configv1.URL(optr.defaultUpstreamServer)
 		upstream = u
 	}
-	channel := "fast"
 	id, _ := uuid.NewRandom()
-	if id.Variant() != uuid.RFC4122 {
-		return nil, false, fmt.Errorf("invalid %q, must be an RFC4122-variant UUID: found %s", id, id.Variant())
-	}
-	if id.Version() != 4 {
-		return nil, false, fmt.Errorf("Invalid %q, must be a version-4 UUID: found %s", id, id.Version())
-	}
 
 	// XXX: generate ClusterVersion from options calculated above.
 	config := &configv1.ClusterVersion{
@@ -443,7 +451,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		},
 		Spec: configv1.ClusterVersionSpec{
 			Upstream:  upstream,
-			Channel:   channel,
+			Channel:   "fast",
 			ClusterID: configv1.ClusterID(id.String()),
 		},
 	}
