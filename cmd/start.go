@@ -57,7 +57,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:11345", "Address to listen on for metrics")
+	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:9101", "Address to listen on for metrics")
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
 	startCmd.PersistentFlags().BoolVar(&startOpts.enableAutoUpdate, "enable-auto-update", true, "Enables the autoupdate controller.")
