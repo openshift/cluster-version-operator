@@ -57,7 +57,7 @@ var (
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:9101", "Address to listen on for metrics")
+	startCmd.PersistentFlags().StringVar(&startOpts.listenAddr, "listen", "0.0.0.0:9099", "Address to listen on for metrics")
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.nodeName, "node-name", "", "kubernetes node name CVO is scheduled on.")
 	startCmd.PersistentFlags().BoolVar(&startOpts.enableAutoUpdate, "enable-auto-update", true, "Enables the autoupdate controller.")
@@ -234,9 +234,9 @@ func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controlle
 		InformerFactory:       sharedInformers,
 		KubeInformerFactory:   kubeSharedInformer,
 		APIExtInformerFactory: apiExtSharedInformer,
-		Stop:             stop,
-		InformersStarted: make(chan struct{}),
-		ResyncPeriod:     resyncPeriod(),
+		Stop:                  stop,
+		InformersStarted:      make(chan struct{}),
+		ResyncPeriod:          resyncPeriod(),
 	}
 }
 
