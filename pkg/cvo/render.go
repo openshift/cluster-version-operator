@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/pkg/errors"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -102,12 +103,12 @@ type manifestRenderConfig struct {
 func renderManifest(config manifestRenderConfig, manifestBytes []byte) ([]byte, error) {
 	tmpl, err := template.New("manifest").Parse(string(manifestBytes))
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse manifest: %v", err)
+		return nil, errors.Wrapf(err, "failed to parse manifest")
 	}
 
 	buf := new(bytes.Buffer)
 	if err := tmpl.Execute(buf, config); err != nil {
-		return nil, fmt.Errorf("failed to execute template: %v", err)
+		return nil, errors.Wrapf(err, "failed to execute template")
 	}
 
 	return buf.Bytes(), nil

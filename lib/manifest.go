@@ -2,11 +2,11 @@ package lib
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -43,7 +43,7 @@ func (m *Manifest) UnmarshalJSON(in []byte) error {
 	m.Raw = append(m.Raw[0:0], in...)
 	udi, _, err := scheme.Codecs.UniversalDecoder().Decode(in, nil, &unstructured.Unstructured{})
 	if err != nil {
-		return fmt.Errorf("unable to decode manifest: %v", err)
+		return errors.Wrapf(err, "unable to decode manifest")
 	}
 	ud, ok := udi.(*unstructured.Unstructured)
 	if !ok {
@@ -66,14 +66,14 @@ func ManifestsFromFiles(files []string) ([]Manifest, error) {
 	for _, file := range files {
 		file, err := os.Open(file)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error opening %s: %v", file.Name(), err))
+			errs = append(errs, errors.Wrapf(err, "error opening %s", file.Name()))
 			continue
 		}
 		defer file.Close()
 
 		ms, err := ParseManifests(file)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
+			errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
 			continue
 		}
 		manifests = append(manifests, ms...)
@@ -98,7 +98,7 @@ func ParseManifests(r io.Reader) ([]Manifest, error) {
 			if err == io.EOF {
 				return manifests, nil
 			}
-			return manifests, fmt.Errorf("error parsing: %v", err)
+			return manifests, errors.Wrapf(err, "error parsing")
 		}
 		m.Raw = bytes.TrimSpace(m.Raw)
 		if len(m.Raw) == 0 || bytes.Equal(m.Raw, []byte("null")) {

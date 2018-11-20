@@ -9,7 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/golang/glog"
 	imagev1 "github.com/openshift/api/image/v1"
+	"github.com/pkg/errors"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 
-	"github.com/golang/glog"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -75,7 +76,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*updatePayload, []payl
 
 	imageRef, err := resourceread.ReadImageStreamV1(imageRefData)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid image-references data %s: %v", irf, err)
+		return nil, nil, errors.Wrapf(err, "invalid image-references data %s", irf)
 	}
 
 	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
@@ -117,19 +118,19 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 
 			raw, err := ioutil.ReadFile(p)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("error reading file %s: %v", file.Name(), err))
+				errs = append(errs, errors.Wrapf(err, "error reading file %s", file.Name()))
 				continue
 			}
 			if task.preprocess != nil {
 				raw, err = task.preprocess(raw)
 				if err != nil {
-					errs = append(errs, fmt.Errorf("error running preprocess on %s: %v", file.Name(), err))
+					errs = append(errs, errors.Wrapf(err, "error running preprocess on %s", file.Name()))
 					continue
 				}
 			}
 			ms, err := lib.ParseManifests(bytes.NewReader(raw))
 			if err != nil {
-				errs = append(errs, fmt.Errorf("error parsing %s: %v", file.Name(), err))
+				errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
 				continue
 			}
 			manifests = append(manifests, ms...)

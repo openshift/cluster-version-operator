@@ -1,7 +1,6 @@
 package dynamicclient
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -68,7 +67,7 @@ func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, n
 		gvr, namespaced, err = gvkToGVR(gvk, c.restMapper)
 	}
 	if err != nil {
-		return nil, errors.WithMessage(err, fmt.Sprintf("failed to get resource type: %v", err))
+		return nil, errors.Wrapf(err, "failed to get resource type")
 	}
 
 	// sometimes manifests of non-namespaced resources
@@ -87,7 +86,7 @@ func gvkToGVR(gvk schema.GroupVersionKind, restMapper *restmapper.DeferredDiscov
 		return nil, false, err
 	}
 	if err != nil {
-		return nil, false, errors.WithMessage(err, fmt.Sprintf("failed to get the resource REST mapping for GroupVersionKind(%s): ", gvk.String()))
+		return nil, false, errors.Wrapf(err, "failed to get the resource REST mapping for GroupVersionKind(%s)", gvk.String())
 	}
 
 	return &mapping.Resource, mapping.Scope.Name() == meta.RESTScopeNameNamespace, nil
