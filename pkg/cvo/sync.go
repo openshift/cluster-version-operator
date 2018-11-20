@@ -12,12 +12,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/rest"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
+
+const (
+	// RequeueOnErrorAnnotationKey is key for annotation on a manifests object that instructs CVO to requeue on specific errors.
+	// The value is comma separated list of causes that forces requeue.
+	RequeueOnErrorAnnotationKey = "v1.cluster-version-operator.operators.openshift.io/requeue-on-error"
+
+	// RequeueOnErrorCauseNoMatch is used when no match is found for object in api.
+	// This maps to https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoKindMatchError and https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoResourceMatchError .
+	// https://godoc.org/k8s.io/apimachinery/pkg/api/meta#IsNoMatchError is used as a check.
+	RequeueOnErrorCauseNoMatch = "NoMatch"
+)
+
+// This is used to map the know causes to their check.
+var requeueOnErrorCauseToCheck = map[string]func(error) bool{
+	RequeueOnErrorCauseNoMatch: meta.IsNoMatchError,
+}
 
 // loadUpdatePayload reads the payload from disk or remote, as necessary.
 func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePayload, error) {
@@ -38,72 +55,151 @@ func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *up
 	if len(version) == 0 {
 		version = payload.releaseImage
 	}
-	for i, manifest := range payload.manifests {
-		metricPayload.WithLabelValues(version, "pending").Set(float64(len(payload.manifests) - i))
-		metricPayload.WithLabelValues(version, "applied").Set(float64(i))
-		taskName := taskName(&manifest, i+1, len(payload.manifests))
-		glog.V(4).Infof("Running sync for %s", taskName)
-		glog.V(6).Infof("Manifest: %s", string(manifest.Raw))
 
-		ov, ok := getOverrideForManifest(config.Spec.Overrides, manifest)
+	total := len(payload.manifests)
+	done := 0
+	var tasks []*syncTask
+	for i := range payload.manifests {
+		tasks = append(tasks, &syncTask{
+			index:    i + 1,
+			total:    total,
+			manifest: &payload.manifests[i],
+		})
+	}
+
+	for i := 0; i < len(tasks); i++ {
+		task := tasks[i]
+		setAppliedAndPending(version, total, done)
+		glog.V(4).Infof("Running sync for %s", task)
+		glog.V(6).Infof("Manifest: %s", string(task.manifest.Raw))
+
+		ov, ok := getOverrideForManifest(config.Spec.Overrides, task.manifest)
 		if ok && ov.Unmanaged {
-			glog.V(4).Infof("Skipping %s as unmanaged", taskName)
+			glog.V(4).Infof("Skipping %s as unmanaged", task)
 			continue
 		}
 
-		var lastErr error
-		if err := wait.ExponentialBackoff(wait.Backoff{
-			Duration: time.Second * 10,
-			Factor:   1.3,
-			Steps:    3,
-		}, func() (bool, error) {
-			// build resource builder for manifest
-			var b resourcebuilder.Interface
-			var err error
-			if resourcebuilder.Mapper.Exists(manifest.GVK) {
-				b, err = resourcebuilder.New(resourcebuilder.Mapper, optr.restConfig, manifest)
-			} else {
-				b, err = internal.NewGenericBuilder(optr.restConfig, manifest)
+		if err := task.Run(version, optr.restConfig); err != nil {
+			cause := errors.Cause(err)
+			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
+				task.requeued++
+				tasks = append(tasks, task)
+				continue
 			}
-			if err != nil {
-				utilruntime.HandleError(fmt.Errorf("error creating resourcebuilder for %s: %v", taskName, err))
-				lastErr = err
-				metricPayloadErrors.WithLabelValues(version).Inc()
-				return false, nil
-			}
-			// run builder for the manifest
-			if err := b.Do(); err != nil {
-				utilruntime.HandleError(fmt.Errorf("error running apply for %s: %v", taskName, err))
-				lastErr = err
-				metricPayloadErrors.WithLabelValues(version).Inc()
-				return false, nil
-			}
-			return true, nil
-		}); err != nil {
-			reason, cause := reasonForPayloadSyncError(lastErr)
-			if len(cause) > 0 {
-				cause = ": " + cause
-			}
-			return &updateError{
-				Reason:  reason,
-				Message: fmt.Sprintf("Could not update %s%s", taskName, cause),
-			}
+			return err
 		}
-
-		glog.V(4).Infof("Done syncing for %s", taskName)
+		done++
+		glog.V(4).Infof("Done syncing for %s", task)
 	}
-	metricPayload.WithLabelValues(version, "applied").Set(float64(len(payload.manifests)))
-	metricPayload.WithLabelValues(version, "pending").Set(0)
+	setAppliedAndPending(version, total, done)
 	return nil
 }
 
+type syncTask struct {
+	index    int
+	total    int
+	manifest *lib.Manifest
+	requeued int
+}
+
+func (st *syncTask) String() string {
+	ns := st.manifest.Object().GetNamespace()
+	if len(ns) == 0 {
+		return fmt.Sprintf("%s %q (%s, %d of %d)", strings.ToLower(st.manifest.GVK.Kind), st.manifest.Object().GetName(), st.manifest.GVK.GroupVersion().String(), st.index, st.total)
+	}
+	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(st.manifest.GVK.Kind), ns, st.manifest.Object().GetName(), st.manifest.GVK.GroupVersion().String(), st.index, st.total)
+}
+
+func (st *syncTask) Run(version string, rc *rest.Config) error {
+	var lastErr error
+	if err := wait.ExponentialBackoff(wait.Backoff{
+		Duration: time.Second * 10,
+		Factor:   1.3,
+		Steps:    3,
+	}, func() (bool, error) {
+		// build resource builder for manifest
+		var b resourcebuilder.Interface
+		var err error
+		if resourcebuilder.Mapper.Exists(st.manifest.GVK) {
+			b, err = resourcebuilder.New(resourcebuilder.Mapper, rc, *st.manifest)
+		} else {
+			b, err = internal.NewGenericBuilder(rc, *st.manifest)
+		}
+		if err != nil {
+			utilruntime.HandleError(errors.Wrapf(err, "error creating resourcebuilder for %s", st))
+			lastErr = err
+			metricPayloadErrors.WithLabelValues(version).Inc()
+			return false, nil
+		}
+		// run builder for the manifest
+		if err := b.Do(); err != nil {
+			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
+			lastErr = err
+			metricPayloadErrors.WithLabelValues(version).Inc()
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		reason, cause := reasonForPayloadSyncError(lastErr)
+		if len(cause) > 0 {
+			cause = ": " + cause
+		}
+		return &updateError{
+			cause:   lastErr,
+			Reason:  reason,
+			Message: fmt.Sprintf("Could not update %s%s", st, cause),
+		}
+	}
+	return nil
+}
+
+func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
+	ok, errs := hasRequeueOnErrorAnnotation(manifest.Object().GetAnnotations())
+	if !ok {
+		return false
+	}
+	cause := errors.Cause(err)
+
+	should := false
+	for _, e := range errs {
+		if ef, ok := requeueOnErrorCauseToCheck[e]; ok {
+			if ef(cause) {
+				should = true
+				break
+			}
+		}
+	}
+	return should
+}
+
+func hasRequeueOnErrorAnnotation(annos map[string]string) (bool, []string) {
+	if annos == nil {
+		return false, nil
+	}
+	errs, ok := annos[RequeueOnErrorAnnotationKey]
+	if !ok {
+		return false, nil
+	}
+	return ok, strings.Split(errs, ",")
+}
+
+func setAppliedAndPending(version string, total, done int) {
+	metricPayload.WithLabelValues(version, "pending").Set(float64(total - done))
+	metricPayload.WithLabelValues(version, "applied").Set(float64(done))
+}
+
 type updateError struct {
+	cause   error
 	Reason  string
 	Message string
 }
 
 func (e *updateError) Error() string {
 	return e.Message
+}
+
+func (e *updateError) Cause() error {
+	return e.cause
 }
 
 // reasonForUpdateError provides a succint explanation of a known error type for use in a human readable
@@ -171,16 +267,8 @@ func summaryForReason(reason string) string {
 	return "an unknown error has occurred"
 }
 
-func taskName(manifest *lib.Manifest, index, total int) string {
-	ns := manifest.Object().GetNamespace()
-	if len(ns) == 0 {
-		return fmt.Sprintf("%s %q (%s, %d of %d)", strings.ToLower(manifest.GVK.Kind), manifest.Object().GetName(), manifest.GVK.GroupVersion().String(), index, total)
-	}
-	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(manifest.GVK.Kind), ns, manifest.Object().GetName(), manifest.GVK.GroupVersion().String(), index, total)
-}
-
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest lib.Manifest) (cvv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest *lib.Manifest) (cvv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
