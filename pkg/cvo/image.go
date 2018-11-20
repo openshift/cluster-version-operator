@@ -1,13 +1,17 @@
 package cvo
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/pkg/errors"
+)
 
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
 	up, err := loadUpdatePayload(defaultUpdatePayloadDir, "")
 	if err != nil {
-		return "", fmt.Errorf("error loading update payload from %q: %v", defaultUpdatePayloadDir, err)
+		return "", errors.Wrapf(err, "error loading update payload from %q", defaultUpdatePayloadDir)
 	}
 
 	for _, tag := range up.imageRef.Spec.Tags {
