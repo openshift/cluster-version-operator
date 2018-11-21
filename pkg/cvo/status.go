@@ -23,7 +23,7 @@ func (optr *Operator) syncAvailableUpdatesStatus(original *cvv1.ClusterVersion) 
 
 	// only report change if we actually updated the server
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	return updated.ResourceVersion != original.ResourceVersion, err
+	return updated != nil && updated.ResourceVersion != original.ResourceVersion, err
 }
 
 func (optr *Operator) syncProgressingStatus(config *cvv1.ClusterVersion) error {
