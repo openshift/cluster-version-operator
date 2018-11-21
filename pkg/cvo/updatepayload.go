@@ -23,7 +23,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 type updatePayload struct {
@@ -162,7 +162,7 @@ func (optr *Operator) baseDirectory() string {
 	return optr.payloadDir
 }
 
-func (optr *Operator) updatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
+func (optr *Operator) updatePayloadDir(config *configv1.ClusterVersion) (string, error) {
 	tdir, err := optr.targetUpdatePayloadDir(config)
 	if err != nil {
 		return "", &updateError{
@@ -176,7 +176,7 @@ func (optr *Operator) updatePayloadDir(config *cvv1.ClusterVersion) (string, err
 	return optr.baseDirectory(), nil
 }
 
-func (optr *Operator) targetUpdatePayloadDir(config *cvv1.ClusterVersion) (string, error) {
+func (optr *Operator) targetUpdatePayloadDir(config *configv1.ClusterVersion) (string, error) {
 	if !isTargetSet(config.Spec.DesiredUpdate) {
 		return "", nil
 	}
@@ -223,7 +223,7 @@ func validateUpdatePayload(dir string) error {
 	return nil
 }
 
-func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *cvv1.ClusterVersion) error {
+func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *configv1.ClusterVersion) error {
 	if config.Spec.DesiredUpdate == nil {
 		return fmt.Errorf("cannot fetch payload for empty desired update")
 	}
@@ -307,7 +307,7 @@ func copyPayloadCmd(tdir string) string {
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
-func isTargetSet(desired *cvv1.Update) bool {
+func isTargetSet(desired *configv1.Update) bool {
 	return desired != nil && desired.Payload != "" &&
 		desired.Version != ""
 }

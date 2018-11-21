@@ -3,7 +3,6 @@ package cvo
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
@@ -14,9 +13,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 )
 
@@ -37,7 +36,7 @@ var requeueOnErrorCauseToCheck = map[string]func(error) bool{
 }
 
 // loadUpdatePayload reads the payload from disk or remote, as necessary.
-func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePayload, error) {
+func (optr *Operator) loadUpdatePayload(config *configv1.ClusterVersion) (*updatePayload, error) {
 	payloadDir, err := optr.updatePayloadDir(config)
 	if err != nil {
 		return nil, err
@@ -50,7 +49,7 @@ func (optr *Operator) loadUpdatePayload(config *cvv1.ClusterVersion) (*updatePay
 }
 
 // syncUpdatePayload applies the manifests in the payload to the cluster.
-func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *updatePayload) error {
+func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload *updatePayload) error {
 	version := payload.releaseVersion
 	if len(version) == 0 {
 		version = payload.releaseImage
@@ -64,6 +63,7 @@ func (optr *Operator) syncUpdatePayload(config *cvv1.ClusterVersion, payload *up
 			index:    i + 1,
 			total:    total,
 			manifest: &payload.manifests[i],
+			backoff:  optr.syncBackoff,
 		})
 	}
 
@@ -100,6 +100,7 @@ type syncTask struct {
 	total    int
 	manifest *lib.Manifest
 	requeued int
+	backoff  wait.Backoff
 }
 
 func (st *syncTask) String() string {
@@ -112,11 +113,7 @@ func (st *syncTask) String() string {
 
 func (st *syncTask) Run(version string, rc *rest.Config) error {
 	var lastErr error
-	if err := wait.ExponentialBackoff(wait.Backoff{
-		Duration: time.Second * 10,
-		Factor:   1.3,
-		Steps:    3,
-	}, func() (bool, error) {
+	if err := wait.ExponentialBackoff(st.backoff, func() (bool, error) {
 		// build resource builder for manifest
 		var b resourcebuilder.Interface
 		var err error
@@ -268,7 +265,7 @@ func summaryForReason(reason string) string {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest *lib.Manifest) (cvv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -277,10 +274,10 @@ func getOverrideForManifest(overrides []cvv1.ComponentOverride, manifest *lib.Ma
 			return overrides[idx], true
 		}
 	}
-	return cvv1.ComponentOverride{}, false
+	return configv1.ComponentOverride{}, false
 }
 
-func ownerRefModifier(config *cvv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
+func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
 	oref := metav1.NewControllerRef(config, ownerKind)
 	return func(obj metav1.Object) {
 		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})

@@ -10,11 +10,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
 )
 
 func TestHasRequeueOnErrorAnnotation(t *testing.T) {
@@ -353,7 +354,8 @@ func TestSyncUpdatePayload(t *testing.T) {
 
 			up := &updatePayload{releaseImage: "test", releaseVersion: "v0.0.0", manifests: manifests}
 			op := &Operator{}
-			config := &cvv1.ClusterVersion{}
+			op.syncBackoff = wait.Backoff{Steps: 3}
+			config := &configv1.ClusterVersion{}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
 			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))

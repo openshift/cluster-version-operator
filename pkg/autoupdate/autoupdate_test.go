@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openshift/cluster-version-operator/pkg/apis/config.openshift.io/v1"
+	"github.com/openshift/api/config/v1"
 )
 
 func TestNextUpdate(t *testing.T) {
