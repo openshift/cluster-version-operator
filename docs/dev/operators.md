@@ -14,7 +14,7 @@ LABEL io.openshift.release.operator=true
 Ensure your image is published into the cluster release tag by ci-operator
 Wait for a new release payload to be created (usually once you push to master in your operator).
 
-## What do I put in /manifests?
+## What do I put in `/manifests`?
 
 You need the following:
 
@@ -26,7 +26,7 @@ You need the following:
 - Deployment for your operator
 - A ClusterOperator CR [more info here](clusteroperator.md)
 - Any other config objects your operator might need
-- An image-references file (See below)
+- An `image-references` file (see [below](#how-do-i-ensure-the-right-images-get-used-by-my-manifests)).
 
 In your deployment you can reference the latest development version of your operator image (quay.io/openshift/origin-machine-api-operator:latest).  If you have other hard-coded image strings, try to put them as environment variables on your deployment or as a config map.
 
@@ -84,7 +84,7 @@ Your manifests can contain a tag to the latest development image published by Or
 
 Assume you have two images in your manifests - `quay.io/openshift/origin-ingress-operator:latest` and `quay.io/openshift/origin-haproxy-router:latest`.  Those correspond to the following tags `ingress-operator` and `haproxy-router` when the CI runs.
 
-Create a file `image-references` in the /manifests dir with the following contents:
+Create a file `image-references` in the `/manifests` directory with the following contents:
 
 ```yaml
 kind: ImageStream
@@ -101,10 +101,10 @@ spec:
       Name: quay.io/openshift/origin-haproxy-router
 ```
 
-The release tooling will read image-references and do the following operations:
+The release tooling will read `image-references` and do the following operations:
 
 Verify that the tags `ingress-operator` and `haproxy-router` exist from the release / CI tooling (in the image stream `openshift/origin-v4.0` on api.ci).  If they don’t exist, you’ll get a build error.
-Do a find and replace in your manifests (effectively a sed)  that replaces `quay.io/openshift/origin-haproxy-router(:.*|@:.*)` with `registry.svc.ci.openshift.org/openshift/origin-v4.0@sha256:<latest SHA for :haproxy-router>`
+Do a find and replace in your manifests (effectively a `sed`) that replaces `quay.io/openshift/origin-haproxy-router(:.*|@:.*)` with `registry.svc.ci.openshift.org/openshift/origin-v4.0@sha256:<latest SHA for :haproxy-router>`
 Store the fact that operator ingress-operator uses both of those images in a metadata file alongside the manifests
 Bundle up your manifests and the metadata file as a docker image and push them to a registry
 
