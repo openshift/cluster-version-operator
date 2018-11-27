@@ -111,3 +111,32 @@ The release tooling will read `image-references` and do the following operations
 Later on, when someone wants to mirror a particular release, there will be tooling that can take the list of all images used by operators and mirror them to a new repo.
 
 This pattern tries to balance between having the manifests in your source repo be able to deploy your latest upstream code *and* allowing us to get a full listing of all images used by various operators.
+
+## Dynamic objects
+
+Some objects are not static.
+For example, an operator configuration could depend on configuration passed to the installer (cluster name, cluster domain, service CIDR, etc.).
+An operator should auto-discover the dependencies and build the dynamic objects when it first comes up.
+For example:
+
+1. An operator provides `/manifests/deployment.yaml` with a static deployment.
+2. The cluster-version operator processes the operator's [`/manifests`](#what-do-i-put-in-manifests) and pushes the deployment into the cluster.
+3. The cluster schedules the operator for a particular node.
+4. That node launches the operator pod and its constituent containers.
+5. The operator container tries to pull its configuration.
+    * If found, the operator uses that configuration.
+    * If not found, the operator:
+        1. Pulls the dependency resources (e.g. the `cluster-config-v1` config-map from the `kube-system` namespace).
+            Documentation for connecting to the Kubernetes API from pod containers is [here][API-from-pod].
+            Operators written in Go can use [`InClusterConfig`][InClusterConfig] to configure their client.
+        2. Generates the dynamic configuration based on the dependencies.
+        3. Pushes the generated configuration into the cluster, where future operator runs and other consumers will be able to find it.
+
+For an example, see [the machine-API operator's `getOperatorConfig`][getOperatorConfig], although they don't need the "push the generated configuration into the cluster" step.
+Their process is similar to the above example, except that they have no external consumers for their configuration.
+To avoid confusion, they just pull `cluster-config-v1` and generate their configuration in memory [for each round of their poll loop][getOperatorConfig-call-site].
+
+[API-from-pod]: https://kubernetes.io/docs/tasks/access-application-cluster/access-cluster/#accessing-the-api-from-a-pod
+[getOperatorConfig]: https://github.com/openshift/machine-api-operator/blob/v0.1.0/pkg/operator/operator.go#L302-L310
+[getOperatorConfig-call-site]: https://github.com/openshift/machine-api-operator/blob/v0.1.0/pkg/operator/operator.go#L157
+[InClusterConfig]: https://godoc.org/k8s.io/client-go/rest#InClusterConfig
