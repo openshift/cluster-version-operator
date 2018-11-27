@@ -103,10 +103,10 @@ spec:
 
 The release tooling will read `image-references` and do the following operations:
 
-Verify that the tags `ingress-operator` and `haproxy-router` exist from the release / CI tooling (in the image stream `openshift/origin-v4.0` on api.ci).  If they don’t exist, you’ll get a build error.
-Do a find and replace in your manifests (effectively a `sed`) that replaces `quay.io/openshift/origin-haproxy-router(:.*|@:.*)` with `registry.svc.ci.openshift.org/openshift/origin-v4.0@sha256:<latest SHA for :haproxy-router>`
-Store the fact that operator ingress-operator uses both of those images in a metadata file alongside the manifests
-Bundle up your manifests and the metadata file as a docker image and push them to a registry
+1. Verify that the tags `ingress-operator` and `haproxy-router` exist from the release / CI tooling (in the image stream `openshift/origin-v4.0` on api.ci).  If they don’t exist, you’ll get a build error.
+2. Do a find and replace in your manifests (effectively a `sed`) that replaces `quay.io/openshift/origin-haproxy-router(:.*|@:.*)` with `registry.svc.ci.openshift.org/openshift/origin-v4.0@sha256:<latest SHA for :haproxy-router>`
+3. Store the fact that operator ingress-operator uses both of those images in a metadata file alongside the manifests.
+4. Bundle up your manifests and the metadata file as a docker image and push them to a registry.
 
 Later on, when someone wants to mirror a particular release, there will be tooling that can take the list of all images used by operators and mirror them to a new repo.
 
