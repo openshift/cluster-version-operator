@@ -57,6 +57,8 @@ When your manifests are added to the release payload, they’ll be given a prefi
   99_ingress-operator_02_deployment.yaml
 ```
 
+Only manifests with the extensions `.yaml`, `.yml`, or `.json` will be applied, like `kubectl create -f DIR`.
+
 ### How do I get added as a special run level?
 
 Some operators need to run at a specific time in the release process (OLM, kube, openshift core operators, network, service CA).  These components can ensure they run in a specific order across operators by prefixing their manifests with:
@@ -77,6 +79,8 @@ Assigned runlevels
 - 10-19 - Kube operators (master team)
 - 20-29 - OpenShift core operators (master team)
 - 30-39 - OLM
+- 50 - Machine API
+- 51 - Machine Autoapprover
 
 ## How do I ensure the right images get used by my manifests?
 

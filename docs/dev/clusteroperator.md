@@ -20,6 +20,8 @@ When ClusterVersionOperator encounters a ClusterOperator Custom Resource,
   - the live instance `.status.conditions` report available, not progressing and not failed
 - It then continues to the next task.
 
+ClusterVersionOperator will only deploy files with `.yaml`, `.yml`, or `.json` extensions, like `kubectl create -f DIR`.
+
 **NOTE**: ClusterVersionOperator sweeps the manifests in the release payload in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed.
 
 ### What should be the contents of ClusterOperator Custom Resource in /manifests
