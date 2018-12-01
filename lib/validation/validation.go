@@ -36,9 +36,51 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate", "version"), "must specify version or payload"))
 		case len(u.Version) > 0 && !validSemVer(u.Version):
 			errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "must be a semantic version (1.2.3[-...])"))
+		case len(u.Version) > 0 && len(u.Payload) == 0:
+			switch countPayloadsForVersion(config, u.Version) {
+			case 0:
+				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when payload is empty the update must be a previous version or an available update"))
+			case 1:
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "there are multiple possible payloads for this version, specify the exact payload"))
+			}
 		}
 	}
 	return errs
+}
+
+func countPayloadsForVersion(config *configv1.ClusterVersion, version string) int {
+	count := 0
+	for _, update := range config.Status.AvailableUpdates {
+		if update.Version == version && len(update.Payload) > 0 {
+			count++
+		}
+	}
+	if count > 0 {
+		return count
+	}
+	for _, history := range config.Status.History {
+		if history.Version == version {
+			if len(history.Payload) > 0 {
+				return 1
+			}
+		}
+	}
+	return 0
+}
+
+func hasAmbiguousPayloadForVersion(config *configv1.ClusterVersion, version string) bool {
+	for _, update := range config.Status.AvailableUpdates {
+		if update.Version == version {
+			return len(update.Payload) > 0
+		}
+	}
+	for _, history := range config.Status.History {
+		if history.Version == version {
+			return len(history.Payload) > 0
+		}
+	}
+	return false
 }
 
 func ClearInvalidFields(config *configv1.ClusterVersion, errs field.ErrorList) *configv1.ClusterVersion {

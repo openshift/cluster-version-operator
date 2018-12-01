@@ -324,7 +324,7 @@ func (optr *Operator) sync(key string) error {
 		glog.V(2).Infof("Reconciling cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
 	} else {
 		glog.V(2).Infof("Updating the cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
-		if err := optr.syncProgressingStatus(original); err != nil {
+		if err := optr.syncProgressingStatus(original, update); err != nil {
 			return err
 		}
 	}
@@ -429,7 +429,6 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		// for fields that have meaning that are incomplete, clear them
 		// prevents us from loading clearly malformed payloads
 		obj = validation.ClearInvalidFields(obj, errs)
-
 		return obj, changed, nil
 	}
 
@@ -465,11 +464,14 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 
 // versionString returns a string describing the current version.
 func (optr *Operator) currentVersionString(config *configv1.ClusterVersion) string {
-	if s := config.Status.Current.Version; len(s) > 0 {
-		return s
-	}
-	if s := config.Status.Current.Payload; len(s) > 0 {
-		return s
+	if len(config.Status.History) > 0 {
+		last := config.Status.History[0]
+		if s := last.Version; len(s) > 0 {
+			return s
+		}
+		if s := last.Payload; len(s) > 0 {
+			return s
+		}
 	}
 	if s := optr.releaseVersion; len(s) > 0 {
 		return s
@@ -480,21 +482,23 @@ func (optr *Operator) currentVersionString(config *configv1.ClusterVersion) stri
 	return "<unknown>"
 }
 
+// desiredVersion returns the update that is currently targeted by the config.
+func (optr *Operator) desiredVersion(config *configv1.ClusterVersion) configv1.Update {
+	if update := config.Spec.DesiredUpdate; update != nil {
+		return *update
+	}
+	return optr.currentVersion()
+}
+
 // versionString returns a string describing the desired version.
-func (optr *Operator) desiredVersionString(config *configv1.ClusterVersion) string {
-	var s string
-	if v := config.Spec.DesiredUpdate; v != nil {
-		if len(v.Payload) > 0 {
-			s = v.Payload
-		}
-		if len(v.Version) > 0 {
-			s = v.Version
-		}
+func versionString(update configv1.Update) string {
+	if len(update.Version) > 0 {
+		return update.Version
 	}
-	if len(s) == 0 {
-		s = optr.currentVersionString(config)
+	if len(update.Payload) > 0 {
+		return update.Payload
 	}
-	return s
+	return "<unknown>"
 }
 
 // currentVersion returns an update object describing the current known cluster version.

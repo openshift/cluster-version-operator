@@ -28,7 +28,7 @@ spec:
   additionalPrinterColumns:
   - name: Version
     type: string
-    JSONPath: .status.current.version
+    JSONPath: .status.desired.version
   - name: Available
     type: string
     JSONPath: .status.conditions[?(@.type=="Available")].status

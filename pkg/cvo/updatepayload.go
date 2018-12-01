@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/base64"
 	"fmt"
 	"hash/fnv"
@@ -183,11 +184,15 @@ func (optr *Operator) updatePayloadDir(config *configv1.ClusterVersion) (string,
 }
 
 func (optr *Operator) targetUpdatePayloadDir(config *configv1.ClusterVersion) (string, error) {
-	if !isTargetSet(config.Spec.DesiredUpdate) {
+	payload, ok := findUpdatePayload(config)
+	if !ok {
 		return "", nil
 	}
+	hash := md5.New()
+	hash.Write([]byte(payload))
+	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
-	tdir := filepath.Join(targetUpdatePayloadsDir, config.Spec.DesiredUpdate.Version)
+	tdir := filepath.Join(targetUpdatePayloadsDir, payloadHash)
 	err := validateUpdatePayload(tdir)
 	if os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
@@ -313,7 +318,27 @@ func copyPayloadCmd(tdir string) string {
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
-func isTargetSet(desired *configv1.Update) bool {
-	return desired != nil && desired.Payload != "" &&
-		desired.Version != ""
+func findUpdatePayload(config *configv1.ClusterVersion) (string, bool) {
+	update := config.Spec.DesiredUpdate
+	if update == nil {
+		return "", false
+	}
+	if len(update.Payload) == 0 {
+		return findPayloadForVersion(config, update.Version)
+	}
+	return update.Payload, len(update.Payload) > 0
+}
+
+func findPayloadForVersion(config *configv1.ClusterVersion, version string) (string, bool) {
+	for _, update := range config.Status.AvailableUpdates {
+		if update.Version == version {
+			return update.Payload, len(update.Payload) > 0
+		}
+	}
+	for _, history := range config.Status.History {
+		if history.Version == version {
+			return history.Payload, len(history.Payload) > 0
+		}
+	}
+	return "", false
 }
