@@ -14,7 +14,7 @@ func ImageForShortName(name string) (string, error) {
 		return "", errors.Wrapf(err, "error loading update payload from %q", defaultUpdatePayloadDir)
 	}
 
-	for _, tag := range up.imageRef.Spec.Tags {
+	for _, tag := range up.ImageRef.Spec.Tags {
 		if tag.Name == name {
 			// we found the short name in ImageStream
 			if tag.From != nil && tag.From.Kind == "DockerImage" {

@@ -138,7 +138,7 @@ data:
 			}
 
 			for i := range got {
-				got[i].obj = nil
+				got[i].Obj = nil
 			}
 
 			if !reflect.DeepEqual(got, test.want) {
@@ -277,7 +277,7 @@ data:
 			}
 			for i := range got {
 				got[i].Raw = nil
-				got[i].obj = nil
+				got[i].Obj = nil
 			}
 			if !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("mismatch \ngot: %s \nwant: %s", spew.Sdump(got), spew.Sdump(test.want))

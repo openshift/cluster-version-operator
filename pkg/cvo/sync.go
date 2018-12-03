@@ -50,19 +50,19 @@ func (optr *Operator) loadUpdatePayload(config *configv1.ClusterVersion) (*updat
 
 // syncUpdatePayload applies the manifests in the payload to the cluster.
 func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload *updatePayload) error {
-	version := payload.releaseVersion
+	version := payload.ReleaseVersion
 	if len(version) == 0 {
-		version = payload.releaseImage
+		version = payload.ReleaseImage
 	}
 
-	total := len(payload.manifests)
+	total := len(payload.Manifests)
 	done := 0
 	var tasks []*syncTask
-	for i := range payload.manifests {
+	for i := range payload.Manifests {
 		tasks = append(tasks, &syncTask{
 			index:    i + 1,
 			total:    total,
-			manifest: &payload.manifests[i],
+			manifest: &payload.Manifests[i],
 			backoff:  optr.syncBackoff,
 		})
 	}

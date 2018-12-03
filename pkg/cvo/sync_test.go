@@ -352,7 +352,7 @@ func TestSyncUpdatePayload(t *testing.T) {
 				manifests = append(manifests, m)
 			}
 
-			up := &updatePayload{releaseImage: "test", releaseVersion: "v0.0.0", manifests: manifests}
+			up := &updatePayload{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
 			op := &Operator{}
 			op.syncBackoff = wait.Backoff{Steps: 3}
 			config := &configv1.ClusterVersion{}

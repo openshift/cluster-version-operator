@@ -21,7 +21,7 @@ type Manifest struct {
 	Raw []byte
 	GVK schema.GroupVersionKind
 
-	obj *unstructured.Unstructured
+	Obj *unstructured.Unstructured
 }
 
 // UnmarshalJSON unmarshals bytes of single kubernetes object to Manifest.
@@ -51,12 +51,12 @@ func (m *Manifest) UnmarshalJSON(in []byte) error {
 	}
 
 	m.GVK = ud.GroupVersionKind()
-	m.obj = ud.DeepCopy()
+	m.Obj = ud.DeepCopy()
 	return nil
 }
 
 // Object returns underlying metav1.Object
-func (m *Manifest) Object() metav1.Object { return m.obj }
+func (m *Manifest) Object() metav1.Object { return m.Obj }
 
 // ManifestsFromFiles reads files and returns Manifests in the same order.
 // files should be list of absolute paths for the manifests on disk.

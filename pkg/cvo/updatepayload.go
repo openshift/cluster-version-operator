@@ -20,22 +20,22 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/pointer"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
-	configv1 "github.com/openshift/api/config/v1"
 )
 
 type updatePayload struct {
-	releaseImage   string
-	releaseVersion string
+	ReleaseImage   string
+	ReleaseVersion string
 	// XXX: cincinatti.json struct
 
-	imageRef *imagev1.ImageStream
+	ImageRef *imagev1.ImageStream
 
 	// manifestHash is a hash of the manifests included in this payload
-	manifestHash string
-	manifests    []lib.Manifest
+	ManifestHash string
+	Manifests    []lib.Manifest
 }
 
 const (
@@ -45,7 +45,7 @@ const (
 	cvoManifestDir     = "manifests"
 	releaseManifestDir = "release-manifests"
 
-	cincinnatiJSONFile  = "cincinnati.json"
+	cincinnatiJSONFile  = "release-metadata"
 	imageReferencesFile = "image-references"
 )
 
@@ -89,7 +89,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*updatePayload, []payl
 		preprocess: nil,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
-	return &updatePayload{imageRef: imageRef, releaseImage: releaseImage, releaseVersion: imageRef.Name}, tasks, nil
+	return &updatePayload{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
 }
 
 func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
@@ -108,6 +108,12 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 
 		for _, file := range files {
 			if file.IsDir() {
+				continue
+			}
+
+			switch filepath.Ext(file.Name()) {
+			case ".yaml", ".yml", ".json":
+			default:
 				continue
 			}
 
@@ -150,8 +156,8 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 		hash.Write(manifest.Raw)
 	}
 
-	payload.manifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
-	payload.manifests = manifests
+	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	payload.Manifests = manifests
 	return payload, nil
 }
 

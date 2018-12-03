@@ -180,10 +180,10 @@ func New(
 		glog.Warningf("The local payload is invalid - no current version can be determined from disk: %v", err)
 	} else {
 		// XXX: set this to the cincinnati version in preference
-		if _, err := semver.Parse(meta.imageRef.Name); err != nil {
-			glog.Warningf("The local payload name %q is not a valid semantic version - no current version will be reported: %v", meta.imageRef.Name, err)
+		if _, err := semver.Parse(meta.ImageRef.Name); err != nil {
+			glog.Warningf("The local payload name %q is not a valid semantic version - no current version will be reported: %v", meta.ImageRef.Name, err)
 		} else {
-			optr.releaseVersion = meta.imageRef.Name
+			optr.releaseVersion = meta.ImageRef.Name
 		}
 	}
 
@@ -314,16 +314,16 @@ func (optr *Operator) sync(key string) error {
 	}
 
 	update := configv1.Update{
-		Version: payload.releaseVersion,
-		Payload: payload.releaseImage,
+		Version: payload.ReleaseVersion,
+		Payload: payload.ReleaseImage,
 	}
 
 	// if the current payload is already live, we are reconciling, not updating,
 	// and we won't set the progressing status.
-	if availableAndUpdated && payload.manifestHash == original.Status.VersionHash {
-		glog.V(2).Infof("Reconciling cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.manifestHash)
+	if availableAndUpdated && payload.ManifestHash == original.Status.VersionHash {
+		glog.V(2).Infof("Reconciling cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
 	} else {
-		glog.V(2).Infof("Updating the cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.manifestHash)
+		glog.V(2).Infof("Updating the cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
 		if err := optr.syncProgressingStatus(original); err != nil {
 			return err
 		}
@@ -340,7 +340,7 @@ func (optr *Operator) sync(key string) error {
 
 	// update the status to indicate we have synced
 	optr.setLastSyncAt(time.Now())
-	return optr.syncAvailableStatus(original, update, payload.manifestHash)
+	return optr.syncAvailableStatus(original, update, payload.ManifestHash)
 }
 
 // availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
