@@ -16,6 +16,10 @@ spec:
     description: Whether the operator is processing changes.
     name: Progressing
     type: string
+  - JSONPath: .status.conditions[?(@.type=="Failing")].status
+    description: Whether the operator is failing changes.
+    name: Failing
+    type: string
   - JSONPath: .status.conditions[?(@.type=="Available")].lastTransitionTime
     description: The time the operator's Available status last changed.
     name: Since
