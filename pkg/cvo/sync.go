@@ -20,6 +20,9 @@ import (
 )
 
 const (
+	// VersionAnnotationKey is used to annotate all objects owned by CVO with the version of the release payload.
+	VersionAnnotationKey = "v1.cluster-version-operator.operators.openshift.io/version"
+
 	// RequeueOnErrorAnnotationKey is key for annotation on a manifests object that instructs CVO to requeue on specific errors.
 	// The value is comma separated list of causes that forces requeue.
 	RequeueOnErrorAnnotationKey = "v1.cluster-version-operator.operators.openshift.io/requeue-on-error"
@@ -129,7 +132,7 @@ func (st *syncTask) Run(version string, rc *rest.Config) error {
 			return false, nil
 		}
 		// run builder for the manifest
-		if err := b.Do(); err != nil {
+		if err := b.WithModifier(versionAnnotatorModifier(version)).Do(); err != nil {
 			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 			lastErr = err
 			metricPayloadErrors.WithLabelValues(version).Inc()
@@ -275,6 +278,17 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *li
 		}
 	}
 	return configv1.ComponentOverride{}, false
+}
+
+func versionAnnotatorModifier(version string) resourcebuilder.MetaV1ObjectModifierFunc {
+	return func(obj metav1.Object) {
+		annos := obj.GetAnnotations()
+		if annos == nil {
+			annos = map[string]string{}
+		}
+		annos[VersionAnnotationKey] = version
+		obj.SetAnnotations(annos)
+	}
 }
 
 func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
