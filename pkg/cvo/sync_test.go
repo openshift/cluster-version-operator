@@ -169,6 +169,14 @@ func TestShouldRequeueOnErr(t *testing.T) {
 		}`,
 
 		exp: false,
+	}, {
+		err: &updateError{cause: &resourcebuilder.RetryLaterError{}},
+		manifest: `{
+			"apiVersion": "v1",
+			"kind": "ConfigMap"
+		}`,
+
+		exp: true,
 	}}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
