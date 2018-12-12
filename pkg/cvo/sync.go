@@ -151,12 +151,15 @@ func (st *syncTask) Run(version string, rc *rest.Config) error {
 }
 
 func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
+	cause := errors.Cause(err)
+	if _, ok := cause.(*resourcebuilder.RetryLaterError); ok {
+		return true
+	}
+
 	ok, errs := hasRequeueOnErrorAnnotation(manifest.Object().GetAnnotations())
 	if !ok {
 		return false
 	}
-	cause := errors.Cause(err)
-
 	should := false
 	for _, e := range errs {
 		if ef, ok := requeueOnErrorCauseToCheck[e]; ok {
@@ -166,6 +169,7 @@ func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
 			}
 		}
 	}
+
 	return should
 }
 
