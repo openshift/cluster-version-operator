@@ -9,6 +9,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+
 	corev1 "k8s.io/api/core/v1"
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -31,6 +32,10 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 )
+
+func init() {
+	configv1.Install(scheme.Scheme)
+}
 
 const (
 	// maxRetries is the number of times a machineconfig pool will be retried before it is dropped out of the queue.
@@ -133,7 +138,7 @@ func New(
 	apiExtClient apiextclientset.Interface,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(glog.V(2).Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	optr := &Operator{
@@ -157,7 +162,7 @@ func New(
 		apiExtClient:  apiExtClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "clusterversionoperator"}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 

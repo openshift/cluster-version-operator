@@ -7,13 +7,16 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 )
@@ -361,7 +364,9 @@ func TestSyncUpdatePayload(t *testing.T) {
 			}
 
 			up := &updatePayload{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
-			op := &Operator{}
+			op := &Operator{
+				eventRecorder: &record.FakeRecorder{},
+			}
 			op.syncBackoff = wait.Backoff{Steps: 3}
 			config := &configv1.ClusterVersion{}
 			r := &recorder{}

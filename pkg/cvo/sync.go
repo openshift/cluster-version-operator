@@ -6,6 +6,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
@@ -78,17 +81,20 @@ func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload
 			glog.V(4).Infof("Skipping %s as unmanaged", task)
 			continue
 		}
-
+		optr.eventRecorder.Eventf(config, corev1.EventTypeNormal, "SyncStarted", "Running sync for %s", task)
 		if err := task.Run(version, optr.restConfig); err != nil {
 			cause := errors.Cause(err)
 			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
 				task.requeued++
 				tasks = append(tasks, task)
+				optr.eventRecorder.Eventf(config, corev1.EventTypeWarning, "RequeuedForSync", "%s was requeued for syncing because %v", task, cause)
 				continue
 			}
+			optr.eventRecorder.Eventf(config, corev1.EventTypeWarning, "FailedToSync", "Failed to sync %s because %v", task, cause)
 			return err
 		}
 		done++
+		optr.eventRecorder.Eventf(config, corev1.EventTypeNormal, "SyncFinished", "Done syncing for %s", task)
 		glog.V(4).Infof("Done syncing for %s", task)
 	}
 	setAppliedAndPending(version, total, done)
