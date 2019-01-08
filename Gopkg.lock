@@ -182,7 +182,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bada18f8cc9cf347266c81ee2ab8956b7c20ff6bf798b3d848e92f63a5c57330"
+  digest = "1:97f41aee849f8b913f2da5983e44be080c904161a3331701b6e1e112424c9db0"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -192,7 +192,7 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "8dce450af78098c96d68dc2a0c2fb8e917993fb4"
+  revision = "aab033bae2a129607f4fb277c3777b2eabb08601"
 
 [[projects]]
   branch = "master"
@@ -213,7 +213,7 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
+  revision = "2f38d042c79762d5bf2ba3c795d4ad72101289e9"
 
 [[projects]]
   branch = "master"
@@ -754,6 +754,7 @@
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/strategicpatch",
+    "k8s.io/apimachinery/pkg/util/validation/field",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
