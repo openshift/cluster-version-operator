@@ -203,6 +203,20 @@ func TestOperator_sync(t *testing.T) {
 			`,
 		},
 	}
+	content_4_0_1 := map[string]interface{}{
+		"manifests": map[string]interface{}{},
+		"release-manifests": map[string]interface{}{
+			"image-references": `
+			{
+				"kind": "ImageStream",
+				"apiVersion": "image.openshift.io/v1",
+				"metadata": {
+					"name": "4.0.1"
+				}
+			}
+			`,
+		},
+	}
 
 	tests := []struct {
 		name        string
@@ -259,10 +273,10 @@ func TestOperator_sync(t *testing.T) {
 							Channel: "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Version: "4.0.1",
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Version: "4.0.1", Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
 							},
+							Desired:     configv1.Update{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -289,15 +303,16 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "4.0.1",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+							{Version: "4.0.1", Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}, CompletionTime: &metav1.Time{Time: time.Unix(2, 0)}},
 						},
+						Desired:     configv1.Update{Version: "0.0.1-abc", Payload: "payload/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 4.0.1: the contents of the update are invalid"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -311,7 +326,22 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.CompletedUpdate,
+								Version:        "0.0.1-abc",
+								Payload:        "payload/image:v4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								Version:        "4.0.1",
+								Payload:        "payload/image:v4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired: configv1.Update{
 							Version: "0.0.1-abc",
 							Payload: "payload/image:v4.0.1",
 						},
@@ -346,9 +376,8 @@ func TestOperator_sync(t *testing.T) {
 							Channel: "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Version: "4.0.1",
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 							},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -381,9 +410,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "4.0.1",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -402,9 +430,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "0.0.1-abc",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "0.0.1-abc", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -456,9 +483,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "4.0.1",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -477,9 +503,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "0.0.1-abc",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "0.0.1-abc", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -508,9 +533,8 @@ func TestOperator_sync(t *testing.T) {
 							Channel: "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Version: "4.0.1",
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 							},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -541,9 +565,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "4.0.1",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "4.0.1", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -562,9 +585,8 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Version: "0.0.1-abc",
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Version: "0.0.1-abc", Payload: "payload/image:v4.0.1"},
 						},
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -612,9 +634,15 @@ func TestOperator_sync(t *testing.T) {
 						Channel:  "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								Version:     "", // we don't know our payload yet and releaseVersion is unset
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
 						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -627,12 +655,13 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name:    "after initial status is set, set reconciling and hash",
+			name:    "record a new version entry if the controller is restarted with a new image",
 			content: content1,
 			optr: Operator{
-				releaseImage: "payload/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				releaseImage:   "payload/image:v4.0.2",
+				releaseVersion: "4.0.2",
+				namespace:      "test",
+				name:           "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -644,14 +673,20 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								Version:     "", // we didn't know our payload before
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
 						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards payload/image:v4.0.1"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards payload/image:v4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -674,10 +709,367 @@ func TestOperator_sync(t *testing.T) {
 						Channel:  "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.2",
+								Version:     "4.0.2",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.2", Version: "4.0.2"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards payload/image:v4.0.1"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "when user cancels desired update, clear status desired",
+			content: content1,
+			optr: Operator{
+				releaseImage:   "payload/image:v4.0.1",
+				releaseVersion: "4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.2",
+								Version:     "4.0.2",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.2"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								Version:     "4.0.1",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Payload:        "payload/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired: configv1.Update{
+							Version: "4.0.1",
 							Payload: "payload/image:v4.0.1",
-							// loads the version from the payload on disk
+						},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							// we don't reset the message here until the payload is loaded
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "after desired update is cancelled, go to reconciling",
+			content: content_4_0_1,
+			optr: Operator{
+				releaseImage:   "payload/image:v4.0.1",
+				releaseVersion: "4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								Version:     "4.0.1",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Payload:        "payload/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1", Version: "4.0.1"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							// we don't reset the message here until the payload is loaded
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 3 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								Version:     "4.0.1",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Payload:        "payload/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1", Version: "4.0.1"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							// we correct the message that was incorrect from the previous state
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+				expectUpdateStatus(t, act[2], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "2",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Payload:        "payload/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired: configv1.Update{
+							Version: "4.0.1",
+							Payload: "payload/image:v4.0.1",
+						},
+						VersionHash: "y_Kc5IQiIyU=",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 4.0.1"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "after initial status is set, set reconciling and hash and correct version number",
+			content: content1,
+			optr: Operator{
+				releaseImage: "payload/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Payload:     "payload/image:v4.0.1",
+								StartedTime: metav1.Time{Time: time.Unix(1, 0)},
+							},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards payload/image:v4.0.1"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 3 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				// will use the version from content1 (the payload) when we set the progressing condition
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", Version: "0.0.1-abc", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1", Version: "0.0.1-abc"},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 0.0.1-abc"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+				expectUpdateStatus(t, act[2], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "2",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.CompletedUpdate, Payload: "payload/image:v4.0.1", Version: "0.0.1-abc", StartedTime: metav1.Time{Time: time.Unix(1, 0)}, CompletionTime: &metav1.Time{Time: time.Unix(2, 0)}},
+						},
+						Desired: configv1.Update{
 							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -712,9 +1104,17 @@ func TestOperator_sync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{
+									State:          configv1.CompletedUpdate,
+									Payload:        "payload/image:v4.0.1",
+									Version:        "0.0.1-abc",
+									CompletionTime: &metav1.Time{Time: time.Unix(1, 0)},
+								},
+							},
+							Desired: configv1.Update{
 								Version: "0.0.1-abc",
+								Payload: "payload/image:v4.0.1",
 							},
 							Generation: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -800,7 +1200,12 @@ func TestOperator_sync(t *testing.T) {
 							{Version: "4.0.2", Payload: "test/image:1"},
 							{Version: "4.0.3", Payload: "test/image:2"},
 						},
-						Current:    configv1.Update{Payload: "payload/image:v4.0.1"},
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+						},
+						Desired: configv1.Update{
+							Payload: "payload/image:v4.0.1",
+						},
 						Generation: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -877,7 +1282,12 @@ func TestOperator_sync(t *testing.T) {
 							{Version: "4.0.2", Payload: "test/image:1"},
 							{Version: "4.0.3", Payload: "test/image:2"},
 						},
-						Current:    configv1.Update{Payload: "payload/image:v4.0.1"},
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+						},
+						Desired: configv1.Update{
+							Payload: "payload/image:v4.0.1",
+						},
 						Generation: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -949,13 +1359,158 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current:    configv1.Update{Payload: "payload/image:v4.0.1"},
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+						},
+						Desired: configv1.Update{
+							Payload: "payload/image:v4.0.1",
+						},
 						Generation: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "user requested a version that isn't in the updates or history",
+			content: content1,
+			optr: Operator{
+				releaseImage: "payload/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						DesiredUpdate: &configv1.Update{
+							Version: "4.0.4",
+						},
+					},
+					Status: configv1.ClusterVersionStatus{
+						AvailableUpdates: []configv1.Update{
+							{Version: "4.0.2", Payload: "test/image:1"},
+							{Version: "4.0.3", Payload: "test/image:2"},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						DesiredUpdate: &configv1.Update{
+							Version: "4.0.4",
+						},
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Version: "4.0.4", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}, CompletionTime: &metav1.Time{Time: time.Unix(2, 0)}},
+						},
+						Desired: configv1.Update{
+							Version: "4.0.4",
+						},
+						AvailableUpdates: []configv1.Update{
+							{Version: "4.0.2", Payload: "test/image:1"},
+							{Version: "4.0.3", Payload: "test/image:2"},
+						},
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at payload/image:v4.0.1: the cluster version is invalid"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.4\": when payload is empty the update must be a previous version or an available update"},
+						},
+					},
+				})
+			},
+		},
+		{
+			name:    "user requested a version has duplicates",
+			content: content1,
+			optr: Operator{
+				releaseImage: "payload/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						DesiredUpdate: &configv1.Update{
+							Version: "4.0.3",
+						},
+					},
+					Status: configv1.ClusterVersionStatus{
+						AvailableUpdates: []configv1.Update{
+							{Version: "4.0.2", Payload: "test/image:1"},
+							{Version: "4.0.3", Payload: "test/image:2"},
+							{Version: "4.0.3", Payload: "test/image:3"},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						DesiredUpdate: &configv1.Update{
+							Version: "4.0.3",
+						},
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Version: "4.0.3", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}, CompletionTime: &metav1.Time{Time: time.Unix(2, 0)}},
+						},
+						Desired: configv1.Update{
+							Version: "4.0.3",
+						},
+						AvailableUpdates: []configv1.Update{
+							{Version: "4.0.2", Payload: "test/image:1"},
+							{Version: "4.0.3", Payload: "test/image:2"},
+							{Version: "4.0.3", Payload: "test/image:3"},
+						},
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at payload/image:v4.0.1: the cluster version is invalid"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.3\": there are multiple possible payloads for this version, specify the exact payload"},
 						},
 					},
 				})
@@ -981,10 +1536,18 @@ func TestOperator_sync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
 								// loads the version from the payload on disk
+								{
+									State:          configv1.CompletedUpdate,
+									Payload:        "payload/image:v4.0.1",
+									Version:        "0.0.1-abc",
+									CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+								},
+							},
+							Desired: configv1.Update{
 								Version: "0.0.1-abc",
+								Payload: "payload/image:v4.0.1",
 							},
 							VersionHash: "y_Kc5IQiIyU=",
 							Generation:  2,
@@ -1027,10 +1590,18 @@ func TestOperator_sync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
 								// loads the version from the payload on disk
+								{
+									State:          configv1.CompletedUpdate,
+									Payload:        "payload/image:v4.0.1",
+									Version:        "0.0.1-abc",
+									CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+								},
+							},
+							Desired: configv1.Update{
 								Version: "0.0.1-abc",
+								Payload: "payload/image:v4.0.1",
 							},
 							VersionHash: "unknown_hash",
 							Generation:  2,
@@ -1061,10 +1632,15 @@ func TestOperator_sync(t *testing.T) {
 						Channel:  "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
-							Version: "0.0.1-abc",
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "0.0.1-abc",
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
 						},
+						Desired:     configv1.Update{Version: "0.0.1-abc", Payload: "payload/image:v4.0.1"},
 						Generation:  2,
 						VersionHash: "unknown_hash",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -1085,10 +1661,17 @@ func TestOperator_sync(t *testing.T) {
 						Channel:  "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
-							// loads the version from the payload on disk
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "0.0.1-abc",
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired: configv1.Update{
 							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
 						},
 						Generation:  2,
 						VersionHash: "y_Kc5IQiIyU=",
@@ -1140,7 +1723,10 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
+						History: []configv1.UpdateHistory{
+							{State: configv1.PartialUpdate, Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
+						},
+						Desired: configv1.Update{
 							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "",
@@ -1174,9 +1760,10 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Payload: "payload/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
 						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1208,14 +1795,15 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{Payload: "payload/image:v4.0.1", Version: "0.0.1-abc", StartedTime: metav1.Time{Time: time.Unix(1, 0)}},
 						},
+						Desired:     configv1.Update{Payload: "payload/image:v4.0.1", Version: "0.0.1-abc"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Reconciling payload/image:v4.0.1: the cluster version is invalid"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Reconciling 0.0.1-abc: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid:\n* spec.upstream: Invalid value: \"#%GG\": must be a valid URL or empty\n* spec.clusterID: Invalid value: \"not-valid-cluster-id\": must be an RFC4122-variant UUID\n"},
 						},
@@ -1234,9 +1822,18 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Current: configv1.Update{
-							Payload: "payload/image:v4.0.1",
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.CompletedUpdate,
+								Payload:        "payload/image:v4.0.1",
+								Version:        "0.0.1-abc",
+								StartedTime:    metav1.Time{Time: time.Unix(1, 0)},
+								CompletionTime: &metav1.Time{Time: time.Unix(2, 0)},
+							},
+						},
+						Desired: configv1.Update{
 							Version: "0.0.1-abc",
+							Payload: "payload/image:v4.0.1",
 						},
 						VersionHash: "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -1331,8 +1928,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 						},
 					},
@@ -1370,8 +1967,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 						},
 					},
@@ -1409,8 +2006,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
@@ -1453,8 +2050,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
@@ -1509,8 +2106,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying payload/image:v4.0.1"},
@@ -1564,8 +2161,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							Channel:   "fast",
 						},
 						Status: configv1.ClusterVersionStatus{
-							Current: configv1.Update{
-								Payload: "payload/image:v4.0.1",
+							History: []configv1.UpdateHistory{
+								{Payload: "payload/image:v4.0.1"},
 							},
 							Generation: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -1707,6 +2304,14 @@ func expectMutation(t *testing.T, a ktesting.Action, verb string, resource, subr
 		if in, ok := actual.(*configv1.ClusterVersion); ok {
 			for i := range in.Status.Conditions {
 				in.Status.Conditions[i].LastTransitionTime.Time = time.Time{}
+			}
+			for i, item := range in.Status.History {
+				if !item.StartedTime.IsZero() {
+					in.Status.History[i].StartedTime.Time = time.Unix(1, 0)
+				}
+				if item.CompletionTime != nil {
+					in.Status.History[i].CompletionTime.Time = time.Unix(2, 0)
+				}
 			}
 		}
 
