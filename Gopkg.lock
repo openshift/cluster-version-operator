@@ -504,13 +504,14 @@
   version = "kubernetes-1.11.1"
 
 [[projects]]
-  digest = "1:e9232c127196055e966ae56877363f82fb494dd8c7fda0112b477e1339082d05"
+  digest = "1:df623efa281121be190731b5fba78d24f5ceb4fb9345c4ee45a385f8645b7d2c"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
     "discovery/cached",
     "discovery/fake",
     "dynamic",
+    "dynamic/fake",
     "informers",
     "informers/admissionregistration",
     "informers/admissionregistration/v1alpha1",
@@ -761,6 +762,7 @@
     "k8s.io/client-go/discovery",
     "k8s.io/client-go/discovery/cached",
     "k8s.io/client-go/dynamic",
+    "k8s.io/client-go/dynamic/fake",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
