@@ -21,7 +21,7 @@ spec:
           - "start"
           - "--release-image={{.ReleaseImage}}"
           - "--enable-auto-update=false"
-          - "--v=4"
+          - "--v=8"
         volumeMounts:
           - mountPath: /etc/ssl/certs
             name: etc-ssl-certs
