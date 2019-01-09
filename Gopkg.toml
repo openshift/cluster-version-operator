@@ -67,3 +67,7 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
   name = "github.com/openshift/client-go"
   branch = "master"
 
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/openshift/library-go"

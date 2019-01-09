@@ -217,6 +217,14 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:43cec0b055db6d7de54b17175386bc6d18c709f45b1d50c741c8b3c8233d088e"
+  name = "github.com/openshift/library-go"
+  packages = ["pkg/controller/fileobserver"]
+  pruneopts = "NUT"
+  revision = "936e799e74ebbccee49e39dfbd54e9c68826c024"
+
+[[projects]]
+  branch = "master"
   digest = "1:3bf17a6e6eaa6ad24152148a631d18662f7212e21637c2699bff3369b7f00fa2"
   name = "github.com/petar/GoLLRB"
   packages = ["llrb"]
@@ -723,6 +731,7 @@
     "github.com/openshift/client-go/config/informers/externalversions/config/v1",
     "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1",
+    "github.com/openshift/library-go/pkg/controller/fileobserver",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
