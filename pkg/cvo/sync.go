@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"k8s.io/client-go/rest"
+
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -11,12 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/rest"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 )
 
 const (
@@ -67,6 +69,8 @@ func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload
 		})
 	}
 
+	builder := optr.resourceBuilder(payload.ReleaseVersion)
+
 	for i := 0; i < len(tasks); i++ {
 		task := tasks[i]
 		setAppliedAndPending(version, total, done)
@@ -79,7 +83,7 @@ func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload
 			continue
 		}
 
-		if err := task.Run(version, optr.restConfig); err != nil {
+		if err := task.Run(version, builder); err != nil {
 			cause := errors.Cause(err)
 			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
 				task.requeued++
@@ -93,6 +97,54 @@ func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload
 	}
 	setAppliedAndPending(version, total, done)
 	return nil
+}
+
+func (optr *Operator) defaultResourceBuilder(version string) ResourceBuilder {
+	return &resourceBuilder{
+		config: optr.restConfig,
+		modifier: func(obj metav1.Object) {
+			m := obj.GetLabels()
+			if m == nil {
+				m = make(map[string]string)
+			}
+			m["cvo.openshift.io/version"] = version
+			obj.SetLabels(m)
+		},
+	}
+}
+
+// resourceBuilder provides the default builder implementation for the operator.
+// It is abstracted for testing.
+type resourceBuilder struct {
+	config   *rest.Config
+	modifier resourcebuilder.MetaV1ObjectModifierFunc
+}
+
+func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
+	if resourcebuilder.Mapper.Exists(m.GVK) {
+		return resourcebuilder.New(resourcebuilder.Mapper, b.config, *m)
+	}
+	client, err := dynamicclient.New(b.config, m.GVK, m.Object().GetNamespace())
+	if err != nil {
+		return nil, err
+	}
+	return internal.NewGenericBuilder(client, *m)
+}
+
+func (b *resourceBuilder) Apply(m *lib.Manifest) error {
+	builder, err := b.BuilderFor(m)
+	if err != nil {
+		return err
+	}
+	if b.modifier != nil {
+		builder = builder.WithModifier(b.modifier)
+	}
+	return builder.Do()
+}
+
+// ResourceBuilder abstracts how a manifest is created on the server.
+type ResourceBuilder interface {
+	Apply(*lib.Manifest) error
 }
 
 type syncTask struct {
@@ -111,31 +163,18 @@ func (st *syncTask) String() string {
 	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(st.manifest.GVK.Kind), ns, st.manifest.Object().GetName(), st.manifest.GVK.GroupVersion().String(), st.index, st.total)
 }
 
-func (st *syncTask) Run(version string, rc *rest.Config) error {
+func (st *syncTask) Run(version string, builder ResourceBuilder) error {
 	var lastErr error
 	if err := wait.ExponentialBackoff(st.backoff, func() (bool, error) {
-		// build resource builder for manifest
-		var b resourcebuilder.Interface
-		var err error
-		if resourcebuilder.Mapper.Exists(st.manifest.GVK) {
-			b, err = resourcebuilder.New(resourcebuilder.Mapper, rc, *st.manifest)
-		} else {
-			b, err = internal.NewGenericBuilder(rc, *st.manifest)
-		}
-		if err != nil {
-			utilruntime.HandleError(errors.Wrapf(err, "error creating resourcebuilder for %s", st))
-			lastErr = err
-			metricPayloadErrors.WithLabelValues(version).Inc()
-			return false, nil
-		}
-		// run builder for the manifest
-		if err := b.Do(); err != nil {
+		// apply the object
+		if err := builder.Apply(st.manifest); err != nil {
 			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 			lastErr = err
 			metricPayloadErrors.WithLabelValues(version).Inc()
 			return false, nil
 		}
 		return true, nil
+
 	}); err != nil {
 		reason, cause := reasonForPayloadSyncError(lastErr)
 		if len(cause) > 0 {

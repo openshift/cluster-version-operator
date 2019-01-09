@@ -77,8 +77,9 @@ type Operator struct {
 	// which case no available updates will be returned.
 	releaseVersion string
 
-	// restConfig is used to create resourcebuilder.
 	restConfig *rest.Config
+	// resourceBuilder is exposed for testing and defaults to defaultResourceBuilder
+	resourceBuilder func(version string) ResourceBuilder
 
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
@@ -151,7 +152,9 @@ func New(
 			Steps:    3,
 		},
 
-		restConfig:    restConfig,
+		// resourceBuilder is the default implementation of how objects are applied to the server
+		restConfig: restConfig,
+
 		client:        client,
 		kubeClient:    kubeClient,
 		apiExtClient:  apiExtClient,
@@ -161,6 +164,7 @@ func New(
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
+	optr.resourceBuilder = optr.defaultResourceBuilder
 	optr.updatePayloadHandler = optr.syncUpdatePayload
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
