@@ -15,8 +15,7 @@ import (
 
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	informers "github.com/openshift/client-go/config/informers/externalversions"
-	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
-	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/library-go/pkg/controller/fileobserver"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -28,6 +27,9 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
+	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
 
 const (
@@ -100,6 +102,10 @@ func (o *Options) Run() error {
 	if err != nil {
 		return err
 	}
+	fobsrv, err := fileobserver.NewObserver(1 * time.Minute)
+	if err != nil {
+		return err
+	}
 	controllerCtx := o.NewControllerContext(cb)
 
 	// TODO: Kube 1.14 will contain a ReleaseOnCancel boolean on
@@ -108,19 +114,33 @@ func (o *Options) Run() error {
 	//   time we can remove our changes to OnStartedLeading.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ch := make(chan os.Signal, 1)
-	defer func() { signal.Stop(ch) }()
-	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+	sigCh := make(chan os.Signal, 1)
+	defer func() { signal.Stop(sigCh) }()
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+	fobsrvCh := make(chan string, 1)
+	defer close(fobsrvCh)
+	fobsrv.AddReactor(func(filename string, _ fileobserver.ActionType) error {
+		fobsrvCh <- filename
+		return nil
+	}, cb.ObservedFiles()...)
+	go fobsrv.Run(ctx.Done())
+
 	go func() {
-		sig := <-ch
-		glog.Infof("Shutting down due to %s", sig)
+		select {
+		case sig := <-sigCh:
+			glog.Infof("Shutting down due to %s", sig)
+		case fname := <-fobsrvCh:
+			glog.Infof("Shutting down due file %s changed", fname)
+		}
 		cancel()
 
 		// exit after 2s no matter what
 		select {
 		case <-time.After(2 * time.Second):
 			glog.Fatalf("Exiting")
-		case <-ch:
+		case <-sigCh:
 			glog.Fatalf("Received shutdown signal twice, exiting")
 		}
 	}()
@@ -225,6 +245,12 @@ func resyncPeriod(minResyncPeriod time.Duration) func() time.Duration {
 
 type ClientBuilder struct {
 	config *rest.Config
+
+	observedFiles []string
+}
+
+func (cb *ClientBuilder) ObservedFiles() []string {
+	return cb.observedFiles
 }
 
 func (cb *ClientBuilder) RestConfig() *rest.Config {
@@ -245,6 +271,13 @@ func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
 }
 
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
+	var observedFiles []string
+	if kubeconfig != "" {
+		observedFiles = append(observedFiles, kubeconfig)
+	} else {
+		observedFiles = append(observedFiles, "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt")
+		observedFiles = append(observedFiles, "/var/run/secrets/kubernetes.io/serviceaccount/token")
+	}
 	clientCfg := clientcmd.NewDefaultClientConfigLoadingRules()
 	clientCfg.ExplicitPath = kubeconfig
 
