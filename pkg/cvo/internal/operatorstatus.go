@@ -6,7 +6,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/golang/glog"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -68,15 +67,7 @@ func (b *clusterOperatorBuilder) Do() error {
 		b.modifier(os)
 	}
 
-	eos, err := b.client.ClusterOperators().Get(os.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return &resourcebuilder.RetryLaterError{Message: err.Error()}
-	}
-	if err != nil {
-		return err
-	}
-
-	return waitForOperatorStatusToBeDone(b.client, eos)
+	return waitForOperatorStatusToBeDone(b.client, os)
 }
 
 const (
