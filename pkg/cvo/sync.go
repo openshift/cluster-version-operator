@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
+
 	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -35,64 +36,39 @@ var requeueOnErrorCauseToCheck = map[string]func(error) bool{
 	RequeueOnErrorCauseNoMatch: meta.IsNoMatchError,
 }
 
-// loadUpdatePayload reads the payload from disk or remote, as necessary.
-func (optr *Operator) loadUpdatePayload(config *configv1.ClusterVersion) (*updatePayload, error) {
-	payloadDir, err := optr.updatePayloadDir(config)
+func (optr *Operator) defaultResourceBuilder() ResourceBuilder {
+	return &resourceBuilder{
+		config: optr.restConfig,
+	}
+}
+
+// resourceBuilder provides the default builder implementation for the operator.
+// It is abstracted for testing.
+type resourceBuilder struct {
+	config   *rest.Config
+	modifier resourcebuilder.MetaV1ObjectModifierFunc
+}
+
+func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
+	if resourcebuilder.Mapper.Exists(m.GVK) {
+		return resourcebuilder.New(resourcebuilder.Mapper, b.config, *m)
+	}
+	client, err := dynamicclient.New(b.config, m.GVK, m.Object().GetNamespace())
 	if err != nil {
 		return nil, err
 	}
-	releaseImage := optr.releaseImage
-	if config.Spec.DesiredUpdate != nil {
-		releaseImage = config.Spec.DesiredUpdate.Payload
-	}
-	return loadUpdatePayload(payloadDir, releaseImage)
+	return internal.NewGenericBuilder(client, *m)
 }
 
-// syncUpdatePayload applies the manifests in the payload to the cluster.
-func (optr *Operator) syncUpdatePayload(config *configv1.ClusterVersion, payload *updatePayload) error {
-	version := payload.ReleaseVersion
-	if len(version) == 0 {
-		version = payload.ReleaseImage
+func (b *resourceBuilder) Apply(m *lib.Manifest) error {
+	builder, err := b.BuilderFor(m)
+	if err != nil {
+		return err
 	}
-
-	total := len(payload.Manifests)
-	done := 0
-	var tasks []*syncTask
-	for i := range payload.Manifests {
-		tasks = append(tasks, &syncTask{
-			index:    i + 1,
-			total:    total,
-			manifest: &payload.Manifests[i],
-			backoff:  optr.syncBackoff,
-		})
+	if b.modifier != nil {
+		builder = builder.WithModifier(b.modifier)
 	}
-
-	for i := 0; i < len(tasks); i++ {
-		task := tasks[i]
-		setAppliedAndPending(version, total, done)
-		glog.V(4).Infof("Running sync for %s", task)
-		glog.V(6).Infof("Manifest: %s", string(task.manifest.Raw))
-
-		ov, ok := getOverrideForManifest(config.Spec.Overrides, task.manifest)
-		if ok && ov.Unmanaged {
-			glog.V(4).Infof("Skipping %s as unmanaged", task)
-			continue
-		}
-
-		if err := task.Run(version, optr.restConfig); err != nil {
-			cause := errors.Cause(err)
-			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
-				task.requeued++
-				tasks = append(tasks, task)
-				continue
-			}
-			return err
-		}
-		done++
-		glog.V(4).Infof("Done syncing for %s", task)
-	}
-	setAppliedAndPending(version, total, done)
-	return nil
+	return builder.Do()
 }
 
 type syncTask struct {
@@ -111,28 +87,17 @@ func (st *syncTask) String() string {
 	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(st.manifest.GVK.Kind), ns, st.manifest.Object().GetName(), st.manifest.GVK.GroupVersion().String(), st.index, st.total)
 }
 
-func (st *syncTask) Run(version string, rc *rest.Config) error {
+func (st *syncTask) Run(version string, builder ResourceBuilder) error {
 	var lastErr error
 	if err := wait.ExponentialBackoff(st.backoff, func() (bool, error) {
-		// build resource builder for manifest
-		var b resourcebuilder.Interface
-		var err error
-		if resourcebuilder.Mapper.Exists(st.manifest.GVK) {
-			b, err = resourcebuilder.New(resourcebuilder.Mapper, rc, *st.manifest)
-		} else {
-			b, err = internal.NewGenericBuilder(rc, *st.manifest)
-		}
-		if err != nil {
-			utilruntime.HandleError(errors.Wrapf(err, "error creating resourcebuilder for %s", st))
-			lastErr = err
-			metricPayloadErrors.WithLabelValues(version).Inc()
-			return false, nil
-		}
 		// run builder for the manifest
-		if err := b.Do(); err != nil {
+		if err := builder.Apply(st.manifest); err != nil {
 			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 			lastErr = err
 			metricPayloadErrors.WithLabelValues(version).Inc()
+			if !shouldRequeueApplyOnErr(err) {
+				return false, err
+			}
 			return false, nil
 		}
 		return true, nil
@@ -148,6 +113,13 @@ func (st *syncTask) Run(version string, rc *rest.Config) error {
 		}
 	}
 	return nil
+}
+
+func shouldRequeueApplyOnErr(err error) bool {
+	if apierrors.IsInvalid(err) {
+		return false
+	}
+	return true
 }
 
 func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {

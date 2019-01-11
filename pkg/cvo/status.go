@@ -4,18 +4,18 @@ import (
 	"bytes"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/util/validation/field"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	"github.com/golang/glog"
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
-func mergeEqualVersions(current *configv1.UpdateHistory, desired *configv1.Update) bool {
+func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
 	if len(desired.Payload) > 0 && desired.Payload == current.Payload {
 		if len(current.Version) == 0 || desired.Version == current.Version {
 			current.Version = desired.Version
@@ -31,11 +31,20 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired *configv1.Updat
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, current configv1.Update, now metav1.Time) {
+func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Update, now metav1.Time, completed bool) {
+	// if we have no payload, we cannot reproduce the update later and so it cannot be part of the history
+	if len(desired.Payload) == 0 {
+		// make the array empty
+		if config.Status.History == nil {
+			config.Status.History = []configv1.UpdateHistory{}
+		}
+		return
+	}
+
 	if len(config.Status.History) == 0 {
 		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
-			Version: current.Version,
-			Payload: current.Payload,
+			Version: desired.Version,
+			Payload: desired.Payload,
 
 			State:       configv1.PartialUpdate,
 			StartedTime: now,
@@ -43,10 +52,6 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, current configv1.Upda
 	}
 
 	last := &config.Status.History[0]
-	desired := config.Spec.DesiredUpdate
-	if desired == nil {
-		desired = &current
-	}
 
 	if !mergeEqualVersions(last, desired) {
 		last.CompletionTime = &now
@@ -66,15 +71,17 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, current configv1.Upda
 		config.Status.History = config.Status.History[:10]
 	}
 
-	switch {
-	case resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorAvailable):
+	if completed {
 		last.State = configv1.CompletedUpdate
 		if last.CompletionTime == nil {
 			last.CompletionTime = &now
 		}
 	}
+	if len(last.State) == 0 {
+		last.State = configv1.PartialUpdate
+	}
 
-	config.Status.Desired = *desired
+	config.Status.Desired = desired
 }
 
 // ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
@@ -82,52 +89,39 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, current configv1.Upda
 // condition is set.
 const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
-// syncInitialObjectStatus ensures that every known condition is either set or primed. errs is a list of
-// known validation errors for the cluster version.
-func (optr *Operator) syncInitialObjectStatus(original *configv1.ClusterVersion, errs field.ErrorList) (bool, error) {
-	config := original.DeepCopy()
+// syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
+// validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
+func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
+	glog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
+	// update the config with the latest available updates
 	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
 		config = updated
+	} else if original == nil || original == config {
+		original = config.DeepCopy()
+	}
+
+	config.Status.Generation = config.Generation
+	if len(status.VersionHash) > 0 {
+		config.Status.VersionHash = status.VersionHash
 	}
 
 	now := metav1.Now()
-	target := optr.desiredVersion(original)
-	current := optr.currentVersion()
+	version := versionString(status.Actual)
 
-	// ensure the initial state of all conditions is set
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorAvailable) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse, LastTransitionTime: now})
-	}
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorFailing) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
-	}
-	// We default towards progressing because we know we will at least need to sync
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorProgressing) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Message:            fmt.Sprintf("Initializing, will work towards %s", versionString(target)),
-			LastTransitionTime: now,
-		})
-	}
-	// other conditions
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.RetrievedUpdates) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, LastTransitionTime: now})
-	}
-
-	// update the invalid condition
-	if len(errs) > 0 {
+	// update validation errors
+	var reason string
+	if len(validationErrs) > 0 {
 		buf := &bytes.Buffer{}
-		if len(errs) == 1 {
-			fmt.Fprintf(buf, "The cluster version is invalid: %s", errs[0].Error())
+		if len(validationErrs) == 1 {
+			fmt.Fprintf(buf, "The cluster version is invalid: %s", validationErrs[0].Error())
 		} else {
 			fmt.Fprintf(buf, "The cluster version is invalid:\n")
-			for _, err := range errs {
+			for _, err := range validationErrs {
 				fmt.Fprintf(buf, "* %s\n", err.Error())
 			}
 		}
-		reason := "InvalidClusterVersion"
+		reason = "InvalidClusterVersion"
 
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               ClusterVersionInvalid,
@@ -136,227 +130,107 @@ func (optr *Operator) syncInitialObjectStatus(original *configv1.ClusterVersion,
 			Message:            buf.String(),
 			LastTransitionTime: now,
 		})
+	} else {
+		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
+	}
 
-		if !resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorFailing) {
+	// set the available condition
+	if status.Completed > 0 {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:    configv1.OperatorAvailable,
+			Status:  configv1.ConditionTrue,
+			Message: fmt.Sprintf("Done applying %s", version),
+
+			LastTransitionTime: now,
+		})
+	}
+	// default the available condition if not set
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorAvailable) == nil {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorAvailable,
+			Status:             configv1.ConditionFalse,
+			LastTransitionTime: now,
+		})
+	}
+
+	if err := status.Failure; err != nil {
+		var reason string
+		msg := "an error occurred"
+		if uErr, ok := err.(*updateError); ok {
+			reason = uErr.Reason
+			msg = summaryForReason(reason)
+		}
+
+		// set the failing condition
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorFailing,
+			Status:             configv1.ConditionTrue,
+			Reason:             reason,
+			Message:            err.Error(),
+			LastTransitionTime: now,
+		})
+
+		// update progressing
+		if status.Reconciling {
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionFalse,
 				Reason:             reason,
-				Message:            fmt.Sprintf("Stopped at %s: the cluster version is invalid", versionString(current)),
+				Message:            fmt.Sprintf("Error while reconciling %s: %s", version, msg),
+				LastTransitionTime: now,
+			})
+		} else {
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				Reason:             reason,
+				Message:            fmt.Sprintf("Unable to apply %s: %s", version, msg),
 				LastTransitionTime: now,
 			})
 		}
 
 	} else {
-		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
-	}
-
-	// ensure we record the initial state so the user can roll back
-	if len(config.Status.History) == 0 {
-		mergeOperatorHistory(config, current, now)
-	}
-	mergeOperatorHistory(config, target, now)
-
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return updated != nil && updated.ResourceVersion != original.ResourceVersion, err
-}
-
-func (optr *Operator) syncProgressingStatus(config *configv1.ClusterVersion, update configv1.Update) error {
-	original := config.DeepCopy()
-
-	config.Status.Generation = config.Generation
-
-	now := metav1.Now()
-
-	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse, LastTransitionTime: now})
-
-	// preserve the most recent failing condition
-	if resourcemerge.IsOperatorStatusConditionNotIn(config.Status.Conditions, configv1.OperatorFailing, configv1.ConditionTrue) {
+		// clear the failure condition
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
+
+		// update progressing
+		if status.Reconciling {
+			message := fmt.Sprintf("Cluster version is %s", version)
+			if len(validationErrs) > 0 {
+				message = fmt.Sprintf("Stopped at %s: the cluster version is invalid", version)
+			}
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionFalse,
+				Reason:             reason,
+				Message:            message,
+				LastTransitionTime: now,
+			})
+		} else {
+			message := fmt.Sprintf("Working towards %s", version)
+			if len(validationErrs) > 0 {
+				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
+			}
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				Reason:             reason,
+				Message:            message,
+				LastTransitionTime: now,
+			})
+		}
 	}
 
-	// set progressing with an accurate summary message
-	if c := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {
-		reason := c.Reason
-		msg := summaryForReason(reason)
+	// default retrieved updates if it is not set
+	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.RetrievedUpdates) == nil {
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Reason:             reason,
-			Message:            fmt.Sprintf("Unable to apply %s: %s", versionString(update), msg),
-			LastTransitionTime: now,
-		})
-	} else if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, ClusterVersionInvalid) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Message:            fmt.Sprintf("Reconciling %s: the cluster version is invalid", versionString(update)),
-			LastTransitionTime: now,
-		})
-	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Message:            fmt.Sprintf("Working towards %s", versionString(update)),
-			LastTransitionTime: now,
-		})
-	}
-
-	mergeOperatorHistory(config, update, now)
-
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return err
-}
-
-func (optr *Operator) syncAvailableStatus(config *configv1.ClusterVersion, current configv1.Update, versionHash string) error {
-	original := config.DeepCopy()
-
-	config.Status.VersionHash = versionHash
-	config.Status.Generation = config.Generation
-
-	now := metav1.Now()
-	version := optr.currentVersionString(config)
-
-	// set the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:    configv1.OperatorAvailable,
-		Status:  configv1.ConditionTrue,
-		Message: fmt.Sprintf("Done applying %s", version),
-
-		LastTransitionTime: now,
-	})
-
-	// clear the failure condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
-
-	// clear the progressing condition
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, ClusterVersionInvalid) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
+			Type:               configv1.RetrievedUpdates,
 			Status:             configv1.ConditionFalse,
-			Reason:             "InvalidClusterVersion",
-			Message:            fmt.Sprintf("Stopped at %s: the cluster version is invalid", versionString(current)),
-			LastTransitionTime: now,
-		})
-	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:    configv1.OperatorProgressing,
-			Status:  configv1.ConditionFalse,
-			Message: fmt.Sprintf("Cluster version is %s", version),
-
 			LastTransitionTime: now,
 		})
 	}
 
-	mergeOperatorHistory(config, current, now)
-
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return err
-}
-
-func (optr *Operator) syncPayloadFailingStatus(original *configv1.ClusterVersion, err error) error {
-	config := original.DeepCopy()
-
-	config.Status.Generation = config.Generation
-
-	now := metav1.Now()
-	var reason string
-	msg := "an error occurred"
-	if uErr, ok := err.(*updateError); ok {
-		reason = uErr.Reason
-		msg = summaryForReason(reason)
-	}
-
-	target := optr.desiredVersion(original)
-
-	// leave the available condition alone
-
-	// set the failing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:               configv1.OperatorFailing,
-		Status:             configv1.ConditionTrue,
-		Reason:             reason,
-		Message:            err.Error(),
-		LastTransitionTime: now,
-	})
-
-	// update the progressing condition message to indicate there is an error
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorProgressing) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Reason:             reason,
-			Message:            fmt.Sprintf("Unable to apply %s: %s", versionString(target), msg),
-			LastTransitionTime: now,
-		})
-	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionFalse,
-			Reason:             reason,
-			Message:            fmt.Sprintf("Error while reconciling %s: %s", versionString(target), msg),
-			LastTransitionTime: now,
-		})
-	}
-
-	mergeOperatorHistory(config, target, now)
-
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return err
-}
-
-func (optr *Operator) syncUpdateFailingStatus(original *configv1.ClusterVersion, err error) error {
-	config := original.DeepCopy()
-
-	config.Status.Generation = config.Generation
-
-	now := metav1.Now()
-	var reason string
-	msg := "an error occurred"
-	if uErr, ok := err.(*updateError); ok {
-		reason = uErr.Reason
-		msg = summaryForReason(reason)
-	}
-
-	target := optr.desiredVersion(original)
-
-	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse, LastTransitionTime: now})
-
-	// set the failing condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:               configv1.OperatorFailing,
-		Status:             configv1.ConditionTrue,
-		Reason:             reason,
-		Message:            err.Error(),
-		LastTransitionTime: now,
-	})
-
-	// update the progressing condition message to indicate there is an error
-	if resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorProgressing) {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionTrue,
-			Reason:             reason,
-			Message:            fmt.Sprintf("Unable to apply %s: %s", versionString(target), msg),
-			LastTransitionTime: now,
-		})
-	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorProgressing,
-			Status:             configv1.ConditionFalse,
-			Reason:             reason,
-			Message:            fmt.Sprintf("Error while reconciling %s: %s", versionString(target), msg),
-			LastTransitionTime: now,
-		})
-	}
-
-	mergeOperatorHistory(config, target, now)
+	mergeOperatorHistory(config, status.Actual, now, status.Completed > 0)
 
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
@@ -413,7 +287,7 @@ func (optr *Operator) syncFailingStatus(config *configv1.ClusterVersion, ierr er
 		LastTransitionTime: now,
 	})
 
-	mergeOperatorHistory(config, optr.currentVersion(), now)
+	mergeOperatorHistory(config, optr.currentVersion(), now, false)
 
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)

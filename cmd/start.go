@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -16,12 +17,10 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	apiextinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -47,6 +46,11 @@ var (
 	}
 
 	startOpts struct {
+		// name is provided for testing only to allow multiple CVO's to be running at once
+		name string
+		// namespace is provided for testing only
+		namespace string
+
 		kubeconfig string
 		nodeName   string
 		listenAddr string
@@ -78,6 +82,16 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		startOpts.nodeName = name
 	}
 
+	// exposed for end-to-end testing only
+	startOpts.name = os.Getenv("CVO_NAME")
+	if len(startOpts.name) == 0 {
+		startOpts.name = componentName
+	}
+	startOpts.namespace = os.Getenv("CVO_NAMESPACE")
+	if len(startOpts.name) == 0 {
+		startOpts.namespace = componentNamespace
+	}
+
 	if rootOpts.releaseImage == "" {
 		glog.Fatalf("missing --release-image flag, it is required")
 	}
@@ -99,14 +113,13 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	stopCh := make(chan struct{})
 	run := func(stop <-chan struct{}) {
 
-		ctx := createControllerContext(cb, stopCh)
+		ctx := createControllerContext(cb, startOpts.name, stopCh)
 		if err := startControllers(ctx); err != nil {
 			glog.Fatalf("error starting controllers: %v", err)
 		}
 
+		ctx.CVInformerFactory.Start(ctx.Stop)
 		ctx.InformerFactory.Start(ctx.Stop)
-		ctx.KubeInformerFactory.Start(ctx.Stop)
-		ctx.APIExtInformerFactory.Start(ctx.Stop)
 		close(ctx.InformersStarted)
 
 		select {}
@@ -209,9 +222,8 @@ func newClientBuilder(kubeconfig string) (*clientBuilder, error) {
 type controllerContext struct {
 	ClientBuilder *clientBuilder
 
-	InformerFactory       informers.SharedInformerFactory
-	KubeInformerFactory   kubeinformers.SharedInformerFactory
-	APIExtInformerFactory apiextinformers.SharedInformerFactory
+	CVInformerFactory informers.SharedInformerFactory
+	InformerFactory   informers.SharedInformerFactory
 
 	Stop <-chan struct{}
 
@@ -220,23 +232,21 @@ type controllerContext struct {
 	ResyncPeriod func() time.Duration
 }
 
-func createControllerContext(cb *clientBuilder, stop <-chan struct{}) *controllerContext {
+func createControllerContext(cb *clientBuilder, name string, stop <-chan struct{}) *controllerContext {
 	client := cb.ClientOrDie("shared-informer")
-	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
-	apiExtClient := cb.APIExtClientOrDie("apiext-shared-informer")
 
+	cvInformer := informers.NewFilteredSharedInformerFactory(client, resyncPeriod()(), "", func(opts *metav1.ListOptions) {
+		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", name)
+	})
 	sharedInformers := informers.NewSharedInformerFactory(client, resyncPeriod()())
-	kubeSharedInformer := kubeinformers.NewSharedInformerFactory(kubeClient, resyncPeriod()())
-	apiExtSharedInformer := apiextinformers.NewSharedInformerFactory(apiExtClient, resyncPeriod()())
 
 	return &controllerContext{
-		ClientBuilder:         cb,
-		InformerFactory:       sharedInformers,
-		KubeInformerFactory:   kubeSharedInformer,
-		APIExtInformerFactory: apiExtSharedInformer,
-		Stop:                  stop,
-		InformersStarted:      make(chan struct{}),
-		ResyncPeriod:          resyncPeriod(),
+		ClientBuilder:     cb,
+		CVInformerFactory: cvInformer,
+		InformerFactory:   sharedInformers,
+		Stop:              stop,
+		InformersStarted:  make(chan struct{}),
+		ResyncPeriod:      resyncPeriod(),
 	}
 }
 
@@ -248,22 +258,23 @@ func startControllers(ctx *controllerContext) error {
 
 	go cvo.New(
 		startOpts.nodeName,
-		componentNamespace, componentName,
+		startOpts.namespace, startOpts.name,
 		rootOpts.releaseImage,
 		overrideDirectory,
 		ctx.ResyncPeriod(),
-		ctx.InformerFactory.Config().V1().ClusterVersions(),
+		ctx.CVInformerFactory.Config().V1().ClusterVersions(),
 		ctx.InformerFactory.Config().V1().ClusterOperators(),
 		ctx.ClientBuilder.RestConfig(),
 		ctx.ClientBuilder.ClientOrDie(componentName),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.APIExtClientOrDie(componentName),
+		true,
 	).Run(2, ctx.Stop)
 
 	if startOpts.enableAutoUpdate {
 		go autoupdate.New(
 			componentNamespace, componentName,
-			ctx.InformerFactory.Config().V1().ClusterVersions(),
+			ctx.CVInformerFactory.Config().V1().ClusterVersions(),
 			ctx.InformerFactory.Config().V1().ClusterOperators(),
 			ctx.ClientBuilder.ClientOrDie(componentName),
 			ctx.ClientBuilder.KubeClientOrDie(componentName),
