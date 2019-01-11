@@ -11,7 +11,7 @@ cluster_version{payload="test/image:1",type="current",version="4.0.2"} 1
 cluster_version{payload="test/image:1",type="failure",version="4.0.2"} 1
 # HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
 # TYPE cluster_version_available_updates gauge
-cluster_version_available_updates{channel="fast",upstream="http://localhost:8080/graph"} 0
+cluster_version_available_updates{channel="fast",upstream="https://api.openshift.com/api/upgrades_info/v1/graph"} 0
 ```
 
 Metrics about cluster operators:
