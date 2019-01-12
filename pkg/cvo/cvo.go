@@ -144,7 +144,7 @@ func New(
 
 		minimumUpdateCheckInterval: minimumInterval,
 		payloadDir:                 overridePayloadDir,
-		defaultUpstreamServer:      "http://localhost:8080/graph",
+		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
 		syncBackoff: wait.Backoff{
 			Duration: time.Second * 10,
 			Factor:   1.3,
