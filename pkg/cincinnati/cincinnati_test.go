@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -123,7 +124,7 @@ func TestGetUpdates(t *testing.T) {
 
 			c := NewClient(clientID)
 
-			updates, err := c.GetUpdates(ts.URL, channelName, semver.MustParse(test.version))
+			updates, err := c.GetUpdates(context.TODO(), ts.URL, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)

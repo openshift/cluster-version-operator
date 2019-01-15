@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -38,7 +39,7 @@ type Update node
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(upstream string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(ctx context.Context, upstream string, channel string, version semver.Version) ([]Update, error) {
 	// Prepare parametrized cincinnati query.
 	cincinnatiURL, err := url.Parse(upstream)
 	if err != nil {
@@ -58,7 +59,7 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 	req.Header.Add("Accept", GraphMediaType)
 
 	client := http.Client{}
-	resp, err := client.Do(req)
+	resp, err := client.Do(req.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}

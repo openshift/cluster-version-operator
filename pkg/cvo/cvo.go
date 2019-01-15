@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -361,8 +362,8 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
 		return nil
 	}
-
-	return optr.syncAvailableUpdates(config)
+	ctx := context.TODO()
+	return optr.syncAvailableUpdates(ctx, config)
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than

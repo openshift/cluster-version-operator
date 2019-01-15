@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -20,7 +21,7 @@ import (
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1.ClusterVersion) error {
 	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
@@ -36,7 +37,7 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return nil
 	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), upstream, channel, optr.releaseVersion)
+	updates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), upstream, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -103,7 +104,7 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
@@ -127,7 +128,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 		}
 	}
 
-	updates, err := checkForUpdate(clusterID, upstream, channel, currentVersion)
+	updates, err := checkForUpdate(ctx, clusterID, upstream, channel, currentVersion)
 	if err != nil {
 		glog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
@@ -152,7 +153,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 	}
 }
 
-func checkForUpdate(clusterID, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
+func checkForUpdate(ctx context.Context, clusterID, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return nil, err
@@ -160,5 +161,5 @@ func checkForUpdate(clusterID, upstream, channel string, currentVersion semver.V
 	if len(upstream) == 0 {
 		return nil, fmt.Errorf("no upstream URL set for cluster version")
 	}
-	return cincinnati.NewClient(uuid).GetUpdates(upstream, channel, currentVersion)
+	return cincinnati.NewClient(uuid).GetUpdates(ctx, upstream, channel, currentVersion)
 }
