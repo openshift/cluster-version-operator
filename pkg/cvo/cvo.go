@@ -326,19 +326,19 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	optr.queue.Add(optr.queueKey())
 
 	// start the config sync loop, and have it notify the queue when new status is detected
-	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
+	go runThrottledStatusNotifier(ctx, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
 	go optr.configSync.Start(ctx, 16, optr.name, optr.cvLister)
-	go wait.Until(func() { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
-	go wait.Until(func() { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
-	go wait.Until(func() {
+	go wait.UntilWithContext(ctx, func(ctx context.Context) { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second)
+	go wait.UntilWithContext(ctx, func(ctx context.Context) { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second)
+	go wait.UntilWithContext(ctx, func(ctx context.Context) {
 		defer close(workerStopCh)
 
 		// run the worker, then when the queue is closed sync one final time to flush any pending status
-		optr.worker(ctx, optr.queue, func(key string) error { return optr.sync(ctx, key) })
+		optr.worker(ctx, optr.queue, func(ctx context.Context, key string) error { return optr.sync(ctx, key) })
 		if err := optr.sync(ctx, optr.queueKey()); err != nil {
 			utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 		}
-	}, time.Second, stopCh)
+	}, time.Second)
 	if optr.signatureStore != nil {
 		go optr.signatureStore.Run(ctx, optr.minimumUpdateCheckInterval*2)
 	}
@@ -375,21 +375,21 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	}
 }
 
-func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(string) error) {
+func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error) {
 	for processNextWorkItem(ctx, queue, syncHandler, optr.syncFailingStatus) {
 	}
 }
 
 type syncFailingStatusFunc func(ctx context.Context, config *configv1.ClusterVersion, err error) error
 
-func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncFailingStatus syncFailingStatusFunc) bool {
+func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error, syncFailingStatus syncFailingStatusFunc) bool {
 	key, quit := queue.Get()
 	if quit {
 		return false
 	}
 	defer queue.Done(key)
 
-	err := syncHandler(key.(string))
+	err := syncHandler(ctx, key.(string))
 	handleErr(ctx, queue, err, key, syncFailingStatus)
 	return true
 }
@@ -486,7 +486,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 // availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
 // sync available updates. It only modifies cluster version.
-func (optr *Operator) availableUpdatesSync(key string) error {
+func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing available updates %q (%v)", key, startTime)
 	defer func() {
@@ -503,13 +503,12 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
 		return nil
 	}
-
-	return optr.syncAvailableUpdates(config)
+	return optr.syncAvailableUpdates(ctx, config)
 }
 
 // upgradeableSync is triggered on cluster version change (and periodic requeues) to
 // sync upgradeableCondition. It only modifies cluster version.
-func (optr *Operator) upgradeableSync(key string) error {
+func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing upgradeable %q (%v)", key, startTime)
 	defer func() {

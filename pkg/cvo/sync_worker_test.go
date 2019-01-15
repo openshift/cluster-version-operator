@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -146,12 +147,11 @@ func Test_statusWrapper_ReportGeneration(t *testing.T) {
 	}
 }
 func Test_runThrottledStatusNotifier(t *testing.T) {
-	stopCh := make(chan struct{})
-	defer close(stopCh)
 	in := make(chan SyncWorkerStatus)
 	out := make(chan struct{}, 100)
 
-	go runThrottledStatusNotifier(stopCh, 30*time.Second, 1, in, func() { out <- struct{}{} })
+	ctx := context.Background()
+	go runThrottledStatusNotifier(ctx, 30*time.Second, 1, in, func() { out <- struct{}{} })
 
 	in <- SyncWorkerStatus{Actual: configv1.Update{Image: "test"}}
 	select {

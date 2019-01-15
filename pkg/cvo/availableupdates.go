@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net/url"
@@ -23,7 +24,7 @@ const noChannel string = "NoChannel"
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1.ClusterVersion) error {
 	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
@@ -45,7 +46,7 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return err
 	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
+	updates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -139,7 +140,7 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
@@ -193,7 +194,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
-	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstreamURI, arch, channel, currentVersion)
+	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {

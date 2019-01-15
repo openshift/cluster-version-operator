@@ -988,21 +988,20 @@ func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1Obj
 
 // runThrottledStatusNotifier invokes fn every time ch is updated, but no more often than once
 // every interval. If bucket is non-zero then the channel is throttled like a rate limiter bucket.
-func runThrottledStatusNotifier(stopCh <-chan struct{}, interval time.Duration, bucket int, ch <-chan SyncWorkerStatus, fn func()) {
+func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, bucket int, ch <-chan SyncWorkerStatus, fn func()) {
 	// notify the status change function fairly infrequently to avoid updating
 	// the caller status more frequently than is needed
 	throttle := rate.NewLimiter(rate.Every(interval), bucket)
-	wait.Until(func() {
-		ctx := context.Background()
+	wait.UntilWithContext(ctx, func(ctx context.Context) {
 		var last SyncWorkerStatus
 		for {
 			select {
-			case <-stopCh:
+			case <-ctx.Done():
 				return
 			case next := <-ch:
 				// only throttle if we aren't on an edge
 				if next.Generation == last.Generation && next.Actual == last.Actual && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
-					if err := throttle.Wait(ctx); err != nil {
+					if err := throttle.Wait(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 						utilruntime.HandleError(fmt.Errorf("unable to throttle status notification: %v", err))
 					}
 				}
@@ -1011,5 +1010,5 @@ func runThrottledStatusNotifier(stopCh <-chan struct{}, interval time.Duration, 
 				fn()
 			}
 		}
-	}, 1*time.Second, stopCh)
+	}, 1*time.Second)
 }

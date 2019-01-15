@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -132,7 +133,7 @@ func TestGetUpdates(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			updates, err := c.GetUpdates(uri, arch, channelName, semver.MustParse(test.version))
+			updates, err := c.GetUpdates(context.Background(), uri, arch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)
