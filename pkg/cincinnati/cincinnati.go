@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/blang/semver"
 	"github.com/google/uuid"
@@ -38,8 +39,19 @@ type Update node
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
 func (c Client) GetUpdates(upstream string, channel string, version semver.Version) ([]Update, error) {
+	// Prepare parametrized cincinnati query.
+	cincinnatiURL, err := url.Parse(upstream)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse upstream URL: %s", err)
+	}
+	queryParams := cincinnatiURL.Query()
+	queryParams.Add("channel", channel)
+	queryParams.Add("id", c.id.String())
+	queryParams.Add("version", version.String())
+	cincinnatiURL.RawQuery = queryParams.Encode()
+
 	// Download the update graph.
-	req, err := http.NewRequest("GET", upstream, nil)
+	req, err := http.NewRequest("GET", cincinnatiURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
