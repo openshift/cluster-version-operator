@@ -98,7 +98,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	defer close(stopCh)
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
-	go worker.Start(stopCh)
+	go worker.Start(1, stopCh)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -385,7 +385,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
 	//
-	go worker.Start(stopCh)
+	go worker.Start(1, stopCh)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -538,7 +538,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 
 	// Step 2: Start the sync worker and verify the sequence of events
 	//
-	go worker.Start(stopCh)
+	go worker.Start(1, stopCh)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
