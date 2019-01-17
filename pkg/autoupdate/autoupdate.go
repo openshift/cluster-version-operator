@@ -8,7 +8,7 @@ import (
 	"github.com/blang/semver"
 
 	"github.com/golang/glog"
-	"github.com/openshift/api/config/v1"
+	v1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
@@ -65,7 +65,7 @@ func New(
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
 
 	ctrl := &Controller{
 		namespace:     namespace,

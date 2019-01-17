@@ -36,17 +36,16 @@ var requeueOnErrorCauseToCheck = map[string]func(error) bool{
 	RequeueOnErrorCauseNoMatch: meta.IsNoMatchError,
 }
 
-func (optr *Operator) defaultResourceBuilder() ResourceBuilder {
-	return &resourceBuilder{
-		config: optr.restConfig,
-	}
-}
-
 // resourceBuilder provides the default builder implementation for the operator.
 // It is abstracted for testing.
 type resourceBuilder struct {
 	config   *rest.Config
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
+}
+
+// NewResourceBuilder creates the default resource builder implementation.
+func NewResourceBuilder(config *rest.Config) ResourceBuilder {
+	return &resourceBuilder{config: config}
 }
 
 func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
