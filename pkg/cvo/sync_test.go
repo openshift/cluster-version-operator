@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+
 	"github.com/davecgh/go-spew/spew"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,179 +27,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
-
-func TestHasRequeueOnErrorAnnotation(t *testing.T) {
-	tests := []struct {
-		annos map[string]string
-
-		exp     bool
-		experrs []string
-	}{{
-		annos:   nil,
-		exp:     false,
-		experrs: nil,
-	}, {
-		annos:   map[string]string{"dummy": "dummy"},
-		exp:     false,
-		experrs: nil,
-	}, {
-		annos:   map[string]string{requeueOnErrorAnnotationKey: "NoMatch"},
-		exp:     true,
-		experrs: []string{"NoMatch"},
-	}, {
-		annos:   map[string]string{requeueOnErrorAnnotationKey: "NoMatch,NotFound"},
-		exp:     true,
-		experrs: []string{"NoMatch", "NotFound"},
-	}}
-	for idx, test := range tests {
-		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			got, goterrs := hasRequeueOnErrorAnnotation(test.annos)
-			if got != test.exp {
-				t.Fatalf("expected %v got %v", test.exp, got)
-			}
-			if !reflect.DeepEqual(goterrs, test.experrs) {
-				t.Fatalf("expected %v got %v", test.exp, got)
-			}
-		})
-	}
-}
-
-func TestShouldRequeueOnErr(t *testing.T) {
-	tests := []struct {
-		err      error
-		manifest string
-		exp      bool
-	}{{
-		err: nil,
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap"
-		}`,
-
-		exp: false,
-	}, {
-		err: fmt.Errorf("random error"),
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap"
-		}`,
-
-		exp: false,
-	}, {
-		err: &meta.NoResourceMatchError{},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap"
-		}`,
-
-		exp: false,
-	}, {
-		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap"
-		}`,
-
-		exp: false,
-	}, {
-		err: &meta.NoResourceMatchError{},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-				}
-			}
-		}`,
-
-		exp: true,
-	}, {
-		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-				}
-			}
-		}`,
-
-		exp: true,
-	}, {
-		err: &meta.NoResourceMatchError{},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NotFound"
-				}
-			}
-		}`,
-
-		exp: false,
-	}, {
-		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NotFound"
-				}
-			}
-		}`,
-
-		exp: false,
-	}, {
-		err: apierrors.NewInternalError(fmt.Errorf("dummy")),
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-				}
-			}
-		}`,
-
-		exp: false,
-	}, {
-		err: &payload.UpdateError{Nested: apierrors.NewInternalError(fmt.Errorf("dummy"))},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap",
-			"metadata": {
-				"annotations": {
-					"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-				}
-			}
-		}`,
-
-		exp: false,
-	}, {
-		err: &payload.UpdateError{Nested: &resourcebuilder.RetryLaterError{}},
-		manifest: `{
-			"apiVersion": "v1",
-			"kind": "ConfigMap"
-		}`,
-
-		exp: true,
-	}}
-	for idx, test := range tests {
-		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			var manifest lib.Manifest
-			if err := json.Unmarshal([]byte(test.manifest), &manifest); err != nil {
-				t.Fatal(err)
-			}
-			if got := shouldRequeueOnErr(test.err, &manifest); got != test.exp {
-				t.Fatalf("expected %v got %v", test.exp, got)
-			}
-		})
-	}
-}
 
 func Test_SyncWorker_apply(t *testing.T) {
 	tests := []struct {
@@ -274,94 +101,6 @@ func Test_SyncWorker_apply(t *testing.T) {
 				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
 			}
 		},
-	}, {
-		manifests: []string{
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestA",
-				"metadata": {
-					"namespace": "default",
-					"name": "testa",
-					"annotations": {
-						"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-					}
-				}
-			}`,
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestB",
-				"metadata": {
-					"namespace": "default",
-					"name": "testb"
-				}
-			}`,
-		},
-		reactors: map[action]error{
-			newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
-		},
-		wantErr: true,
-		check: func(t *testing.T, actions []action) {
-			if len(actions) != 7 {
-				spew.Dump(actions)
-				t.Fatalf("unexpected %d actions", len(actions))
-			}
-
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-			if got, exp := actions[3], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-			if got, exp := actions[4], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-		},
-	}, {
-		manifests: []string{
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestA",
-				"metadata": {
-					"namespace": "default",
-					"name": "testa",
-					"annotations": {
-						"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-					}
-				}
-			}`,
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestB",
-				"metadata": {
-					"namespace": "default",
-					"name": "testb",
-					"annotations": {
-						"v1.cluster-version-operator.operators.openshift.io/requeue-on-error": "NoMatch"
-					}
-				}
-			}`,
-		},
-		reactors: map[action]error{
-			newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
-			newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb"): &meta.NoResourceMatchError{},
-		},
-		wantErr: true,
-		check: func(t *testing.T, actions []action) {
-			if len(actions) != 9 {
-				spew.Dump(actions)
-				t.Fatalf("unexpected %d actions", len(actions))
-			}
-
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-			if got, exp := actions[3], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-			if got, exp := actions[6], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
-			}
-		},
 	}}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
@@ -385,7 +124,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			worker.backoff.Steps = 3
 			worker.builder = NewResourceBuilder(nil)
 			ctx := context.Background()
-			worker.apply(ctx, up, &SyncWork{}, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			test.check(t, r.actions)
 		})
 	}
@@ -549,7 +288,7 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 				modifiers: test.modifiers,
 			}
 			ctx := context.Background()
-			err := worker.apply(ctx, up, &SyncWork{}, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -613,7 +352,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 	return ch
 }
 
-func (r *fakeSyncRecorder) Start(stopCh <-chan struct{}) {}
+func (r *fakeSyncRecorder) Start(maxWorkers int, stopCh <-chan struct{}) {}
 
 func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)

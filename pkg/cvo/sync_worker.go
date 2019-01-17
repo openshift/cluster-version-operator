@@ -4,16 +4,13 @@ import (
 	"context"
 	"fmt"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -27,7 +24,7 @@ import (
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
-	Start(stopCh <-chan struct{})
+	Start(maxWorkers int, stopCh <-chan struct{})
 	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
@@ -199,7 +196,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
-func (w *SyncWorker) Start(stopCh <-chan struct{}) {
+func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 	glog.V(5).Infof("Starting sync worker")
 
 	work := &SyncWork{}
@@ -248,7 +245,7 @@ func (w *SyncWorker) Start(stopCh <-chan struct{}) {
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
 				glog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
-				return w.syncOnce(ctx, work, reporter)
+				return w.syncOnce(ctx, work, maxWorkers, reporter)
 			}()
 			if err != nil {
 				// backoff wait
@@ -384,7 +381,7 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // sync retrieves the image and applies it to the server, returning an error if
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
+func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	glog.V(4).Infof("Running sync %s on generation %d", versionString(work.Desired), work.Generation)
 	update := work.Desired
 
@@ -407,21 +404,34 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, reporter Stat
 		glog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
 
-	return w.apply(ctx, w.payload, work, reporter)
+	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
 }
 
 // apply updates the server with the contents of the provided image or returns an error.
-// Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, reporter StatusReporter) error {
+// Cancelling the context will abort the execution of the sync. Will be executed in parallel if
+// maxWorkers is set greater than 1.
+func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	update := configv1.Update{
 		Version: payloadUpdate.ReleaseVersion,
 		Image:   payloadUpdate.ReleaseImage,
 	}
 
-	// update each object
+	// encapsulate status reporting in a threadsafe updater
 	version := payloadUpdate.ReleaseVersion
 	total := len(payloadUpdate.Manifests)
-	done := 0
+	cr := &consistentReporter{
+		status: SyncWorkerStatus{
+			Generation:  work.Generation,
+			Reconciling: work.Reconciling,
+			VersionHash: payloadUpdate.ManifestHash,
+			Actual:      update,
+		},
+		completed: work.Completed,
+		version:   version,
+		total:     total,
+		reporter:  reporter,
+	}
+
 	var tasks []*payload.Task
 	for i := range payloadUpdate.Manifests {
 		tasks = append(tasks, &payload.Task{
@@ -431,47 +441,42 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			Backoff:  w.backoff,
 		})
 	}
+	graph := payload.NewTaskGraph(tasks)
+	graph.Split(payload.SplitOnJobs)
+	graph.Parallelize(payload.ByNumberAndComponent)
 
-	for i := 0; i < len(tasks); i++ {
-		task := tasks[i]
-		setAppliedAndPending(version, total, done)
-		fraction := float32(i) / float32(len(tasks))
+	// update each object
+	err := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
+		for _, task := range tasks {
+			if contextIsCancelled(ctx) {
+				return cr.CancelError()
+			}
+			cr.Update()
 
-		reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+			glog.V(4).Infof("Running sync for %s", task)
+			glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
-		glog.V(4).Infof("Running sync for %s", task)
-		glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
-
-		if contextIsCancelled(ctx) {
-			err := fmt.Errorf("update was cancelled at %d/%d", i, len(tasks))
-			reporter.Report(SyncWorkerStatus{Generation: work.Generation, Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
-			return err
-		}
-
-		ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
-		if ok && ov.Unmanaged {
-			glog.V(4).Infof("Skipping %s as unmanaged", task)
-			continue
-		}
-
-		if err := task.Run(version, w.builder); err != nil {
-			reporter.Report(SyncWorkerStatus{Generation: work.Generation, Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
-			cause := errors.Cause(err)
-			if task.Requeued == 0 && shouldRequeueOnErr(cause, task.Manifest) {
-				task.Requeued++
-				tasks = append(tasks, task)
+			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
+			if ok && ov.Unmanaged {
+				glog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
 			}
-			return err
+
+			if err := task.Run(version, w.builder); err != nil {
+				return err
+			}
+			cr.Inc()
+			glog.V(4).Infof("Done syncing for %s", task)
 		}
-		done++
-		glog.V(4).Infof("Done syncing for %s", task)
+		return nil
+	})
+	if err != nil {
+		cr.Error(err)
+		return err
 	}
 
-	setAppliedAndPending(version, total, done)
 	work.Completed++
-	reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
-
+	cr.Complete()
 	return nil
 }
 
@@ -488,59 +493,61 @@ func init() {
 	)
 }
 
-func setAppliedAndPending(version string, total, done int) {
-	metricPayload.WithLabelValues(version, "pending").Set(float64(total - done))
-	metricPayload.WithLabelValues(version, "applied").Set(float64(done))
+// consistentReporter hides the details of calculating the status based on the progress
+// of the graph runner.
+type consistentReporter struct {
+	lock      sync.Mutex
+	status    SyncWorkerStatus
+	version   string
+	completed int
+	total     int
+	done      int
+	reporter  StatusReporter
 }
 
-// This is used to map the know causes to their check.
-var requeueOnErrorCauseToCheck = map[string]func(error) bool{
-	requeueOnErrorCauseNoMatch: meta.IsNoMatchError,
+func (r *consistentReporter) Inc() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.done++
 }
 
-func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
-	cause := errors.Cause(err)
-	if _, ok := cause.(*resourcebuilder.RetryLaterError); ok {
-		return true
-	}
-
-	ok, errs := hasRequeueOnErrorAnnotation(manifest.Object().GetAnnotations())
-	if !ok {
-		return false
-	}
-	should := false
-	for _, e := range errs {
-		if ef, ok := requeueOnErrorCauseToCheck[e]; ok {
-			if ef(cause) {
-				should = true
-				break
-			}
-		}
-	}
-
-	return should
+func (r *consistentReporter) Update() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
+	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
+	copied := r.status
+	copied.Step = "ApplyResources"
+	copied.Fraction = float32(r.done) / float32(r.total)
+	r.reporter.Report(copied)
 }
 
-const (
-	// RequeueOnErrorAnnotationKey is key for annotation on a manifests object that instructs CVO to requeue on specific errors.
-	// The value is comma separated list of causes that forces requeue.
-	requeueOnErrorAnnotationKey = "v1.cluster-version-operator.operators.openshift.io/requeue-on-error"
+func (r *consistentReporter) Error(err error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	copied := r.status
+	copied.Step = "ApplyResources"
+	copied.Fraction = float32(r.done) / float32(r.total)
+	copied.Failure = err
+	r.reporter.Report(copied)
+}
 
-	// RequeueOnErrorCauseNoMatch is used when no match is found for object in api.
-	// This maps to https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoKindMatchError and https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoResourceMatchError .
-	// https://godoc.org/k8s.io/apimachinery/pkg/api/meta#IsNoMatchError is used as a check.
-	requeueOnErrorCauseNoMatch = "NoMatch"
-)
+func (r *consistentReporter) CancelError() error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return fmt.Errorf("update was cancelled at %d/%d", r.done, r.total)
+}
 
-func hasRequeueOnErrorAnnotation(annos map[string]string) (bool, []string) {
-	if annos == nil {
-		return false, nil
-	}
-	errs, ok := annos[requeueOnErrorAnnotationKey]
-	if !ok {
-		return false, nil
-	}
-	return ok, strings.Split(errs, ",")
+func (r *consistentReporter) Complete() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total))
+	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.total))
+	copied := r.status
+	copied.Completed = r.completed + 1
+	copied.Reconciling = true
+	copied.Fraction = 1
+	r.reporter.Report(copied)
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
