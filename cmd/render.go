@@ -18,13 +18,15 @@ var (
 	}
 
 	renderOpts struct {
-		outputDir string
+		releaseImage string
+		outputDir    string
 	}
 )
 
 func init() {
 	rootCmd.AddCommand(renderCmd)
 	renderCmd.PersistentFlags().StringVar(&renderOpts.outputDir, "output-dir", "", "The output directory where the manifests will be rendered.")
+	renderCmd.PersistentFlags().StringVar(&renderOpts.releaseImage, "release-image", "", "The Openshift release image url.")
 }
 
 func runRenderCmd(cmd *cobra.Command, args []string) {
@@ -34,10 +36,10 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.outputDir == "" {
 		glog.Fatalf("missing --output-dir flag, it is required")
 	}
-	if rootOpts.releaseImage == "" {
+	if renderOpts.releaseImage == "" {
 		glog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := cvo.Render(renderOpts.outputDir, rootOpts.releaseImage); err != nil {
+	if err := cvo.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
 		glog.Fatalf("Render command failed: %v", err)
 	}
 }

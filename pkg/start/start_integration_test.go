@@ -1,31 +1,32 @@
-package cvo
+package start
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/openshift/cluster-version-operator/pkg/cvo"
+
 	"k8s.io/apimachinery/pkg/util/diff"
 
 	v1 "k8s.io/api/core/v1"
-	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	informers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
@@ -171,15 +172,14 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 	t.Parallel()
 
-	kcfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{})
-	cfg, err := kcfg.ClientConfig()
+	// use the same client setup as the start command
+	cb, err := newClientBuilder("")
 	if err != nil {
-		t.Fatalf("cannot load config: %v", err)
+		t.Fatal(err)
 	}
-
-	kc := kubernetes.NewForConfigOrDie(cfg)
-	client := clientset.NewForConfigOrDie(cfg)
-	apiExtClient := apiext.NewForConfigOrDie(cfg)
+	cfg := cb.RestConfig()
+	kc := cb.KubeClientOrDie("integration-test")
+	client := cb.ClientOrDie("integration-test")
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
@@ -199,11 +199,6 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		}
 	}()
 
-	cvInformer := informers.NewFilteredSharedInformerFactory(client, 1*time.Minute, "", func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", ns)
-	})
-	sharedInformers := informers.NewSharedInformerFactory(client, 1*time.Minute)
-
 	dir, err := ioutil.TempDir("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
@@ -222,25 +217,23 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		payloadImage2: filepath.Join(dir, "0.0.2"),
 	}}
 
-	optr := New(
-		"", ns, ns, payloadImage1,
-		filepath.Join(dir, "ignored"),
-		5*time.Second,
-		cvInformer.Config().V1().ClusterVersions(),
-		sharedInformers.Config().V1().ClusterOperators(),
-		cfg,
-		client, kc, apiExtClient,
-		false,
-	)
+	options := NewOptions()
+	options.Namespace = ns
+	options.Name = ns
+	options.ListenAddr = ""
+	options.NodeName = "test-node"
+	options.ReleaseImage = payloadImage1
+	options.PayloadOverride = filepath.Join(dir, "ignored")
+	options.EnableMetrics = false
+	options.ResyncInterval = 5 * time.Second
+	controllers := options.NewControllerContext(cb)
 
-	worker := optr.configSync.(*SyncWorker)
-	worker.retriever = retriever
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
-	go cvInformer.Start(stopCh)
-	go sharedInformers.Start(stopCh)
-	go optr.Run(1, stopCh)
+	controllers.Start(stopCh)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForAvailableUpdate(t, client, ns, false, "0.0.1")
@@ -249,7 +242,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatalf("cluster version never became available: %v", err)
 	}
 
-	status := optr.configSync.(*SyncWorker).Status()
+	status := worker.Status()
 
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
@@ -258,7 +251,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	t.Logf("wait for the next resync and verify that status didn't change")
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-		updated := optr.configSync.(*SyncWorker).Status()
+		updated := worker.Status()
 		if updated.Completed > status.Completed {
 			return true, nil
 		}
@@ -300,11 +293,11 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatalf("couldn't delete CVO managed object: %v", err)
 	}
 
-	status = optr.configSync.(*SyncWorker).Status()
+	status = worker.Status()
 
 	t.Logf("wait for the next resync and verify that status didn't change")
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-		updated := optr.configSync.(*SyncWorker).Status()
+		updated := worker.Status()
 		if updated.Completed > status.Completed {
 			return true, nil
 		}
@@ -331,15 +324,14 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	}
 	t.Parallel()
 
-	kcfg := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(clientcmd.NewDefaultClientConfigLoadingRules(), &clientcmd.ConfigOverrides{})
-	cfg, err := kcfg.ClientConfig()
+	// use the same client setup as the start command
+	cb, err := newClientBuilder("")
 	if err != nil {
-		t.Fatalf("cannot load config: %v", err)
+		t.Fatal(err)
 	}
-
-	kc := kubernetes.NewForConfigOrDie(cfg)
-	client := clientset.NewForConfigOrDie(cfg)
-	apiExtClient := apiext.NewForConfigOrDie(cfg)
+	cfg := cb.RestConfig()
+	kc := cb.KubeClientOrDie("integration-test")
+	client := cb.ClientOrDie("integration-test")
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
@@ -359,11 +351,6 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		}
 	}()
 
-	cvInformer := informers.NewFilteredSharedInformerFactory(client, 1*time.Minute, "", func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", ns)
-	})
-	sharedInformers := informers.NewSharedInformerFactory(client, 1*time.Minute)
-
 	dir, err := ioutil.TempDir("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
@@ -382,25 +369,22 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		payloadImage2: filepath.Join(dir, "0.0.2"),
 	}}
 
-	optr := New(
-		"", ns, ns, payloadImage1,
-		filepath.Join(dir, "ignored"),
-		10*time.Second,
-		cvInformer.Config().V1().ClusterVersions(),
-		sharedInformers.Config().V1().ClusterOperators(),
-		cfg,
-		client, kc, apiExtClient,
-		false,
-	)
+	options := NewOptions()
+	options.Namespace = ns
+	options.Name = ns
+	options.ListenAddr = ""
+	options.NodeName = "test-node"
+	options.ReleaseImage = payloadImage1
+	options.PayloadOverride = filepath.Join(dir, "ignored")
+	options.EnableMetrics = false
+	controllers := options.NewControllerContext(cb)
 
-	worker := optr.configSync.(*SyncWorker)
-	worker.retriever = retriever
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
-	go cvInformer.Start(stopCh)
-	go sharedInformers.Start(stopCh)
-	go optr.Run(1, stopCh)
+	controllers.Start(stopCh)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForAvailableUpdate(t, client, ns, false, "0.0.1")
@@ -458,6 +442,107 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	}
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Payload: payloadImage1, Version: "0.0.1"}, 3)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
+}
+
+func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") != "1" {
+		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
+	}
+	t.Parallel()
+
+	// use the same client setup as the start command
+	cb, err := newClientBuilder("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := cb.RestConfig()
+	kc := cb.KubeClientOrDie("integration-test")
+	client := cb.ClientOrDie("integration-test")
+
+	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
+
+	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+			t.Logf("failed to delete cluster version %s: %v", ns, err)
+		}
+		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+			t.Logf("failed to delete namespace %s: %v", ns, err)
+		}
+	}()
+
+	options := NewOptions()
+	options.Namespace = ns
+	options.Name = ns
+	options.ListenAddr = ""
+	options.NodeName = "test-node"
+	options.EnableMetrics = false
+	controllers := options.NewControllerContext(cb)
+
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	controllers.CVO.SetSyncWorkerForTesting(worker)
+
+	lock, err := createResourceLock(cb, ns, ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("the controller should create a lock record on a config map")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		options.run(ctx, controllers, lock)
+		close(done)
+	}()
+
+	// wait until the lock record exists
+	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
+		_, err := kc.Core().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("after the context is closed, the lock record should be deleted quickly")
+	cancel()
+	startTime := time.Now()
+	var endTime time.Time
+	// the lock should be deleted immediately
+	err = wait.PollImmediate(100*time.Millisecond, 3*time.Second, func() (bool, error) {
+		_, err := kc.Core().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			endTime = time.Now()
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("lock deleted in %s", endTime.Sub(startTime))
+
+	select {
+	case <-time.After(time.Second):
+		t.Fatalf("controller should exit more quickly")
+	case <-done:
+	}
 }
 
 // waitForAvailableUpdates checks invariants during an upgrade process. versions is a list of the expected versions that
@@ -709,4 +794,75 @@ func printCV(cv *configv1.ClusterVersion) string {
 		return fmt.Sprintf("<error: %v>", err)
 	}
 	return string(data)
+}
+
+var reVariable = regexp.MustCompile(`\$\([a-zA-Z0-9_\-]+\)`)
+
+func TestCreateContentReplacement(t *testing.T) {
+	replacements := []map[string]string{
+		{"NS": "other"},
+	}
+	in := `Some stuff $(NS) that should be $(NS)`
+	out := reVariable.ReplaceAllStringFunc(in, func(key string) string {
+		key = key[2 : len(key)-1]
+		for _, r := range replacements {
+			v, ok := r[key]
+			if !ok {
+				continue
+			}
+			return v
+		}
+		return key
+	})
+	if out != `Some stuff other that should be other` {
+		t.Fatal(out)
+	}
+}
+
+func createContent(baseDir string, content map[string]interface{}, replacements ...map[string]string) error {
+	if err := os.MkdirAll(baseDir, 0750); err != nil {
+		return err
+	}
+	for k, v := range content {
+		switch t := v.(type) {
+		case string:
+			if len(replacements) > 0 {
+				t = reVariable.ReplaceAllStringFunc(t, func(key string) string {
+					key = key[2 : len(key)-1]
+					for _, r := range replacements {
+						v, ok := r[key]
+						if !ok {
+							continue
+						}
+						return v
+					}
+					return key
+				})
+			}
+			if err := ioutil.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
+				return err
+			}
+		case map[string]interface{}:
+			dir := filepath.Join(baseDir, k)
+			if err := os.Mkdir(dir, 0750); err != nil {
+				return err
+			}
+			if err := createContent(dir, t, replacements...); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+type mapPayloadRetriever struct {
+	Paths map[string]string
+}
+
+func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
+	path, ok := r.Paths[update.Payload]
+	if !ok {
+		return "", fmt.Errorf("no payload found for %q", update.Payload)
+	}
+	return path, nil
 }

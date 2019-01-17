@@ -162,7 +162,7 @@ func New(
 
 	optr.configSync = NewSyncWorker(
 		optr.defaultPayloadRetriever(),
-		optr.defaultResourceBuilder(),
+		NewResourceBuilder(optr.restConfig),
 		minimumInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
@@ -451,4 +451,9 @@ func (optr *Operator) currentVersion() configv1.Update {
 		Version: optr.releaseVersion,
 		Payload: optr.releaseImage,
 	}
+}
+
+// SetSyncWorkerForTesting updates the sync worker for whitebox testing.
+func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
+	optr.configSync = worker
 }

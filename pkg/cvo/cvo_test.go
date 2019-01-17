@@ -1,15 +1,11 @@
 package cvo
 
 import (
-	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"reflect"
-	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -184,52 +180,9 @@ func (c *fakeApiExtClient) Patch(name string, pt types.PatchType, data []byte, s
 func TestOperator_sync(t *testing.T) {
 	id := uuid.Must(uuid.NewRandom()).String()
 
-	content1 := map[string]interface{}{
-		"manifests": map[string]interface{}{},
-		"release-manifests": map[string]interface{}{
-			"image-references": `
-			{
-				"kind": "ImageStream",
-				"apiVersion": "image.openshift.io/v1",
-				"metadata": {
-					"name": "0.0.1-abc"
-				}
-			}
-			`,
-		},
-	}
-	// contentWithoutManifests := map[string]interface{}{
-	// 	"release-manifests": map[string]interface{}{
-	// 		"image-references": `
-	// 		{
-	// 			"kind": "ImageStream",
-	// 			"apiVersion": "image.openshift.io/v1",
-	// 			"metadata": {
-	// 				"name": "0.0.1-abc"
-	// 			}
-	// 		}
-	// 		`,
-	// 	},
-	// }
-	// content_4_0_1 := map[string]interface{}{
-	// 	"manifests": map[string]interface{}{},
-	// 	"release-manifests": map[string]interface{}{
-	// 		"image-references": `
-	// 		{
-	// 			"kind": "ImageStream",
-	// 			"apiVersion": "image.openshift.io/v1",
-	// 			"metadata": {
-	// 				"name": "4.0.1"
-	// 			}
-	// 		}
-	// 		`,
-	// 	},
-	// }
-
 	tests := []struct {
 		name        string
 		key         string
-		content     map[string]interface{}
 		syncStatus  *SyncWorkerStatus
 		optr        Operator
 		init        func(optr *Operator)
@@ -239,8 +192,7 @@ func TestOperator_sync(t *testing.T) {
 		wantSync    []configv1.Update
 	}{
 		{
-			name:    "create version and status",
-			content: content1,
+			name: "create version and status",
 			optr: Operator{
 				releaseVersion: "4.0.1",
 				releaseImage:   "payload/image:v4.0.1",
@@ -338,8 +290,7 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name:    "progressing and previously failed, reconciling",
-			content: content1,
+			name: "progressing and previously failed, reconciling",
 			optr: Operator{
 				releaseVersion: "4.0.1",
 				releaseImage:   "payload/image:v4.0.1",
@@ -412,8 +363,7 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name:    "progressing and previously failed, reconciling and multiple completions",
-			content: content1,
+			name: "progressing and previously failed, reconciling and multiple completions",
 			optr: Operator{
 				releaseVersion: "4.0.1",
 				releaseImage:   "payload/image:v4.0.1",
@@ -487,8 +437,7 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name:    "progressing and encounters error during payload sync",
-			content: content1,
+			name: "progressing and encounters error during payload sync",
 			optr: Operator{
 				releaseVersion: "4.0.1",
 				releaseImage:   "payload/image:v4.0.1",
@@ -1903,14 +1852,6 @@ func TestOperator_sync(t *testing.T) {
 			}
 			optr.cvLister = &clientCVLister{client: optr.client}
 			optr.clusterOperatorLister = &clientCOLister{client: optr.client}
-			dir, err := ioutil.TempDir("", "cvo-test")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.RemoveAll(dir)
-			if err := createContent(dir, tt.content); err != nil {
-				t.Fatal(err)
-			}
 			if optr.configSync == nil {
 				expectStatus := tt.syncStatus
 				if expectStatus == nil {
@@ -1919,7 +1860,7 @@ func TestOperator_sync(t *testing.T) {
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
 
-			err = optr.sync(optr.queueKey())
+			err := optr.sync(optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}
@@ -2281,77 +2222,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			}
 		})
 	}
-}
-
-var reVariable = regexp.MustCompile(`\$\([a-zA-Z0-9_\-]+\)`)
-
-func TestCreateContentReplacement(t *testing.T) {
-	replacements := []map[string]string{
-		{"NS": "other"},
-	}
-	in := `Some stuff $(NS) that should be $(NS)`
-	out := reVariable.ReplaceAllStringFunc(in, func(key string) string {
-		key = key[2 : len(key)-1]
-		for _, r := range replacements {
-			v, ok := r[key]
-			if !ok {
-				continue
-			}
-			return v
-		}
-		return key
-	})
-	if out != `Some stuff other that should be other` {
-		t.Fatal(out)
-	}
-}
-
-func createContent(baseDir string, content map[string]interface{}, replacements ...map[string]string) error {
-	if err := os.MkdirAll(baseDir, 0750); err != nil {
-		return err
-	}
-	for k, v := range content {
-		switch t := v.(type) {
-		case string:
-			if len(replacements) > 0 {
-				t = reVariable.ReplaceAllStringFunc(t, func(key string) string {
-					key = key[2 : len(key)-1]
-					for _, r := range replacements {
-						v, ok := r[key]
-						if !ok {
-							continue
-						}
-						return v
-					}
-					return key
-				})
-			}
-			if err := ioutil.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
-				return err
-			}
-		case map[string]interface{}:
-			dir := filepath.Join(baseDir, k)
-			if err := os.Mkdir(dir, 0750); err != nil {
-				return err
-			}
-			if err := createContent(dir, t, replacements...); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-type mapPayloadRetriever struct {
-	Paths map[string]string
-}
-
-func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
-	path, ok := r.Paths[update.Payload]
-	if !ok {
-		return "", fmt.Errorf("no payload found for %q", update.Payload)
-	}
-	return path, nil
 }
 
 func expectGet(t *testing.T, a ktesting.Action, resource, namespace, name string) {

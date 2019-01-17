@@ -18,15 +18,10 @@ var (
 		Short: "Run Cluster Version Controller",
 		Long:  "",
 	}
-
-	rootOpts struct {
-		releaseImage string
-	}
 )
 
 func init() {
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
-	rootCmd.PersistentFlags().StringVar(&rootOpts.releaseImage, "release-image", "", "The Openshift release image url.")
 }
 
 func main() {
