@@ -556,7 +556,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 // should be seen during update, with the last version being the one we wait to see.
 func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
-	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err := wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
 		cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
@@ -658,13 +658,14 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		}
 		return true, nil
 	})
+	return lastCV, err
 }
 
 // waitUntilUpgradeFails checks invariants during an upgrade process. versions is a list of the expected versions that
 // should be seen during update, with the last version being the one we wait to see.
 func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, failingReason, failingMessage, progressingMessage string, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
-	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
+	err := wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
 		cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
@@ -774,6 +775,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 
 		return true, nil
 	})
+	return lastCV, err
 }
 
 func stringInSlice(slice []string, s string) bool {
