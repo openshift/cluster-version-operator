@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/base64"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/golang/glog"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -162,43 +165,68 @@ func loadUpdatePayload(dir, releaseImage string) (*updatePayload, error) {
 	return payload, nil
 }
 
-func (optr *Operator) baseDirectory() string {
+func (optr *Operator) defaultPayloadDir() string {
 	if len(optr.payloadDir) == 0 {
 		return defaultUpdatePayloadDir
 	}
 	return optr.payloadDir
 }
 
-func (optr *Operator) updatePayloadDir(config *configv1.ClusterVersion) (string, error) {
-	tdir, err := optr.targetUpdatePayloadDir(config)
+func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
+	return &payloadRetriever{
+		kubeClient:   optr.kubeClient,
+		operatorName: optr.name,
+		releaseImage: optr.releaseImage,
+		namespace:    optr.namespace,
+		nodeName:     optr.nodename,
+		payloadDir:   optr.defaultPayloadDir(),
+		workingDir:   targetUpdatePayloadsDir,
+	}
+}
+
+type payloadRetriever struct {
+	// releaseImage and payloadDir are the default payload identifiers - updates that point
+	// to releaseImage will always use the contents of payloadDir
+	releaseImage string
+	payloadDir   string
+
+	// these fields are used to retrieve the payload when any other payload is specified
+	kubeClient   kubernetes.Interface
+	workingDir   string
+	namespace    string
+	nodeName     string
+	operatorName string
+}
+
+func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
+	if r.releaseImage == update.Payload {
+		return r.payloadDir, nil
+	}
+
+	if len(update.Payload) == 0 {
+		return "", fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
+	}
+
+	tdir, err := r.targetUpdatePayloadDir(ctx, update)
 	if err != nil {
 		return "", &updateError{
 			Reason:  "UpdatePayloadRetrievalFailed",
 			Message: fmt.Sprintf("Unable to download and prepare the update: %v", err),
 		}
 	}
-	if len(tdir) > 0 {
-		return tdir, nil
-	}
-	return optr.baseDirectory(), nil
+	return tdir, nil
 }
 
-func (optr *Operator) targetUpdatePayloadDir(config *configv1.ClusterVersion) (string, error) {
-	payload, ok := findUpdatePayload(config)
-	if !ok {
-		return "", nil
-	}
+func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update configv1.Update) (string, error) {
 	hash := md5.New()
-	hash.Write([]byte(payload))
+	hash.Write([]byte(update.Payload))
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
-	tdir := filepath.Join(targetUpdatePayloadsDir, payloadHash)
+	tdir := filepath.Join(r.workingDir, payloadHash)
 	err := validateUpdatePayload(tdir)
 	if os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
-		if err := optr.fetchUpdatePayloadToDir(tdir, config); err != nil {
-			return "", err
-		}
+		err = r.fetchUpdatePayloadToDir(ctx, tdir, update)
 	}
 	if err != nil {
 		return "", err
@@ -234,18 +262,15 @@ func validateUpdatePayload(dir string) error {
 	return nil
 }
 
-func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *configv1.ClusterVersion) error {
-	if config.Spec.DesiredUpdate == nil {
-		return fmt.Errorf("cannot fetch payload for empty desired update")
-	}
+func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir string, update configv1.Update) error {
 	var (
-		version         = config.Spec.DesiredUpdate.Version
-		payload         = config.Spec.DesiredUpdate.Payload
-		name            = fmt.Sprintf("%s-%s-%s", optr.name, version, randutil.String(5))
-		namespace       = optr.namespace
+		version         = update.Version
+		payload         = update.Payload
+		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
+		namespace       = r.namespace
 		deadline        = pointer.Int64Ptr(2 * 60)
 		nodeSelectorKey = "node-role.kubernetes.io/master"
-		nodename        = optr.nodename
+		nodename        = r.nodeName
 		cmd             = []string{"/bin/sh"}
 		args            = []string{"-c", copyPayloadCmd(dir)}
 	)
@@ -293,11 +318,11 @@ func (optr *Operator) fetchUpdatePayloadToDir(dir string, config *configv1.Clust
 		},
 	}
 
-	_, err := optr.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
+	_, err := r.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
 	if err != nil {
 		return err
 	}
-	return resourcebuilder.WaitForJobCompletion(optr.kubeClient.BatchV1(), job)
+	return resourcebuilder.WaitForJobCompletion(r.kubeClient.BatchV1(), job)
 }
 
 // copyPayloadCmd returns command that copies cvo and release manifests from deafult location
@@ -318,27 +343,30 @@ func copyPayloadCmd(tdir string) string {
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
-func findUpdatePayload(config *configv1.ClusterVersion) (string, bool) {
+// findUpdateFromConfig identifies a desired update from user input or returns false. It will
+// resolve payload if the user specifies a version and a matching available update or previous
+// update is in the history.
+func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
-		return "", false
+		return configv1.Update{}, false
 	}
 	if len(update.Payload) == 0 {
-		return findPayloadForVersion(config, update.Version)
+		return findUpdateFromConfigVersion(config, update.Version)
 	}
-	return update.Payload, len(update.Payload) > 0
+	return *update, true
 }
 
-func findPayloadForVersion(config *configv1.ClusterVersion, version string) (string, bool) {
+func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string) (configv1.Update, bool) {
 	for _, update := range config.Status.AvailableUpdates {
 		if update.Version == version {
-			return update.Payload, len(update.Payload) > 0
+			return update, len(update.Payload) > 0
 		}
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
-			return history.Payload, len(history.Payload) > 0
+			return configv1.Update{Payload: history.Payload, Version: history.Version}, len(history.Payload) > 0
 		}
 	}
-	return "", false
+	return configv1.Update{}, false
 }

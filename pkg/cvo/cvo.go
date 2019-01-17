@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	"github.com/blang/semver"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
@@ -28,7 +30,6 @@ import (
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 )
 
@@ -85,9 +86,6 @@ type Operator struct {
 	apiExtClient  apiextclientset.Interface
 	eventRecorder record.EventRecorder
 
-	// updatePayloadHandler allows unit tests to inject arbitrary payload errors
-	updatePayloadHandler func(config *configv1.ClusterVersion, payload *updatePayload) error
-
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
 	// the upstream.
 	minimumUpdateCheckInterval time.Duration
@@ -112,9 +110,13 @@ type Operator struct {
 	statusLock       sync.Mutex
 	availableUpdates *availableUpdates
 
+	configSync ConfigSyncWorker
+	// statusInterval is how often the configSync worker is allowed to retrigger
+	// the main sync status loop.
+	statusInterval time.Duration
+
 	// lastAtLock guards access to controller memory about the sync loop
 	lastAtLock          sync.Mutex
-	lastSyncAt          time.Time
 	lastResourceVersion int64
 }
 
@@ -131,6 +133,7 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	apiExtClient apiextclientset.Interface,
+	enableMetrics bool,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -142,14 +145,10 @@ func New(
 		name:         name,
 		releaseImage: releaseImage,
 
+		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
 		payloadDir:                 overridePayloadDir,
 		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
-		syncBackoff: wait.Backoff{
-			Duration: time.Second * 10,
-			Factor:   1.3,
-			Steps:    3,
-		},
 
 		restConfig:    restConfig,
 		client:        client,
@@ -161,7 +160,16 @@ func New(
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
-	optr.updatePayloadHandler = optr.syncUpdatePayload
+	optr.configSync = NewSyncWorker(
+		optr.defaultPayloadRetriever(),
+		optr.defaultResourceBuilder(),
+		minimumInterval,
+		wait.Backoff{
+			Duration: time.Second * 10,
+			Factor:   1.3,
+			Steps:    3,
+		},
+	)
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 	clusterOperatorInformer.Informer().AddEventHandler(optr.eventHandler())
@@ -172,11 +180,13 @@ func New(
 	optr.cvLister = cvInformer.Lister()
 	optr.cvListerSynced = cvInformer.Informer().HasSynced
 
-	if err := optr.registerMetrics(); err != nil {
-		panic(err)
+	if enableMetrics {
+		if err := optr.registerMetrics(); err != nil {
+			panic(err)
+		}
 	}
 
-	if meta, _, err := loadUpdatePayloadMetadata(optr.baseDirectory(), releaseImage); err != nil {
+	if meta, _, err := loadUpdatePayloadMetadata(optr.defaultPayloadDir(), releaseImage); err != nil {
 		glog.Warningf("The local payload is invalid - no current version can be determined from disk: %v", err)
 	} else {
 		// XXX: set this to the cincinnati version in preference
@@ -190,7 +200,7 @@ func New(
 	return optr
 }
 
-// Run runs the cluster version operator.
+// Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
 func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
@@ -208,6 +218,10 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	// trigger the first cluster version reconcile always
 	optr.queue.Add(optr.queueKey())
 
+	// start the config sync loop, and have it notify the queue when new status is detected
+	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
+	go optr.configSync.Start(stopCh)
+
 	go wait.Until(func() { optr.worker(optr.queue, optr.sync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
 
@@ -218,6 +232,8 @@ func (optr *Operator) queueKey() string {
 	return fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 }
 
+// eventHandler queues an update for the cluster version on any change to the given object.
+// Callers should use this with a scoped informer.
 func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	workQueueKey := optr.queueKey()
 	return cache.ResourceEventHandlerFuncs{
@@ -272,6 +288,13 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 	queue.Forget(key)
 }
 
+// sync ensures:
+//
+// 1. A ClusterVersion object exists
+// 2. The ClusterVersion object has the appropriate status for the state of the cluster
+// 3. The configSync object is kept up to date maintaining the user's desired version
+//
+// It returns an error if it could not update the cluster version object.
 func (optr *Operator) sync(key string) error {
 	startTime := time.Now()
 	glog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
@@ -290,57 +313,35 @@ func (optr *Operator) sync(key string) error {
 		return nil
 	}
 
-	glog.V(3).Infof("ClusterVersion: %#v", original)
+	// ensure that the object we do have is valid
+	errs := validation.ValidateClusterVersion(original)
+	// for fields that have meaning that are incomplete, clear them
+	// prevents us from loading clearly malformed payloads
+	config := validation.ClearInvalidFields(original, errs)
 
-	// when we're up to date, limit how frequently we check the payload
-	availableAndUpdated := original.Status.Generation == original.Generation &&
-		resourcemerge.IsOperatorStatusConditionTrue(original.Status.Conditions, configv1.OperatorAvailable)
-	hasRecentlySynced := availableAndUpdated && optr.hasRecentlySynced()
-	if hasRecentlySynced {
-		glog.V(4).Infof("Cluster version has been recently synced and no new changes detected")
-		return nil
-	}
-
-	optr.setLastSyncAt(time.Time{})
-
-	// read the payload
-	payload, err := optr.loadUpdatePayload(original)
-	if err != nil {
-		// the payload is invalid, try and update the status to indicate that
-		if sErr := optr.syncPayloadFailingStatus(original, err); sErr != nil {
-			glog.V(2).Infof("Unable to write status when payload was invalid: %v", sErr)
-		}
-		return err
-	}
-
-	update := configv1.Update{
-		Version: payload.ReleaseVersion,
-		Payload: payload.ReleaseImage,
-	}
-
-	// if the current payload is already live, we are reconciling, not updating,
-	// and we won't set the progressing status.
-	if availableAndUpdated && payload.ManifestHash == original.Status.VersionHash {
-		glog.V(2).Infof("Reconciling cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
+	// identify the desired next version
+	desired, ok := findUpdateFromConfig(config)
+	if ok {
+		glog.V(4).Infof("Desired version from spec is %#v", desired)
 	} else {
-		glog.V(2).Infof("Updating the cluster to version %s and image %s (hash=%s)", update.Version, update.Payload, payload.ManifestHash)
-		if err := optr.syncProgressingStatus(original, update); err != nil {
-			return err
-		}
+		desired = optr.currentVersion()
+		glog.V(4).Infof("Desired version from operator is %#v", desired)
 	}
 
-	if err := optr.updatePayloadHandler(original, payload); err != nil {
-		if applyErr := optr.syncUpdateFailingStatus(original, err); applyErr != nil {
-			glog.V(2).Infof("Unable to write status when sync error occurred: %v", applyErr)
-		}
-		return err
+	// handle the case of a misconfigured CVO by doing nothing
+	if len(desired.Payload) == 0 {
+		return optr.syncStatus(original, config, &SyncWorkerStatus{
+			Failure: fmt.Errorf("No configured operator version, unable to update cluster"),
+		}, errs)
 	}
 
-	glog.V(2).Infof("Payload for cluster version %s synced", update.Version)
+	// inform the config sync loop about our desired state
+	reconciling := resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorAvailable) &&
+		resourcemerge.IsOperatorStatusConditionFalse(config.Status.Conditions, configv1.OperatorProgressing)
+	status := optr.configSync.Update(desired, config.Spec.Overrides, reconciling)
 
-	// update the status to indicate we have synced
-	optr.setLastSyncAt(time.Now())
-	return optr.syncAvailableStatus(original, update, payload.ManifestHash)
+	// write cluster version status
+	return optr.syncStatus(original, config, status, errs)
 }
 
 // availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
@@ -364,24 +365,6 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	}
 
 	return optr.syncAvailableUpdates(config)
-}
-
-// hasRecentlySynced returns true if the most recent sync was newer than the
-// minimum check interval.
-func (optr *Operator) hasRecentlySynced() bool {
-	if optr.minimumUpdateCheckInterval == 0 {
-		return false
-	}
-	optr.lastAtLock.Lock()
-	defer optr.lastAtLock.Unlock()
-	return optr.lastSyncAt.After(time.Now().Add(-optr.minimumUpdateCheckInterval))
-}
-
-// setLastSyncAt sets the time the operator was last synced at.
-func (optr *Operator) setLastSyncAt(t time.Time) {
-	optr.lastAtLock.Lock()
-	defer optr.lastAtLock.Unlock()
-	optr.lastSyncAt = t
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than
@@ -418,18 +401,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
 		}
-
-		// ensure that the object we do have is valid
-		errs := validation.ValidateClusterVersion(obj)
-		changed, err := optr.syncInitialObjectStatus(obj, errs)
-		if err != nil {
-			return nil, false, err
-		}
-
-		// for fields that have meaning that are incomplete, clear them
-		// prevents us from loading clearly malformed payloads
-		obj = validation.ClearInvalidFields(obj, errs)
-		return obj, changed, nil
+		return obj, false, nil
 	}
 
 	if !apierrors.IsNotFound(err) {
@@ -460,34 +432,6 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		return nil, true, nil
 	}
 	return actual, true, err
-}
-
-// versionString returns a string describing the current version.
-func (optr *Operator) currentVersionString(config *configv1.ClusterVersion) string {
-	if len(config.Status.History) > 0 {
-		last := config.Status.History[0]
-		if s := last.Version; len(s) > 0 {
-			return s
-		}
-		if s := last.Payload; len(s) > 0 {
-			return s
-		}
-	}
-	if s := optr.releaseVersion; len(s) > 0 {
-		return s
-	}
-	if s := optr.releaseImage; len(s) > 0 {
-		return s
-	}
-	return "<unknown>"
-}
-
-// desiredVersion returns the update that is currently targeted by the config.
-func (optr *Operator) desiredVersion(config *configv1.ClusterVersion) configv1.Update {
-	if update := config.Spec.DesiredUpdate; update != nil {
-		return *update
-	}
-	return optr.currentVersion()
 }
 
 // versionString returns a string describing the desired version.
