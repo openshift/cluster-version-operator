@@ -4,17 +4,19 @@ import (
 	"bytes"
 	"fmt"
 
-	"k8s.io/apimachinery/pkg/util/diff"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/golang/glog"
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
@@ -158,9 +160,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if err := status.Failure; err != nil {
 		var reason string
 		msg := "an error occurred"
-		if uErr, ok := err.(*updateError); ok {
+		if uErr, ok := err.(*payload.UpdateError); ok {
 			reason = uErr.Reason
-			msg = summaryForReason(reason)
+			msg = payload.SummaryForReason(reason)
 		}
 
 		// set the failing condition

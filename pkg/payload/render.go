@@ -1,4 +1,4 @@
-package cvo
+package payload
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 // Render renders all the manifests from /manifests to outputDir.
 func Render(outputDir, releaseImage string) error {
 	var (
-		manifestsDir  = filepath.Join(defaultUpdatePayloadDir, cvoManifestDir)
+		manifestsDir  = filepath.Join(DefaultPayloadDir, CVOManifestDir)
 		oManifestsDir = filepath.Join(outputDir, "manifests")
 		bootstrapDir  = "/bootstrap"
 		oBootstrapDir = filepath.Join(outputDir, "bootstrap")

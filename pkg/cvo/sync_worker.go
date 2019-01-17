@@ -4,18 +4,24 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/time/rate"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 )
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
@@ -113,7 +119,7 @@ type SyncWorker struct {
 	status   SyncWorkerStatus
 
 	// updated by the run method only
-	image *updatePayload
+	payload *payload.Update
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
@@ -371,47 +377,47 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, reporter Stat
 	glog.V(4).Infof("Running sync %s", versionString(work.Desired))
 	update := work.Desired
 
-	// cache the image until the release image changes
-	image := w.image
-	if image == nil || !equalUpdate(configv1.Update{Image: image.ReleaseImage}, update) {
-		glog.V(4).Infof("Loading image")
+	// cache the payload until the release image changes
+	validPayload := w.payload
+	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, update) {
+		glog.V(4).Infof("Loading payload")
 		reporter.Report(SyncWorkerStatus{Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
 		payloadDir, err := w.retriever.RetrievePayload(ctx, update)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{Failure: err, Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
 			return err
 		}
-		image, err := loadUpdatePayload(payloadDir, update.Image)
+		payloadUpdate, err := payload.LoadUpdate(payloadDir, update.Image)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{Failure: err, Step: "VerifyPayload", Reconciling: work.Reconciling, Actual: update})
 			return err
 		}
-		w.image = image
-		glog.V(4).Infof("Image loaded from %s with hash %s", image.ReleaseImage, image.ManifestHash)
+		w.payload = payloadUpdate
+		glog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
 
-	return w.apply(ctx, w.image, work, reporter)
+	return w.apply(ctx, w.payload, work, reporter)
 }
 
 // apply updates the server with the contents of the provided image or returns an error.
 // Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) apply(ctx context.Context, image *updatePayload, work *SyncWork, reporter StatusReporter) error {
+func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, reporter StatusReporter) error {
 	update := configv1.Update{
-		Version: image.ReleaseVersion,
-		Image:   image.ReleaseImage,
+		Version: payloadUpdate.ReleaseVersion,
+		Image:   payloadUpdate.ReleaseImage,
 	}
 
 	// update each object
-	version := image.ReleaseVersion
-	total := len(image.Manifests)
+	version := payloadUpdate.ReleaseVersion
+	total := len(payloadUpdate.Manifests)
 	done := 0
-	var tasks []*syncTask
-	for i := range image.Manifests {
-		tasks = append(tasks, &syncTask{
-			index:    i + 1,
-			total:    total,
-			manifest: &image.Manifests[i],
-			backoff:  w.backoff,
+	var tasks []*payload.Task
+	for i := range payloadUpdate.Manifests {
+		tasks = append(tasks, &payload.Task{
+			Index:    i + 1,
+			Total:    total,
+			Manifest: &payloadUpdate.Manifests[i],
+			Backoff:  w.backoff,
 		})
 	}
 
@@ -420,28 +426,28 @@ func (w *SyncWorker) apply(ctx context.Context, image *updatePayload, work *Sync
 		setAppliedAndPending(version, total, done)
 		fraction := float32(i) / float32(len(tasks))
 
-		reporter.Report(SyncWorkerStatus{Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
+		reporter.Report(SyncWorkerStatus{Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 
 		glog.V(4).Infof("Running sync for %s", task)
-		glog.V(5).Infof("Manifest: %s", string(task.manifest.Raw))
+		glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
 		if contextIsCancelled(ctx) {
 			err := fmt.Errorf("update was cancelled at %d/%d", i, len(tasks))
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 			return err
 		}
 
-		ov, ok := getOverrideForManifest(work.Overrides, task.manifest)
+		ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 		if ok && ov.Unmanaged {
 			glog.V(4).Infof("Skipping %s as unmanaged", task)
 			continue
 		}
 
 		if err := task.Run(version, w.builder); err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 			cause := errors.Cause(err)
-			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
-				task.requeued++
+			if task.Requeued == 0 && shouldRequeueOnErr(cause, task.Manifest) {
+				task.Requeued++
 				tasks = append(tasks, task)
 				continue
 			}
@@ -453,9 +459,100 @@ func (w *SyncWorker) apply(ctx context.Context, image *updatePayload, work *Sync
 
 	setAppliedAndPending(version, total, done)
 	work.Completed++
-	reporter.Report(SyncWorkerStatus{Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: image.ManifestHash, Actual: update})
+	reporter.Report(SyncWorkerStatus{Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 
 	return nil
+}
+
+var (
+	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "cluster_version_payload",
+		Help: "Report the number of entries in the payload.",
+	}, []string{"version", "type"})
+)
+
+func init() {
+	prometheus.MustRegister(
+		metricPayload,
+	)
+}
+
+func setAppliedAndPending(version string, total, done int) {
+	metricPayload.WithLabelValues(version, "pending").Set(float64(total - done))
+	metricPayload.WithLabelValues(version, "applied").Set(float64(done))
+}
+
+// This is used to map the know causes to their check.
+var requeueOnErrorCauseToCheck = map[string]func(error) bool{
+	requeueOnErrorCauseNoMatch: meta.IsNoMatchError,
+}
+
+func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
+	cause := errors.Cause(err)
+	if _, ok := cause.(*resourcebuilder.RetryLaterError); ok {
+		return true
+	}
+
+	ok, errs := hasRequeueOnErrorAnnotation(manifest.Object().GetAnnotations())
+	if !ok {
+		return false
+	}
+	should := false
+	for _, e := range errs {
+		if ef, ok := requeueOnErrorCauseToCheck[e]; ok {
+			if ef(cause) {
+				should = true
+				break
+			}
+		}
+	}
+
+	return should
+}
+
+const (
+	// RequeueOnErrorAnnotationKey is key for annotation on a manifests object that instructs CVO to requeue on specific errors.
+	// The value is comma separated list of causes that forces requeue.
+	requeueOnErrorAnnotationKey = "v1.cluster-version-operator.operators.openshift.io/requeue-on-error"
+
+	// RequeueOnErrorCauseNoMatch is used when no match is found for object in api.
+	// This maps to https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoKindMatchError and https://godoc.org/k8s.io/apimachinery/pkg/api/meta#NoResourceMatchError .
+	// https://godoc.org/k8s.io/apimachinery/pkg/api/meta#IsNoMatchError is used as a check.
+	requeueOnErrorCauseNoMatch = "NoMatch"
+)
+
+func hasRequeueOnErrorAnnotation(annos map[string]string) (bool, []string) {
+	if annos == nil {
+		return false, nil
+	}
+	errs, ok := annos[requeueOnErrorAnnotationKey]
+	if !ok {
+		return false, nil
+	}
+	return ok, strings.Split(errs, ",")
+}
+
+// getOverrideForManifest returns the override and true when override exists for manifest.
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+	for idx, ov := range overrides {
+		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
+		if ov.Kind == kind &&
+			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
+			ov.Name == name {
+			return overrides[idx], true
+		}
+	}
+	return configv1.ComponentOverride{}, false
+}
+
+// ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
+var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
+
+func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
+	oref := metav1.NewControllerRef(config, ownerKind)
+	return func(obj metav1.Object) {
+		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})
+	}
 }
 
 // contextIsCancelled returns true if the provided context is cancelled.

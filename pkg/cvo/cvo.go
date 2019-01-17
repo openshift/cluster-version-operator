@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 
 	"github.com/blang/semver"
 	"github.com/golang/glog"
@@ -28,8 +28,13 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/lib/validation"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 )
 
 const (
@@ -40,9 +45,6 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries = 15
 )
-
-// ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
-var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
 
 // Operator defines cluster version operator. The CVO attempts to reconcile the appropriate image
 // onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
@@ -184,15 +186,15 @@ func New(
 		}
 	}
 
-	if meta, _, err := loadUpdatePayloadMetadata(optr.defaultPayloadDir(), releaseImage); err != nil {
-		glog.Warningf("The local image is invalid - no current version can be determined from disk: %v", err)
+	if update, err := payload.LoadUpdate(optr.defaultPayloadDir(), releaseImage); err != nil {
+		glog.Warningf("The local release contents are invalid - no current version can be determined from disk: %v", err)
 	} else {
-		optr.releaseCreated = meta.ImageRef.CreationTimestamp.Time
+		optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 		// XXX: set this to the cincinnati version in preference
-		if _, err := semver.Parse(meta.ImageRef.Name); err != nil {
-			glog.Warningf("The local image name %q is not a valid semantic version - no current version will be reported: %v", meta.ImageRef.Name, err)
+		if _, err := semver.Parse(update.ImageRef.Name); err != nil {
+			glog.Warningf("The local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
 		} else {
-			optr.releaseVersion = meta.ImageRef.Name
+			optr.releaseVersion = update.ImageRef.Name
 		}
 	}
 
@@ -448,11 +450,45 @@ func versionString(update configv1.Update) string {
 func (optr *Operator) currentVersion() configv1.Update {
 	return configv1.Update{
 		Version: optr.releaseVersion,
-		Image: optr.releaseImage,
+		Image:   optr.releaseImage,
 	}
 }
 
 // SetSyncWorkerForTesting updates the sync worker for whitebox testing.
 func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
 	optr.configSync = worker
+}
+
+// resourceBuilder provides the default builder implementation for the operator.
+// It is abstracted for testing.
+type resourceBuilder struct {
+	config   *rest.Config
+	modifier resourcebuilder.MetaV1ObjectModifierFunc
+}
+
+// NewResourceBuilder creates the default resource builder implementation.
+func NewResourceBuilder(config *rest.Config) ResourceBuilder {
+	return &resourceBuilder{config: config}
+}
+
+func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
+	if resourcebuilder.Mapper.Exists(m.GVK) {
+		return resourcebuilder.New(resourcebuilder.Mapper, b.config, *m)
+	}
+	client, err := dynamicclient.New(b.config, m.GVK, m.Object().GetNamespace())
+	if err != nil {
+		return nil, err
+	}
+	return internal.NewGenericBuilder(client, *m)
+}
+
+func (b *resourceBuilder) Apply(m *lib.Manifest) error {
+	builder, err := b.BuilderFor(m)
+	if err != nil {
+		return err
+	}
+	if b.modifier != nil {
+		builder = builder.WithModifier(b.modifier)
+	}
+	return builder.Do()
 }

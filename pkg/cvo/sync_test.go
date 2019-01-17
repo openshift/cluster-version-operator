@@ -24,6 +24,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func TestHasRequeueOnErrorAnnotation(t *testing.T) {
@@ -41,11 +42,11 @@ func TestHasRequeueOnErrorAnnotation(t *testing.T) {
 		exp:     false,
 		experrs: nil,
 	}, {
-		annos:   map[string]string{RequeueOnErrorAnnotationKey: "NoMatch"},
+		annos:   map[string]string{requeueOnErrorAnnotationKey: "NoMatch"},
 		exp:     true,
 		experrs: []string{"NoMatch"},
 	}, {
-		annos:   map[string]string{RequeueOnErrorAnnotationKey: "NoMatch,NotFound"},
+		annos:   map[string]string{requeueOnErrorAnnotationKey: "NoMatch,NotFound"},
 		exp:     true,
 		experrs: []string{"NoMatch", "NotFound"},
 	}}
@@ -92,7 +93,7 @@ func TestShouldRequeueOnErr(t *testing.T) {
 
 		exp: false,
 	}, {
-		err: &updateError{cause: &meta.NoResourceMatchError{}},
+		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
 		manifest: `{
 			"apiVersion": "v1",
 			"kind": "ConfigMap"
@@ -113,7 +114,7 @@ func TestShouldRequeueOnErr(t *testing.T) {
 
 		exp: true,
 	}, {
-		err: &updateError{cause: &meta.NoResourceMatchError{}},
+		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
 		manifest: `{
 			"apiVersion": "v1",
 			"kind": "ConfigMap",
@@ -139,7 +140,7 @@ func TestShouldRequeueOnErr(t *testing.T) {
 
 		exp: false,
 	}, {
-		err: &updateError{cause: &meta.NoResourceMatchError{}},
+		err: &payload.UpdateError{Nested: &meta.NoResourceMatchError{}},
 		manifest: `{
 			"apiVersion": "v1",
 			"kind": "ConfigMap",
@@ -165,7 +166,7 @@ func TestShouldRequeueOnErr(t *testing.T) {
 
 		exp: false,
 	}, {
-		err: &updateError{cause: apierrors.NewInternalError(fmt.Errorf("dummy"))},
+		err: &payload.UpdateError{Nested: apierrors.NewInternalError(fmt.Errorf("dummy"))},
 		manifest: `{
 			"apiVersion": "v1",
 			"kind": "ConfigMap",
@@ -178,7 +179,7 @@ func TestShouldRequeueOnErr(t *testing.T) {
 
 		exp: false,
 	}, {
-		err: &updateError{cause: &resourcebuilder.RetryLaterError{}},
+		err: &payload.UpdateError{Nested: &resourcebuilder.RetryLaterError{}},
 		manifest: `{
 			"apiVersion": "v1",
 			"kind": "ConfigMap"
@@ -372,7 +373,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 				manifests = append(manifests, m)
 			}
 
-			up := &updatePayload{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
 			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))
@@ -539,7 +540,7 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
 			dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
-			up := &updatePayload{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
 			worker := &SyncWorker{}
 			worker.backoff.Steps = 1
 			worker.builder = &testResourceBuilder{

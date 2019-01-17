@@ -25,6 +25,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
@@ -610,8 +611,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Step:        "ApplyResources",
 			Fraction:    float32(2) / 3,
 			VersionHash: "6GC9TkkG9PA=",
-			Failure: &updateError{
-				cause:   fmt.Errorf("unable to proceed"),
+			Failure: &payload.UpdateError{
+				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
 				Message: "Could not update test \"file-yml\" (v1, 3 of 3)",
 			},

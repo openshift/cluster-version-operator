@@ -9,24 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-var (
-	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "cluster_version_payload",
-		Help: "Report the number of entries in the image.",
-	}, []string{"version", "type"})
-	metricPayloadErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "cluster_operator_payload_errors",
-		Help: "Report the number of errors encountered applying the image.",
-	}, []string{"version"})
-)
-
 func (optr *Operator) registerMetrics() error {
-	if err := prometheus.Register(metricPayload); err != nil {
-		return err
-	}
-	if err := prometheus.Register(metricPayloadErrors); err != nil {
-		return err
-	}
 	m := newOperatorMetrics(optr)
 	return prometheus.Register(m)
 }
