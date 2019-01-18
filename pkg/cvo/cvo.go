@@ -168,7 +168,6 @@ func New(
 	)
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
-	clusterOperatorInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.clusterOperatorLister = clusterOperatorInformer.Lister()
 	optr.clusterOperatorSynced = clusterOperatorInformer.Informer().HasSynced
