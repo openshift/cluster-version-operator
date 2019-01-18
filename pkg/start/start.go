@@ -1,3 +1,5 @@
+// package start initializes and launches the core cluster version operator
+// loops.
 package start
 
 import (
@@ -41,6 +43,7 @@ const (
 	retryPeriod   = 30 * time.Second
 )
 
+// Options are the valid inputs to starting the CVO.
 type Options struct {
 	ReleaseImage string
 
@@ -66,6 +69,8 @@ func defaultEnv(name, defaultValue string) string {
 	return env
 }
 
+// NewOptions creates the default options for the CVO and loads any environment
+// variable overrides.
 func NewOptions() *Options {
 	return &Options{
 		ListenAddr: "0.0.0.0:9099",
@@ -226,24 +231,28 @@ func resyncPeriod(minResyncPeriod time.Duration) func() time.Duration {
 	}
 }
 
+// ClientBuilder simplifies returning Kubernetes client and client configs with
+// an appropriate user agent.
 type ClientBuilder struct {
 	config *rest.Config
 }
 
-func (cb *ClientBuilder) RestConfig(fns ...func(*rest.Config)) *rest.Config {
+// RestConfig returns a copy of the ClientBuilder's rest.Config with any overrides
+// from the provided configFns applied.
+func (cb *ClientBuilder) RestConfig(configFns ...func(*rest.Config)) *rest.Config {
 	c := rest.CopyConfig(cb.config)
-	for _, fn := range fns {
+	for _, fn := range configFns {
 		fn(c)
 	}
 	return c
 }
 
-func (cb *ClientBuilder) ClientOrDie(name string, fns ...func(*rest.Config)) clientset.Interface {
-	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
+func (cb *ClientBuilder) ClientOrDie(name string, configFns ...func(*rest.Config)) clientset.Interface {
+	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
-func (cb *ClientBuilder) KubeClientOrDie(name string, fns ...func(*rest.Config)) kubernetes.Interface {
-	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
+func (cb *ClientBuilder) KubeClientOrDie(name string, configFns ...func(*rest.Config)) kubernetes.Interface {
+	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
@@ -271,6 +280,7 @@ func useProtobuf(config *rest.Config) {
 	config.ContentType = "application/vnd.kubernetes.protobuf"
 }
 
+// Context holds the controllers for this operator and exposes a unified start command.
 type Context struct {
 	CVO        *cvo.Operator
 	AutoUpdate *autoupdate.Controller
@@ -279,6 +289,8 @@ type Context struct {
 	InformerFactory   informers.SharedInformerFactory
 }
 
+// NewControllerContext initializes the default Context for the current Options. It does
+// not start any background processes.
 func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	client := cb.ClientOrDie("shared-informer")
 
@@ -317,6 +329,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	return ctx
 }
 
+// Start launches the controllers in the provided context and any supporting
+// infrastructure. When ch is closed the controllers will be shut down.
 func (ctx *Context) Start(ch <-chan struct{}) {
 	go ctx.CVO.Run(2, ch)
 	if ctx.AutoUpdate != nil {
