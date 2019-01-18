@@ -381,7 +381,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 
 			worker := &SyncWorker{}
 			worker.backoff.Steps = 3
-			worker.builder = (&Operator{}).defaultResourceBuilder()
+			worker.builder = NewResourceBuilder(nil)
 			ctx := context.Background()
 			worker.apply(ctx, up, &SyncWork{}, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			test.check(t, r.actions)
