@@ -231,21 +231,24 @@ type ClientBuilder struct {
 	config *rest.Config
 }
 
-func (cb *ClientBuilder) RestConfig() *rest.Config {
+func (cb *ClientBuilder) RestConfig(fns ...func(*rest.Config)) *rest.Config {
 	c := rest.CopyConfig(cb.config)
+	for _, fn := range fns {
+		fn(c)
+	}
 	return c
 }
 
-func (cb *ClientBuilder) ClientOrDie(name string) clientset.Interface {
-	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+func (cb *ClientBuilder) ClientOrDie(name string, fns ...func(*rest.Config)) clientset.Interface {
+	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
 }
 
-func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
-	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+func (cb *ClientBuilder) KubeClientOrDie(name string, fns ...func(*rest.Config)) kubernetes.Interface {
+	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
 }
 
-func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
-	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+func (cb *ClientBuilder) APIExtClientOrDie(name string, fns ...func(*rest.Config)) apiext.Interface {
+	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
 }
 
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
@@ -261,6 +264,11 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	return &ClientBuilder{
 		config: config,
 	}, nil
+}
+
+func increaseQPS(config *rest.Config) {
+	config.QPS = 20
+	config.Burst = 40
 }
 
 type Context struct {
@@ -291,7 +299,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
-			cb.RestConfig(),
+			cb.RestConfig(increaseQPS),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace),
 			cb.APIExtClientOrDie(o.Namespace),
