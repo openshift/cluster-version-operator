@@ -16,7 +16,7 @@ type clusterRoleBuilder struct {
 
 func newClusterRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &clusterRoleBuilder{
-		client: rbacclientv1.NewForConfigOrDie(config),
+		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -43,7 +43,7 @@ type clusterRoleBindingBuilder struct {
 
 func newClusterRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &clusterRoleBindingBuilder{
-		client: rbacclientv1.NewForConfigOrDie(config),
+		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -70,7 +70,7 @@ type roleBuilder struct {
 
 func newRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &roleBuilder{
-		client: rbacclientv1.NewForConfigOrDie(config),
+		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -97,7 +97,7 @@ type roleBindingBuilder struct {
 
 func newRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &roleBindingBuilder{
-		client: rbacclientv1.NewForConfigOrDie(config),
+		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }

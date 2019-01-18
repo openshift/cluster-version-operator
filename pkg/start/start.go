@@ -19,7 +19,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/api/core/v1"
-	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -247,10 +246,6 @@ func (cb *ClientBuilder) KubeClientOrDie(name string, fns ...func(*rest.Config))
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
 }
 
-func (cb *ClientBuilder) APIExtClientOrDie(name string, fns ...func(*rest.Config)) apiext.Interface {
-	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(fns...), name))
-}
-
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	clientCfg := clientcmd.NewDefaultClientConfigLoadingRules()
 	clientCfg.ExplicitPath = kubeconfig
@@ -269,6 +264,11 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 func increaseQPS(config *rest.Config) {
 	config.QPS = 20
 	config.Burst = 40
+}
+
+func useProtobuf(config *rest.Config) {
+	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	config.ContentType = "application/vnd.kubernetes.protobuf"
 }
 
 type Context struct {
@@ -301,8 +301,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			sharedInformers.Config().V1().ClusterOperators(),
 			cb.RestConfig(increaseQPS),
 			cb.ClientOrDie(o.Namespace),
-			cb.KubeClientOrDie(o.Namespace),
-			cb.APIExtClientOrDie(o.Namespace),
+			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.EnableMetrics,
 		),
 	}
