@@ -12,7 +12,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
-	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -83,7 +82,6 @@ type Operator struct {
 
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
-	apiExtClient  apiextclientset.Interface
 	eventRecorder record.EventRecorder
 
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
@@ -132,7 +130,6 @@ func New(
 	restConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
-	apiExtClient apiextclientset.Interface,
 	enableMetrics bool,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -153,8 +150,7 @@ func New(
 		restConfig:    restConfig,
 		client:        client,
 		kubeClient:    kubeClient,
-		apiExtClient:  apiExtClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "clusterversionoperator"}),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),

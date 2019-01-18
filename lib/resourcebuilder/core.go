@@ -16,7 +16,7 @@ type serviceAccountBuilder struct {
 
 func newServiceAccountBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &serviceAccountBuilder{
-		client: coreclientv1.NewForConfigOrDie(config),
+		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -43,7 +43,7 @@ type configMapBuilder struct {
 
 func newConfigMapBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &configMapBuilder{
-		client: coreclientv1.NewForConfigOrDie(config),
+		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -70,7 +70,7 @@ type namespaceBuilder struct {
 
 func newNamespaceBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &namespaceBuilder{
-		client: coreclientv1.NewForConfigOrDie(config),
+		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -97,7 +97,7 @@ type serviceBuilder struct {
 
 func newServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &serviceBuilder{
-		client: coreclientv1.NewForConfigOrDie(config),
+		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }

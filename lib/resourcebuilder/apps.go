@@ -25,7 +25,7 @@ type deploymentBuilder struct {
 
 func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &deploymentBuilder{
-		client: appsclientv1.NewForConfigOrDie(config),
+		client: appsclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }
@@ -89,7 +89,7 @@ type daemonsetBuilder struct {
 
 func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &daemonsetBuilder{
-		client: appsclientv1.NewForConfigOrDie(config),
+		client: appsclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }

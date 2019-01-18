@@ -24,7 +24,7 @@ type jobBuilder struct {
 
 func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &jobBuilder{
-		client: batchclientv1.NewForConfigOrDie(config),
+		client: batchclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }

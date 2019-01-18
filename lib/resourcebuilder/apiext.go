@@ -24,7 +24,7 @@ type crdBuilder struct {
 
 func newCRDBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &crdBuilder{
-		client: apiextclientv1beta1.NewForConfigOrDie(config),
+		client: apiextclientv1beta1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
 }

@@ -1,3 +1,5 @@
+// package start initializes and launches the core cluster version operator
+// loops.
 package start
 
 import (
@@ -19,7 +21,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/api/core/v1"
-	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -42,6 +43,7 @@ const (
 	retryPeriod   = 30 * time.Second
 )
 
+// Options are the valid inputs to starting the CVO.
 type Options struct {
 	ReleaseImage string
 
@@ -67,6 +69,8 @@ func defaultEnv(name, defaultValue string) string {
 	return env
 }
 
+// NewOptions creates the default options for the CVO and loads any environment
+// variable overrides.
 func NewOptions() *Options {
 	return &Options{
 		ListenAddr: "0.0.0.0:9099",
@@ -227,25 +231,28 @@ func resyncPeriod(minResyncPeriod time.Duration) func() time.Duration {
 	}
 }
 
+// ClientBuilder simplifies returning Kubernetes client and client configs with
+// an appropriate user agent.
 type ClientBuilder struct {
 	config *rest.Config
 }
 
-func (cb *ClientBuilder) RestConfig() *rest.Config {
+// RestConfig returns a copy of the ClientBuilder's rest.Config with any overrides
+// from the provided configFns applied.
+func (cb *ClientBuilder) RestConfig(configFns ...func(*rest.Config)) *rest.Config {
 	c := rest.CopyConfig(cb.config)
+	for _, fn := range configFns {
+		fn(c)
+	}
 	return c
 }
 
-func (cb *ClientBuilder) ClientOrDie(name string) clientset.Interface {
-	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+func (cb *ClientBuilder) ClientOrDie(name string, configFns ...func(*rest.Config)) clientset.Interface {
+	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
-func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
-	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
-}
-
-func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
-	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+func (cb *ClientBuilder) KubeClientOrDie(name string, configFns ...func(*rest.Config)) kubernetes.Interface {
+	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
@@ -263,6 +270,17 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	}, nil
 }
 
+func increaseQPS(config *rest.Config) {
+	config.QPS = 20
+	config.Burst = 40
+}
+
+func useProtobuf(config *rest.Config) {
+	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
+	config.ContentType = "application/vnd.kubernetes.protobuf"
+}
+
+// Context holds the controllers for this operator and exposes a unified start command.
 type Context struct {
 	CVO        *cvo.Operator
 	AutoUpdate *autoupdate.Controller
@@ -271,6 +289,8 @@ type Context struct {
 	InformerFactory   informers.SharedInformerFactory
 }
 
+// NewControllerContext initializes the default Context for the current Options. It does
+// not start any background processes.
 func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	client := cb.ClientOrDie("shared-informer")
 
@@ -291,10 +311,9 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
-			cb.RestConfig(),
+			cb.RestConfig(increaseQPS),
 			cb.ClientOrDie(o.Namespace),
-			cb.KubeClientOrDie(o.Namespace),
-			cb.APIExtClientOrDie(o.Namespace),
+			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.EnableMetrics,
 		),
 	}
@@ -310,6 +329,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	return ctx
 }
 
+// Start launches the controllers in the provided context and any supporting
+// infrastructure. When ch is closed the controllers will be shut down.
 func (ctx *Context) Start(ch <-chan struct{}) {
 	go ctx.CVO.Run(2, ch)
 	if ctx.AutoUpdate != nil {
