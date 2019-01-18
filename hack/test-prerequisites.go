@@ -43,7 +43,8 @@ func main() {
 				return true, nil
 			}
 			if err != nil {
-				return false, err
+				log.Printf("error: failed creating CRD %s: %v", name, err)
+				return false, nil
 			}
 			log.Printf("Installed %s CRD", crd.Name)
 			return true, nil
