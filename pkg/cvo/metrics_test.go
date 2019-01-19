@@ -2,7 +2,9 @@ package cvo
 
 import (
 	"testing"
+	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -20,12 +22,87 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			optr: &Operator{
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
+				releaseCreated: time.Unix(3, 0),
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
 				if len(metrics) != 1 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
+			},
+		},
+		{
+			name: "collects current version with no age",
+			optr: &Operator{
+				releaseVersion: "0.0.2",
+				releaseImage:   "test/image:1",
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 1 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+			},
+		},
+		{
+			name: "collects completed history",
+			optr: &Operator{
+				name:           "test",
+				releaseVersion: "0.0.2",
+				releaseImage:   "test/image:1",
+				releaseCreated: time.Unix(3, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Status: configv1.ClusterVersionStatus{
+								History: []configv1.UpdateHistory{
+									{State: configv1.PartialUpdate, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
+									{State: configv1.CompletedUpdate, Version: "0.0.1", Payload: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "completed", "version": "0.0.1", "payload": "test/image:0", "age": "4"})
+			},
+		},
+		{
+			name: "ignores partial history",
+			optr: &Operator{
+				name:           "test",
+				releaseVersion: "0.0.2",
+				releaseImage:   "test/image:1",
+				releaseCreated: time.Unix(3, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Status: configv1.ClusterVersionStatus{
+								History: []configv1.UpdateHistory{
+									{State: configv1.PartialUpdate, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
 			},
 		},
 		{
@@ -50,9 +127,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
 				if len(metrics) != 4 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
 				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1", "namespace": ""})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available", "namespace": ""})
 				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Failing", "namespace": ""})
@@ -81,9 +158,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
 				if len(metrics) != 4 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
 				expectMetric(t, metrics[1], 1, map[string]string{"name": "test", "version": "", "namespace": "default"})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available", "namespace": "default"})
 				expectMetric(t, metrics[3], 0, map[string]string{"name": "test", "condition": "Custom", "namespace": "default"})
@@ -110,11 +187,12 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 2 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+				if len(metrics) != 3 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": ""})
-				expectMetric(t, metrics[1], 2, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": ""})
 			},
 		},
 		{
@@ -137,11 +215,12 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 2 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+				if len(metrics) != 3 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
 			},
 		},
 		{
@@ -164,11 +243,12 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 2 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+				if len(metrics) != 3 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "update", "version": "1.0.0", "payload": "test/image:2"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "payload": "test/image:2", "age": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
 			},
 		},
 		{
@@ -196,13 +276,14 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 4 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+				if len(metrics) != 5 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "update", "version": "1.0.0", "payload": "test/image:2"})
-				expectMetric(t, metrics[2], 1, map[string]string{"type": "failure", "version": "1.0.0", "payload": "test/image:2"})
-				expectMetric(t, metrics[3], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "payload": "test/image:2", "age": ""})
+				expectMetric(t, metrics[2], 1, map[string]string{"type": "failure", "version": "1.0.0", "payload": "test/image:2", "age": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[4], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
 			},
 		},
 		{
@@ -227,11 +308,12 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 2 {
-					t.Fatalf("Unexpected metrics %#v", metrics)
+				if len(metrics) != 3 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
 			},
 		},
 	}

@@ -70,12 +70,15 @@ type Operator struct {
 	// namespace and name are used to find the ClusterVersion, OperatorStatus.
 	namespace, name string
 
-	// releaseImage allows templating CVO deployment manifest.
+	// releaseImage is the image the current operator points to and allows
+	// templating of the CVO deployment manifest.
 	releaseImage string
 	// releaseVersion is a string identifier for the current version, read
 	// from the payload of the operator. It may be empty if no version exists, in
 	// which case no available updates will be returned.
 	releaseVersion string
+	// releaseCreated, if set, is the timestamp of the current update.
+	releaseCreated time.Time
 
 	// restConfig is used to create resourcebuilder.
 	restConfig *rest.Config
@@ -184,6 +187,7 @@ func New(
 	if meta, _, err := loadUpdatePayloadMetadata(optr.defaultPayloadDir(), releaseImage); err != nil {
 		glog.Warningf("The local payload is invalid - no current version can be determined from disk: %v", err)
 	} else {
+		optr.releaseCreated = meta.ImageRef.CreationTimestamp.Time
 		// XXX: set this to the cincinnati version in preference
 		if _, err := semver.Parse(meta.ImageRef.Name); err != nil {
 			glog.Warningf("The local payload name %q is not a valid semantic version - no current version will be reported: %v", meta.ImageRef.Name, err)

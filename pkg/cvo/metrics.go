@@ -1,6 +1,8 @@
 package cvo
 
 import (
+	"strconv"
+
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/prometheus/client_golang/prometheus"
@@ -44,8 +46,15 @@ func newOperatorMetrics(optr *Operator) *operatorMetrics {
 
 		version: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version",
-			Help: "Reports the version of the cluster.",
-		}, []string{"type", "version", "payload"}),
+			Help: `Reports the version of the cluster. The type is 'current' for
+what is being actively applied, 'desired' if a different
+update will be applied, 'failure' if either current or
+desired cannot be applied, and 'completed' as the last update
+that reached a conclusion. The age label is seconds since the
+epoch and for 'current' is the payload creation timestamp and
+for 'completed' is the time the update was first successfully
+applied.`,
+		}, []string{"type", "version", "payload", "age"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -62,32 +71,53 @@ func newOperatorMetrics(optr *Operator) *operatorMetrics {
 }
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
-	ch <- m.version.WithLabelValues("", "", "").Desc()
+	ch <- m.version.WithLabelValues("", "", "", "").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
-	g := m.version.WithLabelValues("current", current.Version, current.Payload)
+	currentAge := ""
+	if !m.optr.releaseCreated.IsZero() {
+		currentAge = strconv.FormatInt(m.optr.releaseCreated.Unix(), 10)
+	}
+	g := m.version.WithLabelValues("current", current.Version, current.Payload, currentAge)
 	g.Set(1)
 	ch <- g
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
 		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.OperatorFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Payload != current.Payload {
-			g := m.version.WithLabelValues("update", update.Version, update.Payload)
+			g := m.version.WithLabelValues("desired", update.Version, update.Payload, "")
 			g.Set(1)
 			ch <- g
 			if failing {
-				g = m.version.WithLabelValues("failure", update.Version, update.Payload)
+				g = m.version.WithLabelValues("failure", update.Version, update.Payload, "")
 				g.Set(1)
 				ch <- g
 			}
 		}
 		if failing {
-			g := m.version.WithLabelValues("failure", current.Version, current.Payload)
+			g := m.version.WithLabelValues("failure", current.Version, current.Payload, currentAge)
 			g.Set(1)
 			ch <- g
 		}
+
+		// record the last completed update is completed at least once (1) or no completed update has been applied (0)
+		var completedUpdate configv1.Update
+		completed := float64(0)
+		completedAge := ""
+		for _, history := range cv.Status.History {
+			if history.State == configv1.CompletedUpdate {
+				completedUpdate.Payload = history.Payload
+				completedUpdate.Version = history.Version
+				completed = 1
+				completedAge = strconv.FormatInt(history.CompletionTime.Time.Unix(), 10)
+				break
+			}
+		}
+		g := m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Payload, completedAge)
+		g.Set(completed)
+		ch <- g
 
 		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
 			upstream := "<default>"
