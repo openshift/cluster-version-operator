@@ -28,7 +28,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 1 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": "3"})
 			},
 		},
 		{
@@ -41,7 +41,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 1 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": ""})
 			},
 		},
 		{
@@ -60,7 +60,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
 									{State: configv1.PartialUpdate, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
-									{State: configv1.CompletedUpdate, Version: "0.0.1", Payload: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
 								},
 							},
 						},
@@ -71,8 +71,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 2 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "completed", "version": "0.0.1", "payload": "test/image:0", "age": "4"})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": "3"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0", "age": "4"})
 			},
 		},
 		{
@@ -101,8 +101,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 2 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": "3"})
-				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": "3"})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 			},
 		},
 		{
@@ -129,7 +129,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "image": "", "age": ""})
 				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1", "namespace": ""})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available", "namespace": ""})
 				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Failing", "namespace": ""})
@@ -160,7 +160,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "image": "", "age": ""})
 				expectMetric(t, metrics[1], 1, map[string]string{"name": "test", "version": "", "namespace": "default"})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available", "namespace": "default"})
 				expectMetric(t, metrics[3], 0, map[string]string{"name": "test", "condition": "Custom", "namespace": "default"})
@@ -190,8 +190,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "image": "", "age": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": ""})
 			},
 		},
@@ -218,8 +218,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "payload": "", "age": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "", "image": "", "age": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
 			},
 		},
@@ -236,7 +236,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name: "test",
 							},
 							Spec: configv1.ClusterVersionSpec{
-								DesiredUpdate: &configv1.Update{Version: "1.0.0", Payload: "test/image:2"},
+								DesiredUpdate: &configv1.Update{Version: "1.0.0", Image: "test/image:2"},
 							},
 						},
 					},
@@ -246,9 +246,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "payload": "test/image:2", "age": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "age": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 			},
 		},
 		{
@@ -264,7 +264,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name: "test",
 							},
 							Spec: configv1.ClusterVersionSpec{
-								DesiredUpdate: &configv1.Update{Version: "1.0.0", Payload: "test/image:2"},
+								DesiredUpdate: &configv1.Update{Version: "1.0.0", Image: "test/image:2"},
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -279,15 +279,15 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 5 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "payload": "test/image:2", "age": ""})
-				expectMetric(t, metrics[2], 1, map[string]string{"type": "failure", "version": "1.0.0", "payload": "test/image:2", "age": ""})
-				expectMetric(t, metrics[3], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1", "age": ""})
-				expectMetric(t, metrics[4], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "age": ""})
+				expectMetric(t, metrics[2], 1, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2", "age": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "age": ""})
+				expectMetric(t, metrics[4], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 			},
 		},
 		{
-			name: "collects failing payload",
+			name: "collects failing image",
 			optr: &Operator{
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
@@ -311,9 +311,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "payload": "test/image:1", "age": ""})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "failure", "version": "0.0.2", "payload": "test/image:1", "age": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "payload": "", "age": ""})
+				expectMetric(t, metrics[0], 1, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "age": ""})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "age": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "completed", "version": "", "image": "", "age": ""})
 			},
 		},
 	}

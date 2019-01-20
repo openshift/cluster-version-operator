@@ -17,42 +17,42 @@ func Test_statusWrapper_Report(t *testing.T) {
 	}{
 		{
 			name:     "skip updates that clear an error and are at an earlier fraction",
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Payload: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
 			want:     false,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Payload: "testing2"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing2"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Payload: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Payload: "testing"}, Fraction: 0.2},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.2},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Actual: configv1.Update{Payload: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Payload: "testing"}},
+			previous: SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
 			want:     true,
 		},
 		{
-			next: SyncWorkerStatus{Actual: configv1.Update{Payload: "testing"}},
+			next: SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
 			want: true,
 		},
 	}
@@ -94,35 +94,35 @@ func Test_runThrottledStatusNotifier(t *testing.T) {
 
 	go runThrottledStatusNotifier(stopCh, 30*time.Second, 1, in, func() { out <- struct{}{} })
 
-	in <- SyncWorkerStatus{Actual: configv1.Update{Payload: "test"}}
+	in <- SyncWorkerStatus{Actual: configv1.Update{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Reconciling: true, Actual: configv1.Update{Payload: "test"}}
+	in <- SyncWorkerStatus{Reconciling: true, Actual: configv1.Update{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Payload: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Payload: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Payload: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
 	select {
 	case <-out:
 		t.Fatalf("should have throttled")

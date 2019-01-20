@@ -3,12 +3,12 @@
 The `ClusterVersion` is a custom resource object which holds the current version of the cluster.
 This object is used by the administrator to declare their target cluster state, which the cluster-version operator (CVO) then works to transition the cluster to that target state.
 
-## Finding your current update payload
+## Finding your current update image
 
-You can extract the current update payload from the `ClusterVersion` object:
+You can extract the current update image from the `ClusterVersion` object:
 
 ```console
-$ oc get clusterversion -o jsonpath='{.status.current.payload}{"\n"}' version
+$ oc get clusterversion -o jsonpath='{.status.current.image}{"\n"}' version
 registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833
 ```
 
@@ -18,8 +18,8 @@ For testing operators, it is sometimes helpful to disable CVO management so you 
 To get a list of objects managed by the CVO, run:
 
 ```console
-$ oc adm release extract --from=registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833 --to=release-payload
-$ ls release-payload | head -n5
+$ oc adm release extract --from=registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833 --to=release-image
+$ ls release-image | head -n5
 0000_07_cluster-network-operator_00_namespace.yaml
 0000_07_cluster-network-operator_01_crd.yaml
 0000_07_cluster-network-operator_02_rbac.yaml
@@ -44,7 +44,7 @@ To add an entry to that list, you can use a [JSON Patch][json-patch] to add a [`
 For example, to set the network operator's daemonset unmanaged:
 
 ```console
-$ head -n5 release-payload/0000_07_cluster-network-operator_03_daemonset.yaml
+$ head -n5 release-image/0000_07_cluster-network-operator_03_daemonset.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

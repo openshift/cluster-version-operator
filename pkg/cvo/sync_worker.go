@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 )
 
-// ConfigSyncWorker abstracts how the payload is synchronized to the server. Introduced for testing.
+// ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(stopCh <-chan struct{})
 	Update(desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus
@@ -48,9 +48,9 @@ type SyncWork struct {
 	Completed   int
 }
 
-// Empty returns true if the payload is empty for this work.
+// Empty returns true if the image is empty for this work.
 func (w SyncWork) Empty() bool {
-	return len(w.Desired.Payload) == 0
+	return len(w.Desired.Image) == 0
 }
 
 // SyncWorkerStatus is the status of the sync worker at a given time.
@@ -72,9 +72,9 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 	return &w
 }
 
-// SyncWorker retrieves and applies the desired payload, tracking the status for the parent to
+// SyncWorker retrieves and applies the desired image, tracking the status for the parent to
 // monitor. The worker accepts a desired state via Update() and works to keep that state in
-// sync. Once a particular payload version is synced, it will be updated no more often than
+// sync. Once a particular image version is synced, it will be updated no more often than
 // minimumReconcileInterval.
 //
 // State transitions:
@@ -113,7 +113,7 @@ type SyncWorker struct {
 	status   SyncWorkerStatus
 
 	// updated by the run method only
-	payload *updatePayload
+	image *updatePayload
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
@@ -221,7 +221,7 @@ func (w *SyncWorker) Start(stopCh <-chan struct{}) {
 				continue
 			}
 
-			// actually apply the payload, allowing for calls to be cancelled
+			// actually apply the image, allowing for calls to be cancelled
 			err := func() error {
 				ctx, cancelFn := context.WithCancel(context.Background())
 				w.lock.Lock()
@@ -248,7 +248,7 @@ func (w *SyncWorker) Start(stopCh <-chan struct{}) {
 				}
 				next = time.After(wait.Jitter(interval, 0.2))
 
-				utilruntime.HandleError(fmt.Errorf("unable to synchronize payload (waiting %s): %v", interval, err))
+				utilruntime.HandleError(fmt.Errorf("unable to synchronize image (waiting %s): %v", interval, err))
 				continue
 			}
 			glog.V(5).Infof("Sync succeeded, reconciling")
@@ -313,9 +313,9 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	return changed
 }
 
-// equalUpdate returns true if two updates have the same payload.
+// equalUpdate returns true if two updates have the same image.
 func equalUpdate(a, b configv1.Update) bool {
-	return a.Payload == b.Payload
+	return a.Image == b.Image
 }
 
 // equalSyncWork returns true if a and b are equal.
@@ -364,53 +364,53 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 	return w.status.DeepCopy()
 }
 
-// sync retrieves the payload and applies it to the server, returning an error if
+// sync retrieves the image and applies it to the server, returning an error if
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
 	glog.V(4).Infof("Running sync %s", versionString(work.Desired))
 	update := work.Desired
 
-	// cache the payload until the release image changes
-	payload := w.payload
-	if payload == nil || !equalUpdate(configv1.Update{Payload: payload.ReleaseImage}, update) {
-		glog.V(4).Infof("Loading payload")
+	// cache the image until the release image changes
+	image := w.image
+	if image == nil || !equalUpdate(configv1.Update{Image: image.ReleaseImage}, update) {
+		glog.V(4).Infof("Loading image")
 		reporter.Report(SyncWorkerStatus{Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
 		payloadDir, err := w.retriever.RetrievePayload(ctx, update)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{Failure: err, Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
 			return err
 		}
-		payload, err := loadUpdatePayload(payloadDir, update.Payload)
+		image, err := loadUpdatePayload(payloadDir, update.Image)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{Failure: err, Step: "VerifyPayload", Reconciling: work.Reconciling, Actual: update})
 			return err
 		}
-		w.payload = payload
-		glog.V(4).Infof("Payload loaded from %s with hash %s", payload.ReleaseImage, payload.ManifestHash)
+		w.image = image
+		glog.V(4).Infof("Image loaded from %s with hash %s", image.ReleaseImage, image.ManifestHash)
 	}
 
-	return w.apply(ctx, w.payload, work, reporter)
+	return w.apply(ctx, w.image, work, reporter)
 }
 
-// apply updates the server with the contents of the provided payload or returns an error.
+// apply updates the server with the contents of the provided image or returns an error.
 // Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) apply(ctx context.Context, payload *updatePayload, work *SyncWork, reporter StatusReporter) error {
+func (w *SyncWorker) apply(ctx context.Context, image *updatePayload, work *SyncWork, reporter StatusReporter) error {
 	update := configv1.Update{
-		Version: payload.ReleaseVersion,
-		Payload: payload.ReleaseImage,
+		Version: image.ReleaseVersion,
+		Image:   image.ReleaseImage,
 	}
 
 	// update each object
-	version := payload.ReleaseVersion
-	total := len(payload.Manifests)
+	version := image.ReleaseVersion
+	total := len(image.Manifests)
 	done := 0
 	var tasks []*syncTask
-	for i := range payload.Manifests {
+	for i := range image.Manifests {
 		tasks = append(tasks, &syncTask{
 			index:    i + 1,
 			total:    total,
-			manifest: &payload.Manifests[i],
+			manifest: &image.Manifests[i],
 			backoff:  w.backoff,
 		})
 	}
@@ -420,14 +420,14 @@ func (w *SyncWorker) apply(ctx context.Context, payload *updatePayload, work *Sy
 		setAppliedAndPending(version, total, done)
 		fraction := float32(i) / float32(len(tasks))
 
-		reporter.Report(SyncWorkerStatus{Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payload.ManifestHash, Actual: update})
+		reporter.Report(SyncWorkerStatus{Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
 
 		glog.V(4).Infof("Running sync for %s", task)
 		glog.V(5).Infof("Manifest: %s", string(task.manifest.Raw))
 
 		if contextIsCancelled(ctx) {
 			err := fmt.Errorf("update was cancelled at %d/%d", i, len(tasks))
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payload.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
 			return err
 		}
 
@@ -438,7 +438,7 @@ func (w *SyncWorker) apply(ctx context.Context, payload *updatePayload, work *Sy
 		}
 
 		if err := task.Run(version, w.builder); err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payload.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: image.ManifestHash, Actual: update})
 			cause := errors.Cause(err)
 			if task.requeued == 0 && shouldRequeueOnErr(cause, task.manifest) {
 				task.requeued++
@@ -453,7 +453,7 @@ func (w *SyncWorker) apply(ctx context.Context, payload *updatePayload, work *Sy
 
 	setAppliedAndPending(version, total, done)
 	work.Completed++
-	reporter.Report(SyncWorkerStatus{Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payload.ManifestHash, Actual: update})
+	reporter.Report(SyncWorkerStatus{Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: image.ManifestHash, Actual: update})
 
 	return nil
 }

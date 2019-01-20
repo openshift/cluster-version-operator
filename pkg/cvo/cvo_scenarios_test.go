@@ -162,11 +162,11 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	})
 	verifyAllStatus(t, worker.StatusCh())
 
-	// Step 3: Given an operator payload, begin synchronizing
+	// Step 3: Given an operator image, begin synchronizing
 	//
-	o.releaseImage = "payload/image:1"
+	o.releaseImage = "image/image:1"
 	o.releaseVersion = "4.0.1"
-	desired := configv1.Update{Version: "4.0.1", Payload: "payload/image:1"}
+	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -190,7 +190,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			Desired: desired,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Payload: "payload/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -204,36 +204,36 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step: "RetrievePayload",
-			// the desired version is briefly incorrect (user provided) until we retrieve the payload
-			Actual: configv1.Update{Version: "4.0.1", Payload: "payload/image:1"},
+			// the desired version is briefly incorrect (user provided) until we retrieve the image
+			Actual: configv1.Update{Version: "4.0.1", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 
-	// Step 4: Now that sync is complete, verify status is updated to represent payload contents
+	// Step 4: Now that sync is complete, verify status is updated to represent image contents
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -256,13 +256,13 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the payload version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				// Because payload and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Payload: "payload/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Payload: "payload/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -280,28 +280,28 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 
@@ -326,11 +326,11 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 
-	// Setup: a successful sync from a previous run, and the operator at the same payload as before
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
 	//
-	o.releaseImage = "payload/image:1"
+	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"}
+	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -343,13 +343,13 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the payload version over the operator's version (although in general they will remain in sync)
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
-				{State: configv1.CompletedUpdate, Payload: "payload/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Payload: "payload/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -389,34 +389,34 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "RetrievePayload",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	client.ClearActions()
@@ -434,33 +434,33 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	//         not change
 	//
 	verifyAllStatus(t, worker.StatusCh(),
-		// note that the payload is not retrieved a second time
+		// note that the image is not retrieved a second time
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	client.ClearActions()
@@ -484,11 +484,11 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	b := newBlockingResourceBuilder()
 	worker.builder = b
 
-	// Setup: a successful sync from a previous run, and the operator at the same payload as before
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
 	//
-	o.releaseImage = "payload/image:1"
+	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"}
+	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -501,11 +501,11 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the payload version over the operator's version (although in general they will remain in sync)
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Payload: "payload/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -542,13 +542,13 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "RetrievePayload",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	// verify we haven't observed any other events
@@ -579,7 +579,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	verifyAllStatus(t, worker.StatusCh())
@@ -595,7 +595,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	verifyAllStatus(t, worker.StatusCh())
@@ -615,7 +615,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Reason:  "UpdatePayloadFailed",
 				Message: "Could not update test \"file-yml\" (v1, 3 of 3)",
 			},
-			Actual: configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			Actual: configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
 	client.ClearActions()
@@ -638,12 +638,12 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the payload version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Payload: "payload/image:1"},
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				// Because payload and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Payload: "payload/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},

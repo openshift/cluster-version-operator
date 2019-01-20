@@ -30,10 +30,10 @@ func Test_loadUpdatePayload(t *testing.T) {
 			name: "ignore files without extensions, load metadata",
 			args: args{
 				dir:          filepath.Join("testdata", "payloadtest"),
-				releaseImage: "payload:1",
+				releaseImage: "image:1",
 			},
 			want: &updatePayload{
-				ReleaseImage:   "payload:1",
+				ReleaseImage:   "image:1",
 				ReleaseVersion: "1.0.0-abc",
 				ImageRef: &imagev1.ImageStream{
 					TypeMeta: metav1.TypeMeta{

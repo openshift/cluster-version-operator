@@ -44,7 +44,7 @@ const (
 // ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
 var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
 
-// Operator defines cluster version operator. The CVO attempts to reconcile the appropriate payload
+// Operator defines cluster version operator. The CVO attempts to reconcile the appropriate image
 // onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
 // periodically checks for new updates from a server described by spec.upstream and spec.channel.
 // The main CVO sync loop is the single writer of ClusterVersion status.
@@ -55,15 +55,15 @@ var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
 // reason, and then the reason is used to summarize the error onto the Progressing condition's
 // message for a simple overview.
 //
-// The CVO periodically syncs the whole payload to the cluster even if no version transition is
+// The CVO periodically syncs the whole image to the cluster even if no version transition is
 // detected in order to undo accidental actions.
 //
 // A release image is expected to contain a CVO binary, the manifests necessary to update the
 // CVO, and the manifests of the other operators on the cluster. During an update the operator
 // attempts to copy the contents of the image manifests into a temporary directory using a
-// batch job and a shared host-path, then applies the CVO manifests using the payload image
+// batch job and a shared host-path, then applies the CVO manifests using the image image
 // for the CVO deployment. The deployment is then expected to launch the new process, and the
-// new operator picks up the lease and applies the rest of the payload.
+// new operator picks up the lease and applies the rest of the image.
 type Operator struct {
 	// nodename allows CVO to sync fetchPayload to same node as itself.
 	nodename string
@@ -74,7 +74,7 @@ type Operator struct {
 	// templating of the CVO deployment manifest.
 	releaseImage string
 	// releaseVersion is a string identifier for the current version, read
-	// from the payload of the operator. It may be empty if no version exists, in
+	// from the image of the operator. It may be empty if no version exists, in
 	// which case no available updates will be returned.
 	releaseVersion string
 	// releaseCreated, if set, is the timestamp of the current update.
@@ -185,12 +185,12 @@ func New(
 	}
 
 	if meta, _, err := loadUpdatePayloadMetadata(optr.defaultPayloadDir(), releaseImage); err != nil {
-		glog.Warningf("The local payload is invalid - no current version can be determined from disk: %v", err)
+		glog.Warningf("The local image is invalid - no current version can be determined from disk: %v", err)
 	} else {
 		optr.releaseCreated = meta.ImageRef.CreationTimestamp.Time
 		// XXX: set this to the cincinnati version in preference
 		if _, err := semver.Parse(meta.ImageRef.Name); err != nil {
-			glog.Warningf("The local payload name %q is not a valid semantic version - no current version will be reported: %v", meta.ImageRef.Name, err)
+			glog.Warningf("The local image name %q is not a valid semantic version - no current version will be reported: %v", meta.ImageRef.Name, err)
 		} else {
 			optr.releaseVersion = meta.ImageRef.Name
 		}
@@ -328,7 +328,7 @@ func (optr *Operator) sync(key string) error {
 	}
 
 	// handle the case of a misconfigured CVO by doing nothing
-	if len(desired.Payload) == 0 {
+	if len(desired.Image) == 0 {
 		return optr.syncStatus(original, config, &SyncWorkerStatus{
 			Failure: fmt.Errorf("No configured operator version, unable to update cluster"),
 		}, errs)
@@ -438,8 +438,8 @@ func versionString(update configv1.Update) string {
 	if len(update.Version) > 0 {
 		return update.Version
 	}
-	if len(update.Payload) > 0 {
-		return update.Payload
+	if len(update.Image) > 0 {
+		return update.Image
 	}
 	return "<unknown>"
 }
@@ -448,7 +448,7 @@ func versionString(update configv1.Update) string {
 func (optr *Operator) currentVersion() configv1.Update {
 	return configv1.Update{
 		Version: optr.releaseVersion,
-		Payload: optr.releaseImage,
+		Image: optr.releaseImage,
 	}
 }
 

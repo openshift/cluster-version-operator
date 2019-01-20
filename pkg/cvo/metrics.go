@@ -12,11 +12,11 @@ import (
 var (
 	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "cluster_version_payload",
-		Help: "Report the number of entries in the payload.",
+		Help: "Report the number of entries in the image.",
 	}, []string{"version", "type"})
 	metricPayloadErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "cluster_operator_payload_errors",
-		Help: "Report the number of errors encountered applying the payload.",
+		Help: "Report the number of errors encountered applying the image.",
 	}, []string{"version"})
 )
 
@@ -51,10 +51,10 @@ what is being actively applied, 'desired' if a different
 update will be applied, 'failure' if either current or
 desired cannot be applied, and 'completed' as the last update
 that reached a conclusion. The age label is seconds since the
-epoch and for 'current' is the payload creation timestamp and
+epoch and for 'current' is the image creation timestamp and
 for 'completed' is the time the update was first successfully
 applied.`,
-		}, []string{"type", "version", "payload", "age"}),
+		}, []string{"type", "version", "image", "age"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -80,24 +80,24 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	if !m.optr.releaseCreated.IsZero() {
 		currentAge = strconv.FormatInt(m.optr.releaseCreated.Unix(), 10)
 	}
-	g := m.version.WithLabelValues("current", current.Version, current.Payload, currentAge)
+	g := m.version.WithLabelValues("current", current.Version, current.Image, currentAge)
 	g.Set(1)
 	ch <- g
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
 		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.OperatorFailing)
-		if update := cv.Spec.DesiredUpdate; update != nil && update.Payload != current.Payload {
-			g := m.version.WithLabelValues("desired", update.Version, update.Payload, "")
+		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
+			g := m.version.WithLabelValues("desired", update.Version, update.Image, "")
 			g.Set(1)
 			ch <- g
 			if failing {
-				g = m.version.WithLabelValues("failure", update.Version, update.Payload, "")
+				g = m.version.WithLabelValues("failure", update.Version, update.Image, "")
 				g.Set(1)
 				ch <- g
 			}
 		}
 		if failing {
-			g := m.version.WithLabelValues("failure", current.Version, current.Payload, currentAge)
+			g := m.version.WithLabelValues("failure", current.Version, current.Image, currentAge)
 			g.Set(1)
 			ch <- g
 		}
@@ -108,14 +108,14 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		completedAge := ""
 		for _, history := range cv.Status.History {
 			if history.State == configv1.CompletedUpdate {
-				completedUpdate.Payload = history.Payload
+				completedUpdate.Image = history.Image
 				completedUpdate.Version = history.Version
 				completed = 1
 				completedAge = strconv.FormatInt(history.CompletionTime.Time.Unix(), 10)
 				break
 			}
 		}
-		g := m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Payload, completedAge)
+		g := m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Image, completedAge)
 		g.Set(completed)
 		ch <- g
 

@@ -11,7 +11,7 @@ import (
 func ImageForShortName(name string) (string, error) {
 	up, err := loadUpdatePayload(defaultUpdatePayloadDir, "")
 	if err != nil {
-		return "", errors.Wrapf(err, "error loading update payload from %q", defaultUpdatePayloadDir)
+		return "", errors.Wrapf(err, "error loading update image from %q", defaultUpdatePayloadDir)
 	}
 
 	for _, tag := range up.ImageRef.Spec.Tags {

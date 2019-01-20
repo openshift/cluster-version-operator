@@ -99,7 +99,7 @@ type graph struct {
 
 type node struct {
 	Version semver.Version
-	Payload string
+	Image   string
 }
 
 type edge struct {

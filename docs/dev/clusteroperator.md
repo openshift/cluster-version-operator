@@ -7,24 +7,24 @@ Ref: [godoc](https://godoc.org/github.com/openshift/api/config/v1#ClusterOperato
 ## Why I want ClusterOperator Custom Resource in /manifests
 
 Everyone must include the ClusterOperator Custom Resource in [`/manifests`](operators.md#what-do-i-put-in-manifests).
-The ClusterVersionOperator sweeps the release payload and applies it to the cluster. On upgrade, the CVO uses clusteroperators to confirm successful upgrades.
+The ClusterVersionOperator sweeps the release image and applies it to the cluster. On upgrade, the CVO uses clusteroperators to confirm successful upgrades.
 Cluster-admins make use of these resources to check the status of their clusters.
 
 ## How should I include ClusterOperator Custom Resource in /manifests
 
-### How ClusterVersionOperator handles ClusterOperator in release payload
+### How ClusterVersionOperator handles ClusterOperator in release image
 
 When ClusterVersionOperator encounters a ClusterOperator Custom Resource,
 
 - It uses the `.metadata.name` and `.metadata.namespace` to find the corresponding ClusterOperator instance in the cluster
 - It then waits for the instance in the cluster until
-  - `.status.version` in the live instance matches the `.status.version` from the release payload and
+  - `.status.version` in the live instance matches the `.status.version` from the release image and
   - the live instance `.status.conditions` report available, not progressing and not failed
 - It then continues to the next task.
 
 ClusterVersionOperator will only deploy files with `.yaml`, `.yml`, or `.json` extensions, like `kubectl create -f DIR`.
 
-**NOTE**: ClusterVersionOperator sweeps the manifests in the release payload in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterOperator resource in `/manifests` is only a communication mechanism, to tell the ClusterVersionOperator, which ClusterOperator resource to wait for. The ClusterVersionOperator does not create the ClusterOperator resource, this and updating it is the responsibility of the respective operator.
+**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterOperator resource in `/manifests` is only a communication mechanism, to tell the ClusterVersionOperator, which ClusterOperator resource to wait for. The ClusterVersionOperator does not create the ClusterOperator resource, this and updating it is the responsibility of the respective operator.
 
 ### What should be the contents of ClusterOperator Custom Resource in /manifests
 

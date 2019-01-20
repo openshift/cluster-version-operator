@@ -40,7 +40,7 @@ var (
 				}
 			}
 			`,
-			// this manifest should not have ReleaseImage replaced because it is part of the user facing payload
+			// this manifest should not have ReleaseImage replaced because it is part of the user facing image
 			"config2.json": `
 			{
 				"kind": "ConfigMap",
@@ -57,7 +57,7 @@ var (
 			`,
 		},
 		"manifests": map[string]interface{}{
-			// this manifest is part of the innate payload and should have ReleaseImage replaced
+			// this manifest is part of the innate image and should have ReleaseImage replaced
 			"config1.json": `
 			{
 				"kind": "ConfigMap",
@@ -243,7 +243,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
-	verifyClusterVersionStatus(t, lastCV, configv1.Update{Payload: payloadImage1, Version: "0.0.1"}, 1)
+	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("wait for the next resync and verify that status didn't change")
@@ -267,7 +267,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version")
-	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"payload":"%s"}}}`, payloadImage2)))
+	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatalf("cluster version never reached available at 0.0.2: %v", err)
 	}
 	t.Logf("Upgraded version:\n%s", printCV(lastCV))
-	verifyClusterVersionStatus(t, lastCV, configv1.Update{Payload: payloadImage2, Version: "0.0.2"}, 2)
+	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage2, Version: "0.0.2"}, 2)
 	verifyReleasePayload(t, kc, ns, "0.0.2", payloadImage2)
 
 	t.Logf("delete an object so that the next resync will recover it")
@@ -392,11 +392,11 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
-	verifyClusterVersionStatus(t, lastCV, configv1.Update{Payload: payloadImage1, Version: "0.0.1"}, 1)
+	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version that should fail")
-	cv, err := client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"payload":"%s"}}}`, payloadImage2)))
+	cv, err := client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -425,7 +425,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	verifyReleasePayloadConfigMap2(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("switch back to 0.0.1 and verify it succeeds")
-	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"payload":"", "version":"0.0.1"}}}`))
+	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"image":"", "version":"0.0.1"}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,7 +437,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reverted to 0.0.1: %v", err)
 	}
-	verifyClusterVersionStatus(t, lastCV, configv1.Update{Payload: payloadImage1, Version: "0.0.1"}, 3)
+	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 3)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 }
 
@@ -699,7 +699,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			return false, nil
 		}
 		if cv.Status.History[0].State == configv1.CompletedUpdate {
-			return false, fmt.Errorf("upgrading operator to failed payload should remain partial: %#v", cv.Status.History)
+			return false, fmt.Errorf("upgrading operator to failed image should remain partial: %#v", cv.Status.History)
 		}
 
 		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
@@ -708,7 +708,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		}
 		progressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
 		if progressing == nil || progressing.Status != configv1.ConditionTrue {
-			return false, fmt.Errorf("upgrading operator to failed payload should have progressing true: %#v", progressing)
+			return false, fmt.Errorf("upgrading operator to failed image should have progressing true: %#v", progressing)
 		}
 		if !strings.Contains(failing.Message, failingMessage) {
 			return false, fmt.Errorf("failure message mismatch: %s", failing.Message)
@@ -751,7 +751,7 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	expect := configv1.UpdateHistory{
 		State:          configv1.CompletedUpdate,
 		Version:        expectedUpdate.Version,
-		Payload:        expectedUpdate.Payload,
+		Image:          expectedUpdate.Image,
 		StartedTime:    actual.StartedTime,
 		CompletionTime: actual.CompletionTime,
 	}
@@ -766,24 +766,24 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	}
 }
 
-func verifyReleasePayload(t *testing.T, kc kubernetes.Interface, ns, version, payload string) {
+func verifyReleasePayload(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
-	verifyReleasePayloadConfigMap1(t, kc, ns, version, payload)
-	verifyReleasePayloadConfigMap2(t, kc, ns, version, payload)
+	verifyReleasePayloadConfigMap1(t, kc, ns, version, image)
+	verifyReleasePayloadConfigMap2(t, kc, ns, version, image)
 }
 
-func verifyReleasePayloadConfigMap1(t *testing.T, kc kubernetes.Interface, ns, version, payload string) {
+func verifyReleasePayloadConfigMap1(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
 	cm, err := kc.CoreV1().ConfigMaps(ns).Get("config1", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to find cm/config1 in ns %s: %v", ns, err)
 	}
-	if cm.Data["version"] != version || cm.Data["releaseImage"] != payload {
+	if cm.Data["version"] != version || cm.Data["releaseImage"] != image {
 		t.Fatalf("unexpected cm/config1 contents: %#v", cm.Data)
 	}
 }
 
-func verifyReleasePayloadConfigMap2(t *testing.T, kc kubernetes.Interface, ns, version, payload string) {
+func verifyReleasePayloadConfigMap2(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
 	cm, err := kc.CoreV1().ConfigMaps(ns).Get("config2", metav1.GetOptions{})
 	if err != nil {
@@ -875,9 +875,9 @@ type mapPayloadRetriever struct {
 }
 
 func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
-	path, ok := r.Paths[update.Payload]
+	path, ok := r.Paths[update.Image]
 	if !ok {
-		return "", fmt.Errorf("no payload found for %q", update.Payload)
+		return "", fmt.Errorf("no image found for %q", update.Image)
 	}
 	return path, nil
 }

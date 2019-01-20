@@ -32,17 +32,17 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 	}
 	if u := config.Spec.DesiredUpdate; u != nil {
 		switch {
-		case len(u.Version) == 0 && len(u.Payload) == 0:
-			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate", "version"), "must specify version or payload"))
+		case len(u.Version) == 0 && len(u.Image) == 0:
+			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate", "version"), "must specify version or image"))
 		case len(u.Version) > 0 && !validSemVer(u.Version):
 			errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "must be a semantic version (1.2.3[-...])"))
-		case len(u.Version) > 0 && len(u.Payload) == 0:
+		case len(u.Version) > 0 && len(u.Image) == 0:
 			switch countPayloadsForVersion(config, u.Version) {
 			case 0:
-				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when payload is empty the update must be a previous version or an available update"))
+				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when image is empty the update must be a previous version or an available update"))
 			case 1:
 			default:
-				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "there are multiple possible payloads for this version, specify the exact payload"))
+				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "there are multiple possible payloads for this version, specify the exact image"))
 			}
 		}
 	}
@@ -52,7 +52,7 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 func countPayloadsForVersion(config *configv1.ClusterVersion, version string) int {
 	count := 0
 	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version && len(update.Payload) > 0 {
+		if update.Version == version && len(update.Image) > 0 {
 			count++
 		}
 	}
@@ -61,7 +61,7 @@ func countPayloadsForVersion(config *configv1.ClusterVersion, version string) in
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
-			if len(history.Payload) > 0 {
+			if len(history.Image) > 0 {
 				return 1
 			}
 		}
@@ -72,12 +72,12 @@ func countPayloadsForVersion(config *configv1.ClusterVersion, version string) in
 func hasAmbiguousPayloadForVersion(config *configv1.ClusterVersion, version string) bool {
 	for _, update := range config.Status.AvailableUpdates {
 		if update.Version == version {
-			return len(update.Payload) > 0
+			return len(update.Image) > 0
 		}
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
-			return len(history.Payload) > 0
+			return len(history.Image) > 0
 		}
 	}
 	return false
