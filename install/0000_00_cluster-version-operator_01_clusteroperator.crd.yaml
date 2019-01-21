@@ -30,6 +30,8 @@ spec:
     listKind: ClusterOperatorList
     plural: clusteroperators
     singular: clusteroperator
+    shortNames:
+    - co
   scope: Cluster
   subresources:
     status: {}
