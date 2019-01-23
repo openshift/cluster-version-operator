@@ -115,7 +115,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name: "test",
 							},
 							Status: configv1.ClusterOperatorStatus{
-								Version: "10.1.5-1",
+								Versions: []configv1.OperandVersion{
+									{Version: "10.1.5-1"},
+									{Version: "10.1.5-2"},
+								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
 									{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue},

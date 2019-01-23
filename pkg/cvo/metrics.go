@@ -133,7 +133,13 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	// output cluster operator version and condition info
 	operators, _ := m.optr.clusterOperatorLister.List(labels.Everything())
 	for _, op := range operators {
-		g := m.clusterOperatorUp.WithLabelValues(op.Namespace, op.Name, op.Status.Version)
+		// TODO: when we define how version works, report the appropriate version
+		var firstVersion string
+		for _, v := range op.Status.Versions {
+			firstVersion = v.Version
+			break
+		}
+		g := m.clusterOperatorUp.WithLabelValues(op.Namespace, op.Name, firstVersion)
 		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorFailing)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
