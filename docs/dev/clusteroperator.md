@@ -6,7 +6,9 @@ Ref: [godoc](https://godoc.org/github.com/openshift/api/config/v1#ClusterOperato
 
 ## Why I want ClusterOperator Custom Resource in /manifests
 
-ClusterVersionOperator sweeps the release payload and applies it to the cluster. So if your operator manages a critical component for the cluster and you want ClusterVersionOperator to wait for your operator to **complete** before it continues to apply other operators, you must include the ClusterOperator Custom Resource in [`/manifests`](operators.md#what-do-i-put-in-manifests).
+Everyone must include the ClusterOperator Custom Resource in [`/manifests`](operators.md#what-do-i-put-in-manifests).
+The ClusterVersionOperator sweeps the release payload and applies it to the cluster. On upgrade, the CVO uses clusteroperators to confirm successful upgrades.
+Cluster-admins make use of these resources to check the status of their clusters.
 
 ## How should I include ClusterOperator Custom Resource in /manifests
 
