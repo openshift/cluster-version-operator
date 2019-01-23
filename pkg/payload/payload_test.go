@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	imagev1 "github.com/openshift/api/image/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
+
+	imagev1 "github.com/openshift/api/image/v1"
+
+	"github.com/openshift/cluster-version-operator/lib"
 )
 
 func Test_loadUpdatePayload(t *testing.T) {

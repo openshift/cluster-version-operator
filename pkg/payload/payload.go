@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 
 	"github.com/golang/glog"
-	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/pkg/errors"
+
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	imagev1 "github.com/openshift/api/image/v1"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"

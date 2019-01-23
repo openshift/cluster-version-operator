@@ -3,10 +3,13 @@ package cvo
 import (
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/prometheus/client_golang/prometheus"
+
 	"k8s.io/apimachinery/pkg/labels"
+
+	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 func (optr *Operator) registerMetrics() error {

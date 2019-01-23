@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/payload"
-
 	"github.com/blang/semver"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
@@ -28,6 +26,7 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -35,6 +34,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 const (

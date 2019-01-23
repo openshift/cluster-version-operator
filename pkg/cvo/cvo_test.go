@@ -13,10 +13,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-	configv1 "github.com/openshift/api/config/v1"
-	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/openshift/client-go/config/clientset/versioned/fake"
-	"github.com/openshift/cluster-version-operator/pkg/payload"
+
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -31,6 +28,12 @@ import (
 	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
+
+	configv1 "github.com/openshift/api/config/v1"
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/client-go/config/clientset/versioned/fake"
+
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 var (
