@@ -75,12 +75,11 @@ Assigned runlevels
 - 05 - cluster-config-operator
 - 07 - Network operator
 - 08 - DNS operator
-- 09 - Service signer CA
-- 10-19 - Kube operators (master team)
-- 20-29 - OpenShift core operators (master team)
-- 30-39 - OLM
-- 50 - Machine API
-- 51 - Machine Autoapprover
+- 09 - Service certificate authority and machine approver
+- 10-29 - Kubernetes operators (master team)
+- 30-39 - Machine API
+- 50-59 - Operator-lifecycle manager
+- 60-69 - OpenShift core operators (master team)
 
 ## How do I ensure the right images get used by my manifests?
 
