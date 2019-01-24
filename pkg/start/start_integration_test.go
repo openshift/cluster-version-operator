@@ -565,6 +565,8 @@ func waitForAvailableUpdate(t *testing.T, client clientset.Interface, ns string,
 		}
 		lastCV = cv
 
+		verifyClusterVersionHistory(t, cv)
+
 		if !allowIncrementalFailure {
 			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing); failing != nil && failing.Status == configv1.ConditionTrue {
 				return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
@@ -648,6 +650,8 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			return false, err
 		}
 		lastCV = cv
+
+		verifyClusterVersionHistory(t, cv)
 
 		if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorAvailable); c == nil || c.Status != configv1.ConditionTrue {
 			return false, fmt.Errorf("operator should remain available: %#v", c)
@@ -734,6 +738,29 @@ func stringInSlice(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func verifyClusterVersionHistory(t *testing.T, cv *configv1.ClusterVersion) {
+	t.Helper()
+	var previous *configv1.UpdateHistory
+	for i, history := range cv.Status.History {
+		if history.StartedTime.IsZero() {
+			t.Fatalf("Invalid history, entry %d had no start time: %#v", i, history)
+		}
+		if len(history.Image) == 0 && len(history.Version) == 0 {
+			t.Fatalf("Invalid history, entry %d had no image or version: %#v", i, history)
+		}
+		if i == 0 {
+			continue
+		}
+		previous = &cv.Status.History[i-1]
+		if history.CompletionTime == nil || history.CompletionTime.IsZero() {
+			t.Fatalf("Invalid history, entry %d had no completion time: %#v", i, history)
+		}
+		if history.Image == previous.Image && history.Version == previous.Version {
+			t.Fatalf("Invalid history, entry %d and %d have identical updates, should be one entry: %s", i-1, i, diff.ObjectReflectDiff(previous, &history))
+		}
+	}
 }
 
 func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expectedUpdate configv1.Update, expectHistory int) {

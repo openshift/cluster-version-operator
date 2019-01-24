@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/diff"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -232,6 +234,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 	mergeOperatorHistory(config, status.Actual, now, status.Completed > 0)
 
+	if glog.V(6) {
+		glog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
+	}
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
