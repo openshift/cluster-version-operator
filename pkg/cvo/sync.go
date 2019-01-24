@@ -175,7 +175,7 @@ func (e *updateError) Cause() error {
 }
 
 // reasonForUpdateError provides a succint explanation of a known error type for use in a human readable
-// message during update. Since all objects in the payload should be successfully applied, messages
+// message during update. Since all objects in the image should be successfully applied, messages
 // should direct the reader (likely a cluster administrator) to a possible cause in their own config.
 func reasonForPayloadSyncError(err error) (string, string) {
 	err = errors.Cause(err)
@@ -224,7 +224,7 @@ func summaryForReason(reason string) string {
 	case "UpdatePayloadResourceForbidden":
 		return "the server is rejecting updates"
 
-	// the payload may not be correct, or the cluster may be in an unexpected
+	// the image may not be correct, or the cluster may be in an unexpected
 	// state
 	case "UpdatePayloadResourceTypeMissing":
 		return "a required extension is not available to update"

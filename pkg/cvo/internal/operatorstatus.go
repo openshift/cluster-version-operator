@@ -84,9 +84,10 @@ func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter,
 		glog.V(4).Infof("ClusterOperator %s/%s is reporting %v",
 			eos.Namespace, eos.Name, spew.Sdump(eos.Status))
 
-		if eos.Status.Version != os.Status.Version {
-			return false, nil
-		}
+		// TODO: temporarily disabled while the design for version tracking is finalized
+		// if eos.Status.Version != os.Status.Version {
+		// 	return false, nil
+		// }
 
 		available := false
 		progressing := true
@@ -106,9 +107,8 @@ func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter,
 		if available && !progressing && !failing {
 			return true, nil
 		}
-		glog.V(3).Infof("ClusterOperator %s/%s is not done for version %s; it is version=%v, available=%v, progressing=%v, failing=%v",
-			eos.Namespace, eos.Name, os.Status.Version,
-			eos.Status.Version, available, progressing, failing)
+		glog.V(3).Infof("ClusterOperator %s/%s is not done; it is available=%v, progressing=%v, failing=%v",
+			eos.Namespace, eos.Name, available, progressing, failing)
 
 		return false, nil
 	})

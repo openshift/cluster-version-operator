@@ -182,7 +182,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:97f41aee849f8b913f2da5983e44be080c904161a3331701b6e1e112424c9db0"
+  digest = "1:59ae1f2df4f7c7cd2f266a4bc70f072a1c4f9c0cef899678fe092d1e007cab00"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -192,11 +192,11 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "aab033bae2a129607f4fb277c3777b2eabb08601"
+  revision = "74cf02537628c9ca144e7f09c8db26ee7e7f56e4"
 
 [[projects]]
   branch = "master"
-  digest = "1:53d888e3997c192aaea6ec6de71fc19ae8a4795dba7f5e29999535658ffb64ca"
+  digest = "1:d5910981ba78abd8418d00106782fbb22e2026c88c216f927002a0a3709f662a"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -213,7 +213,7 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "2f38d042c79762d5bf2ba3c795d4ad72101289e9"
+  revision = "f9132806c9914790e15f10d8c5d1e7a03408d7b2"
 
 [[projects]]
   branch = "master"
@@ -431,7 +431,7 @@
   version = "kubernetes-1.11.1"
 
 [[projects]]
-  digest = "1:82327daaffa8cd2a1f3e4d4c2c98288bbcfa7a46a508c0ee93158eac5f7e3a76"
+  digest = "1:460839c7f354a3a4e304e0fa73ae8ee49c677811aefb8d22bfeb82229a6eb2d1"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -439,10 +439,6 @@
     "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "pkg/client/informers/externalversions",
-    "pkg/client/informers/externalversions/apiextensions",
-    "pkg/client/informers/externalversions/apiextensions/v1beta1",
-    "pkg/client/informers/externalversions/internalinterfaces",
     "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
@@ -504,7 +500,7 @@
   version = "kubernetes-1.11.1"
 
 [[projects]]
-  digest = "1:df623efa281121be190731b5fba78d24f5ceb4fb9345c4ee45a385f8645b7d2c"
+  digest = "1:ca0cec04fbff13d3cf56c156f743689deae962e21f3e5b21f7a4dc6a58dc68ad"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -512,47 +508,6 @@
     "discovery/fake",
     "dynamic",
     "dynamic/fake",
-    "informers",
-    "informers/admissionregistration",
-    "informers/admissionregistration/v1alpha1",
-    "informers/admissionregistration/v1beta1",
-    "informers/apps",
-    "informers/apps/v1",
-    "informers/apps/v1beta1",
-    "informers/apps/v1beta2",
-    "informers/autoscaling",
-    "informers/autoscaling/v1",
-    "informers/autoscaling/v2beta1",
-    "informers/batch",
-    "informers/batch/v1",
-    "informers/batch/v1beta1",
-    "informers/batch/v2alpha1",
-    "informers/certificates",
-    "informers/certificates/v1beta1",
-    "informers/core",
-    "informers/core/v1",
-    "informers/events",
-    "informers/events/v1beta1",
-    "informers/extensions",
-    "informers/extensions/v1beta1",
-    "informers/internalinterfaces",
-    "informers/networking",
-    "informers/networking/v1",
-    "informers/policy",
-    "informers/policy/v1beta1",
-    "informers/rbac",
-    "informers/rbac/v1",
-    "informers/rbac/v1alpha1",
-    "informers/rbac/v1beta1",
-    "informers/scheduling",
-    "informers/scheduling/v1alpha1",
-    "informers/scheduling/v1beta1",
-    "informers/settings",
-    "informers/settings/v1alpha1",
-    "informers/storage",
-    "informers/storage/v1",
-    "informers/storage/v1alpha1",
-    "informers/storage/v1beta1",
     "kubernetes",
     "kubernetes/scheme",
     "kubernetes/typed/admissionregistration/v1alpha1",
@@ -584,31 +539,7 @@
     "kubernetes/typed/storage/v1",
     "kubernetes/typed/storage/v1alpha1",
     "kubernetes/typed/storage/v1beta1",
-    "listers/admissionregistration/v1alpha1",
-    "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
-    "listers/apps/v1beta1",
-    "listers/apps/v1beta2",
-    "listers/autoscaling/v1",
-    "listers/autoscaling/v2beta1",
-    "listers/batch/v1",
-    "listers/batch/v1beta1",
-    "listers/batch/v2alpha1",
-    "listers/certificates/v1beta1",
-    "listers/core/v1",
-    "listers/events/v1beta1",
-    "listers/extensions/v1beta1",
-    "listers/networking/v1",
-    "listers/policy/v1beta1",
-    "listers/rbac/v1",
-    "listers/rbac/v1alpha1",
-    "listers/rbac/v1beta1",
-    "listers/scheduling/v1alpha1",
-    "listers/scheduling/v1beta1",
-    "listers/settings/v1alpha1",
-    "listers/storage/v1",
-    "listers/storage/v1alpha1",
-    "listers/storage/v1beta1",
     "pkg/apis/clientauthentication",
     "pkg/apis/clientauthentication/v1alpha1",
     "pkg/apis/clientauthentication/v1beta1",
@@ -710,6 +641,7 @@
   input-imports = [
     "github.com/blang/semver",
     "github.com/davecgh/go-spew/spew",
+    "github.com/ghodss/yaml",
     "github.com/golang/glog",
     "github.com/google/uuid",
     "github.com/openshift/api/config/v1",
@@ -728,6 +660,7 @@
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/prometheus/client_model/go",
     "github.com/spf13/cobra",
+    "golang.org/x/time/rate",
     "k8s.io/api/apps/v1",
     "k8s.io/api/batch/v1",
     "k8s.io/api/core/v1",
@@ -736,7 +669,6 @@
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions",
     "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1",
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
@@ -763,7 +695,6 @@
     "k8s.io/client-go/discovery/cached",
     "k8s.io/client-go/dynamic",
     "k8s.io/client-go/dynamic/fake",
-    "k8s.io/client-go/informers",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/apps/v1",

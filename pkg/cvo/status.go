@@ -16,15 +16,15 @@ import (
 )
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
-	if len(desired.Payload) > 0 && desired.Payload == current.Payload {
+	if len(desired.Image) > 0 && desired.Image == current.Image {
 		if len(current.Version) == 0 || desired.Version == current.Version {
 			current.Version = desired.Version
 			return true
 		}
 	}
 	if len(desired.Version) > 0 && desired.Version == current.Version {
-		if len(current.Payload) == 0 || desired.Payload == current.Payload {
-			current.Payload = desired.Payload
+		if len(current.Image) == 0 || desired.Image == current.Image {
+			current.Image = desired.Image
 			return true
 		}
 	}
@@ -32,8 +32,8 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update
 }
 
 func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Update, now metav1.Time, completed bool) {
-	// if we have no payload, we cannot reproduce the update later and so it cannot be part of the history
-	if len(desired.Payload) == 0 {
+	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
+	if len(desired.Image) == 0 {
 		// make the array empty
 		if config.Status.History == nil {
 			config.Status.History = []configv1.UpdateHistory{}
@@ -44,7 +44,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	if len(config.Status.History) == 0 {
 		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
 			Version: desired.Version,
-			Payload: desired.Payload,
+			Image:   desired.Image,
 
 			State:       configv1.PartialUpdate,
 			StartedTime: now,
@@ -58,7 +58,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 		config.Status.History = append([]configv1.UpdateHistory{
 			{
 				Version: desired.Version,
-				Payload: desired.Payload,
+				Image:   desired.Image,
 
 				State:       configv1.PartialUpdate,
 				StartedTime: now,

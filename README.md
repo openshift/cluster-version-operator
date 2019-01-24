@@ -23,7 +23,7 @@ oc adm release new -n openshift --server https://api.ci.openshift.org \
     --to-image docker.io/abhinavdahiya/origin-release:latest
 ```
 
-## Using CVO to render the release-payload locally
+## Using CVO to render the release-image locally
 
 1. Run the following command to get render the release-payload contents to `/tmp/cvo`
 

@@ -199,11 +199,11 @@ type payloadRetriever struct {
 }
 
 func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
-	if r.releaseImage == update.Payload {
+	if r.releaseImage == update.Image {
 		return r.payloadDir, nil
 	}
 
-	if len(update.Payload) == 0 {
+	if len(update.Image) == 0 {
 		return "", fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
 	}
 
@@ -219,7 +219,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update configv1.Update) (string, error) {
 	hash := md5.New()
-	hash.Write([]byte(update.Payload))
+	hash.Write([]byte(update.Image))
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
 	tdir := filepath.Join(r.workingDir, payloadHash)
@@ -265,7 +265,7 @@ func validateUpdatePayload(dir string) error {
 func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir string, update configv1.Update) error {
 	var (
 		version         = update.Version
-		payload         = update.Payload
+		payload         = update.Image
 		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
 		namespace       = r.namespace
 		deadline        = pointer.Int64Ptr(2 * 60)
@@ -351,7 +351,7 @@ func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, boo
 	if update == nil {
 		return configv1.Update{}, false
 	}
-	if len(update.Payload) == 0 {
+	if len(update.Image) == 0 {
 		return findUpdateFromConfigVersion(config, update.Version)
 	}
 	return *update, true
@@ -360,12 +360,12 @@ func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, boo
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string) (configv1.Update, bool) {
 	for _, update := range config.Status.AvailableUpdates {
 		if update.Version == version {
-			return update, len(update.Payload) > 0
+			return update, len(update.Image) > 0
 		}
 	}
 	for _, history := range config.Status.History {
 		if history.Version == version {
-			return configv1.Update{Payload: history.Payload, Version: history.Version}, len(history.Payload) > 0
+			return configv1.Update{Image: history.Image, Version: history.Version}, len(history.Image) > 0
 		}
 	}
 	return configv1.Update{}, false

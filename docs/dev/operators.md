@@ -1,6 +1,6 @@
 # Second Level Operator integration with CVO
 
-## How do I get added to the release payload?
+## How do I get added to the release image?
 
 Add the following to your Dockerfile
 
@@ -12,7 +12,7 @@ LABEL io.openshift.release.operator=true
 ```
 
 Ensure your image is published into the cluster release tag by ci-operator
-Wait for a new release payload to be created (usually once you push to master in your operator).
+Wait for a new release image to be created (usually once you push to master in your operator).
 
 ## What do I put in /manifests?
 
@@ -49,7 +49,7 @@ If you’d like to ensure your manifests are applied in order to the cluster add
   02_deployment.yaml
 ```
 
-When your manifests are added to the release payload, they’ll be given a prefix that corresponds to the name of your repo/image:
+When your manifests are added to the release image, they’ll be given a prefix that corresponds to the name of your repo/image:
 
 ```
 /release-manifests/
