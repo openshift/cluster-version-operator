@@ -1,7 +1,7 @@
 package cvo
 
 import (
-	"strconv"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -46,15 +46,19 @@ func newOperatorMetrics(optr *Operator) *operatorMetrics {
 
 		version: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version",
-			Help: `Reports the version of the cluster. The type is 'current' for
-what is being actively applied, 'desired' if a different
-update will be applied, 'failure' if either current or
-desired cannot be applied, and 'completed' as the last update
-that reached a conclusion. The age label is seconds since the
-epoch and for 'current' is the image creation timestamp and
-for 'completed' is the time the update was first successfully
-applied.`,
-		}, []string{"type", "version", "image", "age"}),
+			Help: `Reports the version of the cluster in terms of seconds since
+the epoch. Type 'current' is the version being applied and
+the value is the creation date of the payload. The type
+'desired' is returned if spec.desiredUpdate is set but the
+operator has not yet updated and the value is the most 
+recent status transition time. The type 'failure' is set 
+if an error is preventing sync or upgrade with the last 
+transition timestamp of the condition. The type 'completed' 
+is the timestamp when the last image was successfully
+applied. The type 'cluster' is the creation date of the
+cluster version object.
+.`,
+		}, []string{"type", "version", "image"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -71,51 +75,62 @@ applied.`,
 }
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
-	ch <- m.version.WithLabelValues("", "", "", "").Desc()
+	ch <- m.version.WithLabelValues("", "", "").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
-	currentAge := ""
-	if !m.optr.releaseCreated.IsZero() {
-		currentAge = strconv.FormatInt(m.optr.releaseCreated.Unix(), 10)
+	g := m.version.WithLabelValues("current", current.Version, current.Image)
+	if m.optr.releaseCreated.IsZero() {
+		g.Set(0)
+	} else {
+		g.Set(float64(m.optr.releaseCreated.Unix()))
 	}
-	g := m.version.WithLabelValues("current", current.Version, current.Image, currentAge)
-	g.Set(1)
 	ch <- g
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
-		failing := resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.OperatorFailing)
+
+		g := m.version.WithLabelValues("cluster", current.Version, current.Image)
+		g.Set(float64(cv.CreationTimestamp.Unix()))
+		ch <- g
+
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-			g := m.version.WithLabelValues("desired", update.Version, update.Image, "")
-			g.Set(1)
+			g := m.version.WithLabelValues("desired", update.Version, update.Image)
+			g.Set(float64(mostRecentTimestamp(cv)))
 			ch <- g
-			if failing {
-				g = m.version.WithLabelValues("failure", update.Version, update.Image, "")
-				g.Set(1)
+			if failing != nil && failing.Status == configv1.ConditionTrue {
+				g = m.version.WithLabelValues("failure", update.Version, update.Image)
+				if failing.LastTransitionTime.IsZero() {
+					g.Set(0)
+				} else {
+					g.Set(float64(failing.LastTransitionTime.Unix()))
+				}
 				ch <- g
 			}
 		}
-		if failing {
-			g := m.version.WithLabelValues("failure", current.Version, current.Image, currentAge)
-			g.Set(1)
+		if failing != nil && failing.Status == configv1.ConditionTrue {
+			g := m.version.WithLabelValues("failure", current.Version, current.Image)
+			if failing.LastTransitionTime.IsZero() {
+				g.Set(0)
+			} else {
+				g.Set(float64(failing.LastTransitionTime.Unix()))
+			}
 			ch <- g
 		}
 
 		// record the last completed update is completed at least once (1) or no completed update has been applied (0)
 		var completedUpdate configv1.Update
 		completed := float64(0)
-		completedAge := ""
 		for _, history := range cv.Status.History {
 			if history.State == configv1.CompletedUpdate {
 				completedUpdate.Image = history.Image
 				completedUpdate.Version = history.Version
-				completed = 1
-				completedAge = strconv.FormatInt(history.CompletionTime.Time.Unix(), 10)
+				completed = float64(history.CompletionTime.Unix())
 				break
 			}
 		}
-		g := m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Image, completedAge)
+		g = m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Image)
 		g.Set(completed)
 		ch <- g
 
@@ -161,4 +176,30 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 	}
+}
+
+// mostRecentTimestamp finds the most recent change recorded to the status and
+// returns the seconds since the epoch.
+func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
+	var latest time.Time
+	if len(cv.Status.History) > 0 {
+		latest = cv.Status.History[0].StartedTime.Time
+		if t := cv.Status.History[0].CompletionTime; t != nil {
+			if t.Time.After(latest) {
+				latest = t.Time
+			}
+		}
+	}
+	for _, condition := range cv.Status.Conditions {
+		if condition.LastTransitionTime.After(latest) {
+			latest = condition.LastTransitionTime.Time
+		}
+	}
+	if cv.CreationTimestamp.After(latest) {
+		latest = cv.CreationTimestamp.Time
+	}
+	if latest.IsZero() {
+		return 0
+	}
+	return latest.Unix()
 }
