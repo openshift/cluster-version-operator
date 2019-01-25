@@ -157,7 +157,7 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
@@ -339,7 +339,7 @@ func (optr *Operator) sync(key string) error {
 	// inform the config sync loop about our desired state
 	reconciling := resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorAvailable) &&
 		resourcemerge.IsOperatorStatusConditionFalse(config.Status.Conditions, configv1.OperatorProgressing)
-	status := optr.configSync.Update(desired, config.Spec.Overrides, reconciling)
+	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, reconciling)
 
 	// write cluster version status
 	return optr.syncStatus(original, config, status, errs)

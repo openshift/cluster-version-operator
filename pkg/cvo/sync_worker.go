@@ -28,7 +28,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(stopCh <-chan struct{})
-	Update(desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus
+	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -49,6 +49,7 @@ type StatusReporter interface {
 
 // SyncWork represents the work that should be done in a sync iteration.
 type SyncWork struct {
+	Generation  int64
 	Desired     configv1.Update
 	Overrides   []configv1.ComponentOverride
 	Reconciling bool
@@ -62,6 +63,8 @@ func (w SyncWork) Empty() bool {
 
 // SyncWorkerStatus is the status of the sync worker at a given time.
 type SyncWorkerStatus struct {
+	Generation int64
+
 	Step    string
 	Failure error
 
@@ -152,13 +155,14 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
+func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
 	work := &SyncWork{
-		Desired:   desired,
-		Overrides: overrides,
+		Generation: generation,
+		Desired:    desired,
+		Overrides:  overrides,
 	}
 
 	if work.Empty() || equalSyncWork(w.work, work) {
@@ -171,7 +175,11 @@ func (w *SyncWorker) Update(desired configv1.Update, overrides []configv1.Compon
 		if reconciling {
 			work.Reconciling = true
 		}
-		w.status = SyncWorkerStatus{Reconciling: work.Reconciling, Actual: work.Desired}
+		w.status = SyncWorkerStatus{
+			Generation:  generation,
+			Reconciling: work.Reconciling,
+			Actual:      work.Desired,
+		}
 	}
 
 	// notify the sync loop that we changed config
@@ -317,6 +325,8 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 		work.Overrides = w.work.Overrides
 	}
 
+	work.Generation = w.work.Generation
+
 	return changed
 }
 
@@ -375,7 +385,7 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
-	glog.V(4).Infof("Running sync %s", versionString(work.Desired))
+	glog.V(4).Infof("Running sync %s on generation %d", versionString(work.Desired), work.Generation)
 	update := work.Desired
 
 	// cache the payload until the release image changes
@@ -427,14 +437,14 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		setAppliedAndPending(version, total, done)
 		fraction := float32(i) / float32(len(tasks))
 
-		reporter.Report(SyncWorkerStatus{Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+		reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 
 		glog.V(4).Infof("Running sync for %s", task)
 		glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
 		if contextIsCancelled(ctx) {
 			err := fmt.Errorf("update was cancelled at %d/%d", i, len(tasks))
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Generation: work.Generation, Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 			return err
 		}
 
@@ -445,7 +455,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		}
 
 		if err := task.Run(version, w.builder); err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+			reporter.Report(SyncWorkerStatus{Generation: work.Generation, Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 			cause := errors.Cause(err)
 			if task.Requeued == 0 && shouldRequeueOnErr(cause, task.Manifest) {
 				task.Requeued++
@@ -460,7 +470,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 
 	setAppliedAndPending(version, total, done)
 	work.Completed++
-	reporter.Report(SyncWorkerStatus{Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+	reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 
 	return nil
 }
@@ -581,7 +591,7 @@ func runThrottledStatusNotifier(stopCh <-chan struct{}, interval time.Duration, 
 				return
 			case next := <-ch:
 				// only throttle if we aren't on an edge
-				if next.Actual == last.Actual && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
+				if next.Generation == last.Generation && next.Actual == last.Actual && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
 					if err := throttle.Wait(ctx); err != nil {
 						utilruntime.HandleError(fmt.Errorf("unable to throttle status notification: %v", err))
 					}

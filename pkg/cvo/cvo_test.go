@@ -1060,6 +1060,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "version is live and was recently synced, do nothing",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "xyz",
@@ -1118,6 +1119,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates, version is live and was recently synced, sync",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -1199,6 +1201,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates for the default upstream URL, client has no upstream",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -1281,6 +1284,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates but for a different channel",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -1358,6 +1362,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version, sync loop hasn't started",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
@@ -1369,7 +1374,7 @@ func TestOperator_sync(t *testing.T) {
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
-						Generation: 2,
+						Generation: 3,
 					},
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
@@ -1392,7 +1397,7 @@ func TestOperator_sync(t *testing.T) {
 				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
-						Generation: 2,
+						Generation: 3,
 					},
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
@@ -1419,6 +1424,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version that isn't in the updates or history",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
@@ -1430,7 +1436,7 @@ func TestOperator_sync(t *testing.T) {
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
-						Generation: 2,
+						Generation: 3,
 					},
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
@@ -1457,7 +1463,7 @@ func TestOperator_sync(t *testing.T) {
 				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
-						Generation: 2,
+						Generation: 3,
 					},
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
@@ -1491,6 +1497,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version has duplicates",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
@@ -1565,6 +1572,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "image hash matches content hash, act as reconcile, no need to apply",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
@@ -1624,6 +1632,7 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "image hash does not match content hash, act as reconcile, no need to apply",
 			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
