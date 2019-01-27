@@ -3,30 +3,16 @@ package cvo
 import (
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/apimachinery/pkg/labels"
-)
 
-var (
-	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "cluster_version_payload",
-		Help: "Report the number of entries in the image.",
-	}, []string{"version", "type"})
-	metricPayloadErrors = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "cluster_operator_payload_errors",
-		Help: "Report the number of errors encountered applying the image.",
-	}, []string{"version"})
+	"k8s.io/apimachinery/pkg/labels"
+
+	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 func (optr *Operator) registerMetrics() error {
-	if err := prometheus.Register(metricPayload); err != nil {
-		return err
-	}
-	if err := prometheus.Register(metricPayloadErrors); err != nil {
-		return err
-	}
 	m := newOperatorMetrics(optr)
 	return prometheus.Register(m)
 }

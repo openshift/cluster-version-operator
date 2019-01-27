@@ -14,12 +14,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-
-	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	informers "github.com/openshift/client-go/config/informers/externalversions"
-	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
-	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -30,6 +26,12 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	informers "github.com/openshift/client-go/config/informers/externalversions"
+
+	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
+	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
 
 const (

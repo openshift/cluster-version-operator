@@ -1,4 +1,4 @@
-package cvo
+package payload
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
-	up, err := loadUpdatePayload(defaultUpdatePayloadDir, "")
+	up, err := LoadUpdate(DefaultPayloadDir, "")
 	if err != nil {
-		return "", errors.Wrapf(err, "error loading update image from %q", defaultUpdatePayloadDir)
+		return "", errors.Wrapf(err, "error loading release manifests from %q", DefaultPayloadDir)
 	}
 
 	for _, tag := range up.ImageRef.Spec.Tags {

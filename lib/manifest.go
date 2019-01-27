@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +19,11 @@ import (
 // Manifest stores Kubernetes object in Raw from a file.
 // It stores the GroupVersionKind for the manifest.
 type Manifest struct {
+	// OriginalFilename is set to the filename this manifest was loaded from.
+	// It is not guaranteed to be set or be unique, but we will set it when
+	// loading from disk to provide better debuggability.
+	OriginalFilename string
+
 	Raw []byte
 	GVK schema.GroupVersionKind
 
@@ -75,6 +81,9 @@ func ManifestsFromFiles(files []string) ([]Manifest, error) {
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
 			continue
+		}
+		for _, m := range ms {
+			m.OriginalFilename = filepath.Base(file.Name())
 		}
 		manifests = append(manifests, ms...)
 	}

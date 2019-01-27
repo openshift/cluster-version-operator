@@ -6,7 +6,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 var (
@@ -39,7 +39,7 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.releaseImage == "" {
 		glog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := cvo.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
+	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
 		glog.Fatalf("Render command failed: %v", err)
 	}
 }

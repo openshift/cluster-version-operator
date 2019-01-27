@@ -5,10 +5,12 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 func Test_operatorMetrics_Collect(t *testing.T) {

@@ -1,4 +1,4 @@
-package cvo
+package payload
 
 import (
 	"io/ioutil"
@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
-	imagev1 "github.com/openshift/api/image/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
+
+	imagev1 "github.com/openshift/api/image/v1"
+
+	"github.com/openshift/cluster-version-operator/lib"
 )
 
 func Test_loadUpdatePayload(t *testing.T) {
@@ -23,16 +24,16 @@ func Test_loadUpdatePayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *updatePayload
+		want    *Update
 		wantErr bool
 	}{
 		{
 			name: "ignore files without extensions, load metadata",
 			args: args{
-				dir:          filepath.Join("testdata", "payloadtest"),
+				dir:          filepath.Join("..", "cvo", "testdata", "payloadtest"),
 				releaseImage: "image:1",
 			},
-			want: &updatePayload{
+			want: &Update{
 				ReleaseImage:   "image:1",
 				ReleaseVersion: "1.0.0-abc",
 				ImageRef: &imagev1.ImageStream{
@@ -47,7 +48,8 @@ func Test_loadUpdatePayload(t *testing.T) {
 				ManifestHash: "6GC9TkkG9PA=",
 				Manifests: []lib.Manifest{
 					{
-						Raw: mustRead(filepath.Join("testdata", "payloadtest", "release-manifests", "file.json")),
+						OriginalFilename: "file.json",
+						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtest", "release-manifests", "file.json")),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -63,7 +65,8 @@ func Test_loadUpdatePayload(t *testing.T) {
 						},
 					},
 					{
-						Raw: []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yaml"}}`),
+						OriginalFilename: "file.yaml",
+						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yaml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -79,7 +82,8 @@ func Test_loadUpdatePayload(t *testing.T) {
 						},
 					},
 					{
-						Raw: []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yml"}}`),
+						OriginalFilename: "file.yml",
+						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -100,7 +104,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadUpdatePayload(tt.args.dir, tt.args.releaseImage)
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
