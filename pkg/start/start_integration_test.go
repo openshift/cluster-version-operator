@@ -566,7 +566,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		}
 		lastCV = cv
 
-		if cv.Status.Generation > cv.Generation {
+		if cv.Status.ObservedGeneration > cv.Generation {
 			return false, fmt.Errorf("status generation should never be newer than metadata generation")
 		}
 
@@ -586,7 +586,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 
 		if len(versions) == 1 {
 			// we should not observe status.generation == metadata.generation without also observing a status history entry
-			if cv.Status.Generation == cv.Generation {
+			if cv.Status.ObservedGeneration == cv.Generation {
 				if len(cv.Status.History) == 0 || cv.Status.History[0].Version != versions[0] {
 					return false, fmt.Errorf("initializing operator should set history and generation at the same time")
 				}
@@ -614,7 +614,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		}
 
 		// we should not observe status.generation == metadata.generation without also observing a status history entry
-		if cv.Status.Generation == cv.Generation {
+		if cv.Status.ObservedGeneration == cv.Generation {
 			target := versions[len(versions)-1]
 			if cv.Status.Desired.Version != target {
 				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
@@ -674,7 +674,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		}
 		lastCV = cv
 
-		if cv.Status.Generation > cv.Generation {
+		if cv.Status.ObservedGeneration > cv.Generation {
 			return false, fmt.Errorf("status generation should never be newer than metadata generation")
 		}
 
@@ -717,7 +717,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		}
 
 		// we should not observe status.generation == metadata.generation without also observing a status history entry
-		if cv.Status.Generation == cv.Generation {
+		if cv.Status.ObservedGeneration == cv.Generation {
 			target := versions[len(versions)-1]
 			if cv.Status.Desired.Version != target {
 				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
@@ -803,8 +803,8 @@ func verifyClusterVersionHistory(t *testing.T, cv *configv1.ClusterVersion) {
 
 func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expectedUpdate configv1.Update, expectHistory int) {
 	t.Helper()
-	if cv.Status.Generation != cv.Generation {
-		t.Fatalf("unexpected: %d instead of %d", cv.Status.Generation, cv.Generation)
+	if cv.Status.ObservedGeneration != cv.Generation {
+		t.Fatalf("unexpected: %d instead of %d", cv.Status.ObservedGeneration, cv.Generation)
 	}
 	if cv.Status.Desired != expectedUpdate {
 		t.Fatalf("unexpected: %#v", cv.Status.Desired)
@@ -829,8 +829,8 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	if len(cv.Status.VersionHash) == 0 {
 		t.Fatalf("unexpected version hash: %#v", cv.Status.VersionHash)
 	}
-	if cv.Status.Generation != cv.Generation {
-		t.Fatalf("unexpected generation: %#v", cv.Status.Generation)
+	if cv.Status.ObservedGeneration != cv.Generation {
+		t.Fatalf("unexpected generation: %#v", cv.Status.ObservedGeneration)
 	}
 }
 
