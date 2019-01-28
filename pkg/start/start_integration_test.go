@@ -234,7 +234,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	controllers.Start(stopCh)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForAvailableUpdate(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -277,7 +277,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	t.Logf("wait for the new version to be available")
-	lastCV, err = waitForAvailableUpdate(t, client, ns, false, "0.0.1", "0.0.2")
+	lastCV, err = waitForUpdateAvailable(t, client, ns, false, "0.0.1", "0.0.2")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reached available at 0.0.2: %v", err)
@@ -385,7 +385,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	controllers.Start(stopCh)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForAvailableUpdate(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -433,7 +433,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	if cv.Spec.DesiredUpdate == nil {
 		t.Fatalf("cluster desired version was not preserved: %s", printCV(cv))
 	}
-	lastCV, err = waitForAvailableUpdate(t, client, ns, true, "0.0.2", "0.0.1")
+	lastCV, err = waitForUpdateAvailable(t, client, ns, true, "0.0.2", "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reverted to 0.0.1: %v", err)
@@ -552,9 +552,9 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 }
 
-// waitForAvailableUpdates checks invariants during an upgrade process. versions is a list of the expected versions that
+// waitForAvailableUpdate checks invariants during an upgrade process. versions is a list of the expected versions that
 // should be seen during update, with the last version being the one we wait to see.
-func waitForAvailableUpdate(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
+func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
 		cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
@@ -565,6 +565,10 @@ func waitForAvailableUpdate(t *testing.T, client clientset.Interface, ns string,
 			return false, err
 		}
 		lastCV = cv
+
+		if cv.Status.ObservedGeneration > cv.Generation {
+			return false, fmt.Errorf("status generation should never be newer than metadata generation")
+		}
 
 		verifyClusterVersionHistory(t, cv)
 
@@ -581,6 +585,13 @@ func waitForAvailableUpdate(t *testing.T, client clientset.Interface, ns string,
 		}
 
 		if len(versions) == 1 {
+			// we should not observe status.generation == metadata.generation without also observing a status history entry
+			if cv.Status.ObservedGeneration == cv.Generation {
+				if len(cv.Status.History) == 0 || cv.Status.History[0].Version != versions[0] {
+					return false, fmt.Errorf("initializing operator should set history and generation at the same time")
+				}
+			}
+
 			if available := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorAvailable); available == nil || available.Status == configv1.ConditionFalse {
 				if progressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); available != nil && (progressing == nil || progressing.Status != configv1.ConditionTrue) {
 					return false, fmt.Errorf("initializing operator should have progressing if available is false: %#v", progressing)
@@ -600,6 +611,17 @@ func waitForAvailableUpdate(t *testing.T, client clientset.Interface, ns string,
 				return false, fmt.Errorf("initializing operator should never be available and still progressing or lacking the condition: %#v", progressing)
 			}
 			return true, nil
+		}
+
+		// we should not observe status.generation == metadata.generation without also observing a status history entry
+		if cv.Status.ObservedGeneration == cv.Generation {
+			target := versions[len(versions)-1]
+			if cv.Status.Desired.Version != target {
+				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
+			}
+			if len(cv.Status.History) == 0 || cv.Status.History[0].Version != target {
+				return false, fmt.Errorf("upgrading operator should set history and generation at the same time")
+			}
 		}
 
 		if available := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorAvailable); available == nil || available.Status == configv1.ConditionFalse {
@@ -652,6 +674,10 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		}
 		lastCV = cv
 
+		if cv.Status.ObservedGeneration > cv.Generation {
+			return false, fmt.Errorf("status generation should never be newer than metadata generation")
+		}
+
 		verifyClusterVersionHistory(t, cv)
 
 		if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorAvailable); c == nil || c.Status != configv1.ConditionTrue {
@@ -688,6 +714,17 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		// }
 		if len(versions) == 1 {
 			return false, fmt.Errorf("unimplemented")
+		}
+
+		// we should not observe status.generation == metadata.generation without also observing a status history entry
+		if cv.Status.ObservedGeneration == cv.Generation {
+			target := versions[len(versions)-1]
+			if cv.Status.Desired.Version != target {
+				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
+			}
+			if len(cv.Status.History) == 0 || cv.Status.History[0].Version != target {
+				return false, fmt.Errorf("upgrading operator should set history and generation at the same time")
+			}
 		}
 
 		if !stringInSlice(versions, cv.Status.Desired.Version) {
@@ -766,6 +803,9 @@ func verifyClusterVersionHistory(t *testing.T, cv *configv1.ClusterVersion) {
 
 func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expectedUpdate configv1.Update, expectHistory int) {
 	t.Helper()
+	if cv.Status.ObservedGeneration != cv.Generation {
+		t.Fatalf("unexpected: %d instead of %d", cv.Status.ObservedGeneration, cv.Generation)
+	}
 	if cv.Status.Desired != expectedUpdate {
 		t.Fatalf("unexpected: %#v", cv.Status.Desired)
 	}
@@ -789,8 +829,8 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	if len(cv.Status.VersionHash) == 0 {
 		t.Fatalf("unexpected version hash: %#v", cv.Status.VersionHash)
 	}
-	if cv.Status.Generation != cv.Generation {
-		t.Fatalf("unexpected generation: %#v", cv.Status.Generation)
+	if cv.Status.ObservedGeneration != cv.Generation {
+		t.Fatalf("unexpected generation: %#v", cv.Status.ObservedGeneration)
 	}
 }
 

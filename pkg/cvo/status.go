@@ -105,7 +105,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		original = config.DeepCopy()
 	}
 
-	config.Status.Generation = config.Generation
+	config.Status.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
 		config.Status.VersionHash = status.VersionHash
 	}

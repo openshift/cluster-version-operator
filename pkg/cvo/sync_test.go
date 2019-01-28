@@ -615,7 +615,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 
 func (r *fakeSyncRecorder) Start(stopCh <-chan struct{}) {}
 
-func (r *fakeSyncRecorder) Update(desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }
