@@ -56,9 +56,33 @@ status:
 
 The operator should ensure that all the fields of `.status` in ClusterOperator are atomic changes. This means that all the fields in the `.status` are only valid together and do not partially represent the status of the operator.
 
-### Version
+### Versions
 
-The operator should report a version which indicates the components that it is applying to the cluster.
+The operator should report a list of versions which indicate the components that it is applying to the cluster.
+
+An example of the `.status.versions` reported by the operator are:
+
+```yaml
+versions:
+- name: operator
+ version: v1.0.0
+- name: operand-1
+ version: v0.12.0
+...
+```
+
+Or,
+
+```yaml
+versions:
+- name: operator
+ version: image/release-image@sha256:12345
+- name: operand-1
+ version: image/release-image@sha256:67890
+...
+```
+
+Each version entry must match the `Available` condition.  If `1.0.0` is `Available`, then this must indicate `1.0.0` even if the operator is trying to rollout `1.1.0`. And the versions list must always include `operator` version.
 
 ### Conditions
 
