@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -425,16 +426,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				sort.Slice(metrics, func(i, j int) bool {
-					a, b := metricParts(t, metrics[i]), metricParts(t, metrics[j])
-					for i := range a {
-						if a[i] < b[i] {
-							return true
-						}
-						if a[i] != b[i] {
-							return false
-						}
-					}
-					return false
+					a, b := metricParts(t, metrics[i], "name", "condition"), metricParts(t, metrics[j], "name", "condition")
+					return a < b
 				})
 				expectMetric(t, metrics[0], 3, map[string]string{"name": "test", "condition": "Available"})
 				expectMetric(t, metrics[1], 2, map[string]string{"name": "test", "condition": "Custom"})
@@ -480,21 +473,21 @@ func expectMetric(t *testing.T, metric prometheus.Metric, value float64, labels 
 	}
 	if d.Gauge != nil {
 		if value != *d.Gauge.Value {
-			t.Fatalf("incorrect value: %f", *d.Gauge.Value)
+			t.Fatalf("incorrect value for %s: %s", metric.Desc().String(), d.String())
 		}
 	}
 	for _, label := range d.Label {
 		if labels[*label.Name] != *label.Value {
-			t.Fatalf("unexpected labels: %s", d.Label)
+			t.Fatalf("unexpected labels for %s: %s", metric.Desc().String(), d.Label)
 		}
 		delete(labels, *label.Name)
 	}
 	if len(labels) > 0 {
-		t.Fatalf("missing labels: %v", labels)
+		t.Fatalf("missing labels for %s: %v", metric.Desc().String(), labels)
 	}
 }
 
-func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) []string {
+func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) string {
 	t.Helper()
 	var d dto.Metric
 	if err := metric.Write(&d); err != nil {
@@ -515,5 +508,5 @@ func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) []str
 			parts = append(parts, "")
 		}
 	}
-	return parts
+	return strings.Join(parts, " ")
 }
