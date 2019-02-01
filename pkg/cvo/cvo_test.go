@@ -1864,7 +1864,7 @@ func TestOperator_sync(t *testing.T) {
 				tt.init(optr)
 			}
 			optr.cvLister = &clientCVLister{client: optr.client}
-			optr.clusterOperatorLister = &clientCOLister{client: optr.client}
+			optr.coLister = &clientCOLister{client: optr.client}
 			if optr.configSync == nil {
 				expectStatus := tt.syncStatus
 				if expectStatus == nil {
@@ -2190,7 +2190,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			optr := tt.optr
 			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-			optr.clusterOperatorLister = &clientCOLister{client: optr.client}
+			optr.coLister = &clientCOLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
 
 			if tt.handler != nil {

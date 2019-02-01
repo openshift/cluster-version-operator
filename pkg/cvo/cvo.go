@@ -99,10 +99,9 @@ type Operator struct {
 	// syncBackoff allows the tests to use a quicker backoff
 	syncBackoff wait.Backoff
 
-	cvLister              configlistersv1.ClusterVersionLister
-	cvListerSynced        cache.InformerSynced
-	clusterOperatorLister configlistersv1.ClusterOperatorLister
-	clusterOperatorSynced cache.InformerSynced
+	cvLister    configlistersv1.ClusterVersionLister
+	coLister    configlistersv1.ClusterOperatorLister
+	cacheSynced []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.RateLimitingInterface
@@ -131,7 +130,7 @@ func New(
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer configinformersv1.ClusterOperatorInformer,
+	coInformer configinformersv1.ClusterOperatorInformer,
 	restConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -157,7 +156,7 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
@@ -174,14 +173,14 @@ func New(
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 
-	optr.clusterOperatorLister = clusterOperatorInformer.Lister()
-	optr.clusterOperatorSynced = clusterOperatorInformer.Informer().HasSynced
+	optr.coLister = coInformer.Lister()
+	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
 
 	optr.cvLister = cvInformer.Lister()
-	optr.cvListerSynced = cvInformer.Informer().HasSynced
+	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
 
 	if enableMetrics {
-		if err := optr.registerMetrics(); err != nil {
+		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
 			panic(err)
 		}
 	}
@@ -209,10 +208,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
 	defer glog.Info("Shutting down ClusterVersionOperator")
 
-	if !cache.WaitForCacheSync(stopCh,
-		optr.clusterOperatorSynced,
-		optr.cvListerSynced,
-	) {
+	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
+		glog.Info("Caches never synchronized")
 		return
 	}
 
