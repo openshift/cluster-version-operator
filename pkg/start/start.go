@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"k8s.io/client-go/util/flowcontrol"
+
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -273,8 +275,7 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 }
 
 func increaseQPS(config *rest.Config) {
-	config.QPS = 20
-	config.Burst = 40
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(20, 40)
 }
 
 func useProtobuf(config *rest.Config) {
