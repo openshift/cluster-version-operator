@@ -45,11 +45,9 @@ type Controller struct {
 	syncHandler       func(key string) error
 	statusSyncHandler func(key string) error
 
-	cvLister              configlistersv1.ClusterVersionLister
-	clusterOperatorLister configlistersv1.ClusterOperatorLister
-
-	cvListerSynced       cache.InformerSynced
-	operatorStatusSynced cache.InformerSynced
+	cvLister    configlistersv1.ClusterVersionLister
+	coLister    configlistersv1.ClusterOperatorLister
+	cacheSynced []cache.InformerSynced
 
 	// queue tracks keeping the list of available updates on a cluster version
 	queue workqueue.RateLimitingInterface
@@ -59,7 +57,7 @@ type Controller struct {
 func New(
 	namespace, name string,
 	cvInformer configinformersv1.ClusterVersionInformer,
-	clusterOperatorInformer configinformersv1.ClusterOperatorInformer,
+	coInformer configinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 ) *Controller {
@@ -76,15 +74,14 @@ func New(
 	}
 
 	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
-	clusterOperatorInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	coInformer.Informer().AddEventHandler(ctrl.eventHandler())
 
 	ctrl.syncHandler = ctrl.sync
 
 	ctrl.cvLister = cvInformer.Lister()
-	ctrl.clusterOperatorLister = clusterOperatorInformer.Lister()
-
-	ctrl.cvListerSynced = cvInformer.Informer().HasSynced
-	ctrl.operatorStatusSynced = clusterOperatorInformer.Informer().HasSynced
+	ctrl.cacheSynced = append(ctrl.cacheSynced, cvInformer.Informer().HasSynced)
+	ctrl.coLister = coInformer.Lister()
+	ctrl.cacheSynced = append(ctrl.cacheSynced, coInformer.Informer().HasSynced)
 
 	return ctrl
 }
@@ -97,10 +94,8 @@ func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	glog.Info("Starting AutoUpdateController")
 	defer glog.Info("Shutting down AutoUpdateController")
 
-	if !cache.WaitForCacheSync(stopCh,
-		ctrl.cvListerSynced,
-		ctrl.operatorStatusSynced,
-	) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.cacheSynced...) {
+		glog.Info("Caches never synchronized")
 		return
 	}
 

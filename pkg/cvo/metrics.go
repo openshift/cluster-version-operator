@@ -3,32 +3,43 @@ package cvo
 import (
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
-func (optr *Operator) registerMetrics() error {
+func (optr *Operator) registerMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
+	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		UpdateFunc: m.clusterOperatorChanged,
+	})
 	return prometheus.Register(m)
 }
 
 type operatorMetrics struct {
 	optr *Operator
 
-	version                   *prometheus.GaugeVec
-	availableUpdates          *prometheus.GaugeVec
-	clusterOperatorConditions *prometheus.GaugeVec
-	clusterOperatorUp         *prometheus.GaugeVec
+	conditionTransitions map[conditionKey]int
+
+	version                             *prometheus.GaugeVec
+	availableUpdates                    *prometheus.GaugeVec
+	clusterOperatorUp                   *prometheus.GaugeVec
+	clusterOperatorConditions           *prometheus.GaugeVec
+	clusterOperatorConditionTransitions *prometheus.GaugeVec
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
 	return &operatorMetrics{
 		optr: optr,
+
+		conditionTransitions: make(map[conditionKey]int),
 
 		version: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version",
@@ -52,16 +63,64 @@ cluster version object.
 		clusterOperatorUp: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_up",
 			Help: "Reports key highlights of the active cluster operators.",
-		}, []string{"namespace", "name", "version"}),
+		}, []string{"name", "version"}),
 		clusterOperatorConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_conditions",
 			Help: "Report the conditions for active cluster operators. 0 is False and 1 is True.",
-		}, []string{"namespace", "name", "condition"}),
+		}, []string{"name", "condition"}),
+		clusterOperatorConditionTransitions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_operator_condition_transitions",
+			Help: "Reports the number of times that a condition on a cluster operator changes status",
+		}, []string{"name", "condition"}),
+	}
+}
+
+type conditionKey struct {
+	Name string
+	Type string
+}
+
+// clusterOperatorChanged detects condition transitions and records them
+func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
+	oldCO, ok := oldObj.(*configv1.ClusterOperator)
+	if !ok {
+		return
+	}
+	co, ok := obj.(*configv1.ClusterOperator)
+	if !ok {
+		return
+	}
+	types := sets.NewString()
+	for _, older := range oldCO.Status.Conditions {
+		if types.Has(string(older.Type)) {
+			continue
+		}
+		types.Insert(string(older.Type))
+		newer := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, older.Type)
+		if newer == nil {
+			m.conditionTransitions[conditionKey{Name: co.Name, Type: string(older.Type)}]++
+			continue
+		}
+		if newer.Status != older.Status {
+			m.conditionTransitions[conditionKey{Name: co.Name, Type: string(older.Type)}]++
+			continue
+		}
+	}
+	for _, newer := range co.Status.Conditions {
+		if types.Has(string(newer.Type)) {
+			continue
+		}
+		types.Insert(string(newer.Type))
+		m.conditionTransitions[conditionKey{Name: co.Name, Type: string(newer.Type)}]++
 	}
 }
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.version.WithLabelValues("", "", "").Desc()
+	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
+	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
+	ch <- m.clusterOperatorConditions.WithLabelValues("", "").Desc()
+	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
@@ -132,7 +191,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	// output cluster operator version and condition info
-	operators, _ := m.optr.clusterOperatorLister.List(labels.Everything())
+	operators, _ := m.optr.coLister.List(labels.Everything())
 	for _, op := range operators {
 		// TODO: when we define how version works, report the appropriate version
 		var firstVersion string
@@ -140,7 +199,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			firstVersion = v.Version
 			break
 		}
-		g := m.clusterOperatorUp.WithLabelValues(op.Namespace, op.Name, firstVersion)
+		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
 		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorFailing)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
@@ -153,7 +212,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			if condition.Status == configv1.ConditionUnknown {
 				continue
 			}
-			g := m.clusterOperatorConditions.WithLabelValues(op.Namespace, op.Name, string(condition.Type))
+			g := m.clusterOperatorConditions.WithLabelValues(op.Name, string(condition.Type))
 			if condition.Status == configv1.ConditionTrue {
 				g.Set(1)
 			} else {
@@ -161,6 +220,12 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- g
 		}
+	}
+
+	for key, value := range m.conditionTransitions {
+		g := m.clusterOperatorConditionTransitions.WithLabelValues(key.Name, key.Type)
+		g.Set(float64(value))
+		ch <- g
 	}
 }
 
