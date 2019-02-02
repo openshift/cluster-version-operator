@@ -879,9 +879,10 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name: "after desired update is cancelled, go to reconciling",
+			name: "after desired update is cancelled, revert to progressing",
 			syncStatus: &SyncWorkerStatus{
-				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:   configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Fraction: 0.334,
 			},
 			optr: Operator{
 				releaseImage:   "image/image:v4.0.1",
@@ -978,7 +979,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 33% complete"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},

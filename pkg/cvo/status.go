@@ -211,9 +211,14 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 				LastTransitionTime: now,
 			})
 		} else {
-			message := fmt.Sprintf("Working towards %s", version)
-			if len(validationErrs) > 0 {
+			var message string
+			switch {
+			case len(validationErrs) > 0:
 				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
+			case status.Fraction > 0:
+				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
+			default:
+				message = fmt.Sprintf("Working towards %s", version)
 			}
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
