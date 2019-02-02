@@ -77,12 +77,15 @@ func (b *genericBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc
 	return b
 }
 
-func (b *genericBuilder) Do() error {
+func (b *genericBuilder) Do(initial bool) error {
 	ud := readUnstructuredV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(ud)
 	}
-
+	if initial {
+		_, err := b.client.Create(ud)
+		return err
+	}
 	_, _, err := applyUnstructured(b.client, ud)
 	return err
 }

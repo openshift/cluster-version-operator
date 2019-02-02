@@ -30,7 +30,7 @@ func init() {
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
-	Apply(*lib.Manifest) error
+	Apply(manifest *lib.Manifest, initial bool) error
 }
 
 type Task struct {
@@ -49,11 +49,15 @@ func (st *Task) String() string {
 	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Manifest.GVK.GroupVersion().String(), st.Index, st.Total)
 }
 
-func (st *Task) Run(version string, builder ResourceBuilder) error {
+func (st *Task) Run(version string, builder ResourceBuilder, initial bool) error {
+	backoff := st.Backoff
+	if initial {
+		backoff = wait.Backoff{Steps: 1}
+	}
 	var lastErr error
-	if err := wait.ExponentialBackoff(st.Backoff, func() (bool, error) {
+	if err := wait.ExponentialBackoff(backoff, func() (bool, error) {
 		// run builder for the manifest
-		if err := builder.Apply(st.Manifest); err != nil {
+		if err := builder.Apply(st.Manifest, initial); err != nil {
 			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 			lastErr = err
 			metricPayloadErrors.WithLabelValues(version).Inc()

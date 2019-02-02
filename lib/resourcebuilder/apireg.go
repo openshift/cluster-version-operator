@@ -26,11 +26,16 @@ func (b *apiServiceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *apiServiceBuilder) Do() error {
+func (b *apiServiceBuilder) Do(initial bool) error {
 	apiService := resourceread.ReadAPIServiceV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(apiService)
 	}
+	if initial {
+		_, err := b.client.APIServices().Create(apiService)
+		return err
+	}
+
 	_, _, err := resourceapply.ApplyAPIService(b.client, apiService)
 	return err
 }

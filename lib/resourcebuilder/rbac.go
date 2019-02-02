@@ -26,10 +26,14 @@ func (b *clusterRoleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface 
 	return b
 }
 
-func (b *clusterRoleBuilder) Do() error {
+func (b *clusterRoleBuilder) Do(initial bool) error {
 	clusterRole := resourceread.ReadClusterRoleV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(clusterRole)
+	}
+	if initial {
+		_, err := b.client.ClusterRoles().Create(clusterRole)
+		return err
 	}
 	_, _, err := resourceapply.ApplyClusterRole(b.client, clusterRole)
 	return err
@@ -53,10 +57,14 @@ func (b *clusterRoleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Int
 	return b
 }
 
-func (b *clusterRoleBindingBuilder) Do() error {
+func (b *clusterRoleBindingBuilder) Do(initial bool) error {
 	clusterRoleBinding := resourceread.ReadClusterRoleBindingV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(clusterRoleBinding)
+	}
+	if initial {
+		_, err := b.client.ClusterRoleBindings().Create(clusterRoleBinding)
+		return err
 	}
 	_, _, err := resourceapply.ApplyClusterRoleBinding(b.client, clusterRoleBinding)
 	return err
@@ -80,10 +88,14 @@ func (b *roleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *roleBuilder) Do() error {
+func (b *roleBuilder) Do(initial bool) error {
 	role := resourceread.ReadRoleV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(role)
+	}
+	if initial {
+		_, err := b.client.Roles(role.Namespace).Create(role)
+		return err
 	}
 	_, _, err := resourceapply.ApplyRole(b.client, role)
 	return err
@@ -107,10 +119,14 @@ func (b *roleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface 
 	return b
 }
 
-func (b *roleBindingBuilder) Do() error {
+func (b *roleBindingBuilder) Do(initial bool) error {
 	roleBinding := resourceread.ReadRoleBindingV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(roleBinding)
+	}
+	if initial {
+		_, err := b.client.RoleBindings(roleBinding.Namespace).Create(roleBinding)
+		return err
 	}
 	_, _, err := resourceapply.ApplyRoleBinding(b.client, roleBinding)
 	return err

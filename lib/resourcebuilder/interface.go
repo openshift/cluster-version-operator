@@ -64,7 +64,7 @@ type NewInteraceFunc func(rest *rest.Config, m lib.Manifest) Interface
 
 type Interface interface {
 	WithModifier(MetaV1ObjectModifierFunc) Interface
-	Do() error
+	Do(initial bool) error
 }
 
 // New returns Interface using the mapping stored in mapper for m Manifest.

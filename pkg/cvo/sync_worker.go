@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"k8s.io/apimachinery/pkg/api/errors"
+
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
@@ -36,7 +38,7 @@ type PayloadRetriever interface {
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
-	Apply(*lib.Manifest) error
+	Apply(manifest *lib.Manifest, initial bool) error
 }
 
 // StatusReporter abstracts how status is reported by the worker run method. Introduced for testing.
@@ -120,7 +122,8 @@ type SyncWorker struct {
 	status   SyncWorkerStatus
 
 	// updated by the run method only
-	payload *payload.Update
+	payload    *payload.Update
+	normalSync bool
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
@@ -419,18 +422,6 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	// encapsulate status reporting in a threadsafe updater
 	version := payloadUpdate.ReleaseVersion
 	total := len(payloadUpdate.Manifests)
-	cr := &consistentReporter{
-		status: SyncWorkerStatus{
-			Generation:  work.Generation,
-			Reconciling: work.Reconciling,
-			VersionHash: payloadUpdate.ManifestHash,
-			Actual:      update,
-		},
-		completed: work.Completed,
-		version:   version,
-		total:     total,
-		reporter:  reporter,
-	}
 
 	var tasks []*payload.Task
 	for i := range payloadUpdate.Manifests {
@@ -445,7 +436,81 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	graph.Split(payload.SplitOnJobs)
 	graph.Parallelize(payload.ByNumberAndComponent)
 
+	// Perform an initial pass over the graph, attempting to *only* create objects without
+	// normal wait semantics. This tries to create as many resources in the graph as possible
+	// initially, before falling into a later reconciling mode. It does not wait for anything
+	// except CRD definitions, which means it is very likely to fail on the first aggregated
+	// API object created in the payload.
+	//
+	// TODO: this is an experimental optimization and may violate the expectations of payload
+	// authors
+	if !work.Reconciling && !w.normalSync {
+		cr := &consistentReporter{
+			status: SyncWorkerStatus{
+				Generation:  work.Generation,
+				Reconciling: work.Reconciling,
+				VersionHash: payloadUpdate.ManifestHash,
+				Actual:      update,
+			},
+			completed: work.Completed,
+			version:   version,
+			total:     total,
+			reporter:  reporter,
+		}
+		glog.V(2).Infof("Attempt initial fast sync of %d objects", total)
+		err := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
+			for _, task := range tasks {
+				if contextIsCancelled(ctx) {
+					return cr.CancelError()
+				}
+
+				glog.V(4).Infof("Running initial sync for %s", task)
+				glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
+
+				ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
+				if ok && ov.Unmanaged {
+					glog.V(4).Infof("Skipping %s as unmanaged", task)
+					continue
+				}
+
+				if err := task.Run(version, w.builder, true); err != nil {
+					if uerr, ok := err.(*payload.UpdateError); ok {
+						if errors.IsAlreadyExists(uerr.Nested) {
+							continue
+						}
+					}
+					return err
+				}
+				cr.Inc()
+				glog.V(4).Infof("Done initial sync for %s", task)
+			}
+			return nil
+		})
+		if err != nil {
+			if errors.IsAlreadyExists(err) {
+				glog.V(2).Infof("Initial sync applied %d objects before reaching an object that we knew about: %v", cr.Count(), err)
+			} else {
+				glog.V(2).Infof("Initial sync applied %d objects and exited with: %v", cr.Count(), err)
+			}
+		} else {
+			glog.V(2).Infof("Initial sync applied %d objects and returned no errors", cr.Count())
+		}
+	}
+	w.normalSync = true
+
 	// update each object
+	cr := &consistentReporter{
+		status: SyncWorkerStatus{
+			Generation:  work.Generation,
+			Reconciling: work.Reconciling,
+			VersionHash: payloadUpdate.ManifestHash,
+			Actual:      update,
+		},
+		completed: work.Completed,
+		version:   version,
+		total:     total,
+		reporter:  reporter,
+	}
 	err := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		for _, task := range tasks {
 			if contextIsCancelled(ctx) {
@@ -462,7 +527,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				continue
 			}
 
-			if err := task.Run(version, w.builder); err != nil {
+			if err := task.Run(version, w.builder, false); err != nil {
 				return err
 			}
 			cr.Inc()
@@ -509,6 +574,12 @@ func (r *consistentReporter) Inc() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.done++
+}
+
+func (r *consistentReporter) Count() int {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.done
 }
 
 func (r *consistentReporter) Update() {

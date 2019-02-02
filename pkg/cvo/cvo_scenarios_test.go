@@ -705,6 +705,6 @@ func (b *blockingResourceBuilder) Send(err error) {
 	b.ch <- err
 }
 
-func (b *blockingResourceBuilder) Apply(m *lib.Manifest) error {
+func (b *blockingResourceBuilder) Apply(m *lib.Manifest, initial bool) error {
 	return <-b.ch
 }

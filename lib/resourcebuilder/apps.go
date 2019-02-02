@@ -35,10 +35,14 @@ func (b *deploymentBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *deploymentBuilder) Do() error {
+func (b *deploymentBuilder) Do(initial bool) error {
 	deployment := resourceread.ReadDeploymentV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(deployment)
+	}
+	if initial {
+		_, err := b.client.Deployments(deployment.Namespace).Create(deployment)
+		return err
 	}
 	actual, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
@@ -99,10 +103,14 @@ func (b *daemonsetBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *daemonsetBuilder) Do() error {
+func (b *daemonsetBuilder) Do(initial bool) error {
 	daemonset := resourceread.ReadDaemonSetV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(daemonset)
+	}
+	if initial {
+		_, err := b.client.DaemonSets(daemonset.Namespace).Create(daemonset)
+		return err
 	}
 	actual, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
 	if err != nil {

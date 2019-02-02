@@ -61,12 +61,14 @@ func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModi
 	return b
 }
 
-func (b *clusterOperatorBuilder) Do() error {
+func (b *clusterOperatorBuilder) Do(initial bool) error {
 	os := readClusterOperatorV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(os)
 	}
-
+	if initial {
+		return nil
+	}
 	return waitForOperatorStatusToBeDone(b.client, os)
 }
 

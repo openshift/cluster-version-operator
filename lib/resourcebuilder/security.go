@@ -26,10 +26,14 @@ func (b *securityBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *securityBuilder) Do() error {
+func (b *securityBuilder) Do(initial bool) error {
 	scc := resourceread.ReadSecurityContextConstraintsV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(scc)
+	}
+	if initial {
+		_, err := b.client.SecurityContextConstraints().Create(scc)
+		return err
 	}
 	_, _, err := resourceapply.ApplySecurityContextConstraints(b.client, scc)
 	return err

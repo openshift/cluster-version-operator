@@ -34,10 +34,17 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *crdBuilder) Do() error {
+func (b *crdBuilder) Do(initial bool) error {
 	crd := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(crd)
+	}
+	if initial {
+		updated, err := b.client.CustomResourceDefinitions().Create(crd)
+		if err != nil {
+			return err
+		}
+		return waitForCustomResourceDefinitionCompletion(b.client, updated)
 	}
 	_, updated, err := resourceapply.ApplyCustomResourceDefinition(b.client, crd)
 	if err != nil {

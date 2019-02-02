@@ -34,10 +34,14 @@ func (b *jobBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *jobBuilder) Do() error {
+func (b *jobBuilder) Do(initial bool) error {
 	job := resourceread.ReadJobV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(job)
+	}
+	if initial {
+		_, err := b.client.Jobs(job.Namespace).Create(job)
+		return err
 	}
 	_, updated, err := resourceapply.ApplyJob(b.client, job)
 	if err != nil {
