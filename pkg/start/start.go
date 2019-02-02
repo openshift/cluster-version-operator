@@ -26,6 +26,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/flowcontrol"
 
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	informers "github.com/openshift/client-go/config/informers/externalversions"
@@ -273,8 +274,7 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 }
 
 func increaseQPS(config *rest.Config) {
-	config.QPS = 20
-	config.Burst = 40
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(20, 40)
 }
 
 func useProtobuf(config *rest.Config) {
