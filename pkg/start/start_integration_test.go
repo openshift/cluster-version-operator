@@ -410,7 +410,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		t, client, ns,
 		"UpdatePayloadResourceInvalid",
 		fmt.Sprintf(
-			`Could not update configmap "%s/config2" (v1, 2 of 2): the object is invalid, possibly due to local cluster configuration`,
+			`Could not update configmap "%s/config2" (2 of 2): the object is invalid, possibly due to local cluster configuration`,
 			ns,
 		),
 		"Unable to apply 0.0.2: some cluster configuration is invalid",

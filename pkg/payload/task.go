@@ -44,9 +44,9 @@ type Task struct {
 func (st *Task) String() string {
 	ns := st.Manifest.Object().GetNamespace()
 	if len(ns) == 0 {
-		return fmt.Sprintf("%s %q (%s, %d of %d)", strings.ToLower(st.Manifest.GVK.Kind), st.Manifest.Object().GetName(), st.Manifest.GVK.GroupVersion().String(), st.Index, st.Total)
+		return fmt.Sprintf("%s %q (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), st.Manifest.Object().GetName(), st.Index, st.Total)
 	}
-	return fmt.Sprintf("%s \"%s/%s\" (%s, %d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Manifest.GVK.GroupVersion().String(), st.Index, st.Total)
+	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Index, st.Total)
 }
 
 func (st *Task) Run(version string, builder ResourceBuilder) error {
@@ -64,6 +64,9 @@ func (st *Task) Run(version string, builder ResourceBuilder) error {
 		}
 		return true, nil
 	}); err != nil {
+		if uerr, ok := lastErr.(*UpdateError); ok {
+			return uerr
+		}
 		reason, cause := reasonForPayloadSyncError(lastErr)
 		if len(cause) > 0 {
 			cause = ": " + cause
@@ -89,6 +92,7 @@ type UpdateError struct {
 	Nested  error
 	Reason  string
 	Message string
+	Name    string
 }
 
 func (e *UpdateError) Error() string {
@@ -128,7 +132,7 @@ func reasonForPayloadSyncError(err error) (string, string) {
 	}
 }
 
-func SummaryForReason(reason string) string {
+func SummaryForReason(reason, name string) string {
 	switch reason {
 
 	// likely temporary errors
@@ -157,7 +161,19 @@ func SummaryForReason(reason string) string {
 		return "some cluster configuration is invalid"
 	case "UpdatePayloadIntegrity":
 		return "the contents of the update are invalid"
+
+	case "ClusterOperatorFailing":
+		if len(name) > 0 {
+			return fmt.Sprintf("the cluster operator %s is failing", name)
+		}
+		return "a cluster operator is failing"
+	case "ClusterOperatorNotAvailable":
+		if len(name) > 0 {
+			return fmt.Sprintf("the cluster operator %s has not yet successfully rolled out", name)
+		}
+		return "a cluster operator has not yet rolled out"
 	}
+
 	if strings.HasPrefix(reason, "UpdatePayload") {
 		return "the update could not be applied"
 	}

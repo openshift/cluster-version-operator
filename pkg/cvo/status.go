@@ -162,7 +162,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		msg := "an error occurred"
 		if uErr, ok := err.(*payload.UpdateError); ok {
 			reason = uErr.Reason
-			msg = payload.SummaryForReason(reason)
+			msg = payload.SummaryForReason(reason, uErr.Name)
 		}
 
 		// set the failing condition
