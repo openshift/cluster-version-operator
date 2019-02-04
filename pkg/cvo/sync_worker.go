@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
@@ -423,18 +422,49 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	total := len(payloadUpdate.Manifests)
 	done := 0
 	var tasks []*payload.Task
+	cvoTasks := []*payload.Task{}
 	for i := range payloadUpdate.Manifests {
-		tasks = append(tasks, &payload.Task{
+		newTask := &payload.Task{
 			Index:    i + 1,
 			Total:    total,
 			Manifest: &payloadUpdate.Manifests[i],
 			Backoff:  w.backoff,
-		})
+		}
+
+		if payloadUpdate.Manifests[i].GVK.Kind == "ClusterOperator" && payloadUpdate.Manifests[i].GVK.Group == "config.openshift.io" {
+			cvoTasks = append(tasks, newTask)
+			continue
+		}
+
+		tasks = append(tasks, newTask)
+	}
+
+	err := w.runTask(ctx, payloadUpdate, work, reporter, tasks, version, total, &done)
+	if err != nil {
+		return err
+	}
+	// after the rest are done, run the cvotasks to wait for them to report happy
+	err = w.runTask(ctx, payloadUpdate, work, reporter, cvoTasks, version, total, &done)
+	if err != nil {
+		return err
+	}
+
+	setAppliedAndPending(version, total, done)
+	work.Completed++
+	reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
+
+	return nil
+}
+
+func (w *SyncWorker) runTask(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, reporter StatusReporter, tasks []*payload.Task, version string, total int, done *int) error {
+	update := configv1.Update{
+		Version: payloadUpdate.ReleaseVersion,
+		Image:   payloadUpdate.ReleaseImage,
 	}
 
 	for i := 0; i < len(tasks); i++ {
 		task := tasks[i]
-		setAppliedAndPending(version, total, done)
+		setAppliedAndPending(version, total, *done)
 		fraction := float32(i) / float32(len(tasks))
 
 		reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
@@ -456,21 +486,16 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 
 		if err := task.Run(version, w.builder); err != nil {
 			reporter.Report(SyncWorkerStatus{Generation: work.Generation, Failure: err, Fraction: fraction, Step: "ApplyResources", Reconciling: work.Reconciling, VersionHash: payloadUpdate.ManifestHash, Actual: update})
-			cause := errors.Cause(err)
-			if task.Requeued == 0 && shouldRequeueOnErr(cause, task.Manifest) {
+			if task.Requeued == 0 {
 				task.Requeued++
 				tasks = append(tasks, task)
 				continue
 			}
 			return err
 		}
-		done++
 		glog.V(4).Infof("Done syncing for %s", task)
+		*done++
 	}
-
-	setAppliedAndPending(version, total, done)
-	work.Completed++
-	reporter.Report(SyncWorkerStatus{Generation: work.Generation, Fraction: 1, Completed: work.Completed, Reconciling: true, VersionHash: payloadUpdate.ManifestHash, Actual: update})
 
 	return nil
 }
@@ -496,29 +521,6 @@ func setAppliedAndPending(version string, total, done int) {
 // This is used to map the know causes to their check.
 var requeueOnErrorCauseToCheck = map[string]func(error) bool{
 	requeueOnErrorCauseNoMatch: meta.IsNoMatchError,
-}
-
-func shouldRequeueOnErr(err error, manifest *lib.Manifest) bool {
-	cause := errors.Cause(err)
-	if _, ok := cause.(*resourcebuilder.RetryLaterError); ok {
-		return true
-	}
-
-	ok, errs := hasRequeueOnErrorAnnotation(manifest.Object().GetAnnotations())
-	if !ok {
-		return false
-	}
-	should := false
-	for _, e := range errs {
-		if ef, ok := requeueOnErrorCauseToCheck[e]; ok {
-			if ef(cause) {
-				should = true
-				break
-			}
-		}
-	}
-
-	return should
 }
 
 const (

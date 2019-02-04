@@ -39,12 +39,9 @@ func (b *crdBuilder) Do() error {
 	if b.modifier != nil {
 		b.modifier(crd)
 	}
-	_, updated, err := resourceapply.ApplyCustomResourceDefinition(b.client, crd)
+	_, _, err := resourceapply.ApplyCustomResourceDefinition(b.client, crd)
 	if err != nil {
 		return err
-	}
-	if updated {
-		return waitForCustomResourceDefinitionCompletion(b.client, crd)
 	}
 	return nil
 }
