@@ -140,7 +140,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 	for _, update := range updates {
 		cvoUpdates = append(cvoUpdates, configv1.Update{
 			Version: update.Version.String(),
-			Image: update.Image,
+			Image:   update.Image,
 		})
 	}
 

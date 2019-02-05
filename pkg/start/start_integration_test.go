@@ -727,11 +727,18 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			}
 		}
 
-		if !stringInSlice(versions, cv.Status.Desired.Version) {
-			return false, fmt.Errorf("upgrading operator status reported desired version %s which is not in the allowed set %v", cv.Status.Desired.Version, versions)
-		}
 		if len(cv.Status.History) == 0 {
 			return false, fmt.Errorf("upgrading operator should have at least once history entry")
+		}
+		if len(cv.Status.Desired.Version) == 0 {
+			// if we are downloading the next update, we're allowed to have an empty desired version because we
+			// haven't been able to load the payload
+			if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); c != nil && c.Status == configv1.ConditionTrue && strings.Contains(c.Message, "downloading update") && c.Reason == "DownloadingUpdate" {
+				return false, nil
+			}
+		}
+		if !stringInSlice(versions, cv.Status.Desired.Version) {
+			return false, fmt.Errorf("upgrading operator status reported desired version %s which is not in the allowed set %v", cv.Status.Desired.Version, versions)
 		}
 		if !stringInSlice(versions, cv.Status.History[0].Version) {
 			return false, fmt.Errorf("upgrading operator should have a valid history[0] version %s: %v", cv.Status.Desired.Version, versions)

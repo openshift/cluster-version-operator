@@ -987,6 +987,102 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
+			name: "report partial retrieved version",
+			syncStatus: &SyncWorkerStatus{
+				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: ""},
+				Step:   "RetrievePayload",
+			},
+			optr: Operator{
+				releaseImage:   "image/image:v4.0.1",
+				releaseVersion: "4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:          configv1.PartialUpdate,
+								Image:          "image/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    defaultStartedTime,
+								CompletionTime: &defaultCompletionTime,
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Image:          "image/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    defaultStartedTime,
+								CompletionTime: &defaultCompletionTime,
+							},
+						},
+						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						VersionHash: "",
+						Conditions:  []configv1.ClusterOperatorStatusCondition{},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "default",
+						ResourceVersion: "1",
+					},
+					Spec: configv1.ClusterVersionSpec{
+						Upstream: configv1.URL("http://localhost:8080/graph"),
+						Channel:  "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{
+								State:       configv1.PartialUpdate,
+								Image:       "image/image:v4.0.1",
+								Version:     "",
+								StartedTime: defaultStartedTime,
+							},
+							{
+								State:          configv1.PartialUpdate,
+								Image:          "image/image:v4.0.2",
+								Version:        "4.0.2",
+								StartedTime:    defaultStartedTime,
+								CompletionTime: &defaultCompletionTime,
+							},
+							{
+								State:          configv1.CompletedUpdate,
+								Image:          "image/image:v4.0.1",
+								Version:        "4.0.1",
+								StartedTime:    defaultStartedTime,
+								CompletionTime: &defaultCompletionTime,
+							},
+						},
+						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: ""},
+						VersionHash: "",
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							// we correct the message that was incorrect from the previous state
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "DownloadingUpdate", Message: "Working towards image/image:v4.0.1: downloading update"},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
 			name: "after initial status is set, set hash and correct version number",
 			syncStatus: &SyncWorkerStatus{
 				VersionHash: "xyz",

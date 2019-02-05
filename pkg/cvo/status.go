@@ -217,6 +217,11 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
 			case status.Fraction > 0:
 				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
+			case status.Step == "RetrievePayload":
+				if len(reason) == 0 {
+					reason = "DownloadingUpdate"
+				}
+				message = fmt.Sprintf("Working towards %s: downloading update", version)
 			default:
 				message = fmt.Sprintf("Working towards %s", version)
 			}
