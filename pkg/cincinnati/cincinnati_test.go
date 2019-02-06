@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-
+	_ "github.com/golang/glog" // integration tests set glog flags.
 	"github.com/google/uuid"
 )
 
