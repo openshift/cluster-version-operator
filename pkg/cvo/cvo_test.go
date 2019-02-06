@@ -2138,7 +2138,14 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		{
 			name: "set available updates and clear error state when success and empty",
 			handler: func(w http.ResponseWriter, req *http.Request) {
-				fmt.Fprintf(w, "{}")
+				fmt.Fprintf(w, `
+				{
+					"nodes": [
+						{"version":"4.0.1",            "image": "image/image:v4.0.1"}
+					],
+					"edges": []
+				}
+				`)
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
