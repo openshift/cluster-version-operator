@@ -32,6 +32,10 @@ func ensureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOpera
 		*modified = true
 		existing.Extension.Object = required.Extension.Object
 	}
+	if !equality.Semantic.DeepEqual(existing.RelatedObjects, required.RelatedObjects) {
+		*modified = true
+		existing.RelatedObjects = required.RelatedObjects
+	}
 }
 
 func SetOperatorStatusCondition(conditions *[]configv1.ClusterOperatorStatusCondition, newCondition configv1.ClusterOperatorStatusCondition) {
