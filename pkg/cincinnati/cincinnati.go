@@ -69,11 +69,16 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 
 	// Find the current version within the graph.
 	var currentIdx int
+	found := false
 	for i, node := range graph.Nodes {
 		if version.EQ(node.Version) {
 			currentIdx = i
+			found = true
 			break
 		}
+	}
+	if !found {
+		return nil, fmt.Errorf("unknown version %s", version)
 	}
 
 	// Find the children of the current version.
