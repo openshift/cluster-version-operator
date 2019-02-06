@@ -1,12 +1,13 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
+	"unicode"
 
-	"github.com/golang/glog"
-
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -71,7 +72,7 @@ func (b *clusterOperatorBuilder) Do() error {
 		b.modifier(os)
 	}
 
-	return waitForOperatorStatusToBeDone(b.client, os)
+	return waitForOperatorStatusToBeDone(osPollInternal, osPollTimeout, b.client, os)
 }
 
 const (
@@ -79,27 +80,72 @@ const (
 	osPollTimeout  = 1 * time.Minute
 )
 
-func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter, co *configv1.ClusterOperator) error {
-	var lastCO *configv1.ClusterOperator
-	err := wait.Poll(osPollInternal, osPollTimeout, func() (bool, error) {
-		eos, err := client.ClusterOperators().Get(co.Name, metav1.GetOptions{})
+func waitForOperatorStatusToBeDone(interval, timeout time.Duration, client configclientv1.ClusterOperatorsGetter, expected *configv1.ClusterOperator) error {
+	var lastErr error
+	err := wait.Poll(interval, timeout, func() (bool, error) {
+		actual, err := client.ClusterOperators().Get(expected.Name, metav1.GetOptions{})
 		if err != nil {
-			if errors.IsNotFound(err) {
-				return false, nil
+			lastErr = &payload.UpdateError{
+				Nested:  err,
+				Reason:  "ClusterOperatorNotAvailable",
+				Message: fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
+				Name:    expected.Name,
 			}
-			return false, err
+			return false, nil
 		}
-		lastCO = eos
 
-		// TODO: temporarily disabled while the design for version tracking is finalized
-		// if eos.Status.Version != os.Status.Version {
-		// 	return false, nil
-		// }
+		// undone is map of operand to tuple of (expected version, actual version)
+		// for incomplete operands.
+		undone := map[string][]string{}
+		for _, expOp := range expected.Status.Versions {
+			undone[expOp.Name] = []string{expOp.Version}
+			for _, actOp := range actual.Status.Versions {
+				if actOp.Name == expOp.Name {
+					undone[expOp.Name] = append(undone[expOp.Name], actOp.Version)
+					if actOp.Version == expOp.Version {
+						delete(undone, expOp.Name)
+					}
+					break
+				}
+			}
+		}
+		if len(undone) > 0 {
+			var keys []string
+			for k := range undone {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+
+			var reports []string
+			for _, op := range keys {
+				// we do not need to report `operator` version.
+				if op == "operator" {
+					continue
+				}
+				ver := undone[op]
+				if len(ver) == 1 {
+					reports = append(reports, fmt.Sprintf("missing version information for %s", op))
+					continue
+				}
+				reports = append(reports, fmt.Sprintf("upgrading %s from %s to %s", op, ver[1], ver[0]))
+			}
+			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
+			if len(reports) > 0 {
+				message = fmt.Sprintf("Cluster operator %s is still updating: %s", actual.Name, strings.Join(reports, ", "))
+			}
+			lastErr = &payload.UpdateError{
+				Nested:  errors.New(lowerFirst(message)),
+				Reason:  "ClusterOperatorNotAvailable",
+				Message: message,
+				Name:    actual.Name,
+			}
+			return false, nil
+		}
 
 		available := false
 		progressing := true
 		failing := true
-		for _, condition := range eos.Status.Conditions {
+		for _, condition := range actual.Status.Conditions {
 			switch {
 			case condition.Type == configv1.OperatorAvailable && condition.Status == configv1.ConditionTrue:
 				available = true
@@ -113,46 +159,43 @@ func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter,
 		if available && !progressing && !failing {
 			return true, nil
 		}
+
+		if c := resourcemerge.FindOperatorStatusCondition(actual.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {
+			message := fmt.Sprintf("Cluster operator %s is reporting a failure", actual.Name)
+			if len(c.Message) > 0 {
+				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, c.Message)
+			}
+			lastErr = &payload.UpdateError{
+				Nested:  errors.New(lowerFirst(message)),
+				Reason:  "ClusterOperatorFailing",
+				Message: message,
+				Name:    actual.Name,
+			}
+			return false, nil
+		}
+
+		lastErr = &payload.UpdateError{
+			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, failing=%v",
+				actual.Name, available, progressing, failing,
+			),
+			Reason:  "ClusterOperatorNotAvailable",
+			Message: fmt.Sprintf("Cluster operator %s has not yet reported success", actual.Name),
+			Name:    actual.Name,
+		}
 		return false, nil
 	})
-
-	if err != wait.ErrWaitTimeout {
+	if err != nil {
+		if err == wait.ErrWaitTimeout && lastErr != nil {
+			return lastErr
+		}
 		return err
 	}
+	return nil
+}
 
-	if lastCO == nil {
-		return &payload.UpdateError{
-			Reason:  "ClusterOperatorNotAvailable",
-			Message: fmt.Sprintf("Cluster operator %s has not yet reported success", co.Name),
-			Name:    co.Name,
-		}
+func lowerFirst(str string) string {
+	for i, v := range str {
+		return string(unicode.ToLower(v)) + str[i+1:]
 	}
-	co = lastCO
-
-	glog.V(3).Infof("ClusterOperator %s is not done; it is available=%v, progressing=%v, failing=%v",
-		co.Name,
-		resourcemerge.IsOperatorStatusConditionTrue(co.Status.Conditions, configv1.OperatorAvailable),
-		resourcemerge.IsOperatorStatusConditionTrue(co.Status.Conditions, configv1.OperatorProgressing),
-		resourcemerge.IsOperatorStatusConditionTrue(co.Status.Conditions, configv1.OperatorFailing),
-	)
-
-	if c := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {
-		if len(c.Message) > 0 {
-			return &payload.UpdateError{
-				Reason:  "ClusterOperatorFailing",
-				Message: fmt.Sprintf("Cluster operator %s is reporting a failure: %s", co.Name, c.Message),
-				Name:    co.Name,
-			}
-		}
-		return &payload.UpdateError{
-			Reason:  "ClusterOperatorFailing",
-			Message: fmt.Sprintf("Cluster operator %s is reporting a failure", co.Name),
-			Name:    co.Name,
-		}
-	}
-	return &payload.UpdateError{
-		Reason:  "ClusterOperatorNotAvailable",
-		Message: fmt.Sprintf("Cluster operator %s has not yet reported success", co.Name),
-		Name:    co.Name,
-	}
+	return ""
 }
