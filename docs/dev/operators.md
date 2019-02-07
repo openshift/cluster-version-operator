@@ -1,4 +1,38 @@
-# Second Level Operator integration with CVO
+# Operator integration with CVO
+
+The CVO installs other operators onto a cluster. It is responsible for applying the manifests each
+operator uses (without any parameterization) and for ensuring an order that installation and
+updates follow.
+
+## What is the order that resources get created/updated in?
+
+The CVO will load a release image and look at the contents of two directories: `/manifests` and
+`/release-manifests` within that image. The `/manifests` directory is part of the CVO image and
+contains the basic deployment and other roles for the CVO. The `/release-manifests` directory is
+created by the `oc adm release new` command from the `/manifests` directories of all other
+candidate operators.
+
+The contents of `/release-manifests` are applied in lexigraphic order, exactly as `ls` would
+return on a standard Linux or Unix derivative. The CVO supports the idea of "run levels" by
+defining a convention for how operators that wish to run before other operators should name
+their manifests. A run level is of the form `0000_\d\d_[a-z0-9\-]+_<filename>` where the first
+digits are the level (see [below for a list of assigned levels](#how-do-i-get-added-as-a-special-run-level)), the second chunk is the component name that
+usually matches your operator name (e.g. `kube-apiserver` or `cluster-monitoring-operator`)
+and the filename is a local name.
+
+A few special optimizations are applied above linear ordering - if the CVO sees two different
+components that have the same run level - for instance, `0000_70_cluster-monitoring-operator_*` and
+`0000_70_cluster-samples-operator_*` - each component will execute in parallel to the others,
+preserving the order of tasks within the component.
+
+Ordering is most important during upgrades, where some components rely on another component
+being updated first. As a convenience, the CVO guarantees that components at an earlier
+run level will be created or updated before your component is invoked. Note however that
+components without `ClusterOperator` objects defined may not be fully deployed when your
+component is executed, so always ensure your prerequisites know that they must correctly
+obey the `ClusterOperator` protocol to be available. More sophisticated components should
+observe the prerequisite `ClusterOperator`s directly and use the `versions` field to
+enforce safety.
 
 ## How do I get added to the release image?
 
