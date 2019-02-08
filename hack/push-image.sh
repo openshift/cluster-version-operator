@@ -9,11 +9,11 @@ function print_info {
 
 REPO=${REPO:-"openshift"}
 
-if [ -z ${VERSION+a} ]; then
+if [ -z ${VERSION_OVERRIDE+a} ]; then
         print_info "Using version from git..."
-        VERSION=$(git describe --abbrev=8 --dirty --always)
+        VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
 fi
 
 set -x
-podman push "cluster-version-operator:${VERSION}" "${REPO}/origin-cluster-version-operator:${VERSION}"
-podman push "cluster-version-operator:${VERSION}" "${REPO}/origin-cluster-version-operator:latest"
+podman push "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:${VERSION_OVERRIDE}"
+podman push "cluster-version-operator:${VERSION_OVERRIDE}" "${REPO}/origin-cluster-version-operator:latest"

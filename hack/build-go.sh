@@ -14,12 +14,12 @@ GOARCH=${GOACH:-${GOHOSTARCH}}
 # Go to the root of the repo
 cd "$(git rev-parse --show-cdup)"
 
-if [ -z ${VERSION+a} ]; then
+if [ -z ${VERSION_OVERRIDE+a} ]; then
 	echo "Using version from git..."
-	VERSION=$(git describe --abbrev=8 --dirty --always)
+	VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
 fi
 
-GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION}"
+GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 
 eval $(go env)
 
@@ -29,5 +29,5 @@ fi
 
 mkdir -p ${BIN_PATH}
 
-echo "Building ${REPO} (${VERSION})"
+echo "Building ${REPO} (${VERSION_OVERRIDE})"
 CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${GLDFLAGS}" -o ${BIN_PATH}/cluster-version-operator ${REPO}/cmd/...
