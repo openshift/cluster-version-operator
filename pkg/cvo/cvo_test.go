@@ -2141,7 +2141,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				fmt.Fprintf(w, `
 				{
 					"nodes": [
-						{"version":"4.0.1",            "image": "image/image:v4.0.1"}
+						{"version":"4.0.1",            "payload": "image/image:v4.0.1"}
 					],
 					"edges": []
 				}
@@ -2191,9 +2191,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				fmt.Fprintf(w, `
 				{
 					"nodes": [
-						{"version":"4.0.1",            "image": "image/image:v4.0.1"},
-						{"version":"4.0.2-prerelease", "image": "some.other.registry/image/image:v4.0.2"},
-						{"version":"4.0.2",            "image": "image/image:v4.0.2"}
+						{"version":"4.0.1",            "payload": "image/image:v4.0.1"},
+						{"version":"4.0.2-prerelease", "payload": "some.other.registry/image/image:v4.0.2"},
+						{"version":"4.0.2",            "payload": "image/image:v4.0.2"}
 					],
 					"edges": [
 						[0, 1],

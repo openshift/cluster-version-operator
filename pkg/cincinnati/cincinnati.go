@@ -103,8 +103,8 @@ type graph struct {
 }
 
 type node struct {
-	Version semver.Version
-	Image   string
+	Version semver.Version `json:"version"`
+	Image   string         `json:"payload"`
 }
 
 type edge struct {
