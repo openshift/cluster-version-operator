@@ -2,6 +2,10 @@ package internal
 
 import (
 	"fmt"
+	"net"
+	"net/url"
+	"os"
+	"syscall"
 	"time"
 
 	"github.com/golang/glog"
@@ -87,6 +91,9 @@ func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter,
 			if errors.IsNotFound(err) {
 				return false, nil
 			}
+			if isRetriableError(err) {
+				return false, nil
+			}
 			return false, err
 		}
 		lastCO = eos
@@ -155,4 +162,27 @@ func waitForOperatorStatusToBeDone(client configclientv1.ClusterOperatorsGetter,
 		Message: fmt.Sprintf("Cluster operator %s has not yet reported success", co.Name),
 		Name:    co.Name,
 	}
+}
+
+// isRetriableError returns true if the error we encounter can be retried safely.
+func isRetriableError(err error) bool {
+	// the CVO typically talks to the apiserver via localhost, which means a restart can
+	// result in temporary connection refused errors
+	return isConnectionRefused(err)
+}
+
+func isConnectionRefused(err error) bool {
+	if urlErr, ok := err.(*url.Error); ok {
+		err = urlErr.Err
+	}
+	if opErr, ok := err.(*net.OpError); ok {
+		err = opErr.Err
+	}
+	if osErr, ok := err.(*os.SyscallError); ok {
+		err = osErr.Err
+	}
+	if errno, ok := err.(syscall.Errno); ok && errno == syscall.ECONNREFUSED {
+		return true
+	}
+	return false
 }
