@@ -110,7 +110,8 @@ Assigned runlevels
 - 07 - Network operator
 - 08 - DNS operator
 - 09 - Service certificate authority and machine approver
-- 10-29 - Kubernetes operators (master team)
+- 10-28 - Kubernetes operators (master team)
+- 29 - Cloud credentials operator
 - 30-39 - Machine API
 - 50-59 - Operator-lifecycle manager
 - 60-69 - OpenShift core operators (master team)
