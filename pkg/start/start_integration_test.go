@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -549,6 +553,143 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatalf("controller should exit more quickly")
 	case <-done:
+	}
+}
+
+func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
+	if os.Getenv("TEST_INTEGRATION") != "1" {
+		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
+	}
+	t.Parallel()
+
+	requestQuery := make(chan string, 100)
+	defer close(requestQuery)
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case requestQuery <- r.URL.RawQuery:
+		default:
+			t.Errorf("received too many requests at upstream URL")
+		}
+	}
+	upstreamServer := httptest.NewServer(http.HandlerFunc(handler))
+	defer upstreamServer.Close()
+
+	// use the same client setup as the start command
+	cb, err := newClientBuilder("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := cb.RestConfig()
+	kc := cb.KubeClientOrDie("integration-test")
+	client := cb.ClientOrDie("integration-test")
+
+	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
+
+	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+			t.Logf("failed to delete cluster version %s: %v", ns, err)
+		}
+		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+			t.Logf("failed to delete namespace %s: %v", ns, err)
+		}
+	}()
+
+	id, _ := uuid.NewRandom()
+
+	client.ConfigV1().ClusterVersions().Create(&configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ns,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			Upstream:  configv1.URL(upstreamServer.URL),
+			Channel:   "test-channel",
+			ClusterID: configv1.ClusterID(id.String()),
+		},
+	})
+
+	dir, err := ioutil.TempDir("", "cvo-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	if err := createContent(filepath.Join(dir, "0.0.1"), version_0_0_1, map[string]string{"NAMESPACE": ns}); err != nil {
+		t.Fatal(err)
+	}
+	payloadImage1 := "arbitrary/release:image"
+	retriever := &mapPayloadRetriever{map[string]string{
+		payloadImage1: filepath.Join(dir, "0.0.1"),
+	}}
+	payloadDir := filepath.Join(dir, "payload")
+	if err := os.Mkdir(payloadDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	manifestsDir := filepath.Join(payloadDir, "manifests")
+	if err := os.Mkdir(manifestsDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	releaseManifestsDir := filepath.Join(payloadDir, "release-manifests")
+	if err := os.Mkdir(releaseManifestsDir, 0777); err != nil {
+		t.Fatal(err)
+	}
+	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata:
+  name: 0.0.1
+`), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	options := NewOptions()
+	options.Namespace = ns
+	options.Name = ns
+	options.ListenAddr = ""
+	options.NodeName = "test-node"
+	options.ReleaseImage = payloadImage1
+	options.PayloadOverride = payloadDir
+	options.EnableMetrics = false
+	controllers := options.NewControllerContext(cb)
+
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	controllers.CVO.SetSyncWorkerForTesting(worker)
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	controllers.Start(stopCh)
+
+	t.Logf("wait until we observe the cluster version become available")
+	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	if err != nil {
+		t.Logf("latest version:\n%s", printCV(lastCV))
+		t.Fatalf("cluster version never became available: %v", err)
+	}
+
+	t.Logf("wait until we observe the request to the upstream url")
+	actualQuery := ""
+	select {
+	case actualQuery = <-requestQuery:
+	case <-time.After(10 * time.Second):
+		t.Logf("latest version:\n%s", printCV(lastCV))
+		t.Fatal("no request received at upstream URL")
+	}
+	expectedQuery := fmt.Sprintf("channel=test-channel&id=%s&version=0.0.1", id.String())
+	expectedQueryValues, err := url.ParseQuery(expectedQuery)
+	if err != nil {
+		t.Fatalf("could not parse expected query: %v", err)
+	}
+	actualQueryValues, err := url.ParseQuery(actualQuery)
+	if err != nil {
+		t.Fatalf("could not parse acutal query: %v", err)
+	}
+	if e, a := expectedQueryValues, actualQueryValues; !reflect.DeepEqual(e, a) {
+		t.Errorf("expected query to be %q, got: %q", e, a)
 	}
 }
 
