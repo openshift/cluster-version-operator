@@ -542,8 +542,8 @@ func (r *consistentReporter) CancelError() error {
 func (r *consistentReporter) Complete() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total))
-	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.total))
+	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
+	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
 	copied.Completed = r.completed + 1
 	copied.Reconciling = true
