@@ -155,8 +155,10 @@ func waitForOperatorStatusToBeDone(interval, timeout time.Duration, client confi
 				failing = false
 			}
 		}
-		// if we're at the correct version, and available, not progressing, and not failing, we are done
-		if available && !progressing && !failing {
+		// if we're at the correct version, and available, and not failing, we are done
+		// if we're available, not failing, and not progressing, we're also done
+		// TODO: remove progressing once all cluster operators report expected versions
+		if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
 			return true, nil
 		}
 
