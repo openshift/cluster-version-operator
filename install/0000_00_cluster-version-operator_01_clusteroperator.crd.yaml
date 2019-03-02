@@ -4,7 +4,7 @@ metadata:
   name: clusteroperators.config.openshift.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.version
+  - JSONPath: .status.versions[?(@.name=="operator")].version
     description: The version the operator is at.
     name: Version
     type: string
