@@ -309,7 +309,7 @@ func (t *testBuilder) WithModifier(m resourcebuilder.MetaV1ObjectModifierFunc) r
 	return t
 }
 
-func (t *testBuilder) Do() error {
+func (t *testBuilder) Do(_ context.Context) error {
 	a := t.recorder.Invoke(t.m.GVK, t.m.Object().GetNamespace(), t.m.Object().GetName())
 	return t.reactors[a]
 }
@@ -392,7 +392,7 @@ type testResourceBuilder struct {
 	modifiers []resourcebuilder.MetaV1ObjectModifierFunc
 }
 
-func (b *testResourceBuilder) Apply(m *lib.Manifest) error {
+func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
 	ns := m.Object().GetNamespace()
 	fakeGVR := schema.GroupVersionResource{Group: m.GVK.Group, Version: m.GVK.Version, Resource: strings.ToLower(m.GVK.Kind)}
 	client := b.client.Resource(fakeGVR).Namespace(ns)
@@ -403,5 +403,5 @@ func (b *testResourceBuilder) Apply(m *lib.Manifest) error {
 	for _, m := range b.modifiers {
 		builder = builder.WithModifier(m)
 	}
-	return builder.Do()
+	return builder.Do(ctx)
 }

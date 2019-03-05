@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"sync"
@@ -464,7 +465,7 @@ type resourceBuilder struct {
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config *rest.Config) ResourceBuilder {
+func NewResourceBuilder(config *rest.Config) payload.ResourceBuilder {
 	return &resourceBuilder{config: config}
 }
 
@@ -479,7 +480,7 @@ func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface
 	return internal.NewGenericBuilder(client, *m)
 }
 
-func (b *resourceBuilder) Apply(m *lib.Manifest) error {
+func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
 	builder, err := b.BuilderFor(m)
 	if err != nil {
 		return err
@@ -487,5 +488,5 @@ func (b *resourceBuilder) Apply(m *lib.Manifest) error {
 	if b.modifier != nil {
 		builder = builder.WithModifier(b.modifier)
 	}
-	return builder.Do()
+	return builder.Do(ctx)
 }

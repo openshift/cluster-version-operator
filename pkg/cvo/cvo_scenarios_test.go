@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -705,6 +706,6 @@ func (b *blockingResourceBuilder) Send(err error) {
 	b.ch <- err
 }
 
-func (b *blockingResourceBuilder) Apply(m *lib.Manifest) error {
+func (b *blockingResourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
 	return <-b.ch
 }

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -77,7 +78,7 @@ func (b *genericBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc
 	return b
 }
 
-func (b *genericBuilder) Do() error {
+func (b *genericBuilder) Do(_ context.Context) error {
 	ud := readUnstructuredV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(ud)
