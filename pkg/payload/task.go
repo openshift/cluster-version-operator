@@ -1,6 +1,7 @@
 package payload
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -30,7 +31,7 @@ func init() {
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
-	Apply(*lib.Manifest) error
+	Apply(context.Context, *lib.Manifest) error
 }
 
 type Task struct {
@@ -49,11 +50,11 @@ func (st *Task) String() string {
 	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Index, st.Total)
 }
 
-func (st *Task) Run(version string, builder ResourceBuilder) error {
+func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder) error {
 	var lastErr error
 	if err := wait.ExponentialBackoff(st.Backoff, func() (bool, error) {
 		// run builder for the manifest
-		if err := builder.Apply(st.Manifest); err != nil {
+		if err := builder.Apply(ctx, st.Manifest); err != nil {
 			utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 			lastErr = err
 			metricPayloadErrors.WithLabelValues(version).Inc()
