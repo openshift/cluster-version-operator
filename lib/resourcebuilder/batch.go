@@ -1,6 +1,7 @@
 package resourcebuilder
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -34,7 +35,7 @@ func (b *jobBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *jobBuilder) Do() error {
+func (b *jobBuilder) Do(_ context.Context) error {
 	job := resourceread.ReadJobV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(job)
