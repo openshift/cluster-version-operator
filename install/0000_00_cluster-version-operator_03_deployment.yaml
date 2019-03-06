@@ -16,7 +16,7 @@ spec:
       containers:
       - name: cluster-version-operator
         image: {{.ReleaseImage}}
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         args:
           - "start"
           - "--release-image={{.ReleaseImage}}"
