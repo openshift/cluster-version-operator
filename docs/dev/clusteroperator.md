@@ -52,6 +52,33 @@ status:
 
 ## What should an operator report with ClusterOperator Custom Resource
 
+The ClusterOperator exists to communicate status about a functional area of the cluster back to both an admin
+and the higher level automation in the CVO in an opinionated and consistent way. Because of this, we document
+expectations around the outcome and have specific guarantees that apply.
+
+Of note, in the docs below we use the word `operand` to descirbe the "thing the operator manages", which might be:
+
+* A deployment or daemonset, like a cluster networking provider
+* An API exposed via a CRD and the operator updates other API objects, like a secret generator
+* Just some controller loop invariant that the operator manages, like "all certificate signing requests coming from valid machines are approved"
+
+An operand doesn't have to be code running on cluster - that might be the operator. When we say "is the operand available" that might mean "the new code is rolled out" or "all old API objects have been updated" or "we're able to sign certificate requests"
+
+Here are the guarantees components can get when they follow the rules we define:
+
+1. Cause an installation to fail because a component is not able to become available for use
+2. Cause an upgrade to hang because a component is not able to successfully reach the new upgrade
+3. Prevent a user from clicking the upgrade button because components have one or more preflight criteria that are not met (e.g. nodes are at version 4.0 so the control plane can't be upgraded to 4.2 and break N-1 compat)
+4. Ensure other components are upgraded *after* your component (guarantee "happens before" in upgrades, such as kube-apiserver being updated before kube-controller-manager)
+
+There are a set of guarantees components are expected to honor in return:
+
+1. A component doesn't report the `Available` status condition the first time until they are completely rolled out (or within some reasonable percentage if the component must be installed to all nodes)
+2. A component reports `Failing` when it can't accomplish its task. This might be very broad - the API servers are down so I failed to update - or narrow - I couldn't update the last secret. In either case, Failing communicates something is wrong.
+3. A component reports `Progressing` when it is rolling out new code, propagating config changes, or otherwise moving from one steady state to another. It should not report progressing when it is reconciling a previously known state.
+4. A component reports `Upgradeable` as `false` when it wishes to prevent an upgrade for an admin-correctable condition. The component should include a message that describes what must be fixed.
+5. A component reports when it has rolled out the 
+
 ### Status
 
 The operator should ensure that all the fields of `.status` in ClusterOperator are atomic changes. This means that all the fields in the `.status` are only valid together and do not partially represent the status of the operator.
