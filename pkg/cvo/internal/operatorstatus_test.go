@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -475,7 +476,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 			})
 
-			err := waitForOperatorStatusToBeDone(1*time.Millisecond, time.Microsecond, client.ConfigV1(), test.exp)
+			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
+			defer cancel()
+			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, client.ConfigV1(), test.exp)
 			if test.expErr == nil {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)

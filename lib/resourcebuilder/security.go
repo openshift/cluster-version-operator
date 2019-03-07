@@ -1,6 +1,8 @@
 package resourcebuilder
 
 import (
+	"context"
+
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
@@ -26,7 +28,7 @@ func (b *securityBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *securityBuilder) Do() error {
+func (b *securityBuilder) Do(_ context.Context) error {
 	scc := resourceread.ReadSecurityContextConstraintsV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(scc)

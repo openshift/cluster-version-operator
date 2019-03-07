@@ -34,11 +34,6 @@ type PayloadRetriever interface {
 	RetrievePayload(ctx context.Context, desired configv1.Update) (string, error)
 }
 
-// ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
-type ResourceBuilder interface {
-	Apply(*lib.Manifest) error
-}
-
 // StatusReporter abstracts how status is reported by the worker run method. Introduced for testing.
 type StatusReporter interface {
 	Report(status SyncWorkerStatus)
@@ -102,7 +97,7 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 type SyncWorker struct {
 	backoff     wait.Backoff
 	retriever   PayloadRetriever
-	builder     ResourceBuilder
+	builder     payload.ResourceBuilder
 	reconciling bool
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
@@ -125,7 +120,7 @@ type SyncWorker struct {
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff) ConfigSyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff) ConfigSyncWorker {
 	return &SyncWorker{
 		retriever: retriever,
 		builder:   builder,
@@ -463,7 +458,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				continue
 			}
 
-			if err := task.Run(version, w.builder); err != nil {
+			if err := task.Run(ctx, version, w.builder); err != nil {
 				return err
 			}
 			cr.Inc()

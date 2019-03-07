@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sort"
@@ -66,23 +67,19 @@ func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModi
 	return b
 }
 
-func (b *clusterOperatorBuilder) Do() error {
+func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	os := readClusterOperatorV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(os)
 	}
-
-	return waitForOperatorStatusToBeDone(osPollInternal, osPollTimeout, b.client, os)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os)
 }
 
-const (
-	osPollInternal = 1 * time.Second
-	osPollTimeout  = 1 * time.Minute
-)
-
-func waitForOperatorStatusToBeDone(interval, timeout time.Duration, client configclientv1.ClusterOperatorsGetter, expected *configv1.ClusterOperator) error {
+func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client configclientv1.ClusterOperatorsGetter, expected *configv1.ClusterOperator) error {
 	var lastErr error
-	err := wait.Poll(interval, timeout, func() (bool, error) {
+	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.ClusterOperators().Get(expected.Name, metav1.GetOptions{})
 		if err != nil {
 			lastErr = &payload.UpdateError{
@@ -185,7 +182,7 @@ func waitForOperatorStatusToBeDone(interval, timeout time.Duration, client confi
 			Name:    actual.Name,
 		}
 		return false, nil
-	})
+	}, ctx.Done())
 	if err != nil {
 		if err == wait.ErrWaitTimeout && lastErr != nil {
 			return lastErr

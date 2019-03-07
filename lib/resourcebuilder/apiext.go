@@ -1,6 +1,7 @@
 package resourcebuilder
 
 import (
+	"context"
 	"time"
 
 	"github.com/golang/glog"
@@ -34,7 +35,7 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *crdBuilder) Do() error {
+func (b *crdBuilder) Do(ctx context.Context) error {
 	crd := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(crd)
@@ -44,18 +45,15 @@ func (b *crdBuilder) Do() error {
 		return err
 	}
 	if updated {
-		return waitForCustomResourceDefinitionCompletion(b.client, crd)
+		ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+		return waitForCustomResourceDefinitionCompletion(ctxWithTimeout, 1*time.Second, b.client, crd)
 	}
 	return nil
 }
 
-const (
-	crdPollInterval = 1 * time.Second
-	crdPollTimeout  = 1 * time.Minute
-)
-
-func waitForCustomResourceDefinitionCompletion(client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd *apiextv1beta1.CustomResourceDefinition) error {
-	return wait.Poll(crdPollInterval, crdPollTimeout, func() (bool, error) {
+func waitForCustomResourceDefinitionCompletion(ctx context.Context, interval time.Duration, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd *apiextv1beta1.CustomResourceDefinition) error {
+	return wait.PollImmediateUntil(interval, func() (bool, error) {
 		c, err := client.CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the crd.
@@ -73,5 +71,5 @@ func waitForCustomResourceDefinitionCompletion(client apiextclientv1beta1.Custom
 		}
 		glog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", c.Name, c.Status.Conditions)
 		return false, nil
-	})
+	}, ctx.Done())
 }

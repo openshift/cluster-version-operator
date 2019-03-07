@@ -1,6 +1,8 @@
 package resourcebuilder
 
 import (
+	"context"
+
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -26,7 +28,7 @@ func (b *apiServiceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *apiServiceBuilder) Do() error {
+func (b *apiServiceBuilder) Do(_ context.Context) error {
 	apiService := resourceread.ReadAPIServiceV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(apiService)
