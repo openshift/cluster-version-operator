@@ -206,23 +206,27 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step: "RetrievePayload",
+			Step:    "RetrievePayload",
+			Initial: true,
 			// the desired version is briefly incorrect (user provided) until we retrieve the image
 			Actual: configv1.Update{Version: "4.0.1", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
+			Initial:     true,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
+			Initial:     true,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
+			Initial:     true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
