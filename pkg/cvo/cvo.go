@@ -31,7 +31,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
@@ -157,7 +156,7 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
@@ -334,10 +333,19 @@ func (optr *Operator) sync(key string) error {
 		}, errs)
 	}
 
+	// identify an initial state to inform the sync loop of
+	var state payload.State
+	switch {
+	case hasNeverReachedLevel(config):
+		state = payload.InitializingPayload
+	case hasReachedLevel(config, desired):
+		state = payload.ReconcilingPayload
+	default:
+		state = payload.UpdatingPayload
+	}
+
 	// inform the config sync loop about our desired state
-	reconciling := resourcemerge.IsOperatorStatusConditionTrue(config.Status.Conditions, configv1.OperatorAvailable) &&
-		resourcemerge.IsOperatorStatusConditionFalse(config.Status.Conditions, configv1.OperatorProgressing)
-	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, reconciling)
+	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
 
 	// write cluster version status
 	return optr.syncStatus(original, config, status, errs)
@@ -494,4 +502,24 @@ func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
 		builder = builder.WithModifier(b.modifier)
 	}
 	return builder.Do(ctx)
+}
+
+func hasNeverReachedLevel(cv *configv1.ClusterVersion) bool {
+	for _, version := range cv.Status.History {
+		if version.State == configv1.CompletedUpdate {
+			return false
+		}
+	}
+	// TODO: check the payload, just in case
+	return true
+}
+
+func hasReachedLevel(cv *configv1.ClusterVersion, desired configv1.Update) bool {
+	if len(cv.Status.History) == 0 {
+		return false
+	}
+	if cv.Status.History[0].State != configv1.CompletedUpdate {
+		return false
+	}
+	return desired.Image == cv.Status.History[0].Image
 }
