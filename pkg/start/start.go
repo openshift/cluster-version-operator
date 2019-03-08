@@ -274,7 +274,7 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 }
 
 func increaseQPS(config *rest.Config) {
-	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(20, 40)
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(40, 80)
 }
 
 func useProtobuf(config *rest.Config) {
