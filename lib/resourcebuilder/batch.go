@@ -30,6 +30,10 @@ func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *jobBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *jobBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b

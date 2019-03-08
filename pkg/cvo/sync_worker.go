@@ -458,7 +458,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				continue
 			}
 
-			if err := task.Run(ctx, version, w.builder); err != nil {
+			if err := task.Run(ctx, version, w.builder, work.State); err != nil {
 				return err
 			}
 			cr.Inc()

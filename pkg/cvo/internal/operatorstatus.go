@@ -53,6 +53,7 @@ type clusterOperatorBuilder struct {
 	client   configclientv1.ConfigV1Interface
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
+	mode     resourcebuilder.Mode
 }
 
 func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
@@ -60,6 +61,11 @@ func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuil
 		client: configclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
+}
+
+func (b *clusterOperatorBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
+	b.mode = m
+	return b
 }
 
 func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
@@ -74,10 +80,10 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	}
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os)
+	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os, b.mode)
 }
 
-func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client configclientv1.ClusterOperatorsGetter, expected *configv1.ClusterOperator) error {
+func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client configclientv1.ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
 	var lastErr error
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.ClusterOperators().Get(expected.Name, metav1.GetOptions{})
@@ -89,6 +95,24 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 				Name:    expected.Name,
 			}
 			return false, nil
+		}
+
+		switch mode {
+		case resourcebuilder.ReconcilingMode:
+			// During reconciliation we want to report unavailability and fail fast.
+			if c := resourcemerge.FindOperatorStatusCondition(actual.Status.Conditions, configv1.OperatorAvailable); c != nil && c.Status != configv1.ConditionTrue {
+				message := fmt.Sprintf("Cluster operator %s is unavailable", actual.Name)
+				if len(c.Message) > 0 {
+					message = fmt.Sprintf("Cluster operator %s is unavailable: %s", actual.Name, c.Message)
+				}
+				return false, &payload.UpdateError{
+					Nested:  errors.New(lowerFirst(message)),
+					Reason:  "ClusterOperatorNotAvailable",
+					Message: message,
+					Name:    actual.Name,
+				}
+			}
+			return true, nil
 		}
 
 		// undone is map of operand to tuple of (expected version, actual version)
@@ -152,11 +176,20 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 				failing = false
 			}
 		}
-		// if we're at the correct version, and available, and not failing, we are done
-		// if we're available, not failing, and not progressing, we're also done
-		// TODO: remove progressing once all cluster operators report expected versions
-		if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
-			return true, nil
+
+		switch mode {
+		case resourcebuilder.InitializingMode:
+			// During initialization, if we're available and have reached level (or are not progressing)
+			// we can continue. We tolerate partial error states as long as the operator says it's available
+			// since this is the first rollout.
+			if available && (!progressing || len(expected.Status.Versions) > 0) {
+				return true, nil
+			}
+		default:
+			// Be pessimistic when upgrading - require that we not be in a degraded error state.
+			if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
+				return true, nil
+			}
 		}
 
 		if c := resourcemerge.FindOperatorStatusCondition(actual.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {

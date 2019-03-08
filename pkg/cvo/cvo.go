@@ -488,7 +488,7 @@ func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface
 	return internal.NewGenericBuilder(client, *m)
 }
 
-func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
+func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
 	builder, err := b.BuilderFor(m)
 	if err != nil {
 		return err
@@ -496,7 +496,20 @@ func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
 	if b.modifier != nil {
 		builder = builder.WithModifier(b.modifier)
 	}
-	return builder.Do(ctx)
+	return builder.WithMode(stateToMode(state)).Do(ctx)
+}
+
+func stateToMode(state payload.State) resourcebuilder.Mode {
+	switch state {
+	case payload.InitializingPayload:
+		return resourcebuilder.InitializingMode
+	case payload.UpdatingPayload:
+		return resourcebuilder.UpdatingMode
+	case payload.ReconcilingPayload:
+		return resourcebuilder.ReconcilingMode
+	default:
+		panic(fmt.Sprintf("unexpected payload state %d", int(state)))
+	}
 }
 
 func hasNeverReachedLevel(cv *configv1.ClusterVersion) bool {

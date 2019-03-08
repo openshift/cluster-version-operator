@@ -30,6 +30,10 @@ func newCRDBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *crdBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b

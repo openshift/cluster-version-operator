@@ -16,6 +16,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -23,7 +24,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 	tests := []struct {
 		name   string
 		actual *configv1.ClusterOperator
-
+		mode   resourcebuilder.Mode
 		exp    *configv1.ClusterOperator
 		expErr error
 	}{{
@@ -378,6 +379,32 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			Name:    "test-co",
 		},
 	}, {
+		name: "cluster operator reporting available=true failing=true when Reconciling",
+		actual: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "random error"}},
+			},
+		},
+		mode: resourcebuilder.ReconcilingMode,
+		exp: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+			},
+		},
+		// we ignore the failing condition
+		expErr: nil,
+	}, {
 		name: "cluster operator reporting available=true progressing=true failing=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
@@ -478,15 +505,12 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 
 			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
 			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, client.ConfigV1(), test.exp)
-			if test.expErr == nil {
-				if err != nil {
-					t.Fatalf("expected nil error, got: %v", err)
-				}
-			} else {
-				if !reflect.DeepEqual(test.expErr, err) {
-					t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(test.expErr, err))
-				}
+			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, client.ConfigV1(), test.exp, test.mode)
+			if (test.expErr == nil) != (err == nil) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(test.expErr, err) {
+				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(test.expErr, err))
 			}
 		})
 	}
