@@ -218,7 +218,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
-	go optr.configSync.Start(8, stopCh)
+	go optr.configSync.Start(16, stopCh)
 
 	go wait.Until(func() { optr.worker(optr.queue, optr.sync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
