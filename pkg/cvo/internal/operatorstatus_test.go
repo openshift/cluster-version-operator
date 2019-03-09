@@ -505,7 +505,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 
 			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
 			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, client.ConfigV1(), test.exp, test.mode)
+			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode)
 			if (test.expErr == nil) != (err == nil) {
 				t.Fatalf("unexpected error: %v", err)
 			}
