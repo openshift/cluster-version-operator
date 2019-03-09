@@ -163,7 +163,7 @@ func New(
 
 	optr.configSync = NewSyncWorker(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(optr.restConfig),
+		NewResourceBuilder(optr.restConfig, coInformer.Lister()),
 		minimumInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
@@ -462,14 +462,19 @@ func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
 type resourceBuilder struct {
 	config   *rest.Config
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
+
+	clusterOperators internal.ClusterOperatorsGetter
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config *rest.Config) payload.ResourceBuilder {
-	return &resourceBuilder{config: config}
+func NewResourceBuilder(config *rest.Config, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
+	return &resourceBuilder{config: config, clusterOperators: clusterOperators}
 }
 
 func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
+	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+		return internal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
+	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, b.config, *m)
 	}
