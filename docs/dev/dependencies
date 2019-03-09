@@ -1,0 +1,78 @@
+# This file describes the known dependencies between components.
+#
+# The file is input to `digraph` and is of the form "node -> node"
+# which defines an edge. Run the following to see the whole graph
+#
+#   <docs/dev/dependencies grep -v '#' | digraph degree
+#
+
+# starts very early in order to boot machines
+# needs credentials
+machine-api-operator cloud-credential-operator
+
+# needs APIs
+operator-marketplace olm
+
+# upgrades after kube
+olm kube-apiserver-operator
+
+# upgrades after kube
+kube-controller-manager-operator kube-apiserver-operator
+kube-scheduler-operator kube-apiserver-operator
+openshift-apiserver-operator kube-apiserver-operator
+openshift-controller-manager-operator kube-apiserver-operator
+
+# upgrade after ? (or manage internally)
+openshift-controller-manager-operator openshift-apiserver-operator
+
+# needs to update OAuth
+console-operator cluster-authentication-operator
+# needs to create routes
+console-operator cluster-ingress-operator
+
+cluster-authentication-operator kube-apiserver-operator
+# needs route keys to terminate TLS
+cluster-authentication-operator cluster-ingress-operator
+
+# needs image stream and templates API
+cluster-samples-operator openshift-apiserver-operator
+
+# may need cloud credentials ???
+cluster-storage-operator kube-apiserver-operator
+
+cluster-node-tuning-operator kube-apiserver-operator
+
+cluster-monitoring-operator kube-apiserver-operator
+# needs to create PVCs
+cluster-monitoring-operator cluster-storage-operator
+
+# ?
+cluster-dns-operator cluster-network-operator
+
+# needs machine API
+cluster-autoscaler-operator machine-api-operator
+
+# must install before everything beyond config
+cluster-network-operator config-operator
+
+# must install before everything
+config-operator
+
+# must install early
+machine-approver
+
+machine-config-operator
+
+cluster-image-registry-operator kube-apiserver-operator
+# needs credentials
+cluster-image-registry-operator cloud-credential-operator
+# uses service CAs
+cluster-image-registry-operator service-ca-operator
+
+cluster-ingress-operator kube-apiserver-operator
+# uses service CAs
+cluster-ingress-operator service-ca-operator
+
+# needs kube
+cluster-svcat-apiserver-operator kube-apiserver-operator
+cluster-svcat-controller-manager-operator kube-apiserver-operator
