@@ -73,6 +73,10 @@ func NewGenericBuilder(client dynamic.ResourceInterface, m lib.Manifest) (resour
 	}, nil
 }
 
+func (b *genericBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
+	return b
+}
+
 func (b *genericBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
 	b.modifier = f
 	return b

@@ -63,8 +63,18 @@ type MetaV1ObjectModifierFunc func(metav1.Object)
 // and the Manifest.
 type NewInteraceFunc func(rest *rest.Config, m lib.Manifest) Interface
 
+// Mode is how this builder is being used.
+type Mode int
+
+const (
+	UpdatingMode Mode = iota
+	ReconcilingMode
+	InitializingMode
+)
+
 type Interface interface {
 	WithModifier(MetaV1ObjectModifierFunc) Interface
+	WithMode(Mode) Interface
 	Do(context.Context) error
 }
 
