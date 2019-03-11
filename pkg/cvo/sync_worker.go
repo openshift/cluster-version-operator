@@ -429,17 +429,27 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	}
 
 	var tasks []*payload.Task
+	backoff := w.backoff
+	if backoff.Steps > 1 && work.State == payload.InitializingPayload {
+		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second}
+	}
 	for i := range payloadUpdate.Manifests {
 		tasks = append(tasks, &payload.Task{
 			Index:    i + 1,
 			Total:    total,
 			Manifest: &payloadUpdate.Manifests[i],
-			Backoff:  w.backoff,
+			Backoff:  backoff,
 		})
 	}
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
-	graph.Parallelize(payload.ByNumberAndComponent)
+	if work.State == payload.InitializingPayload {
+		// get the payload out via brute force
+		maxWorkers = len(tasks)
+		graph.Parallelize(payload.FlattenByNumberAndComponent)
+	} else {
+		graph.Parallelize(payload.ByNumberAndComponent)
+	}
 
 	// update each object
 	err := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {

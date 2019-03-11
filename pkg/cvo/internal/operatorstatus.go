@@ -99,7 +99,11 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(os)
 	}
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	timeout := 1 * time.Minute
+	if b.mode == resourcebuilder.InitializingMode {
+		timeout = 6 * time.Minute
+	}
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os, b.mode)
 }

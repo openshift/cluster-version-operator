@@ -78,6 +78,54 @@ func ByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 	return buckets
 }
 
+// FlattenByNumberAndComponent creates parallelization for tasks whose original filenames are of the form
+// 0000_NN_NAME_* - files that share 0000_NN_NAME_ are run in serial, but chunks of files that have
+// different 0000_NN_NAME can be run in parallel. This splitter does *not* preserve ordering within run
+// levels and is intended only for use cases where order is not important.
+func FlattenByNumberAndComponent(tasks []*Task) [][]*TaskNode {
+	if len(tasks) <= 1 {
+		return nil
+	}
+	count := len(tasks)
+	matches := make([][]string, 0, count)
+	for i := 0; i < len(tasks); i++ {
+		matches = append(matches, reMatchPattern.FindStringSubmatch(tasks[i].Manifest.OriginalFilename))
+	}
+
+	var lastNode *TaskNode
+	var groups []*TaskNode
+	for i := 0; i < count; {
+		matchBase := matches[i]
+		j := i + 1
+		for ; j < count; j++ {
+			matchNext := matches[j]
+			if matchBase == nil || matchNext == nil || matchBase[groupNumber] != matchNext[groupNumber] {
+				break
+			}
+			if matchBase[groupComponent] != matchNext[groupComponent] {
+				groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+				i = j
+			}
+			matchBase = matchNext
+		}
+		if len(groups) > 0 {
+			groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+			i = j
+			lastNode = nil
+			continue
+		}
+		if lastNode == nil {
+			lastNode = &TaskNode{Tasks: append([]*Task(nil), tasks[i:j]...)}
+			i = j
+			groups = append(groups, lastNode)
+			continue
+		}
+		lastNode.Tasks = append(lastNode.Tasks, tasks[i:j]...)
+		i = j
+	}
+	return [][]*TaskNode{groups}
+}
+
 type TaskNode struct {
 	In    []int
 	Tasks []*Task

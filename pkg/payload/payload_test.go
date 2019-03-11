@@ -48,8 +48,8 @@ func Test_loadUpdatePayload(t *testing.T) {
 				ManifestHash: "6GC9TkkG9PA=",
 				Manifests: []lib.Manifest{
 					{
-						OriginalFilename: "file.json",
-						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtest", "release-manifests", "file.json")),
+						OriginalFilename: "0000_10_a_file.json",
+						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtest", "release-manifests", "0000_10_a_file.json")),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -65,7 +65,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 						},
 					},
 					{
-						OriginalFilename: "file.yaml",
+						OriginalFilename: "0000_10_a_file.yaml",
 						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yaml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
@@ -82,7 +82,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 						},
 					},
 					{
-						OriginalFilename: "file.yml",
+						OriginalFilename: "0000_10_a_file.yml",
 						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
