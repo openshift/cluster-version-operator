@@ -478,15 +478,12 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 
 			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
 			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, client.ConfigV1(), test.exp)
-			if test.expErr == nil {
-				if err != nil {
-					t.Fatalf("expected nil error, got: %v", err)
-				}
-			} else {
-				if !reflect.DeepEqual(test.expErr, err) {
-					t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(test.expErr, err))
-				}
+			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp)
+			if (test.expErr == nil) != (err == nil) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(test.expErr, err) {
+				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(test.expErr, err))
 			}
 		})
 	}
