@@ -6,8 +6,8 @@ Ref: [godoc](https://godoc.org/github.com/openshift/api/config/v1#ClusterOperato
 
 ## Why I want ClusterOperator Custom Resource in /manifests
 
-Everyone must include the ClusterOperator Custom Resource in [`/manifests`](operators.md#what-do-i-put-in-manifests).
-The ClusterVersionOperator sweeps the release image and applies it to the cluster. On upgrade, the CVO uses clusteroperators to confirm successful upgrades.
+Everyone installed by the ClusterVersionOperator must include the ClusterOperator Custom Resource in [`/manifests`](operators.md#what-do-i-put-in-manifests).
+The CVO sweeps the release image and applies it to the cluster. On upgrade, the CVO uses clusteroperators to confirm successful upgrades.
 Cluster-admins make use of these resources to check the status of their clusters.
 
 ## How should I include ClusterOperator Custom Resource in /manifests
@@ -16,38 +16,40 @@ Cluster-admins make use of these resources to check the status of their clusters
 
 When ClusterVersionOperator encounters a ClusterOperator Custom Resource,
 
-- It uses the `.metadata.name` and `.metadata.namespace` to find the corresponding ClusterOperator instance in the cluster
+- It uses the `.metadata.name` to find the corresponding ClusterOperator instance in the cluster
 - It then waits for the instance in the cluster until
-  - `.status.version` in the live instance matches the `.status.version` from the release image and
-  - the live instance `.status.conditions` report available, not progressing and not failed
+  - `.status.versions[name=operator].version` in the live instance matches the `.status.version` from the release image and
+  - the live instance `.status.conditions` report available
 - It then continues to the next task.
 
 ClusterVersionOperator will only deploy files with `.yaml`, `.yml`, or `.json` extensions, like `kubectl create -f DIR`.
 
-**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterOperator resource in `/manifests` is only a communication mechanism, to tell the ClusterVersionOperator, which ClusterOperator resource to wait for. The ClusterVersionOperator does not create the ClusterOperator resource, this and updating it is the responsibility of the respective operator.
+**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterOperator resource in `/manifests` is only a communication mechanism, to tell the ClusterVersionOperator, which ClusterOperator resource to wait for. The ClusterVersionOperator does not create the ClusterOperator resource, creating and updating it is the responsibility of the respective operator.
 
 ### What should be the contents of ClusterOperator Custom Resource in /manifests
 
-There are 3 important things that need to be set in the ClusterOperator Custom Resource in /manifests for CVO to correctly handle it.
+There are 2 important things that need to be set in the ClusterOperator Custom Resource in /manifests for CVO to correctly handle it.
 
-- `.metadata.namespace`: namespace for finding the live instance in cluster
-- `.metadata.name`: name for finding the live instance in the namespace
-- `.status.version`: this is the version that the operator is expected to report. ClusterVersionOperator only respects the `.status.conditions` from instance that reports `.status.version`
+- `.metadata.name`: name for finding the live instance
+- `.status.versions[name=operator].version`: this is the version that the operator is expected to report. ClusterVersionOperator only respects the `.status.conditions` from instances that report their version.
 
 Example:
 
-For a cluster operator `my-cluster-operator` applying version `1.0.0`, that is reporting its status using ClusterOperator instance `my-cluster-operator` in namespace `my-cluster-operator-namespace`.
+For a cluster operator `my-cluster-operator`, that is reporting its status using a ClusterOperator instance named `my-cluster-operator`.
 
 The ClusterOperator Custom Resource in /manifests should look like,
 
 ```yaml
-apiVersion: operatorstatus.openshift.io
+apiVersion: config.openshift.io/v1
 kind: ClusterOperator
 metadata:
-  namespace: my-cluster-operator-namespace
   name: my-cluster-operator
+spec: {}
 status:
-  version: 1.0.0
+  versions:
+    - name: operator
+      # The string "0.0.1-snapshot" is substituted in the manifests when the payload is built
+      version: "0.0.1-snapshot" 
 ```
 
 ## What should an operator report with ClusterOperator Custom Resource
@@ -56,7 +58,7 @@ The ClusterOperator exists to communicate status about a functional area of the 
 and the higher level automation in the CVO in an opinionated and consistent way. Because of this, we document
 expectations around the outcome and have specific guarantees that apply.
 
-Of note, in the docs below we use the word `operand` to descirbe the "thing the operator manages", which might be:
+Of note, in the docs below we use the word `operand` to describe the "thing the operator manages", which might be:
 
 * A deployment or daemonset, like a cluster networking provider
 * An API exposed via a CRD and the operator updates other API objects, like a secret generator
@@ -75,9 +77,9 @@ There are a set of guarantees components are expected to honor in return:
 
 1. A component doesn't report the `Available` status condition the first time until they are completely rolled out (or within some reasonable percentage if the component must be installed to all nodes)
 2. A component reports `Failing` when it can't accomplish its task. This might be very broad - the API servers are down so I failed to update - or narrow - I couldn't update the last secret. In either case, Failing communicates something is wrong.
-3. A component reports `Progressing` when it is rolling out new code, propagating config changes, or otherwise moving from one steady state to another. It should not report progressing when it is reconciling a previously known state.
+3. A component reports `Progressing` when it is rolling out new code, propagating config changes, or otherwise moving from one steady state to another. It should not report progressing when it is reconciling a previously known state. If it is progressing to a new version, it should include the version in the message for the condition like "Moving to v1.0.1".
 4. A component reports `Upgradeable` as `false` when it wishes to prevent an upgrade for an admin-correctable condition. The component should include a message that describes what must be fixed.
-5. A component reports when it has rolled out the 
+5. A component reports when it has rolled out the new version of its operands
 
 ### Status
 
@@ -85,7 +87,30 @@ The operator should ensure that all the fields of `.status` in ClusterOperator a
 
 ### Version
 
-The operator should report a version which indicates the components that it is applying to the cluster.
+The operator reports an array of versions. A version struct has a name, and a version. There MUST be a version with the name `operator`, which is watched by the CVO to know if a cluster operator has achieved the new level. The operator MAY report additional versions of its underlying operands.
+
+Example:
+
+```yaml
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: kube-apiserver
+spec: {}
+status:
+  ...
+  versions:
+    - name: operator
+      # Watched by the CVO
+      version: 4.0.0-0.alpha-2019-03-05-054505
+    - name: kube-apiserver
+      # Used to report underlying upstream version
+      version: 1.12.4
+```
+
+#### Version reporting during an upgrade
+
+When your operator begins rolling out a new version it must continue to report the previous operator version in its ClusterOperator status. While any of your operands are still running software from the previous version then you are in a mixed version state, and you should continue to report the previous version. As soon as you can guarantee you are not and will not run any old versions of your operands, you can update the operator version on your ClusterOperator status.
 
 ### Conditions
 
