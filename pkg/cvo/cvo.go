@@ -82,9 +82,6 @@ type Operator struct {
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
-	// restConfig is used to create resourcebuilder.
-	restConfig *rest.Config
-
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
 	eventRecorder record.EventRecorder
@@ -132,6 +129,7 @@ func New(
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
 	restConfig *rest.Config,
+	burstRestConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	enableMetrics bool,
@@ -151,7 +149,6 @@ func New(
 		payloadDir:                 overridePayloadDir,
 		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
 
-		restConfig:    restConfig,
 		client:        client,
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
@@ -162,7 +159,7 @@ func New(
 
 	optr.configSync = NewSyncWorker(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(optr.restConfig, coInformer.Lister()),
+		NewResourceBuilder(restConfig, burstRestConfig, coInformer.Lister()),
 		minimumInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
@@ -468,25 +465,35 @@ func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
 // resourceBuilder provides the default builder implementation for the operator.
 // It is abstracted for testing.
 type resourceBuilder struct {
-	config   *rest.Config
-	modifier resourcebuilder.MetaV1ObjectModifierFunc
+	config      *rest.Config
+	burstConfig *rest.Config
+	modifier    resourcebuilder.MetaV1ObjectModifierFunc
 
 	clusterOperators internal.ClusterOperatorsGetter
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config *rest.Config, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
-	return &resourceBuilder{config: config, clusterOperators: clusterOperators}
+func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
+	return &resourceBuilder{
+		config:           config,
+		burstConfig:      burstConfig,
+		clusterOperators: clusterOperators,
+	}
 }
 
-func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface, error) {
+func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (resourcebuilder.Interface, error) {
+	config := b.config
+	if state == payload.InitializingPayload {
+		config = b.burstConfig
+	}
+
 	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
 		return internal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
 	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
-		return resourcebuilder.New(resourcebuilder.Mapper, b.config, *m)
+		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)
 	}
-	client, err := dynamicclient.New(b.config, m.GVK, m.Object().GetNamespace())
+	client, err := dynamicclient.New(config, m.GVK, m.Object().GetNamespace())
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +501,7 @@ func (b *resourceBuilder) BuilderFor(m *lib.Manifest) (resourcebuilder.Interface
 }
 
 func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
-	builder, err := b.BuilderFor(m)
+	builder, err := b.builderFor(m, state)
 	if err != nil {
 		return err
 	}
