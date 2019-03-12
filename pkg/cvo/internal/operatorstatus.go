@@ -183,11 +183,19 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 				failing = false
 			}
 		}
-		// if we're at the correct version, and available, and not failing, we are done
-		// if we're available, not failing, and not progressing, we're also done
-		// TODO: remove progressing once all cluster operators report expected versions
-		if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
-			return true, nil
+		switch mode {
+		case resourcebuilder.InitializingMode:
+			// during initialization we allow failing as long as the component goes available
+			if available && (!progressing || len(expected.Status.Versions) > 0) {
+				return true, nil
+			}
+		default:
+			// if we're at the correct version, and available, and not failing, we are done
+			// if we're available, not failing, and not progressing, we're also done
+			// TODO: remove progressing once all cluster operators report expected versions
+			if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
+				return true, nil
+			}
 		}
 
 		if c := resourcemerge.FindOperatorStatusCondition(actual.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {
