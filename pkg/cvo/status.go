@@ -71,9 +71,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 		last = &config.Status.History[0]
 	}
 
-	if len(config.Status.History) > 10 {
-		config.Status.History = config.Status.History[:10]
-	}
+	pruneStatusHistory(config, 10)
 
 	if completed {
 		last.State = configv1.CompletedUpdate
@@ -86,6 +84,23 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	}
 
 	config.Status.Desired = desired
+}
+
+func pruneStatusHistory(config *configv1.ClusterVersion, maxHistory int) {
+	if len(config.Status.History) <= maxHistory {
+		return
+	}
+	for i, item := range config.Status.History {
+		if item.State != configv1.CompletedUpdate {
+			continue
+		}
+		// guarantee the last position in the history is always a completed item
+		if i >= maxHistory {
+			config.Status.History[maxHistory-1] = item
+		}
+		break
+	}
+	config.Status.History = config.Status.History[:maxHistory]
 }
 
 // ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
