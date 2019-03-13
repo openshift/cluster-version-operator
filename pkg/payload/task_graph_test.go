@@ -233,6 +233,143 @@ func TestByNumberAndComponent(t *testing.T) {
 	}
 }
 
+func TestFlattenByNumberAndComponent(t *testing.T) {
+	tasks := func(names ...string) []*Task {
+		var arr []*Task
+		for _, name := range names {
+			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+		}
+		return arr
+	}
+	tests := []struct {
+		name  string
+		tasks []*Task
+		want  [][]*TaskNode
+	}{
+		{
+			name:  "empty tasks",
+			tasks: tasks(),
+			want:  nil,
+		},
+		{
+			name:  "no grouping possible",
+			tasks: tasks("a"),
+			want:  nil,
+		},
+		{
+			name:  "no recognizable groups",
+			tasks: tasks("a", "b", "c"),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("a")},
+					&TaskNode{Tasks: tasks("b")},
+					&TaskNode{Tasks: tasks("c")},
+				},
+			},
+		},
+		{
+			name:  "single grouped item",
+			tasks: tasks("0000_01_x-y-z_file1"),
+			want:  nil,
+		},
+		{
+			name:  "multiple grouped items in single node",
+			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+				},
+			},
+		},
+		{
+			tasks: tasks("a", "0000_01_x-y-z_file1", "c"),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("a")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("c")},
+				},
+			},
+		},
+		{
+			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+				},
+			},
+		},
+		{
+			tasks: tasks("0000_01_a-b-c_file1", "0000_01_x-y-z_file2"),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_a-b-c_file1")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file2")},
+				},
+			},
+		},
+		{
+			tasks: tasks(
+				"0000_01_a-b-c_file1",
+				"0000_01_x-y-z_file1",
+				"0000_01_x-y-z_file2",
+				"a",
+				"0000_01_x-y-z_file2",
+				"0000_01_x-y-z_file3",
+			),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks(
+						"0000_01_a-b-c_file1",
+					)},
+					&TaskNode{Tasks: tasks(
+						"0000_01_x-y-z_file1",
+						"0000_01_x-y-z_file2",
+					)},
+					&TaskNode{Tasks: tasks(
+						"a",
+					)},
+					&TaskNode{Tasks: tasks(
+						"0000_01_x-y-z_file2",
+						"0000_01_x-y-z_file3",
+					)},
+				},
+			},
+		},
+		{
+			tasks: tasks(
+				"0000_01_a-b-c_file1",
+				"0000_01_x-y-z_file1",
+				"0000_01_x-y-z_file2",
+				"0000_02_x-y-z_file2",
+				"0000_02_x-y-z_file3",
+			),
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks(
+						"0000_01_a-b-c_file1",
+					)},
+					&TaskNode{Tasks: tasks(
+						"0000_01_x-y-z_file1",
+						"0000_01_x-y-z_file2",
+					)},
+					&TaskNode{Tasks: tasks(
+						"0000_02_x-y-z_file2",
+						"0000_02_x-y-z_file3",
+					)},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FlattenByNumberAndComponent(tt.tasks); !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, got))
+			}
+		})
+	}
+}
+
 func Test_TaskGraph_real(t *testing.T) {
 	path := os.Getenv("TEST_GRAPH_PATH")
 	if len(path) == 0 {

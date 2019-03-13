@@ -273,8 +273,12 @@ func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	}, nil
 }
 
-func increaseQPS(config *rest.Config) {
+func defaultQPS(config *rest.Config) {
 	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(20, 40)
+}
+
+func highQPS(config *rest.Config) {
+	config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(40, 80)
 }
 
 func useProtobuf(config *rest.Config) {
@@ -313,7 +317,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
-			cb.RestConfig(increaseQPS),
+			cb.RestConfig(defaultQPS),
+			cb.RestConfig(highQPS),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.EnableMetrics,
