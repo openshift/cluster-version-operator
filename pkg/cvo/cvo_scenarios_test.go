@@ -206,23 +206,27 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step: "RetrievePayload",
+			Step:    "RetrievePayload",
+			Initial: true,
 			// the desired version is briefly incorrect (user provided) until we retrieve the image
 			Actual: configv1.Update{Version: "4.0.1", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
+			Initial:     true,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
+			Initial:     true,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
+			Initial:     true,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -382,6 +386,9 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	if status := worker.Status(); !status.Reconciling || status.Completed != 0 {
 		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
 	}
+	if worker.work.State != payload.ReconcilingPayload {
+		t.Fatalf("The worker should be reconciling: %v", worker.work)
+	}
 
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
@@ -536,6 +543,9 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	if status := worker.Status(); !status.Reconciling || status.Completed != 0 {
 		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
 	}
+	if worker.work.State != payload.ReconcilingPayload {
+		t.Fatalf("The worker should be reconciling: %v", worker.work)
+	}
 
 	// Step 2: Start the sync worker and verify the sequence of events
 	//
@@ -658,6 +668,123 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	})
 }
 
+func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest()
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+	b := newBlockingResourceBuilder()
+	worker.builder = b
+
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	//
+	o.releaseImage = "image/image:1"
+	o.releaseVersion = "1.0.0-abc"
+	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     desired,
+			VersionHash: "6GC9TkkG9PA=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
+				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	}
+
+	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	//
+	client.ClearActions()
+	err := o.sync(o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check the worker status is initially set to reconciling
+	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
+		t.Fatalf("The worker should be initializing from the beginning: %#v", status)
+	}
+	if worker.work.State != payload.InitializingPayload {
+		t.Fatalf("The worker should be initializing: %v", worker.work)
+	}
+}
+
+func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest()
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+	b := newBlockingResourceBuilder()
+	worker.builder = b
+
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	//
+	o.releaseImage = "image/image:1"
+	o.releaseVersion = "1.0.0-abc"
+	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     desired,
+			VersionHash: "6GC9TkkG9PA=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
+				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	}
+
+	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	//
+	client.ClearActions()
+	err := o.sync(o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// check the worker status is initially set to reconciling
+	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
+		t.Fatalf("The worker should be updating from the beginning: %#v", status)
+	}
+	if worker.work.State != payload.UpdatingPayload {
+		t.Fatalf("The worker should be updating: %v", worker.work)
+	}
+}
+
 func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWorkerStatus) {
 	t.Helper()
 	if len(items) == 0 {
@@ -706,6 +833,6 @@ func (b *blockingResourceBuilder) Send(err error) {
 	b.ch <- err
 }
 
-func (b *blockingResourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
+func (b *blockingResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
 	return <-b.ch
 }

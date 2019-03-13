@@ -53,6 +53,7 @@ type clusterOperatorBuilder struct {
 	client   ClusterOperatorsGetter
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
+	mode     resourcebuilder.Mode
 }
 
 func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
@@ -83,6 +84,11 @@ func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m lib.Manifest) re
 	}
 }
 
+func (b *clusterOperatorBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
+	b.mode = m
+	return b
+}
+
 func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
 	b.modifier = f
 	return b
@@ -95,10 +101,10 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	}
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os)
+	return waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Second, b.client, os, b.mode)
 }
 
-func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator) error {
+func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
 	var lastErr error
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.Get(expected.Name)

@@ -21,6 +21,61 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 )
 
+// State describes the state of the payload and alters
+// how a payload is applied.
+type State int
+
+const (
+	// UpdatingPayload indicates we are moving from one state to
+	// another.
+	//
+	// When we are moving to a different payload version, we want to
+	// be as conservative as possible about ordering of the payload
+	// and the errors we might encounter. An error in one operator
+	// should prevent dependent operators from changing. We are
+	// willing to take longer to roll out an update if it reduces
+	// the possibility of error.
+	UpdatingPayload State = iota
+	// ReconcilingPayload indicates we are attempting to maintain
+	// our current state.
+	//
+	// When the payload has already been applied to the cluster, we
+	// prioritize ensuring resources are recreated and don't need to
+	// progress in strict order. We also attempt to reset as many
+	// resources as possible back to their desired state and report
+	// errors after the fact.
+	ReconcilingPayload
+	// InitializingPayload indicates we are establishing our first
+	// state.
+	//
+	// When we are deploying a payload for the first time we want
+	// to make progress quickly but in a predictable order to
+	// minimize retries and crash-loops. We wait for operators
+	// to report level but tolerate degraded and transient errors.
+	// Our goal is to get the entire payload created, even if some
+	// operators are still converging.
+	InitializingPayload
+)
+
+// Initializing is true if the state is InitializingPayload.
+func (s State) Initializing() bool { return s == InitializingPayload }
+
+// Reconciling is true if the state is ReconcilingPayload.
+func (s State) Reconciling() bool { return s == ReconcilingPayload }
+
+func (s State) String() string {
+	switch s {
+	case ReconcilingPayload:
+		return "Reconciling"
+	case UpdatingPayload:
+		return "Updating"
+	case InitializingPayload:
+		return "Initializing"
+	default:
+		panic(fmt.Sprintf("unrecognized state %d", int(s)))
+	}
+}
+
 const (
 	DefaultPayloadDir = "/"
 

@@ -23,6 +23,10 @@ func newServiceAccountBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *serviceAccountBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *serviceAccountBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
@@ -48,6 +52,10 @@ func newConfigMapBuilder(config *rest.Config, m lib.Manifest) Interface {
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
+}
+
+func (b *configMapBuilder) WithMode(m Mode) Interface {
+	return b
 }
 
 func (b *configMapBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
@@ -77,6 +85,10 @@ func newNamespaceBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *namespaceBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *namespaceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
@@ -102,6 +114,10 @@ func newServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
+}
+
+func (b *serviceBuilder) WithMode(m Mode) Interface {
+	return b
 }
 
 func (b *serviceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {

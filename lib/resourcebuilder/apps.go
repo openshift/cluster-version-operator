@@ -31,6 +31,10 @@ func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *deploymentBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *deploymentBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
@@ -89,6 +93,10 @@ func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
 		client: appsclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
+}
+
+func (b *daemonsetBuilder) WithMode(m Mode) Interface {
+	return b
 }
 
 func (b *daemonsetBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {

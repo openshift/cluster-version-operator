@@ -300,8 +300,14 @@ type testBuilder struct {
 	*recorder
 	reactors  map[action]error
 	modifiers []resourcebuilder.MetaV1ObjectModifierFunc
+	mode      resourcebuilder.Mode
 
 	m *lib.Manifest
+}
+
+func (t *testBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
+	t.mode = m
+	return t
 }
 
 func (t *testBuilder) WithModifier(m resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
@@ -353,7 +359,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 
 func (r *fakeSyncRecorder) Start(maxWorkers int, stopCh <-chan struct{}) {}
 
-func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }
@@ -392,7 +398,7 @@ type testResourceBuilder struct {
 	modifiers []resourcebuilder.MetaV1ObjectModifierFunc
 }
 
-func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest) error {
+func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
 	ns := m.Object().GetNamespace()
 	fakeGVR := schema.GroupVersionResource{Group: m.GVK.Group, Version: m.GVK.Version, Resource: strings.ToLower(m.GVK.Kind)}
 	client := b.client.Resource(fakeGVR).Namespace(ns)

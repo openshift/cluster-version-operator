@@ -25,7 +25,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(maxWorkers int, stopCh <-chan struct{})
-	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus
+	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -41,11 +41,11 @@ type StatusReporter interface {
 
 // SyncWork represents the work that should be done in a sync iteration.
 type SyncWork struct {
-	Generation  int64
-	Desired     configv1.Update
-	Overrides   []configv1.ComponentOverride
-	Reconciling bool
-	Completed   int
+	Generation int64
+	Desired    configv1.Update
+	Overrides  []configv1.ComponentOverride
+	State      payload.State
+	Completed  int
 }
 
 // Empty returns true if the image is empty for this work.
@@ -64,6 +64,7 @@ type SyncWorkerStatus struct {
 
 	Completed   int
 	Reconciling bool
+	Initial     bool
 	VersionHash string
 
 	Actual configv1.Update
@@ -147,7 +148,7 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, reconciling bool) *SyncWorkerStatus {
+func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -164,12 +165,10 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
 	if w.work == nil {
-		if reconciling {
-			work.Reconciling = true
-		}
+		work.State = state
 		w.status = SyncWorkerStatus{
 			Generation:  generation,
-			Reconciling: work.Reconciling,
+			Reconciling: state.Reconciling(),
 			Actual:      work.Desired,
 		}
 	}
@@ -202,7 +201,7 @@ func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 
 		var next <-chan time.Time
 		for {
-			waitingToReconcile := work.Reconciling
+			waitingToReconcile := work.State == payload.ReconcilingPayload
 			select {
 			case <-stopCh:
 				glog.V(5).Infof("Stopped worker")
@@ -261,7 +260,7 @@ func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 			glog.V(5).Infof("Sync succeeded, reconciling")
 
 			work.Completed++
-			work.Reconciling = true
+			work.State = payload.ReconcilingPayload
 			next = time.After(w.minimumReconcileInterval)
 		}
 	}, 10*time.Millisecond, stopCh)
@@ -302,14 +301,14 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
-		work.Reconciling = w.work.Reconciling
+		work.State = w.work.State
 	} else {
 		if changed {
-			work.Reconciling = false
+			work.State = payload.UpdatingPayload
 		}
 	}
 	// always clear the completed variable if we are not reconciling
-	if !work.Reconciling {
+	if work.State != payload.ReconcilingPayload {
 		work.Completed = 0
 	}
 
@@ -378,22 +377,22 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
-	glog.V(4).Infof("Running sync %s on generation %d", versionString(work.Desired), work.Generation)
+	glog.V(4).Infof("Running sync %s on generation %d in state %s", versionString(work.Desired), work.Generation, work.State)
 	update := work.Desired
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
 	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, update) {
 		glog.V(4).Infof("Loading payload")
-		reporter.Report(SyncWorkerStatus{Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
+		reporter.Report(SyncWorkerStatus{Step: "RetrievePayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
 		payloadDir, err := w.retriever.RetrievePayload(ctx, update)
 		if err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Step: "RetrievePayload", Reconciling: work.Reconciling, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Step: "RetrievePayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
 			return err
 		}
 		payloadUpdate, err := payload.LoadUpdate(payloadDir, update.Image)
 		if err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Step: "VerifyPayload", Reconciling: work.Reconciling, Actual: update})
+			reporter.Report(SyncWorkerStatus{Failure: err, Step: "VerifyPayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
 			return err
 		}
 		w.payload = payloadUpdate
@@ -418,7 +417,8 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
 			Generation:  work.Generation,
-			Reconciling: work.Reconciling,
+			Initial:     work.State.Initializing(),
+			Reconciling: work.State.Reconciling(),
 			VersionHash: payloadUpdate.ManifestHash,
 			Actual:      update,
 		},
@@ -458,7 +458,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				continue
 			}
 
-			if err := task.Run(ctx, version, w.builder); err != nil {
+			if err := task.Run(ctx, version, w.builder, work.State); err != nil {
 				return err
 			}
 			cr.Inc()
@@ -471,7 +471,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		return err
 	}
 
-	// update the
+	// update the status
 	cr.Complete()
 	return nil
 }
@@ -541,6 +541,7 @@ func (r *consistentReporter) Complete() {
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
 	copied.Completed = r.completed + 1
+	copied.Initial = false
 	copied.Reconciling = true
 	copied.Fraction = 1
 	r.reporter.Report(copied)

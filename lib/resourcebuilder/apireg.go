@@ -23,6 +23,10 @@ func newAPIServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *apiServiceBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *apiServiceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b

@@ -23,6 +23,10 @@ func newClusterRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *clusterRoleBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *clusterRoleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
@@ -48,6 +52,10 @@ func newClusterRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
+}
+
+func (b *clusterRoleBindingBuilder) WithMode(m Mode) Interface {
+	return b
 }
 
 func (b *clusterRoleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
@@ -77,6 +85,10 @@ func newRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *roleBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *roleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
@@ -102,6 +114,10 @@ func newRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
 	}
+}
+
+func (b *roleBindingBuilder) WithMode(m Mode) Interface {
+	return b
 }
 
 func (b *roleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {

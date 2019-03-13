@@ -23,6 +23,10 @@ func newSecurityBuilder(config *rest.Config, m lib.Manifest) Interface {
 	}
 }
 
+func (b *securityBuilder) WithMode(m Mode) Interface {
+	return b
+}
+
 func (b *securityBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
 	return b
