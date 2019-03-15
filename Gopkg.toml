@@ -33,7 +33,10 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.12.0"
+  # use origin fork with nullable support.
+  # TODO(sttts, sig-master): switch back to upstream version in 1.14
+  branch = "origin-4.0-kubernetes-1.12.4"
+  source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
