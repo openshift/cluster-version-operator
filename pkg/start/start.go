@@ -153,13 +153,14 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 
 	// TODO: when we switch to graceful lock shutdown, this can be
 	// moved back inside RunOrDie
-	go leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
+	// TODO: properly wire ctx here
+	go leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
 		Lock:          lock,
 		LeaseDuration: leaseDuration,
 		RenewDeadline: renewDeadline,
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(stop <-chan struct{}) {
+			OnStartedLeading: func(localCtx context.Context) {
 				controllerCtx.Start(ctx.Done())
 				select {
 				case <-ctx.Done():
@@ -180,7 +181,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					}
 					glog.Infof("Finished shutdown")
 					close(exit)
-				case <-stop:
+				case <-localCtx.Done():
 					// we will exit in OnStoppedLeading
 				}
 			},
