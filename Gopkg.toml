@@ -21,35 +21,38 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "github.com/google/uuid"
-  version = "0.2.0"
+  revision = "8c31c18f31ede9fc8eae72290a7e7a8064e9b3e3"
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.11.1"
+  version = "kubernetes-1.12.0"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "8.0.0"
+  version = "9.0.0"
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.11.1"
+  # use origin fork with nullable support.
+  # TODO(sttts, sig-master): switch back to upstream version in 1.14
+  branch = "origin-4.0-kubernetes-1.12.4"
+  source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.11.1"
+  version = "kubernetes-1.12.0"
 
 [[constraint]]
   name = "k8s.io/code-generator"
-  version = "kubernetes-1.11.1"
+  version = "kubernetes-1.12.0"
 
 [[constraint]]
   name = "k8s.io/kube-aggregator"
-  version = "kubernetes-1.11.1"
+  version = "kubernetes-1.12.0"
 
 [[constraint]]
   name = "k8s.io/utils"
-  revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
+  revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
 
 [[override]]
   name = "k8s.io/gengo"
@@ -66,4 +69,3 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 [[constraint]]
   name = "github.com/openshift/client-go"
   branch = "master"
-

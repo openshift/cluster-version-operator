@@ -33,7 +33,7 @@ func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.
 	}
 	existing, err := client.Get(required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Create(required)
+		actual, err := client.Create(required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -51,7 +51,7 @@ func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.
 		existing.Object[k] = v
 	}
 
-	actual, err := client.Update(existing)
+	actual, err := client.Update(existing, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, false, err
 	}
