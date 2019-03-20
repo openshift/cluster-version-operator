@@ -46,6 +46,7 @@ spec:
       nodeSelector:
         node-role.kubernetes.io/master: ""
       priorityClassName: "system-cluster-critical"
+      strategy: Recreate
       tolerations:
         - operator: Exists
       volumes:
