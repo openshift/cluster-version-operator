@@ -622,7 +622,19 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// Step 6: Send an error, then verify it shows up in status
 	//
 	b.Send(fmt.Errorf("unable to proceed"))
+
+	go func() {
+		for len(b.ch) != 0 {
+			time.Sleep(time.Millisecond)
+		}
+		cancel()
+		for len(b.ch) == 0 || len(worker.StatusCh()) == 0 {
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
 	//
+	// verify we see the update after the context times out
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
