@@ -95,11 +95,13 @@ func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dyn
 
 func TestCVO_StartupAndSync(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -328,8 +330,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 
 func TestCVO_RestartAndReconcile(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 
@@ -393,7 +397,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
 	//
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -487,8 +491,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 
 func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 	b := newBlockingResourceBuilder()
@@ -549,7 +555,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 
 	// Step 2: Start the sync worker and verify the sequence of events
 	//
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{

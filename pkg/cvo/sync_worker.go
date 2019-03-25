@@ -24,7 +24,7 @@ import (
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
-	Start(maxWorkers int, stopCh <-chan struct{})
+	Start(ctx context.Context, maxWorkers int)
 	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
@@ -190,7 +190,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
-func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
+func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	glog.V(5).Infof("Starting sync worker")
 
 	work := &SyncWork{}
@@ -203,7 +203,7 @@ func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 		for {
 			waitingToReconcile := work.State == payload.ReconcilingPayload
 			select {
-			case <-stopCh:
+			case <-ctx.Done():
 				glog.V(5).Infof("Stopped worker")
 				return
 			case <-next:
@@ -229,7 +229,7 @@ func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 
 			// actually apply the image, allowing for calls to be cancelled
 			err := func() error {
-				ctx, cancelFn := context.WithCancel(context.Background())
+				ctx, cancelFn := context.WithCancel(ctx)
 				w.lock.Lock()
 				w.cancelFn = cancelFn
 				w.lock.Unlock()
@@ -263,7 +263,7 @@ func (w *SyncWorker) Start(maxWorkers int, stopCh <-chan struct{}) {
 			work.State = payload.ReconcilingPayload
 			next = time.After(w.minimumReconcileInterval)
 		}
-	}, 10*time.Millisecond, stopCh)
+	}, 10*time.Millisecond, ctx.Done())
 
 	glog.V(5).Infof("Worker shut down")
 }

@@ -198,9 +198,10 @@ func New(
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
-func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
+func (optr *Operator) Run(ctx context.Context, workers int) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
+	stopCh := ctx.Done()
 
 	glog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
 	defer glog.Info("Shutting down ClusterVersionOperator")
@@ -215,7 +216,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
-	go optr.configSync.Start(16, stopCh)
+	go optr.configSync.Start(ctx, 16)
 
 	go wait.Until(func() { optr.worker(optr.queue, optr.sync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
