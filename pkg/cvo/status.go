@@ -274,24 +274,24 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 // from the cache (instead of clearing the status).
 // if ierr is nil, return nil
 // if ierr is not nil, update OperatorStatus as Failing and return ierr
-func (optr *Operator) syncFailingStatus(config *configv1.ClusterVersion, ierr error) error {
+func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr error) error {
 	if ierr == nil {
 		return nil
 	}
 
 	// try to reuse the most recent status if available
-	if config == nil {
-		config, _ = optr.cvLister.Get(optr.name)
+	if original == nil {
+		original, _ = optr.cvLister.Get(optr.name)
 	}
-	if config == nil {
-		config = &configv1.ClusterVersion{
+	if original == nil {
+		original = &configv1.ClusterVersion{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: optr.name,
 			},
 		}
 	}
 
-	original := config.DeepCopy()
+	config := original.DeepCopy()
 
 	now := metav1.Now()
 	msg := fmt.Sprintf("Error ensuring the cluster version is up to date: %v", ierr)
