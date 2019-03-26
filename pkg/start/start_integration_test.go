@@ -461,7 +461,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	kc := cb.KubeClientOrDie("integration-test")
 	client := cb.ClientOrDie("integration-test")
 
-	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
+	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(6))
 
 	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -533,7 +533,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	startTime := time.Now()
 	var endTime time.Time
 	// the lock should be deleted immediately
-	err = wait.PollImmediate(100*time.Millisecond, 3*time.Second, func() (bool, error) {
+	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
 		_, err := kc.Core().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			endTime = time.Now()
