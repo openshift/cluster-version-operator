@@ -278,7 +278,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -351,7 +351,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -425,7 +425,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -496,7 +496,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired: configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}, CompletionTime: &defaultCompletionTime},
 						},
 						VersionHash: "foo",
 						Conditions: []configv1.ClusterOperatorStatusCondition{

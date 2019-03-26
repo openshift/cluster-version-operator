@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -21,6 +22,9 @@ import (
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
 	if len(desired.Image) > 0 && desired.Image == current.Image {
+		if len(desired.Version) == 0 {
+			return true
+		}
 		if len(current.Version) == 0 || desired.Version == current.Version {
 			current.Version = desired.Version
 			return true
@@ -46,6 +50,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	}
 
 	if len(config.Status.History) == 0 {
+		glog.V(5).Infof("initialize new history completed=%t desired=%#v", completed, desired)
 		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
 			Version: desired.Version,
 			Image:   desired.Image,
@@ -57,31 +62,54 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 
 	last := &config.Status.History[0]
 
-	if !mergeEqualVersions(last, desired) {
-		last.CompletionTime = &now
-		config.Status.History = append([]configv1.UpdateHistory{
-			{
-				Version: desired.Version,
-				Image:   desired.Image,
-
-				State:       configv1.PartialUpdate,
-				StartedTime: now,
-			},
-		}, config.Status.History...)
-		last = &config.Status.History[0]
-	}
-
-	pruneStatusHistory(config, 10)
-
-	if completed {
-		last.State = configv1.CompletedUpdate
-		if last.CompletionTime == nil {
-			last.CompletionTime = &now
-		}
-	}
 	if len(last.State) == 0 {
 		last.State = configv1.PartialUpdate
 	}
+
+	if mergeEqualVersions(last, desired) {
+		glog.V(5).Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
+		if completed {
+			last.State = configv1.CompletedUpdate
+			if last.CompletionTime == nil {
+				last.CompletionTime = &now
+			}
+		}
+	} else {
+		glog.V(5).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
+		last.CompletionTime = &now
+		if completed {
+			config.Status.History = append([]configv1.UpdateHistory{
+				{
+					Version: desired.Version,
+					Image:   desired.Image,
+
+					State:          configv1.CompletedUpdate,
+					StartedTime:    now,
+					CompletionTime: &now,
+				},
+			}, config.Status.History...)
+		} else {
+			config.Status.History = append([]configv1.UpdateHistory{
+				{
+					Version: desired.Version,
+					Image:   desired.Image,
+
+					State:       configv1.PartialUpdate,
+					StartedTime: now,
+				},
+			}, config.Status.History...)
+		}
+	}
+
+	// leave this here in case we find other future history bugs and need to debug it
+	if glog.V(5) && len(config.Status.History) > 1 {
+		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
+			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
+			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
+		}
+	}
+
+	pruneStatusHistory(config, 10)
 
 	config.Status.Desired = desired
 }
