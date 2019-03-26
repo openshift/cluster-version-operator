@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/golang/glog"
@@ -57,31 +58,52 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 
 	last := &config.Status.History[0]
 
-	if !mergeEqualVersions(last, desired) {
-		last.CompletionTime = &now
-		config.Status.History = append([]configv1.UpdateHistory{
-			{
-				Version: desired.Version,
-				Image:   desired.Image,
-
-				State:       configv1.PartialUpdate,
-				StartedTime: now,
-			},
-		}, config.Status.History...)
-		last = &config.Status.History[0]
-	}
-
-	pruneStatusHistory(config, 10)
-
-	if completed {
-		last.State = configv1.CompletedUpdate
-		if last.CompletionTime == nil {
-			last.CompletionTime = &now
-		}
-	}
 	if len(last.State) == 0 {
 		last.State = configv1.PartialUpdate
 	}
+
+	if mergeEqualVersions(last, desired) {
+		if completed {
+			last.State = configv1.CompletedUpdate
+			if last.CompletionTime == nil {
+				last.CompletionTime = &now
+			}
+		}
+	} else {
+		last.CompletionTime = &now
+		if completed {
+			config.Status.History = append([]configv1.UpdateHistory{
+				{
+					Version: desired.Version,
+					Image:   desired.Image,
+
+					State:          configv1.CompletedUpdate,
+					StartedTime:    now,
+					CompletionTime: &now,
+				},
+			}, config.Status.History...)
+		} else {
+			config.Status.History = append([]configv1.UpdateHistory{
+				{
+					Version: desired.Version,
+					Image:   desired.Image,
+
+					State:       configv1.PartialUpdate,
+					StartedTime: now,
+				},
+			}, config.Status.History...)
+		}
+	}
+
+	// TODO: remove once we identify duplicate history bug
+	if len(config.Status.History) > 1 {
+		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
+			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
+			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
+		}
+	}
+
+	pruneStatusHistory(config, 10)
 
 	config.Status.Desired = desired
 }

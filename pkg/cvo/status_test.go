@@ -32,6 +32,16 @@ func Test_mergeEqualVersions(t *testing.T) {
 			desired: configv1.Update{Image: "test:1", Version: ""},
 			want:    false,
 		},
+		{
+			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
+			desired: configv1.Update{Image: "", Version: "0.0.1"},
+			want:    false,
+		},
+		{
+			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
+			desired: configv1.Update{Image: "test:2", Version: "0.0.1"},
+			want:    false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
