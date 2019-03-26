@@ -229,7 +229,26 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 
 			// actually apply the image, allowing for calls to be cancelled
 			err := func() error {
-				ctx, cancelFn := context.WithCancel(ctx)
+
+				var syncTimeout time.Duration
+				switch work.State {
+				case payload.InitializingPayload:
+					// during initialization we expect things to fail due to ordering
+					// dependencies, so give it extra time
+					syncTimeout = w.minimumReconcileInterval * 5
+				case payload.UpdatingPayload:
+					// during updates we want to flag failures on any resources that -
+					// for cluster operators that are not reporting failing the error
+					// message will point users to which operator is upgrading
+					syncTimeout = w.minimumReconcileInterval * 2
+				default:
+					// TODO: make reconciling run in parallel, processing every resource
+					//   once and accumulating errors, then reporting a summary of how
+					//   much drift we found, and then we can turn down the timeout
+					syncTimeout = w.minimumReconcileInterval * 2
+				}
+				ctx, cancelFn := context.WithTimeout(ctx, syncTimeout)
+
 				w.lock.Lock()
 				w.cancelFn = cancelFn
 				w.lock.Unlock()
