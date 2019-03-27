@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/diff"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
@@ -29,8 +30,9 @@ import (
 
 func Test_SyncWorker_apply(t *testing.T) {
 	tests := []struct {
-		manifests []string
-		reactors  map[action]error
+		manifests   []string
+		reactors    map[action]error
+		cancelAfter int
 
 		check   func(*testing.T, []action)
 		wantErr bool
@@ -61,10 +63,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 
 			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
+				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 			if got, exp := actions[1], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
+				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
 	}, {
@@ -89,7 +91,8 @@ func Test_SyncWorker_apply(t *testing.T) {
 		reactors: map[action]error{
 			newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
 		},
-		wantErr: true,
+		cancelAfter: 2,
+		wantErr:     true,
 		check: func(t *testing.T, actions []action) {
 			if len(actions) != 3 {
 				spew.Dump(actions)
@@ -97,7 +100,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 
 			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("expected: %s got: %s", spew.Sdump(exp), spew.Sdump(got))
+				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
 	}}
@@ -120,13 +123,38 @@ func Test_SyncWorker_apply(t *testing.T) {
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{}
-			worker.backoff.Steps = 3
 			worker.builder = NewResourceBuilder(nil, nil, nil)
-			ctx := context.Background()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			worker.builder = &cancelAfterErrorBuilder{
+				builder:         worker.builder,
+				cancel:          cancel,
+				remainingErrors: test.cancelAfter,
+			}
+
 			worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			test.check(t, r.actions)
 		})
 	}
+}
+
+type cancelAfterErrorBuilder struct {
+	builder         payload.ResourceBuilder
+	cancel          func()
+	remainingErrors int
+}
+
+func (b *cancelAfterErrorBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+	err := b.builder.Apply(ctx, m, state)
+	if err != nil {
+		if b.remainingErrors == 0 {
+			b.cancel()
+		} else {
+			b.remainingErrors--
+		}
+	}
+	return err
 }
 
 func Test_SyncWorker_apply_generic(t *testing.T) {
@@ -357,7 +385,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 	return ch
 }
 
-func (r *fakeSyncRecorder) Start(maxWorkers int, stopCh <-chan struct{}) {}
+func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {}
 
 func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -86,3 +87,7 @@ func New(mapper *ResourceMapper, rest *rest.Config, m lib.Manifest) (Interface, 
 	}
 	return f(rest, m), nil
 }
+
+// defaultObjectPollInterval is the default interval to poll the API to determine whether an object
+// is ready. Use this when a more specific interval is not necessary.
+const defaultObjectPollInterval = 3 * time.Second

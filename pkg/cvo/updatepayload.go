@@ -159,7 +159,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 	if err != nil {
 		return err
 	}
-	return resourcebuilder.WaitForJobCompletion(r.kubeClient.BatchV1(), job)
+	return resourcebuilder.WaitForJobCompletion(ctx, r.kubeClient.BatchV1(), job)
 }
 
 // copyPayloadCmd returns command that copies cvo and release manifests from deafult location

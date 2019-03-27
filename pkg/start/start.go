@@ -161,7 +161,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(localCtx context.Context) {
-				controllerCtx.Start(ctx.Done())
+				controllerCtx.Start(ctx)
 				select {
 				case <-ctx.Done():
 					// WARNING: this is not completely safe until we have Kube 1.14 and ReleaseOnCancel
@@ -339,11 +339,12 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 
 // Start launches the controllers in the provided context and any supporting
 // infrastructure. When ch is closed the controllers will be shut down.
-func (ctx *Context) Start(ch <-chan struct{}) {
-	go ctx.CVO.Run(2, ch)
-	if ctx.AutoUpdate != nil {
-		go ctx.AutoUpdate.Run(2, ch)
+func (c *Context) Start(ctx context.Context) {
+	ch := ctx.Done()
+	go c.CVO.Run(ctx, 2)
+	if c.AutoUpdate != nil {
+		go c.AutoUpdate.Run(2, ch)
 	}
-	ctx.CVInformerFactory.Start(ch)
-	ctx.InformerFactory.Start(ch)
+	c.CVInformerFactory.Start(ch)
+	c.InformerFactory.Start(ch)
 }

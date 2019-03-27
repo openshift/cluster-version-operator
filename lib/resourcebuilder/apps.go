@@ -3,7 +3,6 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/golang/glog"
 
@@ -50,14 +49,12 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		return err
 	}
 	if updated && actual.Generation > 1 {
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
-		return waitForDeploymentCompletion(ctxWithTimeout, 1*time.Second, b.client, deployment)
+		return waitForDeploymentCompletion(ctx, b.client, deployment)
 	}
 	return nil
 }
-func waitForDeploymentCompletion(ctx context.Context, interval time.Duration, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
-	return wait.PollImmediateUntil(interval, func() (bool, error) {
+func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
+	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		d, err := client.Deployments(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the deployment.
@@ -114,20 +111,13 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		return err
 	}
 	if updated && actual.Generation > 1 {
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, 5*time.Minute)
-		defer cancel()
-		return waitForDaemonsetRollout(ctxWithTimeout, 1*time.Second, b.client, daemonset)
+		return waitForDaemonsetRollout(ctx, b.client, daemonset)
 	}
 	return nil
 }
 
-const (
-	daemonsetPollInterval = 1 * time.Second
-	daemonsetPollTimeout  = 5 * time.Minute
-)
-
-func waitForDaemonsetRollout(ctx context.Context, interval time.Duration, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
-	return wait.PollImmediateUntil(interval, func() (bool, error) {
+func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
+	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		d, err := client.DaemonSets(daemonset.Namespace).Get(daemonset.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the daemonset.

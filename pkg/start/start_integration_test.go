@@ -233,9 +233,9 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	controllers.Start(stopCh)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
@@ -379,14 +379,15 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
 	options.EnableMetrics = false
+	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	controllers.Start(stopCh)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
@@ -660,9 +661,9 @@ metadata:
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
-	controllers.Start(stopCh)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")

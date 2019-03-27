@@ -3,7 +3,6 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/golang/glog"
 
@@ -39,7 +38,7 @@ func (b *jobBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *jobBuilder) Do(_ context.Context) error {
+func (b *jobBuilder) Do(ctx context.Context) error {
 	job := resourceread.ReadJobV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(job)
@@ -49,19 +48,14 @@ func (b *jobBuilder) Do(_ context.Context) error {
 		return err
 	}
 	if updated {
-		return WaitForJobCompletion(b.client, job)
+		return WaitForJobCompletion(ctx, b.client, job)
 	}
 	return nil
 }
 
-const (
-	jobPollInterval = 1 * time.Second
-	jobPollTimeout  = 5 * time.Minute
-)
-
 // WaitForJobCompletion waits for job to complete.
-func WaitForJobCompletion(client batchclientv1.JobsGetter, job *batchv1.Job) error {
-	return wait.Poll(jobPollInterval, jobPollTimeout, func() (bool, error) {
+func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
+	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		j, err := client.Jobs(job.Namespace).Get(job.Name, metav1.GetOptions{})
 		if err != nil {
 			glog.Errorf("error getting Job %s: %v", job.Name, err)
@@ -84,5 +78,5 @@ func WaitForJobCompletion(client batchclientv1.JobsGetter, job *batchv1.Job) err
 			return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
 		}
 		return false, nil
-	})
+	}, ctx.Done())
 }

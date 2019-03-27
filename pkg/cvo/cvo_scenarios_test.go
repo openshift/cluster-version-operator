@@ -95,11 +95,13 @@ func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dyn
 
 func TestCVO_StartupAndSync(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -328,8 +330,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 
 func TestCVO_RestartAndReconcile(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 
@@ -393,7 +397,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
 	//
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -487,8 +491,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 
 func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest()
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 	b := newBlockingResourceBuilder()
@@ -549,7 +555,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 
 	// Step 2: Start the sync worker and verify the sequence of events
 	//
-	go worker.Start(1, stopCh)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -616,7 +622,19 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// Step 6: Send an error, then verify it shows up in status
 	//
 	b.Send(fmt.Errorf("unable to proceed"))
+
+	go func() {
+		for len(b.ch) != 0 {
+			time.Sleep(time.Millisecond)
+		}
+		cancel()
+		for len(b.ch) == 0 || len(worker.StatusCh()) == 0 {
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
 	//
+	// verify we see the update after the context times out
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,

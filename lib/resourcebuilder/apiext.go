@@ -2,7 +2,6 @@ package resourcebuilder
 
 import (
 	"context"
-	"time"
 
 	"github.com/golang/glog"
 
@@ -49,15 +48,13 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 		return err
 	}
 	if updated {
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
-		return waitForCustomResourceDefinitionCompletion(ctxWithTimeout, 1*time.Second, b.client, crd)
+		return waitForCustomResourceDefinitionCompletion(ctx, b.client, crd)
 	}
 	return nil
 }
 
-func waitForCustomResourceDefinitionCompletion(ctx context.Context, interval time.Duration, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd *apiextv1beta1.CustomResourceDefinition) error {
-	return wait.PollImmediateUntil(interval, func() (bool, error) {
+func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd *apiextv1beta1.CustomResourceDefinition) error {
+	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		c, err := client.CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the crd.
