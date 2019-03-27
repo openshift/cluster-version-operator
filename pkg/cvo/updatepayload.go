@@ -164,20 +164,23 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 
 // copyPayloadCmd returns command that copies cvo and release manifests from deafult location
 // to the target dir.
-// It is made up of 2 commands:
-// `mkdir -p <target dir> && mv <default cvo manifest dir> <target cvo manifests dir>`
-// `mkdir -p <target dir> && mv <default release manifest dir> <target release manifests dir>`
+// It is made up of 3 commands:
+// `mkdir -p <target dir>`
+// `mv <default cvo manifest dir> <target cvo manifests dir>`
+// `mv <default release manifest dir> <target release manifests dir>`
 func copyPayloadCmd(tdir string) string {
 	var (
+		mkdirCmd = fmt.Sprintf("mkdir -p %s", tdir)
+
 		fromCVOPath = filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir)
 		toCVOPath   = filepath.Join(tdir, payload.CVOManifestDir)
-		cvoCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromCVOPath, toCVOPath)
+		cvoCmd      = fmt.Sprintf("mv %s %s", fromCVOPath, toCVOPath)
 
 		fromReleasePath = filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir)
 		toReleasePath   = filepath.Join(tdir, payload.ReleaseManifestDir)
-		releaseCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromReleasePath, toReleasePath)
+		releaseCmd      = fmt.Sprintf("mv %s %s", fromReleasePath, toReleasePath)
 	)
-	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
+	return fmt.Sprintf("%s && %s && %s", mkdirCmd, cvoCmd, releaseCmd)
 }
 
 // findUpdateFromConfig identifies a desired update from user input or returns false. It will
