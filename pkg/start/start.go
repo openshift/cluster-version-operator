@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -150,6 +151,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 	}
 
 	exit := make(chan struct{})
+	exitClose := sync.Once{}
 
 	// TODO: when we switch to graceful lock shutdown, this can be
 	// moved back inside RunOrDie
@@ -180,14 +182,14 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 						}
 					}
 					glog.Infof("Finished shutdown")
-					close(exit)
+					exitClose.Do(func() { close(exit) })
 				case <-localCtx.Done():
 					// we will exit in OnStoppedLeading
 				}
 			},
 			OnStoppedLeading: func() {
 				glog.Warning("leaderelection lost")
-				close(exit)
+				exitClose.Do(func() { close(exit) })
 			},
 		},
 	})
