@@ -13,7 +13,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -279,7 +278,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -352,7 +351,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -426,7 +425,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
 						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
@@ -497,7 +496,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired: configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
-							{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}, CompletionTime: &defaultCompletionTime},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}, CompletionTime: &defaultCompletionTime},
 						},
 						VersionHash: "foo",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -1304,9 +1303,9 @@ func TestOperator_sync(t *testing.T) {
 				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				availableUpdates: &availableUpdates{
 					Upstream: "",
