@@ -118,6 +118,13 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 		}
 	}
 
+	if len(channel) == 0 {
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoChannel",
+			Message: "The update channel has not been configured.",
+		}
+	}
+
 	currentVersion, err := semver.Parse(version)
 	if err != nil {
 		glog.V(2).Infof("Unable to parse current semantic version %q: %v", version, err)
