@@ -463,9 +463,9 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
 	if work.State == payload.InitializingPayload {
-		// get the payload out via brute force
-		maxWorkers = len(tasks)
 		graph.Parallelize(payload.FlattenByNumberAndComponent)
+		// get the payload out via brute force
+		maxWorkers = len(graph.Nodes)
 	} else {
 		graph.Parallelize(payload.ByNumberAndComponent)
 	}
