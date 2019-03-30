@@ -17,6 +17,7 @@ import (
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,6 +33,7 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -881,6 +883,21 @@ func TestOperator_sync(t *testing.T) {
 			name: "after desired update is cancelled, revert to progressing",
 			syncStatus: &SyncWorkerStatus{
 				Actual:   configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Current:  []*payload.Task{
+					{
+						Manifest: &lib.Manifest{
+							GVK: schema.GroupVersionKind{Kind: "Deployment", Version: "v1"},
+							Obj: &unstructured.Unstructured{
+								Object: map[string]interface{}{
+									"metadata": map[string]interface{}{
+										"namespace": "openshift-cluster-version",
+										"name":      "cluster-verion-operator",
+									},
+								},
+							},
+						},
+					},
+				},
 				Fraction: 0.334,
 			},
 			optr: Operator{
@@ -978,7 +995,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 33% complete"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 33% complete (Deployment openshift-cluster-version/cluster-verion-operator)"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},

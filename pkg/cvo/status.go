@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/golang/glog"
 
@@ -259,7 +260,11 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 			case len(validationErrs) > 0:
 				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
 			case status.Fraction > 0:
-				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
+				tasks := make([]string, 0, len(status.Current))
+				for _, task := range status.Current {
+					tasks = append(tasks, task.KindName())
+				}
+				message = fmt.Sprintf("Working towards %s: %.0f%% complete (%s)", version, status.Fraction*100, strings.Join(tasks, ", "))
 			case status.Step == "RetrievePayload":
 				if len(reason) == 0 {
 					reason = "DownloadingUpdate"

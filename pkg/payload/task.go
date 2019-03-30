@@ -51,6 +51,15 @@ func (st *Task) String() string {
 	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Index, st.Total)
 }
 
+// KindName returns the kind, namespace (if set), and name of the task.
+func (st *Task) KindName() string {
+	ns := st.Manifest.Object().GetNamespace()
+	if len(ns) == 0 {
+		return fmt.Sprintf("%s %s", st.Manifest.GVK.Kind, st.Manifest.Object().GetName())
+	}
+	return fmt.Sprintf("%s %s/%s", st.Manifest.GVK.Kind, ns, st.Manifest.Object().GetName())
+}
+
 // Run attempts to create the provided object until it succeeds or context is cancelled. It returns the
 // last error if context is cancelled.
 func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder, state State) error {

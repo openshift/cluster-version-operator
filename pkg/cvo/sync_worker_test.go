@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -70,7 +71,7 @@ func Test_statusWrapper_Report(t *testing.T) {
 					if !ok {
 						t.Fatalf("no event")
 					}
-					if evt != tt.next {
+					if !reflect.DeepEqual(evt, tt.next) {
 						t.Fatalf("unexpected: %#v", evt)
 					}
 				}

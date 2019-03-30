@@ -60,6 +60,7 @@ type SyncWorkerStatus struct {
 	Step    string
 	Failure error
 
+	Current  []*payload.Task
 	Fraction float32
 
 	Completed   int
@@ -480,17 +481,21 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 
 			glog.V(4).Infof("Running sync for %s", task)
 			glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
+			cr.BeginTask(task)
 
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
+				cr.FinishTask(task, false)
 				glog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
 			}
 
 			if err := task.Run(ctx, version, w.builder, work.State); err != nil {
+				cr.FinishTask(task, false)
 				return err
 			}
-			cr.Inc()
+
+			cr.FinishTask(task, true)
 			glog.V(4).Infof("Done syncing for %s", task)
 		}
 		return nil
@@ -530,10 +535,34 @@ type consistentReporter struct {
 	reporter  StatusReporter
 }
 
-func (r *consistentReporter) Inc() {
+// Begin task appends the given task to status.Current.
+func (r *consistentReporter) BeginTask(task *payload.Task) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	r.done++
+	r.status.Current = append(r.status.Current, task)
+}
+
+// FinishTask atomically removes the given task from status.Current
+// and, if success is true, increments done.
+func (r *consistentReporter) FinishTask(task *payload.Task, success bool) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if success {
+		r.done++
+	}
+
+	for i, tsk := range r.status.Current {
+		if tsk == task {
+			copy(r.status.Current[i:], r.status.Current[i+1:])
+			r.status.Current[len(r.status.Current)-1] = nil
+			r.status.Current = r.status.Current[:len(r.status.Current)-1]
+			if len(r.status.Current) == 0 {
+				r.status.Current = nil
+			}
+			return
+		}
+	}
 }
 
 func (r *consistentReporter) Update() {
@@ -543,6 +572,7 @@ func (r *consistentReporter) Update() {
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
 	copied.Step = "ApplyResources"
+	copied.Current = append([]*payload.Task(nil), r.status.Current...)
 	copied.Fraction = float32(r.done) / float32(r.total)
 	r.reporter.Report(copied)
 }
@@ -552,6 +582,7 @@ func (r *consistentReporter) Error(err error) {
 	defer r.lock.Unlock()
 	copied := r.status
 	copied.Step = "ApplyResources"
+	copied.Current = append([]*payload.Task(nil), r.status.Current...)
 	copied.Fraction = float32(r.done) / float32(r.total)
 	copied.Failure = err
 	r.reporter.Report(copied)
@@ -572,6 +603,7 @@ func (r *consistentReporter) Complete() {
 	copied.Completed = r.completed + 1
 	copied.Initial = false
 	copied.Reconciling = true
+	copied.Current = nil
 	copied.Fraction = 1
 	r.reporter.Report(copied)
 }
