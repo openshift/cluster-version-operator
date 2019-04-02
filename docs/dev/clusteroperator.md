@@ -112,6 +112,8 @@ status:
 
 When your operator begins rolling out a new version it must continue to report the previous operator version in its ClusterOperator status. While any of your operands are still running software from the previous version then you are in a mixed version state, and you should continue to report the previous version. As soon as you can guarantee you are not and will not run any old versions of your operands, you can update the operator version on your ClusterOperator status.
 
+During an upgrade if the amount of time it takes to do the upgrade is significant (more than a second or two) the operator should report `Progressing=true` and set lastTransitionTimestamp.  The operator does not have to *stop* reporting `Progressing` when the upgrade is complete (for instance, if it is doing a rolling update to pick up config but the necessary code has been deployed successful), but if it either never set `Progressing=true` or sets `Progressing=false` at upgrade complete it **MUST** set lastTransitionTime on `Progressing` to the current time. This allows administrators to know when the last change to the operator was.
+
 ### Conditions
 
 Refer [the godocs](https://godoc.org/github.com/openshift/api/config/v1#ClusterStatusConditionType) for conditions.
