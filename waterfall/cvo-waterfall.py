@@ -3,6 +3,7 @@
 #   $ curl -s https://storage.googleapis.com/origin-ci-test/logs/release-openshift-origin-installer-e2e-aws-4.0/6016/artifacts/e2e-aws/pods/openshift-cluster-version_cluster-version-operator-74d8d99566-2bh4q_cluster-version-operator.log.gz | gunzip | cvo-waterfall.py >cvo.svg 
 
 import datetime
+import logging
 import re
 import sys
 
@@ -33,6 +34,7 @@ time_ranges = []
 for objType, names in resources.items():
     for name, data in names.items():
         if 'Done syncing' not in data:
+            logging.warning('not finished: {} {}'.format(objType, name))
             continue
         start = (data['Running sync'] - reference_time).total_seconds()
         stop = (data['Done syncing'] - reference_time).total_seconds()
