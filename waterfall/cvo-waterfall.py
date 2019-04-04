@@ -60,6 +60,13 @@ for start, stop, objType, name, data in sorted(time_ranges):
         last_stop = stop
 
 print('<svg viewBox="0 0 {} {}" xmlns="http://www.w3.org/2000/svg">'.format(last_stop, y))
+duration = datetime.timedelta(seconds=last_stop)
+time_scale = 5
+for i in range(1 + int(last_stop // (time_scale*60))):
+    print('  <line x1="{x}"  x2="{x}" y1="0%" y2="100%" stroke="gray" style="stroke-opacity: 0.5;"><title>{minutes} minutes</title></line>'.format(
+        x=i * time_scale * 60,
+        minutes=i * time_scale))
 for rectangle in rectangles:
     print('  {}'.format(rectangle))
+print('  <text x="50%" y="20" text-anchor="middle">CVO manifests, duration {}</text>'.format(duration))
 print('</svg>')
