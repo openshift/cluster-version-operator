@@ -53,7 +53,10 @@ if an error is preventing sync or upgrade with the last
 transition timestamp of the condition. The type 'completed' 
 is the timestamp when the last image was successfully
 applied. The type 'cluster' is the creation date of the
-cluster version object.
+cluster version object. The type 'updating' is set when
+the cluster is transitioning to a new version but has not
+reached the completed state and is the time the update was
+started.
 .`,
 		}, []string{"type", "version", "image"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -178,6 +181,18 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g = m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Image)
 		g.Set(completed)
 		ch <- g
+
+		// when the CVO is transitioning towards a new version report a unique series describing it
+		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpdate {
+			updating := cv.Status.History[0]
+			g := m.version.WithLabelValues("updating", updating.Version, updating.Image)
+			if updating.StartedTime.IsZero() {
+				g.Set(0)
+			} else {
+				g.Set(float64(updating.StartedTime.Unix()))
+			}
+			ch <- g
+		}
 
 		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
 			upstream := "<default>"
