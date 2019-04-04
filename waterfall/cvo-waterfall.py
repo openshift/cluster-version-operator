@@ -11,7 +11,7 @@ import sys
 log_regexp = re.compile('^I[0-9]+ ([0-9:.]+) .* (Running sync|Done syncing) for ([^ ]+) "([^"]+)" \(([0-9]+) of ([0-9]+)\)')
 
 resources = {}
-reference_time = None
+reference_time = last_log = None
 for line in sys.stdin.readlines():
     match = log_regexp.match(line)
     if not match:
@@ -20,6 +20,7 @@ for line in sys.stdin.readlines():
     timestamp = datetime.datetime.strptime(time, '%H:%M:%S.%f')
     if reference_time is None:
         reference_time = timestamp
+    last_log = timestamp
     if objType not in resources:
         resources[objType] = {}
     if name not in resources[objType]:
@@ -33,19 +34,27 @@ for line in sys.stdin.readlines():
 time_ranges = []
 for objType, names in resources.items():
     for name, data in names.items():
-        if 'Done syncing' not in data:
-            logging.warning('not finished: {} {}'.format(objType, name))
-            continue
         start = (data['Running sync'] - reference_time).total_seconds()
-        stop = (data['Done syncing'] - reference_time).total_seconds()
+        if 'Done syncing' in data:
+            stop = (data['Done syncing'] - reference_time).total_seconds()
+        else:
+            stop = None
+            logging.warning('not finished: {} {}'.format(objType, name))
         time_ranges.append((start, stop, objType, name, data))
 
 rectangles = []
 y = 0
 step = 4
 last_stop = 0
+max_stop = (last_log - reference_time).total_seconds()
 for start, stop, objType, name, data in sorted(time_ranges):
-    rectangles.append('<rect x="{}" y="{}" width="{}" height="{}" fill="blue"><title>{} {} {}/{} ({})</title></rect>'.format(start, y, stop - start, step, objType, name, data['index'], data['total'], data['Done syncing'] - data['Running sync']))
+    if stop is None:
+        stop = max_stop
+        data['Done syncing'] = last_log
+        fill = 'red'
+    else:
+        fill = 'blue'
+    rectangles.append('<rect x="{}" y="{}" width="{}" height="{}" fill="{}"><title>{} {} {}/{} ({})</title></rect>'.format(start, y, stop - start, step, fill, objType, name, data['index'], data['total'], data['Done syncing'] - data['Running sync']))
     y += step
     if stop > last_stop:
         last_stop = stop
