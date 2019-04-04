@@ -7,9 +7,10 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 
 * `current` - the version the operator is applying right now (the running CVO version) and the age of the payload
 * `cluster` - the same as current, but the value is the creation timestamp of the cluster version (cluster age)
-* `failure` - if the failure condition is set, reports the last transition time for both desired and current versions.
+* `failure` - if the failure condition is set, reports the last transition time for both desired and current versions
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
-* `completed` - the time the most recent version was completely applied, or is zero.
+* `completed` - the time the most recent version was completely applied, or is zero
+* `updating` - if the operator is moving to a new version, the time the update started
 
 ```
 # HELP cluster_version Reports the version of the cluster.
@@ -19,6 +20,7 @@ cluster_version{image="test/image:1",type="failure",version="4.0.2"} 132000400
 cluster_version{image="test/image:2",type="desired",version="4.0.3"} 132000400
 cluster_version{image="test/image:1",type="completed",version="4.0.2"} 132000100
 cluster_version{image="test/image:1",type="cluster",version="4.0.2"} 131000000
+cluster_version{image="test/image:2",type="updating",version="4.0.3"} 132000400
 # HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
 # TYPE cluster_version_available_updates gauge
 cluster_version_available_updates{channel="fast",upstream="https://api.openshift.com/api/upgrades_info/v1/graph"} 0
