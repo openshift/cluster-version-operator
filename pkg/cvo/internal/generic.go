@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -38,6 +40,10 @@ func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if resourceapply.IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	existing.SetAnnotations(required.GetAnnotations())
