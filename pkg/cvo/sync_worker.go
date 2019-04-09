@@ -238,9 +238,10 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				var syncTimeout time.Duration
 				switch work.State {
 				case payload.InitializingPayload:
-					// during initialization we expect things to fail due to ordering
-					// dependencies, so give it extra time
-					syncTimeout = w.minimumReconcileInterval * 5
+					// during initialization we want to show what operators are being
+					// created, so time out syncs more often to show a snapshot of progress
+					// TODO: allow status outside of sync
+					syncTimeout = w.minimumReconcileInterval
 				case payload.UpdatingPayload:
 					// during updates we want to flag failures on any resources that -
 					// for cluster operators that are not reporting failing the error
