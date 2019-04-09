@@ -10,10 +10,11 @@ import (
 
 func Test_statusWrapper_Report(t *testing.T) {
 	tests := []struct {
-		name     string
-		previous SyncWorkerStatus
-		next     SyncWorkerStatus
-		want     bool
+		name         string
+		previous     SyncWorkerStatus
+		next         SyncWorkerStatus
+		want         bool
+		wantProgress bool
 	}{
 		{
 			name:     "skip updates that clear an error and are at an earlier fraction",
@@ -22,9 +23,10 @@ func Test_statusWrapper_Report(t *testing.T) {
 			want:     false,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing2"}},
-			want:     true,
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing2"}},
+			want:         true,
+			wantProgress: true,
 		},
 		{
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}},
@@ -42,9 +44,22 @@ func Test_statusWrapper_Report(t *testing.T) {
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.2},
-			want:     true,
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.2},
+			want:         true,
+			wantProgress: true,
+		},
+		{
+			previous:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}, Completed: 1},
+			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}, Completed: 2},
+			want:         true,
+			wantProgress: true,
+		},
+		{
+			previous:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing-1"}, Completed: 1},
+			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing-2"}, Completed: 1},
+			want:         true,
+			wantProgress: true,
 		},
 		{
 			previous: SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
@@ -52,8 +67,9 @@ func Test_statusWrapper_Report(t *testing.T) {
 			want:     true,
 		},
 		{
-			next: SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
-			want: true,
+			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			want:         true,
+			wantProgress: true,
 		},
 	}
 	for _, tt := range tests {
@@ -70,6 +86,10 @@ func Test_statusWrapper_Report(t *testing.T) {
 					if !ok {
 						t.Fatalf("no event")
 					}
+					if tt.wantProgress != (!evt.LastProgress.IsZero()) {
+						t.Errorf("unexpected progress timestamp: %#v", evt)
+					}
+					evt.LastProgress = time.Time{}
 					if evt != tt.next {
 						t.Fatalf("unexpected: %#v", evt)
 					}

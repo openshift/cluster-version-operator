@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/golang/glog"
 
@@ -156,6 +157,8 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	now := metav1.Now()
 	version := versionString(status.Actual)
 
+	mergeOperatorHistory(config, status.Actual, now, status.Completed > 0)
+
 	// update validation errors
 	var reason string
 	if len(validationErrs) > 0 {
@@ -200,7 +203,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		})
 	}
 
-	if err := status.Failure; err != nil {
+	progressReason, progressShortMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
+
+	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
 		msg := "an error occurred"
 		if uErr, ok := err.(*payload.UpdateError); ok {
@@ -258,6 +263,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 			switch {
 			case len(validationErrs) > 0:
 				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
+			case status.Fraction > 0 && skipFailure:
+				reason = progressReason
+				message = fmt.Sprintf("Working towards %s: %.0f%% complete, %s", version, status.Fraction*100, progressShortMessage)
 			case status.Fraction > 0:
 				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
 			case status.Step == "RetrievePayload":
@@ -265,6 +273,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 					reason = "DownloadingUpdate"
 				}
 				message = fmt.Sprintf("Working towards %s: downloading update", version)
+			case skipFailure:
+				reason = progressReason
+				message = fmt.Sprintf("Working towards %s: %s", version, progressShortMessage)
 			default:
 				message = fmt.Sprintf("Working towards %s", version)
 			}
@@ -287,14 +298,33 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		})
 	}
 
-	mergeOperatorHistory(config, status.Actual, now, status.Completed > 0)
-
 	if glog.V(6) {
 		glog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
+}
+
+// convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
+// still making internal progress. The general error we try to suppress is an operator or operators still being
+// unavailable AND the general payload task making progress towards its goal. An operator is given 10 minutes since
+// its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
+func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
+	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
+		return "", "", false
+	}
+	if now.Sub(status.LastProgress) > 10*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
+		return "", "", false
+	}
+	uErr, ok := status.Failure.(*payload.UpdateError)
+	if !ok {
+		return "", "", false
+	}
+	if uErr.Reason == "ClusterOperatorNotAvailable" || uErr.Reason == "ClusterOperatorsNotAvailable" {
+		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
+	}
+	return "", "", false
 }
 
 // syncDegradedStatus handles generic errors in the cluster version. It tries to preserve

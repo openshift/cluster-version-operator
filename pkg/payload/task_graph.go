@@ -403,7 +403,7 @@ type taskStatus struct {
 	success bool
 }
 
-func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) error {
+func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) []error {
 	nestedCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
 
@@ -565,7 +565,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 	glog.V(4).Infof("Result of work: %v", errs)
 	if len(errs) > 0 {
-		return errs[0]
+		return errs
 	}
 	return nil
 }

@@ -43,6 +43,15 @@ type Task struct {
 	Backoff  wait.Backoff
 }
 
+func (st *Task) Copy() *Task {
+	return &Task{
+		Index:    st.Index,
+		Total:    st.Total,
+		Manifest: st.Manifest,
+		Requeued: st.Requeued,
+	}
+}
+
 func (st *Task) String() string {
 	ns := st.Manifest.Object().GetNamespace()
 	if len(ns) == 0 {
@@ -81,6 +90,7 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 			continue
 		case <-ctx.Done():
 			if uerr, ok := lastErr.(*UpdateError); ok {
+				uerr.Task = st.Copy()
 				return uerr
 			}
 			reason, cause := reasonForPayloadSyncError(lastErr)
@@ -91,6 +101,8 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 				Nested:  lastErr,
 				Reason:  reason,
 				Message: fmt.Sprintf("Could not update %s%s", st, cause),
+
+				Task: st.Copy(),
 			}
 		}
 	}
@@ -102,6 +114,8 @@ type UpdateError struct {
 	Reason  string
 	Message string
 	Name    string
+
+	Task *Task
 }
 
 func (e *UpdateError) Error() string {
@@ -181,6 +195,8 @@ func SummaryForReason(reason, name string) string {
 			return fmt.Sprintf("the cluster operator %s has not yet successfully rolled out", name)
 		}
 		return "a cluster operator has not yet rolled out"
+	case "ClusterOperatorsNotAvailable":
+		return "some cluster operators have not yet rolled out"
 	}
 
 	if strings.HasPrefix(reason, "UpdatePayload") {
