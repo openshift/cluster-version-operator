@@ -93,6 +93,13 @@ When your manifests are added to the release image, they’ll be given a prefix 
 
 Only manifests with the extensions `.yaml`, `.yml`, or `.json` will be applied, like `kubectl create -f DIR`.
 
+### What if I only want the CVO to create my resource, but never update it?
+
+This is only applicable to cases where the contents of a resource are not managed, but the presence is required for
+usability.  Today the only known use-case is config.openshift.io, so that `oc edit foo.config.openshift.io` "just works".
+
+To do this, you can set .metadata.annotations["release.openshift.io/create-only"]="true".
+
 ### How do I get added as a special run level?
 
 Some operators need to run at a specific time in the release process (OLM, kube, openshift core operators, network, service CA).  These components can ensure they run in a specific order across operators by prefixing their manifests with:
