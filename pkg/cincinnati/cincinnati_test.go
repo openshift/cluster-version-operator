@@ -47,7 +47,7 @@ func TestGetUpdates(t *testing.T) {
 		name:          "unknown version",
 		version:       "4.0.0-3",
 		expectedQuery: "channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-3",
-		err:           "unknown version 4.0.0-3",
+		err:           "currently installed version 4.0.0-3 not found in the \"test-channel\" channel",
 	}}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

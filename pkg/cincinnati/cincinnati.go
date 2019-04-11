@@ -90,7 +90,7 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("unknown version %s", version)
+		return nil, fmt.Errorf("currently installed version %s not found in the %q channel", version, channel)
 	}
 
 	// Find the children of the current version.
