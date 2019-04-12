@@ -30,7 +30,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
-func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
+func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
 	client := &fake.Clientset{}
 	client.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
@@ -81,7 +81,7 @@ func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dyn
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
 	worker := NewSyncWorker(
-		&fakeDirectoryRetriever{Path: "testdata/payloadtest"},
+		&fakeDirectoryRetriever{Path: payloadDir},
 		&testResourceBuilder{client: dynamicClient},
 		time.Second/2,
 		wait.Backoff{
@@ -94,7 +94,7 @@ func setupCVOTest() (*Operator, map[string]runtime.Object, *fake.Clientset, *dyn
 }
 
 func TestCVO_StartupAndSync(t *testing.T) {
-	o, cvs, client, _, shutdownFn := setupCVOTest()
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -214,31 +214,35 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Update{Version: "4.0.1", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Step:        "ApplyResources",
-			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Step:         "ApplyResources",
+			Initial:      true,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
-			Step:        "ApplyResources",
-			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Fraction:     float32(1) / 3,
+			Step:         "ApplyResources",
+			Initial:      true,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(2, 0),
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
-			Initial:     true,
-			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Fraction:     float32(2) / 3,
+			Initial:      true,
+			Step:         "ApplyResources",
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(3, 0),
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Completed:   1,
-			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Completed:    1,
+			Fraction:     1,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(4, 0),
 		},
 	)
 
@@ -306,11 +310,12 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Completed:   2,
-			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Completed:    2,
+			Fraction:     1,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 	)
 
@@ -329,7 +334,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 }
 
 func TestCVO_RestartAndReconcile(t *testing.T) {
-	o, cvs, client, _, shutdownFn := setupCVOTest()
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -412,25 +417,28 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Fraction:    float32(1) / 3,
-			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Fraction:     float32(1) / 3,
+			Step:         "ApplyResources",
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Fraction:    float32(2) / 3,
-			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Fraction:     float32(2) / 3,
+			Step:         "ApplyResources",
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(2, 0),
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Completed:   1,
-			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Completed:    1,
+			Fraction:     1,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(3, 0),
 		},
 	)
 	client.ClearActions()
@@ -470,11 +478,12 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
-			Completed:   2,
-			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Completed:    2,
+			Fraction:     1,
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 	)
 	client.ClearActions()
@@ -490,7 +499,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 }
 
 func TestCVO_ErrorDuringReconcile(t *testing.T) {
-	o, cvs, client, _, shutdownFn := setupCVOTest()
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -594,11 +603,12 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// verify we observe the remaining changes in the first sync
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
-			Fraction:    float32(1) / 3,
-			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Fraction:     float32(1) / 3,
+			Step:         "ApplyResources",
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 	)
 	verifyAllStatus(t, worker.StatusCh())
@@ -610,11 +620,12 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// verify we observe the remaining changes in the first sync
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
-			Fraction:    float32(2) / 3,
-			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
-			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Reconciling:  true,
+			Fraction:     float32(2) / 3,
+			Step:         "ApplyResources",
+			VersionHash:  "6GC9TkkG9PA=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 	)
 	verifyAllStatus(t, worker.StatusCh())
@@ -645,8 +656,10 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
 				Message: "Could not update test \"file-yml\" (3 of 3)",
+				Task:    &payload.Task{Index: 3, Total: 3, Manifest: &worker.payload.Manifests[2]},
 			},
-			Actual: configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: time.Unix(1, 0),
 		},
 	)
 	client.ClearActions()
@@ -686,8 +699,174 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	})
 }
 
+func TestCVO_ParallelError(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/paralleltest")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+	b := &errorResourceBuilder{errors: map[string]error{
+		"0000_10_a_file.yaml": &payload.UpdateError{
+			Reason: "ClusterOperatorNotAvailable",
+			Name:   "operator-1",
+		},
+		"0000_20_a_file.yaml": nil,
+		"0000_20_b_file.yaml": &payload.UpdateError{
+			Reason: "ClusterOperatorNotAvailable",
+			Name:   "operator-2",
+		},
+	}}
+	worker.builder = b
+
+	// Setup: an initializing cluster version which will run in parallel
+	//
+	o.releaseImage = "image/image:1"
+	o.releaseVersion = "1.0.0-abc"
+	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:    desired,
+			History:    []configv1.UpdateHistory{},
+			Conditions: []configv1.ClusterOperatorStatusCondition{},
+		},
+	}
+
+	// Step 1: Write initial status
+	//
+	client.ClearActions()
+	err := o.sync(o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions := client.Actions()
+	if len(actions) != 2 {
+		t.Fatalf("%s", spew.Sdump(actions))
+	}
+	expectGet(t, actions[0], "clusterversions", "", "version")
+
+	// check the worker status is initially set to reconciling
+	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
+		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
+	}
+	if worker.work.State != payload.InitializingPayload {
+		t.Fatalf("The worker should be reconciling: %v", worker.work)
+	}
+
+	// Step 2: Start the sync worker and verify the sequence of events
+	//
+	cancellable, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go worker.Start(cancellable, 1)
+	//
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Initial: true,
+			Step:    "RetrievePayload",
+			Actual:  configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+		},
+		SyncWorkerStatus{
+			Initial:     true,
+			Step:        "ApplyResources",
+			VersionHash: "7m-gGRrpkDU=",
+			Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+		},
+	)
+
+	// Step 3: Cancel after we've accumulated 2/3 errors
+	//
+	time.Sleep(100 * time.Millisecond)
+	cancel()
+	//
+	// verify we observe the remaining changes in the first sync
+	for status := range worker.StatusCh() {
+		if status.Failure == nil {
+			if status.Fraction == 0 || status.Fraction == 1/3 {
+				if !reflect.DeepEqual(status, SyncWorkerStatus{
+					Initial:     true,
+					Fraction:    status.Fraction,
+					Step:        "ApplyResources",
+					VersionHash: "7m-gGRrpkDU=",
+					Actual:      configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+				}) {
+					t.Fatalf("unexpected status: %v", status)
+				}
+			}
+			continue
+		}
+		err := status.Failure
+		uErr, ok := err.(*payload.UpdateError)
+		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" || uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if status.LastProgress.IsZero() {
+			t.Fatalf("unexpected last progress: %v", status.LastProgress)
+		}
+		if !reflect.DeepEqual(status, SyncWorkerStatus{
+			Initial:      true,
+			Failure:      err,
+			Fraction:     float32(1) / 3,
+			Step:         "ApplyResources",
+			VersionHash:  "7m-gGRrpkDU=",
+			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			LastProgress: status.LastProgress,
+		}) {
+			t.Fatalf("unexpected final: %v", status)
+		}
+		break
+	}
+	verifyAllStatus(t, worker.StatusCh())
+
+	client.ClearActions()
+	err = o.sync(o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions = client.Actions()
+	if len(actions) != 2 {
+		t.Fatalf("%s", spew.Sdump(actions))
+	}
+	expectGet(t, actions[0], "clusterversions", "", "version")
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			VersionHash: "7m-gGRrpkDU=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 33% complete, waiting on operator-1, operator-2"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	})
+}
+
 func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
-	o, cvs, client, _, shutdownFn := setupCVOTest()
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	defer shutdownFn()
@@ -745,7 +924,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 }
 
 func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
-	o, cvs, client, _, shutdownFn := setupCVOTest()
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	defer shutdownFn()
@@ -811,11 +990,21 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 		}
 		return
 	}
+	var lastTime time.Time
+	count := int64(1)
 	for i, expect := range items {
 		actual, ok := <-ch
 		if !ok {
 			t.Fatalf("channel closed after reading only %d items", i)
 		}
+
+		if nextTime := actual.LastProgress; !nextTime.Equal(lastTime) {
+			actual.LastProgress = time.Unix(count, 0)
+			count++
+		} else if !lastTime.IsZero() {
+			actual.LastProgress = time.Unix(count, 0)
+		}
+
 		if !reflect.DeepEqual(expect, actual) {
 			t.Fatalf("unexpected status item %d: %s", i, diff.ObjectReflectDiff(expect, actual))
 		}
@@ -853,4 +1042,15 @@ func (b *blockingResourceBuilder) Send(err error) {
 
 func (b *blockingResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
 	return <-b.ch
+}
+
+type errorResourceBuilder struct {
+	errors map[string]error
+}
+
+func (b *errorResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+	if err, ok := b.errors[m.OriginalFilename]; ok {
+		return err
+	}
+	return fmt.Errorf("unknown file %s", m.OriginalFilename)
 }

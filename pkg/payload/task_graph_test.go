@@ -606,7 +606,7 @@ func TestRunGraph(t *testing.T) {
 		order      []string
 		want       []string
 		invariants func(t *testing.T, got []string)
-		wantErr    string
+		wantErrs   []string
 	}{
 		{
 			nodes: []*TaskNode{
@@ -658,8 +658,8 @@ func TestRunGraph(t *testing.T) {
 				}
 				return nil
 			},
-			want:    []string{"a", "b", "c"},
-			wantErr: "error A",
+			want:     []string{"a", "b", "c"},
+			wantErrs: []string{"error A"},
 			invariants: func(t *testing.T, got []string) {
 				for _, s := range got {
 					if s == "e" {
@@ -691,8 +691,8 @@ func TestRunGraph(t *testing.T) {
 				}
 				return nil
 			},
-			want:    []string{"a", "b", "c"},
-			wantErr: "cancelled",
+			want:     []string{"a", "b", "c"},
+			wantErrs: []string{"cancelled"},
 			invariants: func(t *testing.T, got []string) {
 				for _, s := range got {
 					if s == "e" {
@@ -724,8 +724,8 @@ func TestRunGraph(t *testing.T) {
 				}
 				return nil
 			},
-			want:    []string{"a", "b", "d1", "d2", "d3"},
-			wantErr: "error -",
+			want:     []string{"a", "b", "d1", "d2", "d3"},
+			wantErrs: []string{"error - c1", "error - f"},
 		},
 	}
 	for _, tt := range tests {
@@ -736,7 +736,7 @@ func TestRunGraph(t *testing.T) {
 			ctx, cancelFn := context.WithCancel(context.Background())
 			defer cancelFn()
 			var order safeSlice
-			err := RunGraph(ctx, g, tt.parallel, func(ctx context.Context, tasks []*Task) error {
+			errs := RunGraph(ctx, g, tt.parallel, func(ctx context.Context, tasks []*Task) error {
 				for _, task := range tasks {
 					time.Sleep(tt.sleep * time.Duration(rand.Intn(4)))
 					if tt.errorOn != nil {
@@ -764,14 +764,18 @@ func TestRunGraph(t *testing.T) {
 				}
 			}
 
-			if (err != nil) != (tt.wantErr != "") {
-				t.Fatalf("unexpected error: %v", err)
+			var messages []string
+			for _, err := range errs {
+				messages = append(messages, err.Error())
 			}
-			if err != nil {
-				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("unexpected error: %v", err)
+			sort.Strings(messages)
+			if len(messages) != len(tt.wantErrs) {
+				t.Fatalf("unexpected error: %v", messages)
+			}
+			for i, want := range tt.wantErrs {
+				if !strings.Contains(errs[i].Error(), want) {
+					t.Errorf("error %d %q doesn't contain %q", i, errs[i].Error(), want)
 				}
-				return
 			}
 		})
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"golang.org/x/time/rate"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -66,6 +69,8 @@ type SyncWorkerStatus struct {
 	Reconciling bool
 	Initial     bool
 	VersionHash string
+
+	LastProgress time.Time
 
 	Actual configv1.Update
 }
@@ -233,9 +238,10 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				var syncTimeout time.Duration
 				switch work.State {
 				case payload.InitializingPayload:
-					// during initialization we expect things to fail due to ordering
-					// dependencies, so give it extra time
-					syncTimeout = w.minimumReconcileInterval * 5
+					// during initialization we want to show what operators are being
+					// created, so time out syncs more often to show a snapshot of progress
+					// TODO: allow status outside of sync
+					syncTimeout = w.minimumReconcileInterval
 				case payload.UpdatingPayload:
 					// during updates we want to flag failures on any resources that -
 					// for cluster operators that are not reporting failing the error
@@ -303,6 +309,9 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 				return
 			}
 		}
+	}
+	if status.Fraction > p.Fraction || status.Completed > p.Completed || (status.Failure == nil && status.Actual != p.Actual) {
+		status.LastProgress = time.Now()
 	}
 	w.w.updateStatus(status)
 }
@@ -471,7 +480,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	}
 
 	// update each object
-	err := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
+	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		for _, task := range tasks {
 			if contextIsCancelled(ctx) {
 				return cr.CancelError()
@@ -495,8 +504,8 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		}
 		return nil
 	})
-	if err != nil {
-		cr.Error(err)
+	if len(errs) > 0 {
+		err := cr.Errors(errs)
 		return err
 	}
 
@@ -517,6 +526,12 @@ func init() {
 		metricPayload,
 	)
 }
+
+type errCanceled struct {
+	err error
+}
+
+func (e errCanceled) Error() string { return e.err.Error() }
 
 // consistentReporter hides the details of calculating the status based on the progress
 // of the graph runner.
@@ -553,14 +568,31 @@ func (r *consistentReporter) Error(err error) {
 	copied := r.status
 	copied.Step = "ApplyResources"
 	copied.Fraction = float32(r.done) / float32(r.total)
-	copied.Failure = err
+	if !isCancelledError(err) {
+		copied.Failure = err
+	}
 	r.reporter.Report(copied)
+}
+
+func (r *consistentReporter) Errors(errs []error) error {
+	err := summarizeTaskGraphErrors(errs)
+
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	copied := r.status
+	copied.Step = "ApplyResources"
+	copied.Fraction = float32(r.done) / float32(r.total)
+	if err != nil {
+		copied.Failure = err
+	}
+	r.reporter.Report(copied)
+	return err
 }
 
 func (r *consistentReporter) CancelError() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	return fmt.Errorf("update was cancelled at %d/%d", r.done, r.total)
+	return errCanceled{fmt.Errorf("update was cancelled at %d/%d", r.done, r.total)}
 }
 
 func (r *consistentReporter) Complete() {
@@ -574,6 +606,136 @@ func (r *consistentReporter) Complete() {
 	copied.Reconciling = true
 	copied.Fraction = 1
 	r.reporter.Report(copied)
+}
+
+func isCancelledError(err error) bool {
+	if err == nil {
+		return false
+	}
+	_, ok := err.(errCanceled)
+	return ok
+}
+
+// summarizeTaskGraphErrors takes a set of errors returned by the execution of a graph and attempts
+// to reduce them to a single cause or message. This is domain specific to the payload and our update
+// algorithms. The return value is the summarized error which may be nil if provided conditions are
+// not truly an error (cancellation).
+// TODO: take into account install vs upgrade
+func summarizeTaskGraphErrors(errs []error) error {
+	// we ignore cancellation errors since they don't provide good feedback to users and are an internal
+	// detail of the server
+	err := errors.FilterOut(errors.NewAggregate(errs), isCancelledError)
+	if err == nil {
+		glog.V(4).Infof("All errors were cancellation errors: %v", errs)
+		return nil
+	}
+	agg, ok := err.(errors.Aggregate)
+	if !ok {
+		errs = []error{err}
+	} else {
+		errs = agg.Errors()
+	}
+
+	// log the errors to assist in debugging future summarization
+	if glog.V(4) {
+		glog.Infof("Summarizing %d errors", len(errs))
+		for _, err := range errs {
+			if uErr, ok := err.(*payload.UpdateError); ok {
+				if uErr.Task != nil {
+					glog.Infof("Update error %d/%d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+				} else {
+					glog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+				}
+			} else {
+				glog.Infof("Update error: %T: %v", err, err)
+			}
+		}
+	}
+
+	// collapse into a set of common errors where necessary
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	if err := newClusterOperatorsNotAvailable(errs); err != nil {
+		return err
+	}
+	return newMultipleError(errs)
+}
+
+// newClusterOperatorsNotAvailable unifies multiple ClusterOperatorNotAvailable errors into
+// a single error. It returns nil if the provided errors are not of the same type.
+func newClusterOperatorsNotAvailable(errs []error) error {
+	names := make([]string, 0, len(errs))
+	for _, err := range errs {
+		uErr, ok := err.(*payload.UpdateError)
+		if !ok || uErr.Reason != "ClusterOperatorNotAvailable" {
+			return nil
+		}
+		if len(uErr.Name) > 0 {
+			names = append(names, uErr.Name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+
+	nested := make([]error, 0, len(errs))
+	for _, err := range errs {
+		nested = append(nested, err)
+	}
+	sort.Strings(names)
+	name := strings.Join(names, ", ")
+	return &payload.UpdateError{
+		Nested:  errors.NewAggregate(errs),
+		Reason:  "ClusterOperatorsNotAvailable",
+		Message: fmt.Sprintf("Some cluster operators are still updating: %s", name),
+		Name:    name,
+	}
+}
+
+// uniqueStrings returns an array with all sequential identical items removed. It modifies the contents
+// of arr. Sort the input array before calling to remove all duplicates.
+func uniqueStrings(arr []string) []string {
+	var last int
+	for i := 1; i < len(arr); i++ {
+		if arr[i] == arr[last] {
+			continue
+		}
+		last++
+		if last != i {
+			arr[last] = arr[i]
+		}
+	}
+	if last < len(arr) {
+		last++
+	}
+	return arr[:last]
+}
+
+// newMultipleError reports a generic set of errors that block progress. This method expects multiple
+// errors but handles singular and empty arrays gracefully. If all errors have the same message, the
+// first item is returned.
+func newMultipleError(errs []error) error {
+	if len(errs) == 0 {
+		return nil
+	}
+	if len(errs) == 1 {
+		return errs[0]
+	}
+	messages := make([]string, 0, len(errs))
+	for _, err := range errs {
+		messages = append(messages, err.Error())
+	}
+	sort.Strings(messages)
+	messages = uniqueStrings(messages)
+	if len(messages) == 0 {
+		return errs[0]
+	}
+	return &payload.UpdateError{
+		Nested:  errors.NewAggregate(errs),
+		Reason:  "MultipleErrors",
+		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
+	}
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
