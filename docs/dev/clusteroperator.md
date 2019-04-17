@@ -75,11 +75,35 @@ Here are the guarantees components can get when they follow the rules we define:
 
 There are a set of guarantees components are expected to honor in return:
 
-1. A component doesn't report the `Available` status condition the first time until they are completely rolled out (or within some reasonable percentage if the component must be installed to all nodes)
-2. A component reports `Failing` when it can't accomplish its task. This might be very broad - the API servers are down so I failed to update - or narrow - I couldn't update the last secret. In either case, Failing communicates something is wrong.
-3. A component reports `Progressing` when it is rolling out new code, propagating config changes, or otherwise moving from one steady state to another. It should not report progressing when it is reconciling a previously known state. If it is progressing to a new version, it should include the version in the message for the condition like "Moving to v1.0.1".
-4. A component reports `Upgradeable` as `false` when it wishes to prevent an upgrade for an admin-correctable condition. The component should include a message that describes what must be fixed.
-5. A component reports when it has rolled out the new version of its operands
+1. A operator doesn't report the `Available` status condition the first time
+   until they are completely rolled out (or within some reasonable percentage if
+   the component must be installed to all nodes)
+2. An operator reports `Degraded` when its current state does not match its
+   desired state over a period of time resulting in a lower quality of service.
+   The period of time may vary by component, but a `Degraded` state represents
+   persistent observation of a condition.  As a result, a component should not
+   oscillate in and out of `Degraded` state. A service may be `Available` even
+   if its degraded.  For example, your service may desire 3 running pods, but 1
+   pod is crash-looping. The service is `Available` but `Degraded` because it
+   may have a lower quality of service.  A component may be `Progressing` but
+   not `Degraded` because the transition from one state to another does not
+   persist over a long enough period to report `Degraded`.  A service should not
+   report `Degraded` during the course of a normal upgrade. A service may report
+   `Degraded` in response to a persistent infrastructure failure that requires
+   administrator intervention. For example, if a control plane host is unhealthy
+   and must be replaced.  An operator should report `Degraded` if unexpected
+   errors occur over a period, but the expectation is that all unexpected errors
+   are handled as operators mature.
+3. An operator reports `Progressing` when it is rolling out new code,
+   propagating config changes, or otherwise moving from one steady state to
+   another. It should not report progressing when it is reconciling a previously
+   known state. If it is progressing to a new version, it should include the
+   version in the message for the condition like "Moving to v1.0.1".
+4. An operator reports `Upgradeable` as `false` when it wishes to prevent an
+   upgrade for an admin-correctable condition. The component should include a
+   message that describes what must be fixed.
+5. An operator reports a new version when it has rolled out the new version to
+   all of its operands.
 
 ### Status
 
