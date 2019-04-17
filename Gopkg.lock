@@ -26,6 +26,14 @@
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:32598368f409bbee79deb9d43569fcd92b9fb27f39155f5e166b3371217f051f"
+  name = "github.com/evanphx/json-patch"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "72bf35d0ff611848c1dc9df0f976c81192392fa5"
+  version = "v4.1.0"
+
+[[projects]]
   digest = "1:81466b4218bf6adddac2572a30ac733a9255919bc2f470b4827a317bd4ee1756"
   name = "github.com/ghodss/yaml"
   packages = ["."]
@@ -420,7 +428,7 @@
   version = "v2.2.1"
 
 [[projects]]
-  digest = "1:a52c8bea47b4caecfeae4fbd691fd19b90a0b820b86e26260ba611b291a76945"
+  digest = "1:78157dd3b77bcbd1157147f13f766b31bf2e151abce7e66fa79baa6b1a5c05eb"
   name = "k8s.io/api"
   packages = [
     "admissionregistration/v1alpha1",
@@ -428,6 +436,7 @@
     "apps/v1",
     "apps/v1beta1",
     "apps/v1beta2",
+    "auditregistration/v1alpha1",
     "authentication/v1",
     "authentication/v1beta1",
     "authorization/v1",
@@ -456,8 +465,8 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "fd83cbc87e7632ccd8bbab63d2b673d4e0c631cc"
-  version = "kubernetes-1.12.0"
+  revision = "5cb15d34447165a97c76ed5a60e4e99c8a01ecfe"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   branch = "origin-4.0-kubernetes-1.12.4"
@@ -476,7 +485,7 @@
   source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[projects]]
-  digest = "1:555ff3b136fdfd8cf4a068628cea06fa948039b92498f8e93b3ee961434bf580"
+  digest = "1:0ac8ae763c1c5055d4a385f5a40f7af2fddf03b7b59aca450e550d5a340cd7d9"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -527,11 +536,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "6dd46049f39503a1fc8d65de4bd566829e95faff"
-  version = "kubernetes-1.12.0"
+  revision = "86fb29eff6288413d76bd8506874fddd9fccdff0"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
-  digest = "1:0807fb1479f03e31dba48327d313df4b63e856e9b964461ef18ece6d8c3a26e9"
+  digest = "1:c657f9c6148d923dc956b1182eb5e3aa5c2ca3ea64b9321889ed903b93a34bbe"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -546,6 +555,7 @@
     "kubernetes/typed/apps/v1",
     "kubernetes/typed/apps/v1beta1",
     "kubernetes/typed/apps/v1beta2",
+    "kubernetes/typed/auditregistration/v1alpha1",
     "kubernetes/typed/authentication/v1",
     "kubernetes/typed/authentication/v1beta1",
     "kubernetes/typed/authorization/v1",
@@ -605,11 +615,11 @@
     "util/workqueue",
   ]
   pruneopts = "NUT"
-  revision = "1638f8970cefaa404ff3a62950f88b08292b2696"
-  version = "v9.0.0"
+  revision = "b40b2a5939e43f7ffe0028ad67586b7ce50bb675"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
-  digest = "1:bc50f2f94336e23a3c1dcdcded630ca421e44e14b3d42ffcdcf5d819365c280e"
+  digest = "1:8f29fd4c578cae70e2e1673656e19e9bae4896c72b458f42b824dfe03d7ea3b2"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -623,8 +633,8 @@
     "pkg/util",
   ]
   pruneopts = "T"
-  revision = "3dcf91f64f638563e5106f21f50c31fa361c918d"
-  version = "kubernetes-1.12.0"
+  revision = "c2090bec4d9b1fb25de3812f868accc2bc9ecbae"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   digest = "1:e47c67ac04096b2e416333b8d05cdf0c2439c5314c024192c1d6d1b131020610"
@@ -640,7 +650,15 @@
   revision = "fdcf9f9480fdd5bf2b3c3df9bf4ecd22b25b87e2"
 
 [[projects]]
-  digest = "1:8198d19a7847002cd88107dca52990deac9745e09cc143f00ff27c1c9a584c08"
+  digest = "1:2c16dda1c44c2564a7818fbacb701323c16d77c21b969987c1bec08d3ee0b050"
+  name = "k8s.io/klog"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "e531227889390a39d9533dde61f590fe9f4b0035"
+  version = "v0.3.0"
+
+[[projects]]
+  digest = "1:ae91face599847825c02cc6d2b876ca9901869d8159b123594412d29a494453c"
   name = "k8s.io/kube-aggregator"
   packages = [
     "pkg/apis/apiregistration",
@@ -650,8 +668,8 @@
     "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
   ]
   pruneopts = "NUT"
-  revision = "331c5a8167750ab8cc42f165b0804cb43b7d87e9"
-  version = "kubernetes-1.12.0"
+  revision = "3e0149950b0e22a3b8579db52bd50e40d0dac10e"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   branch = "master"
@@ -667,6 +685,14 @@
   packages = ["pointer"]
   pruneopts = "NUT"
   revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
+
+[[projects]]
+  digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
+  name = "sigs.k8s.io/yaml"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "fd68e9863619f6ec2fdd8625fe1f02e7c877e480"
+  version = "v1.1.0"
 
 [solve-meta]
   analyzer-name = "dep"
