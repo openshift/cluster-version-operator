@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"flag"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,7 +11,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog"
 )
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+}
 
 func TestParseManifests(t *testing.T) {
 	tests := []struct {
