@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sort"
 	"strings"
@@ -48,7 +49,12 @@ type SyncWork struct {
 	Desired    configv1.Update
 	Overrides  []configv1.ComponentOverride
 	State      payload.State
-	Completed  int
+
+	// Completed is the number of times in a row we have synced this payload
+	Completed int
+	// Attempt is incremented each time we attempt to sync a payload and reset
+	// when we change Generation/Desired.
+	Attempt int
 }
 
 // Empty returns true if the image is empty for this work.
@@ -340,6 +346,14 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 		work.Completed = 0
 	}
 
+	// track how many times we have tried the current payload in the current
+	// state
+	if changed || w.work.State != work.State {
+		work.Attempt = 0
+	} else {
+		work.Attempt++
+	}
+
 	if w.work != nil {
 		work.Desired = w.work.Desired
 		work.Overrides = w.work.Overrides
@@ -405,7 +419,7 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
-	glog.V(4).Infof("Running sync %s on generation %d in state %s", versionString(work.Desired), work.Generation, work.State)
+	glog.V(4).Infof("Running sync %s on generation %d in state %s at attempt %d", versionString(work.Desired), work.Generation, work.State, work.Attempt)
 	update := work.Desired
 
 	// cache the payload until the release image changes
@@ -471,11 +485,23 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	}
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
-	if work.State == payload.InitializingPayload {
+	switch work.State {
+	case payload.InitializingPayload:
+		// create every component in parallel to maximize reaching steady
+		// state
 		graph.Parallelize(payload.FlattenByNumberAndComponent)
-		// get the payload out via brute force
 		maxWorkers = len(graph.Nodes)
-	} else {
+	case payload.ReconcilingPayload:
+		// run the graph in random order during reconcile so that we don't
+		// hang on any particular component - we seed from the number of
+		// times we've attempted this particular payload, so a particular
+		// payload always syncs in a reproducible order
+		r := rand.New(rand.NewSource(int64(work.Attempt)))
+		graph.Parallelize(payload.PermuteOrder(payload.FlattenByNumberAndComponent, r))
+		maxWorkers = 2
+	default:
+		// perform an orderly roll out by payload order, using some parallelization
+		// but avoiding out of order creation so components have some base
 		graph.Parallelize(payload.ByNumberAndComponent)
 	}
 

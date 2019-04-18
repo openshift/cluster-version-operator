@@ -3,6 +3,7 @@ package payload
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"regexp"
 	"sort"
 	"strconv"
@@ -259,10 +260,28 @@ func (g *TaskGraph) Split(onFn func(task *Task) bool) {
 	}
 }
 
+// BreakFunc returns the input tasks in order of dependencies with
+// explicit parallelizm allowed per task in an array of task nodes.
+type BreakFunc func([]*Task) [][]*TaskNode
+
+// PermuteOrder returns a split function that ensures the order of
+// each step is shuffled based on r.
+func PermuteOrder(breakFn BreakFunc, r *rand.Rand) BreakFunc {
+	return func(tasks []*Task) [][]*TaskNode {
+		steps := breakFn(tasks)
+		for _, stepTasks := range steps {
+			r.Shuffle(len(stepTasks), func(i, j int) {
+				stepTasks[i], stepTasks[j] = stepTasks[j], stepTasks[i]
+			})
+		}
+		return steps
+	}
+}
+
 // Parallelize takes the given breakFn and splits any TaskNode's tasks up
 // into parallel groups. If breakFn returns an empty array or a single
 // array item with a single task node, that is considered a no-op.
-func (g *TaskGraph) Parallelize(breakFn func([]*Task) [][]*TaskNode) {
+func (g *TaskGraph) Parallelize(breakFn BreakFunc) {
 	for i := 0; i < len(g.Nodes); i++ {
 		node := g.Nodes[i]
 		results := breakFn(node.Tasks)
@@ -403,6 +422,9 @@ type taskStatus struct {
 	success bool
 }
 
+// RunGraph executes the provided graph in order and in parallel up to maxParallelism. It will not start
+// a new TaskNode until all of the prerequisites have completed. If fn returns an error, no dependencies
+// of that node will be executed, but other indepedent edges will continue executing.
 func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) []error {
 	nestedCtx, cancelFn := context.WithCancel(ctx)
 	defer cancelFn()
