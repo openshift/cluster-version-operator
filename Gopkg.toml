@@ -25,11 +25,11 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.12.0"
+  version = "kubernetes-1.13.4"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "9.0.0"
+  version = "kubernetes-1.13.4"
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
@@ -40,15 +40,15 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.12.0"
+  version = "kubernetes-1.13.4"
 
 [[constraint]]
   name = "k8s.io/code-generator"
-  version = "kubernetes-1.12.0"
+  version = "kubernetes-1.13.4"
 
 [[constraint]]
   name = "k8s.io/kube-aggregator"
-  version = "kubernetes-1.12.0"
+  version = "kubernetes-1.13.4"
 
 [[constraint]]
   name = "k8s.io/utils"
@@ -64,7 +64,8 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "github.com/openshift/api"
-  branch = "master"
+  # this revision has both Failing and Degraded. The next bump will remove the depracted Failing
+  revision = "8e476cb7322e59919cbb6482fd076ec5a214df25"
 
 [[constraint]]
   name = "github.com/openshift/client-go"

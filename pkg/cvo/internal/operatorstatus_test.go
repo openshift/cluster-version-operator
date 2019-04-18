@@ -257,7 +257,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, failing=true"),
+			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
@@ -286,13 +286,13 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, failing=true"),
+			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
 		},
 	}, {
-		name: "cluster operator reporting failing=true",
+		name: "cluster operator reporting degraded=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -301,7 +301,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -316,7 +316,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
-			Reason:  "ClusterOperatorFailing",
+			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
 			Name:    "test-co",
 		},
@@ -344,13 +344,13 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, failing=true"),
+			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
 		},
 	}, {
-		name: "cluster operator reporting available=true failing=true",
+		name: "cluster operator reporting available=true degraded=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -359,7 +359,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -374,12 +374,12 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
-			Reason:  "ClusterOperatorFailing",
+			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
 			Name:    "test-co",
 		},
 	}, {
-		name: "cluster operator reporting available=true progressing=true failing=true",
+		name: "cluster operator reporting available=true progressing=true degraded=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -388,7 +388,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}, {Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -403,12 +403,12 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
-			Reason:  "ClusterOperatorFailing",
+			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
 			Name:    "test-co",
 		},
 	}, {
-		name: "cluster operator reporting available=true no progressing or failing",
+		name: "cluster operator reporting available=true no progressing or degraded",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -431,13 +431,13 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, failing=true"),
+			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
 		},
 	}, {
-		name: "cluster operator reporting available=true progressing=false failing=false",
+		name: "cluster operator reporting available=true progressing=false degraded=false",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -446,7 +446,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse}, {Type: configv1.OperatorFailing, Status: configv1.ConditionFalse}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse}},
 			},
 		},
 		exp: &configv1.ClusterOperator{

@@ -1,14 +1,20 @@
 package resourcemerge
 
 import (
+	"flag"
 	"fmt"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 )
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+}
 
 func TestMergeOwnerRefs(t *testing.T) {
 	tests := []struct {

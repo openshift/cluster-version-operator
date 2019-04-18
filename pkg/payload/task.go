@@ -185,11 +185,11 @@ func SummaryForReason(reason, name string) string {
 	case "UpdatePayloadIntegrity":
 		return "the contents of the update are invalid"
 
-	case "ClusterOperatorFailing":
+	case "ClusterOperatorDegraded":
 		if len(name) > 0 {
-			return fmt.Sprintf("the cluster operator %s is failing", name)
+			return fmt.Sprintf("the cluster operator %s is degraded", name)
 		}
-		return "a cluster operator is failing"
+		return "a cluster operator is degraded"
 	case "ClusterOperatorNotAvailable":
 		if len(name) > 0 {
 			return fmt.Sprintf("the cluster operator %s has not yet successfully rolled out", name)

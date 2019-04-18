@@ -20,7 +20,6 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -167,39 +166,62 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 		available := false
 		progressing := true
 		failing := true
-		for _, condition := range actual.Status.Conditions {
+		var failingCondition *configv1.ClusterOperatorStatusCondition
+		degradedValue := true
+		var degradedCondition *configv1.ClusterOperatorStatusCondition
+		for i := range actual.Status.Conditions {
+			condition := &actual.Status.Conditions[i]
 			switch {
 			case condition.Type == configv1.OperatorAvailable && condition.Status == configv1.ConditionTrue:
 				available = true
 			case condition.Type == configv1.OperatorProgressing && condition.Status == configv1.ConditionFalse:
 				progressing = false
-			case condition.Type == configv1.OperatorFailing && condition.Status == configv1.ConditionFalse:
-				failing = false
+			case condition.Type == configv1.OperatorFailing:
+				if condition.Status == configv1.ConditionFalse {
+					failing = false
+				}
+				failingCondition = condition
+			case condition.Type == configv1.OperatorDegraded:
+				if condition.Status == configv1.ConditionFalse {
+					degradedValue = false
+				}
+				degradedCondition = condition
 			}
 		}
+
+		// If degraded was an explicitly set condition, use that. If not, use the deprecated failing.
+		degraded := failing
+		if degradedCondition != nil {
+			degraded = degradedValue
+		}
+
 		switch mode {
 		case resourcebuilder.InitializingMode:
-			// during initialization we allow failing as long as the component goes available
+			// during initialization we allow degraded as long as the component goes available
 			if available && (!progressing || len(expected.Status.Versions) > 0) {
 				return true, nil
 			}
 		default:
-			// if we're at the correct version, and available, and not failing, we are done
-			// if we're available, not failing, and not progressing, we're also done
+			// if we're at the correct version, and available, and not degraded, we are done
+			// if we're available, not degraded, and not progressing, we're also done
 			// TODO: remove progressing once all cluster operators report expected versions
-			if available && (!progressing || len(expected.Status.Versions) > 0) && !failing {
+			if available && (!progressing || len(expected.Status.Versions) > 0) && !degraded {
 				return true, nil
 			}
 		}
 
-		if c := resourcemerge.FindOperatorStatusCondition(actual.Status.Conditions, configv1.OperatorFailing); c != nil && c.Status == configv1.ConditionTrue {
+		condition := failingCondition
+		if degradedCondition != nil {
+			condition = degradedCondition
+		}
+		if condition != nil && condition.Status == configv1.ConditionTrue {
 			message := fmt.Sprintf("Cluster operator %s is reporting a failure", actual.Name)
-			if len(c.Message) > 0 {
-				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, c.Message)
+			if len(condition.Message) > 0 {
+				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, condition.Message)
 			}
 			lastErr = &payload.UpdateError{
 				Nested:  errors.New(lowerFirst(message)),
-				Reason:  "ClusterOperatorFailing",
+				Reason:  "ClusterOperatorDegraded",
 				Message: message,
 				Name:    actual.Name,
 			}
@@ -207,8 +229,8 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 		}
 
 		lastErr = &payload.UpdateError{
-			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, failing=%v",
-				actual.Name, available, progressing, failing,
+			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, degraded=%v",
+				actual.Name, available, progressing, degraded,
 			),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: fmt.Sprintf("Cluster operator %s has not yet reported success", actual.Name),
