@@ -858,9 +858,9 @@ func summarizeTaskGraphErrors(errs []error) error {
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {
 				if uErr.Task != nil {
-					klog.Infof("Update error %d of %d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Update error %d/%d: %s %s", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr)
 				} else {
-					klog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Update error: %s %s", uErr.Reason, uErr)
 				}
 			} else {
 				klog.Infof("Update error: %T: %v", err, err)

@@ -2488,7 +2488,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3): unable to proceed"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},

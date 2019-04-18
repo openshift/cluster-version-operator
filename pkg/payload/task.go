@@ -123,6 +123,9 @@ type UpdateError struct {
 }
 
 func (e *UpdateError) Error() string {
+	if e.Nested != nil {
+		return fmt.Sprintf("%s: %s", e.Message, e.Nested)
+	}
 	return e.Message
 }
 
