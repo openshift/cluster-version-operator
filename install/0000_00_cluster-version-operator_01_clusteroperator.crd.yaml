@@ -40,3 +40,99 @@ spec:
   - name: v1
     served: true
     storage: true
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: spec hold the intent of how this operator should behave.
+          type: object
+        status:
+          description: status holds the information about the state of an operator.  It
+            is consistent with status information across the kube ecosystem.
+          properties:
+            conditions:
+              description: conditions describes the state of the operator's reconciliation
+                functionality. +patchMergeKey=type +patchStrategy=merge
+              items:
+                properties:
+                  lastTransitionTime:
+                    description: lastTransitionTime is the time of the last update
+                      to the current status object.
+                    format: date-time
+                    type: string
+                  message:
+                    description: message provides additional information about the
+                      current condition. This is only to be consumed by humans.
+                    type: string
+                  reason:
+                    description: reason is the reason for the condition's last transition.  Reasons
+                      are CamelCase
+                    type: string
+                  status:
+                    description: status of the condition, one of True, False, Unknown.
+                    type: string
+                  type:
+                    description: type specifies the state of the operator's reconciliation
+                      functionality.
+                    type: string
+                type: object
+              type: array
+            extension:
+              description: extension contains any additional status information specific
+                to the operator which owns this status object.
+              nullable: true
+              type: object
+            relatedObjects:
+              description: 'relatedObjects is a list of objects that are "interesting"
+                or related to this operator.  Common uses are: 1. the detailed resource
+                driving the operator 2. operator namespaces 3. operand namespaces'
+              items:
+                properties:
+                  group:
+                    description: group of the referent.
+                    type: string
+                  name:
+                    description: name of the referent.
+                    type: string
+                  namespace:
+                    description: namespace of the referent.
+                    type: string
+                  resource:
+                    description: resource of the referent.
+                    type: string
+                type: object
+              type: array
+            versions:
+              description: versions is a slice of operand version tuples.  Operators
+                which manage multiple operands will have multiple entries in the array.  If
+                an operator is Available, it must have at least one entry.  You must
+                report the version of the operator itself with the name "operator".
+              items:
+                properties:
+                  name:
+                    description: name is the name of the particular operand this version
+                      is for.  It usually matches container images, not operators.
+                    type: string
+                  version:
+                    description: version indicates which version of a particular operand
+                      is currently being manage.  It must always match the Available
+                      condition.  If 1.0.0 is Available, then this must indicate 1.0.0
+                      even if the operator is trying to rollout 1.1.0
+                    type: string
+                type: object
+              type: array
+          type: object
+      required:
+      - spec
