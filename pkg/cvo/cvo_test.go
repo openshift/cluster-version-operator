@@ -2052,6 +2052,45 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 		},
 		{
+			name: "report an error condition when channel isn't set",
+			handler: func(w http.ResponseWriter, req *http.Request) {
+				http.Error(w, "bad things", http.StatusInternalServerError)
+			},
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			wantUpdates: &availableUpdates{
+				Upstream: "",
+				Channel:  "",
+				Condition: configv1.ClusterOperatorStatusCondition{
+					Type:    configv1.RetrievedUpdates,
+					Status:  configv1.ConditionFalse,
+					Reason:  "NoChannel",
+					Message: "The update channel has not been configured.",
+				},
+			},
+		},
+		{
 			name: "report an error condition when no current version is set",
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
