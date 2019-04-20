@@ -16,8 +16,9 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
   unused-packages = false
 
 [[constraint]]
-  branch = "master"
   name = "github.com/golang/glog"
+  revision = "3c92600d7533018d216b534fe894ad60a1e6d5bf"
+  source = "https://github.com/openshift/golang-glog.git"
 
 [[constraint]]
   name = "github.com/google/uuid"
@@ -64,8 +65,7 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [[constraint]]
   name = "github.com/openshift/api"
-  # this revision has both Failing and Degraded. The next bump will remove the depracted Failing
-  revision = "8e476cb7322e59919cbb6482fd076ec5a214df25"
+  branch = "master"
 
 [[constraint]]
   name = "github.com/openshift/client-go"
