@@ -1103,10 +1103,12 @@ type mapPayloadRetriever struct {
 	Paths map[string]string
 }
 
-func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
+func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (cvo.PayloadInfo, error) {
 	path, ok := r.Paths[update.Image]
 	if !ok {
-		return "", fmt.Errorf("no image found for %q", update.Image)
+		return cvo.PayloadInfo{}, fmt.Errorf("no image found for %q", update.Image)
 	}
-	return path, nil
+	return cvo.PayloadInfo{
+		Directory: path,
+	}, nil
 }

@@ -178,7 +178,7 @@ func (ctrl *Controller) sync(key string) error {
 
 	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
-		glog.Infof("Auto Update set to %s", up)
+		glog.Infof("Auto Update set to %v", up)
 	}
 	return err
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/openshift/api/config/v1"
+	v1 "github.com/openshift/api/config/v1"
 )
 
 func TestNextUpdate(t *testing.T) {
@@ -36,7 +36,7 @@ func TestNextUpdate(t *testing.T) {
 
 			got := nextUpdate(ups)
 			if got.Version != test.want {
-				t.Fatalf("mismatch: got %s want: %s", got, test.want)
+				t.Fatalf("mismatch: got %v want: %v", got, test.want)
 			}
 		})
 	}

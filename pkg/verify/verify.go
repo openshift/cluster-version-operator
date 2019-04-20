@@ -100,6 +100,7 @@ func LoadFromPayload(update *payload.Update) (Interface, error) {
 				}
 				verifiers[k] = keyring
 			case strings.HasPrefix(k, "store-"):
+				v = strings.TrimSpace(v)
 				u, err := url.Parse(v)
 				if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {
 					return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)

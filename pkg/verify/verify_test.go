@@ -296,7 +296,7 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 								},
 								"data": map[string]interface{}{
 									"verifier-public-key-redhat": string(redhatData),
-									"store-local":                "file://testdata/signatures",
+									"store-local":                "\nfile://testdata/signatures\n",
 								},
 							},
 						},
