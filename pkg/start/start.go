@@ -109,7 +109,12 @@ func (o *Options) Run() error {
 	if err != nil {
 		return err
 	}
+
+	// initilialize the controllers and attempt to load the payload information
 	controllerCtx := o.NewControllerContext(cb)
+	if err := controllerCtx.CVO.InitializeFromPayload(); err != nil {
+		return err
+	}
 
 	// TODO: Kube 1.14 will contain a ReleaseOnCancel boolean on
 	//   LeaderElectionConfig that allows us to have the lock code

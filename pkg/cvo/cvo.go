@@ -181,20 +181,23 @@ func New(
 			panic(err)
 		}
 	}
+	return optr
+}
 
-	if update, err := payload.LoadUpdate(optr.defaultPayloadDir(), releaseImage); err != nil {
-		glog.Warningf("The local release contents are invalid - no current version can be determined from disk: %v", err)
-	} else {
-		optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
-		// XXX: set this to the cincinnati version in preference
-		if _, err := semver.Parse(update.ImageRef.Name); err != nil {
-			glog.Warningf("The local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
-		} else {
-			optr.releaseVersion = update.ImageRef.Name
-		}
+// InitializeFromPayload retrieves the payload contents and verifies the initial state.
+func (optr *Operator) InitializeFromPayload() error {
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage)
+	if err != nil {
+		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
+	}
+	// XXX: set this to the cincinnati version in preference
+	if _, err := semver.Parse(update.ImageRef.Name); err != nil {
+		return fmt.Errorf("The local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
 	}
 
-	return optr
+	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
+	optr.releaseVersion = update.ImageRef.Name
+	return nil
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.

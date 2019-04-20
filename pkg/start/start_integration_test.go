@@ -657,6 +657,9 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
+	if err := controllers.CVO.InitializeFromPayload(); err != nil {
+		t.Fatal(err)
+	}
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
