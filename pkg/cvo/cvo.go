@@ -7,9 +7,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openshift/cluster-version-operator/pkg/verify"
+
 	"github.com/blang/semver"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -109,6 +112,10 @@ type Operator struct {
 	statusLock       sync.Mutex
 	availableUpdates *availableUpdates
 
+	// verifier, if provided, will be used to check an update before it is executed.
+	// Any error will prevent an update payload from being accessed.
+	verifier verify.Interface
+
 	configSync ConfigSyncWorker
 	// statusInterval is how often the configSync worker is allowed to retrigger
 	// the main sync status loop.
@@ -197,6 +204,20 @@ func (optr *Operator) InitializeFromPayload() error {
 
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 	optr.releaseVersion = update.ImageRef.Name
+
+	// attempt to load a verifier as defined in the payload
+	verifier, err := verify.LoadFromPayload(update)
+	if err != nil {
+		return err
+	}
+	if verifier != nil {
+		glog.Infof("Verifying release authenticity: %v", verifier)
+	} else {
+		glog.Warningf("WARNING: No release authenticity verification is configured, all releases are considered unverified")
+		verifier = verify.Reject
+	}
+	optr.verifier = verifier
+
 	return nil
 }
 

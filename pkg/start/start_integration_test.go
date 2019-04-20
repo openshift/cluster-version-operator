@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +27,7 @@ import (
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -32,6 +35,12 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+	flag.CommandLine.Lookup("v").Value.Set("5")
+	flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
+}
 
 var (
 	version_0_0_1 = map[string]interface{}{
