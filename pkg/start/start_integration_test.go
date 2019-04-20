@@ -666,7 +666,7 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
-	if err := controllers.CVO.InitializeFromPayload(); err != nil {
+	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		t.Fatal(err)
 	}
 

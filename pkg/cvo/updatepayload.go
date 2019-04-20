@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
 
 func (optr *Operator) defaultPayloadDir() string {
@@ -37,6 +39,7 @@ func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
 		nodeName:     optr.nodename,
 		payloadDir:   optr.defaultPayloadDir(),
 		workingDir:   targetUpdatePayloadsDir,
+		verifier:     optr.verifier,
 	}
 }
 
@@ -56,6 +59,9 @@ type payloadRetriever struct {
 	namespace    string
 	nodeName     string
 	operatorName string
+
+	// verifier guards against invalid remote data being accessed
+	verifier verify.Interface
 }
 
 func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
@@ -65,6 +71,20 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 	if len(update.Image) == 0 {
 		return "", fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
+	}
+
+	// verify the provided payload
+	var releaseDigest string
+	if index := strings.LastIndex(update.Image, "@"); index != -1 {
+		releaseDigest = update.Image[index+1:]
+	}
+	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
+		// TDOO: allow override via configv1.Update flag
+		return "", &payload.UpdateError{
+			Reason:  "PayloadVerificationFailed",
+			Message: fmt.Sprintf("The update cannot be verified: %v", err),
+			Nested:  err,
+		}
 	}
 
 	tdir, err := r.targetUpdatePayloadDir(ctx, update)

@@ -135,8 +135,6 @@ func New(
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
-	restConfig *rest.Config,
-	burstRestConfig *rest.Config,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	enableMetrics bool,
@@ -164,17 +162,6 @@ func New(
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
-	optr.configSync = NewSyncWorker(
-		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(restConfig, burstRestConfig, coInformer.Lister()),
-		minimumInterval,
-		wait.Backoff{
-			Duration: time.Second * 10,
-			Factor:   1.3,
-			Steps:    3,
-		},
-	)
-
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.coLister = coInformer.Lister()
@@ -191,8 +178,10 @@ func New(
 	return optr
 }
 
-// InitializeFromPayload retrieves the payload contents and verifies the initial state.
-func (optr *Operator) InitializeFromPayload() error {
+// InitializeFromPayload retrieves the payload contents and verifies the initial state, then configures the
+// controller that loads and applies content to the cluster. It returns an error if the payload appears to
+// be in error rather than continuing.
+func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
@@ -217,6 +206,19 @@ func (optr *Operator) InitializeFromPayload() error {
 		verifier = verify.Reject
 	}
 	optr.verifier = verifier
+
+	// after the verifier has been loaded, initialize the sync worker with a payload retriever
+	// which will consume the verifier
+	optr.configSync = NewSyncWorker(
+		optr.defaultPayloadRetriever(),
+		NewResourceBuilder(restConfig, burstRestConfig, optr.coLister),
+		optr.minimumUpdateCheckInterval,
+		wait.Backoff{
+			Duration: time.Second * 10,
+			Factor:   1.3,
+			Steps:    3,
+		},
+	)
 
 	return nil
 }
