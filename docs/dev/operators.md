@@ -12,7 +12,12 @@ contains the basic deployment and other roles for the CVO. The `/release-manifes
 created by the `oc adm release new` command from the `/manifests` directories of all other
 candidate operators.
 
-The contents of `/release-manifests` are applied in lexigraphic order, exactly as `ls` would
+In install and reconciliation, the CVO runs components in random, parallel fashion and retrying
+as necessary. Within a component the manifests are run in lexographic order, but between components
+no ordering is enforced. Installs run fully parallel, while reconciliation runs small batches at
+a time.
+
+During upgrades, the contents of `/release-manifests` are applied in order, exactly as `ls` would
 return on a standard Linux or Unix derivative. The CVO supports the idea of "run levels" by
 defining a convention for how operators that wish to run before other operators should name
 their manifests. A run level is of the form `0000_\d\d_[a-z0-9\-]+_<filename>` where the first
@@ -25,7 +30,7 @@ components that have the same run level - for instance, `0000_70_cluster-monitor
 `0000_70_cluster-samples-operator_*` - each component will execute in parallel to the others,
 preserving the order of tasks within the component.
 
-Ordering is most important during upgrades, where some components rely on another component
+Ordering is only applied during upgrades, where some components rely on another component
 being updated first. As a convenience, the CVO guarantees that components at an earlier
 run level will be created or updated before your component is invoked. Note however that
 components without `ClusterOperator` objects defined may not be fully deployed when your
