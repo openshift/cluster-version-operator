@@ -19,6 +19,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -123,7 +124,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{}
-			worker.builder = NewResourceBuilder(nil, nil, nil)
+			worker.builder = NewResourceBuilder(nil, nil, record.NewFakeRecorder(100), nil)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

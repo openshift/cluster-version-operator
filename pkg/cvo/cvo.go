@@ -153,13 +153,13 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
 
 	optr.configSync = NewSyncWorker(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(restConfig, burstRestConfig, coInformer.Lister()),
+		NewResourceBuilder(restConfig, burstRestConfig, optr.eventRecorder, coInformer.Lister()),
 		minimumInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
@@ -470,14 +470,16 @@ type resourceBuilder struct {
 	burstConfig *rest.Config
 	modifier    resourcebuilder.MetaV1ObjectModifierFunc
 
+	eventRecorder    record.EventRecorder
 	clusterOperators internal.ClusterOperatorsGetter
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
+func NewResourceBuilder(config, burstConfig *rest.Config, eventRecorder record.EventRecorder, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
 	return &resourceBuilder{
 		config:           config,
 		burstConfig:      burstConfig,
+		eventRecorder:    eventRecorder,
 		clusterOperators: clusterOperators,
 	}
 }
@@ -489,7 +491,7 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	}
 
 	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
-		return internal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
+		return internal.NewClusterOperatorBuilder(b.clusterOperators, *m, b.eventRecorder), nil
 	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)

@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
@@ -479,7 +480,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 
 			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
 			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode)
+			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode, record.NewFakeRecorder(100))
 			if (test.expErr == nil) != (err == nil) {
 				t.Fatalf("unexpected error: %v", err)
 			}

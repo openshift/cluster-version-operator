@@ -9,11 +9,13 @@ import (
 	"time"
 	"unicode"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -26,17 +28,12 @@ import (
 var (
 	osScheme = runtime.NewScheme()
 	osCodecs = serializer.NewCodecFactory(osScheme)
-
-	osMapper = resourcebuilder.NewResourceMapper()
 )
 
 func init() {
 	if err := configv1.AddToScheme(osScheme); err != nil {
 		panic(err)
 	}
-
-	osMapper.RegisterGVK(configv1.SchemeGroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
-	osMapper.AddToMap(resourcebuilder.Mapper)
 }
 
 // readClusterOperatorV1OrDie reads clusteroperator object from bytes. Panics on error.
@@ -49,16 +46,18 @@ func readClusterOperatorV1OrDie(objBytes []byte) *configv1.ClusterOperator {
 }
 
 type clusterOperatorBuilder struct {
-	client   ClusterOperatorsGetter
+	client        ClusterOperatorsGetter
+	eventRecorder record.EventRecorder
+
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
 	mode     resourcebuilder.Mode
 }
 
-func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
+func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest, eventRecorder record.EventRecorder) resourcebuilder.Interface {
 	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{
 		getter: configclientv1.NewForConfigOrDie(config).ClusterOperators(),
-	}, m)
+	}, m, eventRecorder)
 }
 
 // ClusterOperatorsGetter abstracts object access with a client or a cache lister.
@@ -76,10 +75,11 @@ func (g clientClusterOperatorsGetter) Get(name string) (*configv1.ClusterOperato
 
 // NewClusterOperatorBuilder accepts the ClusterOperatorsGetter interface which may be implemented by a
 // client or a lister cache.
-func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m lib.Manifest) resourcebuilder.Interface {
+func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m lib.Manifest, eventRecorder record.EventRecorder) resourcebuilder.Interface {
 	return &clusterOperatorBuilder{
-		client: client,
-		raw:    m.Raw,
+		client:        client,
+		eventRecorder: eventRecorder,
+		raw:           m.Raw,
 	}
 }
 
@@ -98,10 +98,20 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(os)
 	}
-	return waitForOperatorStatusToBeDone(ctx, 1*time.Second, b.client, os, b.mode)
+	return waitForOperatorStatusToBeDone(ctx, 1*time.Second, b.client, os, b.mode, b.eventRecorder)
 }
 
-func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
+func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode, eventRecorder record.EventRecorder) error {
+	// involvedObjectRef sets the namespace events go into
+	involvedObjectRef := &corev1.ObjectReference{
+		Namespace: "openshift-cluster-version",
+		Name:      "cvo",
+	}
+	startTime := time.Now()
+
+	// we emit the start event so that watching events tells a high level of story of what we're waiting for when.
+	eventRecorder.Eventf(involvedObjectRef, corev1.EventTypeNormal, "ClusterOperatorWaitStarted", "start waiting for clusteroperator/%s", expected.Name)
+
 	var lastErr error
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.Get(expected.Name)
@@ -238,12 +248,20 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 		}
 		return false, nil
 	}, ctx.Done())
+
+	// how long we waited
+	duration := time.Now().Sub(startTime)
+
 	if err != nil {
 		if err == wait.ErrWaitTimeout && lastErr != nil {
+			eventRecorder.Eventf(involvedObjectRef, corev1.EventTypeWarning, "ClusterOperatorWaitFailed", "error waiting for clusteroperator/%s after %v: %v", expected.Name, duration, lastErr)
 			return lastErr
 		}
+		eventRecorder.Eventf(involvedObjectRef, corev1.EventTypeWarning, "ClusterOperatorWaitFailed", "error waiting for clusteroperator/%s after %v: %v", expected.Name, duration, lastErr)
 		return err
 	}
+
+	eventRecorder.Eventf(involvedObjectRef, corev1.EventTypeNormal, "ClusterOperatorWaitSucceeded", "finished waiting for clusteroperator/%s after %v", expected.Name, duration)
 	return nil
 }
 

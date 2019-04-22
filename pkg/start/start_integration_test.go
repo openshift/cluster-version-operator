@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/tools/record"
+
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -230,7 +232,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, record.NewFakeRecorder(500), nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -382,7 +384,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}).(*cvo.SyncWorker)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, record.NewFakeRecorder(500), nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -488,7 +490,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, record.NewFakeRecorder(500), nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, ns, ns)
@@ -658,7 +660,7 @@ metadata:
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, record.NewFakeRecorder(500), nil), 5*time.Second, wait.Backoff{Steps: 3}).(*cvo.SyncWorker)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
