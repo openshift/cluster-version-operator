@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"k8s.io/klog"
 )
 
 const (
@@ -21,11 +21,14 @@ var (
 )
 
 func init() {
+	klog.InitFlags(flag.CommandLine)
+	flag.CommandLine.Set("alsologtostderr", "true")
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 }
 
 func main() {
+	defer klog.Flush()
 	if err := rootCmd.Execute(); err != nil {
-		glog.Exitf("Error executing mcc: %v", err)
+		klog.Exitf("Error executing mcc: %v", err)
 	}
 }

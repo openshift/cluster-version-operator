@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -34,12 +34,12 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	flag.Parse()
 
 	if renderOpts.outputDir == "" {
-		glog.Fatalf("missing --output-dir flag, it is required")
+		klog.Fatalf("missing --output-dir flag, it is required")
 	}
 	if renderOpts.releaseImage == "" {
-		glog.Fatalf("missing --release-image flag, it is required")
+		klog.Fatalf("missing --release-image flag, it is required")
 	}
 	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
-		glog.Fatalf("Render command failed: %v", err)
+		klog.Fatalf("Render command failed: %v", err)
 	}
 }

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 
 	"github.com/openshift/cluster-version-operator/pkg/version"
@@ -22,8 +21,5 @@ func init() {
 }
 
 func runVersionCmd(cmd *cobra.Command, args []string) {
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-
 	fmt.Println(version.String)
 }
