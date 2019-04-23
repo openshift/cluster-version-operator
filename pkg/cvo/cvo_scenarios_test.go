@@ -161,7 +161,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to update cluster"},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Message: "No configured operator version, unable to update cluster"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply <unknown>: an error occurred"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -204,7 +204,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -290,7 +290,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -386,7 +386,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -549,7 +549,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -706,7 +706,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -873,7 +873,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 33% complete, waiting on operator-1, operator-2"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -915,7 +915,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -974,7 +974,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},

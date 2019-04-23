@@ -718,7 +718,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		verifyClusterVersionHistory(t, cv)
 
 		if !allowIncrementalFailure {
-			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing")); failing != nil && failing.Status == configv1.ConditionTrue {
 				return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 			}
 		}
@@ -786,7 +786,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 			return false, nil
 		}
 
-		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing")); failing != nil && failing.Status == configv1.ConditionTrue {
 			return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 		}
 
@@ -831,7 +831,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 
 		// just wait until the operator is failing
 		if len(versions) == 0 {
-			c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
+			c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 			return c != nil && c.Status == configv1.ConditionTrue, nil
 		}
 
@@ -896,7 +896,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			return false, fmt.Errorf("upgrading operator to failed image should remain partial: %#v", cv.Status.History)
 		}
 
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 		if failing == nil || failing.Status != configv1.ConditionTrue {
 			return false, nil
 		}

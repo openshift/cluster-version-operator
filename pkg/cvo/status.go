@@ -216,7 +216,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 		// set the failing condition
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.OperatorFailing,
+			Type:               configv1.ClusterStatusConditionType("Failing"),
 			Status:             configv1.ConditionTrue,
 			Reason:             reason,
 			Message:            err.Error(),
@@ -244,7 +244,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 	} else {
 		// clear the failure condition
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse, LastTransitionTime: now})
 
 		// update progressing
 		if status.Reconciling {
@@ -360,7 +360,7 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 
 	// reset the failing message
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:               configv1.OperatorFailing,
+		Type:               configv1.ClusterStatusConditionType("Failing"),
 		Status:             configv1.ConditionTrue,
 		Message:            ierr.Error(),
 		LastTransitionTime: now,
