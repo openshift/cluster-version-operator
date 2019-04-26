@@ -169,6 +169,11 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		Overrides:  overrides,
 	}
 
+	// the sync worker’s generation should always be latest with every change
+	if w.work != nil {
+		w.work.Generation = generation
+	}
+
 	if work.Empty() || equalSyncWork(w.work, work) {
 		return w.status.DeepCopy()
 	}
@@ -318,6 +323,11 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	}
 	if status.Fraction > p.Fraction || status.Completed > p.Completed || (status.Failure == nil && status.Actual != p.Actual) {
 		status.LastProgress = time.Now()
+	}
+	if status.Generation == 0 {
+		status.Generation = p.Generation
+	} else if status.Generation < p.Generation {
+		glog.Warningf("Received a Generation(%d) lower than previously known Generation(%d), this is most probably an internal error", status.Generation, p.Generation)
 	}
 	w.w.updateStatus(status)
 }

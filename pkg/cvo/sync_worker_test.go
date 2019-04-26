@@ -8,7 +8,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
-func Test_statusWrapper_Report(t *testing.T) {
+func Test_statusWrapper_ReportProgress(t *testing.T) {
 	tests := []struct {
 		name         string
 		previous     SyncWorkerStatus
@@ -106,6 +106,43 @@ func Test_statusWrapper_Report(t *testing.T) {
 	}
 }
 
+func Test_statusWrapper_ReportGeneration(t *testing.T) {
+	tests := []struct {
+		name     string
+		previous SyncWorkerStatus
+		next     SyncWorkerStatus
+		want     int64
+	}{{
+		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Fraction: 0.1},
+		next:     SyncWorkerStatus{Step: "RetreivePayload"},
+		want:     1,
+	}, {
+		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Fraction: 0.1},
+		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Fraction: 0.5},
+		want:     2,
+	}, {
+		previous: SyncWorkerStatus{Generation: 5, Step: "Apply", Fraction: 0.7},
+		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Fraction: 0.5},
+		want:     2,
+	}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &statusWrapper{
+				previousStatus: &tt.previous,
+			}
+			w.w = &SyncWorker{report: make(chan SyncWorkerStatus, 1)}
+			w.Report(tt.next)
+			close(w.w.report)
+
+			select {
+			case evt := <-w.w.report:
+				if tt.want != evt.Generation {
+					t.Fatalf("mismatch: expected generation: %d, got generation: %d", tt.want, evt.Generation)
+				}
+			}
+		})
+	}
+}
 func Test_runThrottledStatusNotifier(t *testing.T) {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
