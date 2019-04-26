@@ -253,7 +253,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -284,7 +284,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -326,7 +326,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -357,7 +357,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -400,7 +400,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -431,7 +431,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -469,7 +469,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "unable to apply object"},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -501,7 +501,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "foo",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "injected error"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Message: "injected error"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 0.0.1-abc: an error occurred"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -553,7 +553,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "file does not exist"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Message: "file does not exist"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 4.0.1: an error occurred"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -620,7 +620,7 @@ func TestOperator_sync(t *testing.T) {
 							// the order of progressing in the conditions array is preserved
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 4.0.1: an error occurred"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Message: "file does not exist"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Message: "file does not exist"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -677,7 +677,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards image/image:v4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -718,7 +718,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards image/image:v4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -761,7 +761,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -815,7 +815,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -868,7 +868,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							// we don't reset the message here until the image is loaded
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -925,7 +925,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							// we don't reset the message here until the image is loaded
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -976,7 +976,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 33% complete"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -1072,7 +1072,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "DownloadingUpdate", Message: "Working towards image/image:v4.0.1: downloading update"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -1113,7 +1113,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards image/image:v4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1145,7 +1145,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "xyz",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 0.0.1-abc"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1195,7 +1195,7 @@ func TestOperator_sync(t *testing.T) {
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -1251,7 +1251,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -1287,7 +1287,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionTrue},
 						},
 					},
@@ -1334,7 +1334,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -1370,7 +1370,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionTrue},
 						},
 					},
@@ -1416,7 +1416,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -1448,7 +1448,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -1509,7 +1509,7 @@ func TestOperator_sync(t *testing.T) {
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1582,7 +1582,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.4\": when image is empty the update must be a previous version or an available update"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 4.0.1: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1657,7 +1657,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.3\": there are multiple possible payloads for this version, specify the exact image"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 4.0.1: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1708,7 +1708,7 @@ func TestOperator_sync(t *testing.T) {
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -1768,7 +1768,7 @@ func TestOperator_sync(t *testing.T) {
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -1807,7 +1807,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash:        "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1868,7 +1868,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid:\n* spec.upstream: Invalid value: \"#%GG\": must be a valid URL or empty\n* spec.clusterID: Invalid value: \"not-valid-cluster-id\": must be an RFC4122-variant UUID\n"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 0.0.1-abc: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
@@ -1904,7 +1904,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at image/image:v4.0.1: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid:\n* spec.upstream: Invalid value: \"#%GG\": must be a valid URL or empty\n* spec.clusterID: Invalid value: \"not-valid-cluster-id\": must be an RFC4122-variant UUID\n"},
@@ -1943,7 +1943,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "Reconciling 0.0.1-abc: the cluster version is invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid:\n* spec.upstream: Invalid value: \"#%GG\": must be a valid URL or empty\n* spec.clusterID: Invalid value: \"not-valid-cluster-id\": must be an RFC4122-variant UUID\n"},
@@ -2155,7 +2155,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
 							},
 						},
@@ -2206,7 +2206,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
@@ -2262,7 +2262,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},
@@ -2318,7 +2318,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed", Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error"},
 							},

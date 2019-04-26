@@ -177,7 +177,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -212,7 +212,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.OperatorFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
+							{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Error ensuring the cluster version is up to date: bad"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},

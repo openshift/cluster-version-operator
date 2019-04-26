@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +27,7 @@ import (
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -32,6 +35,12 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+	flag.CommandLine.Lookup("v").Value.Set("5")
+	flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
+}
 
 var (
 	version_0_0_1 = map[string]interface{}{
@@ -657,7 +666,7 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
-	if err := controllers.CVO.InitializeFromPayload(); err != nil {
+	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -718,7 +727,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		verifyClusterVersionHistory(t, cv)
 
 		if !allowIncrementalFailure {
-			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing")); failing != nil && failing.Status == configv1.ConditionTrue {
 				return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 			}
 		}
@@ -786,7 +795,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 			return false, nil
 		}
 
-		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing")); failing != nil && failing.Status == configv1.ConditionTrue {
 			return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 		}
 
@@ -831,7 +840,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 
 		// just wait until the operator is failing
 		if len(versions) == 0 {
-			c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
+			c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 			return c != nil && c.Status == configv1.ConditionTrue, nil
 		}
 
@@ -896,7 +905,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			return false, fmt.Errorf("upgrading operator to failed image should remain partial: %#v", cv.Status.History)
 		}
 
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 		if failing == nil || failing.Status != configv1.ConditionTrue {
 			return false, nil
 		}
@@ -1094,10 +1103,12 @@ type mapPayloadRetriever struct {
 	Paths map[string]string
 }
 
-func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
+func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (cvo.PayloadInfo, error) {
 	path, ok := r.Paths[update.Image]
 	if !ok {
-		return "", fmt.Errorf("no image found for %q", update.Image)
+		return cvo.PayloadInfo{}, fmt.Errorf("no image found for %q", update.Image)
 	}
-	return path, nil
+	return cvo.PayloadInfo{
+		Directory: path,
+	}, nil
 }

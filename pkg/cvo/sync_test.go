@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
@@ -403,21 +404,23 @@ func (b *fakeResourceBuilder) Apply(m *lib.Manifest) error {
 }
 
 type fakeDirectoryRetriever struct {
-	Path string
+	lock sync.Mutex
+
+	Info PayloadInfo
 	Err  error
 }
 
-func (r *fakeDirectoryRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (string, error) {
-	return r.Path, r.Err
+func (r *fakeDirectoryRetriever) Set(info PayloadInfo, err error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	r.Info = info
+	r.Err = err
 }
 
-type fakePayloadRetriever struct {
-	Dir string
-	Err error
-}
-
-func (r *fakePayloadRetriever) RetrievePayload(ctx context.Context, desired configv1.Update) (string, error) {
-	return r.Dir, r.Err
+func (r *fakeDirectoryRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (PayloadInfo, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+	return r.Info, r.Err
 }
 
 // testResourceBuilder uses a fake dynamic client to exercise the generic builder in tests.

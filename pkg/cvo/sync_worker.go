@@ -33,9 +33,26 @@ type ConfigSyncWorker interface {
 	StatusCh() <-chan SyncWorkerStatus
 }
 
+// PayloadInfo returns details about the payload when it was retrieved.
+type PayloadInfo struct {
+	// Directory is the path on disk where the payload is rooted.
+	Directory string
+	// Local is true if the payload was the payload associated with the operator image.
+	Local bool
+
+	// Verified is true if the payload was explicitly verified against the root of trust.
+	// If unset and VerificationFailure is nil, the payload should be considered to not have
+	// had verification attempted.
+	Verified bool
+	// VerificationFailure is any error returned by attempting to verify the payload.
+	VerificationError error
+}
+
 // PayloadRetriever abstracts how a desired version is extracted to disk. Introduced for testing.
 type PayloadRetriever interface {
-	RetrievePayload(ctx context.Context, desired configv1.Update) (string, error)
+	// RetrievePayload attempts to retrieve the desired payload, returning info about the payload
+	// or an error.
+	RetrievePayload(ctx context.Context, desired configv1.Update) (PayloadInfo, error)
 }
 
 // StatusReporter abstracts how status is reported by the worker run method. Introduced for testing.
@@ -78,7 +95,8 @@ type SyncWorkerStatus struct {
 
 	LastProgress time.Time
 
-	Actual configv1.Update
+	Actual   configv1.Update
+	Verified bool
 }
 
 // DeepCopy copies the worker status.
@@ -376,6 +394,9 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 
 // equalUpdate returns true if two updates have the same image.
 func equalUpdate(a, b configv1.Update) bool {
+	if a.Force != b.Force {
+		return false
+	}
 	return a.Image == b.Image
 }
 
@@ -429,24 +450,49 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
-	glog.V(4).Infof("Running sync %s on generation %d in state %s at attempt %d", versionString(work.Desired), work.Generation, work.State, work.Attempt)
+	glog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 	update := work.Desired
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
 	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, update) {
 		glog.V(4).Infof("Loading payload")
-		reporter.Report(SyncWorkerStatus{Step: "RetrievePayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
-		payloadDir, err := w.retriever.RetrievePayload(ctx, update)
+		reporter.Report(SyncWorkerStatus{
+			Generation:  work.Generation,
+			Step:        "RetrievePayload",
+			Initial:     work.State.Initializing(),
+			Reconciling: work.State.Reconciling(),
+			Actual:      update,
+		})
+		info, err := w.retriever.RetrievePayload(ctx, update)
 		if err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Step: "RetrievePayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
+			reporter.Report(SyncWorkerStatus{
+				Generation:  work.Generation,
+				Failure:     err,
+				Step:        "RetrievePayload",
+				Initial:     work.State.Initializing(),
+				Reconciling: work.State.Reconciling(),
+				Actual:      update,
+			})
 			return err
 		}
-		payloadUpdate, err := payload.LoadUpdate(payloadDir, update.Image)
+
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image)
 		if err != nil {
-			reporter.Report(SyncWorkerStatus{Failure: err, Step: "VerifyPayload", Initial: work.State.Initializing(), Reconciling: work.State.Reconciling(), Actual: update})
+			reporter.Report(SyncWorkerStatus{
+				Generation:  work.Generation,
+				Failure:     err,
+				Step:        "VerifyPayload",
+				Initial:     work.State.Initializing(),
+				Reconciling: work.State.Reconciling(),
+				Actual:      update,
+				Verified:    info.Verified,
+			})
 			return err
 		}
+		payloadUpdate.VerifiedImage = info.Verified
+		payloadUpdate.LoadedAt = time.Now()
+
 		w.payload = payloadUpdate
 		glog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
@@ -461,6 +507,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	update := configv1.Update{
 		Version: payloadUpdate.ReleaseVersion,
 		Image:   payloadUpdate.ReleaseImage,
+		Force:   work.Desired.Force,
 	}
 
 	// encapsulate status reporting in a threadsafe updater
@@ -473,6 +520,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			Reconciling: work.State.Reconciling(),
 			VersionHash: payloadUpdate.ManifestHash,
 			Actual:      update,
+			Verified:    payloadUpdate.VerifiedImage,
 		},
 		completed: work.Completed,
 		version:   version,
@@ -650,6 +698,17 @@ func isCancelledError(err error) bool {
 	}
 	_, ok := err.(errCanceled)
 	return ok
+}
+
+func isImageVerificationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	updateErr, ok := err.(*payload.UpdateError)
+	if !ok {
+		return false
+	}
+	return updateErr.Reason == "ImageVerificationFailed"
 }
 
 // summarizeTaskGraphErrors takes a set of errors returned by the execution of a graph and attempts

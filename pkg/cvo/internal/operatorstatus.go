@@ -176,7 +176,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 				available = true
 			case condition.Type == configv1.OperatorProgressing && condition.Status == configv1.ConditionFalse:
 				progressing = false
-			case condition.Type == configv1.OperatorFailing:
+			case condition.Type == configv1.ClusterStatusConditionType("Failing"):
 				if condition.Status == configv1.ConditionFalse {
 					failing = false
 				}

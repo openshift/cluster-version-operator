@@ -1,11 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -25,15 +24,12 @@ func init() {
 }
 
 func runImageCmd(cmd *cobra.Command, args []string) {
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-
 	if len(args) == 0 {
-		glog.Fatalf("missing command line argument short-name")
+		klog.Fatalf("missing command line argument short-name")
 	}
 	image, err := payload.ImageForShortName(args[0])
 	if err != nil {
-		glog.Fatalf("error: %v", err)
+		klog.Fatalf("error: %v", err)
 	}
 	fmt.Printf(image)
 }

@@ -142,7 +142,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorFailing)
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
 			g := m.version.WithLabelValues("desired", update.Version, update.Image)
 			g.Set(float64(mostRecentTimestamp(cv)))
@@ -215,7 +215,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			break
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorFailing)
+		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
 			g.Set(1)

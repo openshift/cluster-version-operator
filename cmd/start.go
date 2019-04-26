@@ -1,12 +1,11 @@
 package main
 
 import (
-	"flag"
+	"github.com/spf13/cobra"
+	"k8s.io/klog"
 
-	"github.com/golang/glog"
 	"github.com/openshift/cluster-version-operator/pkg/start"
 	"github.com/openshift/cluster-version-operator/pkg/version"
-	"github.com/spf13/cobra"
 )
 
 func init() {
@@ -16,14 +15,11 @@ func init() {
 		Short: "Starts Cluster Version Operator",
 		Long:  "",
 		Run: func(cmd *cobra.Command, args []string) {
-			flag.Set("logtostderr", "true")
-			flag.Parse()
-
 			// To help debugging, immediately log version
-			glog.Infof("%s", version.String)
+			klog.Infof("%s", version.String)
 
 			if err := opts.Run(); err != nil {
-				glog.Fatalf("error: %v", err)
+				klog.Fatalf("error: %v", err)
 			}
 		},
 	}

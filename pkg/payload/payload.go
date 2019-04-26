@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
@@ -90,6 +91,9 @@ type Update struct {
 	ReleaseImage   string
 	ReleaseVersion string
 	// XXX: cincinatti.json struct
+
+	VerifiedImage bool
+	LoadedAt      time.Time
 
 	ImageRef *imagev1.ImageStream
 
