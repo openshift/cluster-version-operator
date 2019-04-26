@@ -773,8 +773,8 @@ func TestRunGraph(t *testing.T) {
 				t.Fatalf("unexpected error: %v", messages)
 			}
 			for i, want := range tt.wantErrs {
-				if !strings.Contains(errs[i].Error(), want) {
-					t.Errorf("error %d %q doesn't contain %q", i, errs[i].Error(), want)
+				if !strings.Contains(messages[i], want) {
+					t.Errorf("error %d %q doesn't contain %q", i, messages[i], want)
 				}
 			}
 		})
