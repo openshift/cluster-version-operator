@@ -110,7 +110,8 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 		}
 	}
 
-	pruneStatusHistory(config, 10)
+	// TODO: prune Z versions over transitions to Y versions, keep initial installed version
+	pruneStatusHistory(config, 50)
 
 	config.Status.Desired = desired
 }
