@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/utils/pointer"
 )
 
@@ -16,14 +17,98 @@ func TestEnsurePodSpec(t *testing.T) {
 
 		expectedModified bool
 		expected         corev1.PodSpec
-	}{{
-		name:     "empty inputs",
-		existing: corev1.PodSpec{},
-		input:    corev1.PodSpec{},
+	}{
+		{
+			name:     "empty inputs",
+			existing: corev1.PodSpec{},
+			input:    corev1.PodSpec{},
 
-		expectedModified: false,
-		expected:         corev1.PodSpec{},
-	}}
+			expectedModified: false,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "remove regular containers from existing",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+			input: corev1.PodSpec{},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "remove regular and init containers from existing",
+			existing: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init"}},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+			input: corev1.PodSpec{},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "remove init containers from existing",
+			existing: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init"}}},
+			input: corev1.PodSpec{},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "append regular and init containers",
+			existing: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init-a"}},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-a"}}},
+			input: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init-a"},
+					corev1.Container{Name: "test-init-b"},
+				},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-a"},
+					corev1.Container{Name: "test-b"},
+				},
+			},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init-a"},
+					corev1.Container{Name: "test-init-b"},
+				},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-a"},
+					corev1.Container{Name: "test-b"},
+				},
+			},
+		},
+		{
+			name: "match regular and init containers",
+			existing: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init"}},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+			input: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init"}},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+
+			expectedModified: false,
+			expected: corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					corev1.Container{Name: "test-init"}},
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+		},
+	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -34,7 +119,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			}
 
 			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
-				t.Errorf("mismatch PodSpec got: %v want: %v", test.existing, test.expected)
+				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
 			}
 		})
 	}
