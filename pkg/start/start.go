@@ -132,7 +132,7 @@ func (o *Options) Run() error {
 
 		// exit after 2s no matter what
 		select {
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			glog.Fatalf("Exiting")
 		case <-ch:
 			glog.Fatalf("Received shutdown signal twice, exiting")
