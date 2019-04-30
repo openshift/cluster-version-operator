@@ -739,9 +739,11 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		}
 
 		if len(versions) == 1 {
-			// we should not observe status.generation == metadata.generation without also observing a status history entry
+			// we should not observe status.generation == metadata.generation without also observing a status history entry - if
+			// a version is set, it must match our desired version (we can occasionally observe a "working towards" event where only
+			// the image value is set, not the version)
 			if cv.Status.ObservedGeneration == cv.Generation {
-				if len(cv.Status.History) == 0 || cv.Status.History[0].Version != versions[0] {
+				if len(cv.Status.History) == 0 || (cv.Status.History[0].Version != "" && cv.Status.History[0].Version != versions[0]) {
 					return false, fmt.Errorf("initializing operator should set history and generation at the same time")
 				}
 			}
@@ -770,10 +772,11 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		// we should not observe status.generation == metadata.generation without also observing a status history entry
 		if cv.Status.ObservedGeneration == cv.Generation {
 			target := versions[len(versions)-1]
-			if cv.Status.Desired.Version != target {
+			hasVersion := cv.Status.Desired.Version != ""
+			if hasVersion && cv.Status.Desired.Version != target {
 				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
 			}
-			if len(cv.Status.History) == 0 || cv.Status.History[0].Version != target {
+			if len(cv.Status.History) == 0 || (hasVersion && cv.Status.History[0].Version != target) {
 				return false, fmt.Errorf("upgrading operator should set history and generation at the same time")
 			}
 		}
@@ -873,10 +876,11 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		// we should not observe status.generation == metadata.generation without also observing a status history entry
 		if cv.Status.ObservedGeneration == cv.Generation {
 			target := versions[len(versions)-1]
-			if cv.Status.Desired.Version != target {
+			hasVersion := cv.Status.Desired.Version != ""
+			if hasVersion && cv.Status.Desired.Version != target {
 				return false, fmt.Errorf("upgrading operator should always have desired version when spec version is set")
 			}
-			if len(cv.Status.History) == 0 || cv.Status.History[0].Version != target {
+			if len(cv.Status.History) == 0 || (hasVersion && cv.Status.History[0].Version != target) {
 				return false, fmt.Errorf("upgrading operator should set history and generation at the same time")
 			}
 		}

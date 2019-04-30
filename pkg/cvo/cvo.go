@@ -226,8 +226,11 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
 func (optr *Operator) Run(ctx context.Context, workers int) {
 	defer utilruntime.HandleCrash()
-	defer optr.queue.ShutDown()
+	// TODO: when Kube 77170 is fixed we can remove the use of the once here
+	var shutdownOnce sync.Once
+	defer shutdownOnce.Do(func() { optr.queue.ShutDown() })
 	stopCh := ctx.Done()
+	workerStopCh := make(chan struct{})
 
 	glog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
 	defer glog.Info("Shutting down ClusterVersionOperator")
@@ -243,11 +246,22 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
 	go optr.configSync.Start(ctx, 16)
-
-	go wait.Until(func() { optr.worker(optr.queue, optr.sync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
+	go wait.Until(func() {
+		defer close(workerStopCh)
+
+		// run the worker, then when the queue is closed sync one final time to flush any pending status
+		optr.worker(optr.queue, optr.sync)
+		if err := optr.sync(optr.queueKey()); err != nil {
+			utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
+		}
+	}, time.Second, stopCh)
 
 	<-stopCh
+
+	// stop the queue, then wait for the worker to exit
+	shutdownOnce.Do(func() { optr.queue.ShutDown() })
+	<-workerStopCh
 }
 
 func (optr *Operator) queueKey() string {
