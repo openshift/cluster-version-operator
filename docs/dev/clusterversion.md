@@ -50,15 +50,32 @@ kind: DaemonSet
 metadata:
   name: cluster-network-operator
   namespace: openshift-cluster-network-operator
-$ cat <<EOF >version-patch.yaml
-> - op: add
->   path: /spec/overrides/-
->   value:
->     kind: DaemonSet
->     name: cluster-network-operator
->     namespace: openshift-cluster-network-operator
->     unmanaged: true
-> EOF
+```
+If there are currently no other overrides configured:
+```console
+$ cat <<EOF >version-patch-first-override.yaml
+- op: add
+  path: /spec/overrides
+  value:
+  - kind: DaemonSet
+    name: cluster-network-operator
+    namespace: openshift-cluster-network-operator
+    unmanaged: true
+EOF
+```
+To add to list of already existing overrides:
+```console
+$ cat <<EOF >version-patch-add-override.yaml
+- op: add
+  path: /spec/overrides/-
+  value:
+    kind: DaemonSet
+    name: cluster-network-operator
+    namespace: openshift-cluster-network-operator
+    unmanaged: true
+EOF
+```
+```console
 $ oc patch clusterversion version --type json -p "$(cat version-patch.yaml)"
 ```
 
