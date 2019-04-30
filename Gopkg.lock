@@ -42,6 +42,14 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:53151cc4366e3945282d4b783fd41f35222cabbc75601e68d8133648c63498d1"
+  name = "github.com/gobuffalo/envy"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "043cb4b8af871b49563291e32c66bb84378a60ac"
+  version = "v1.7.0"
+
+[[projects]]
   digest = "1:8679b8a64f3613e9749c5640c3535c83399b8e69f67ce54d91dc73f6d77373af"
   name = "github.com/gogo/protobuf"
   packages = [
@@ -156,12 +164,28 @@
   version = "v1.0"
 
 [[projects]]
+  digest = "1:da62aa6632d04e080b8a8b85a59ed9ed1550842a0099a55f3ae3a20d02a3745a"
+  name = "github.com/joho/godotenv"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "23d116af351c84513e1946b527c88823e476be13"
+  version = "v1.3.0"
+
+[[projects]]
   digest = "1:0243cffa4a3410f161ee613dfdd903a636d07e838a42d341da95d81f42cd1d41"
   name = "github.com/json-iterator/go"
   packages = ["."]
   pruneopts = "NUT"
   revision = "ab8a2e0c74be9d3be70b3184d9acc634935ded82"
   version = "1.1.4"
+
+[[projects]]
+  digest = "1:56dbf15e091bf7926cb33a57cb6bdfc658fc6d3498d2f76f10a97ce7856f1fde"
+  name = "github.com/markbates/inflect"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "24b83195037b3bc61fcda2d28b7b0518bce293b6"
+  version = "v1.0.4"
 
 [[projects]]
   digest = "1:5985ef4caf91ece5d54817c11ea25f182697534f8ae6521eadcd628c142ac4b6"
@@ -221,6 +245,17 @@
   ]
   pruneopts = "NUT"
   revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
+
+[[projects]]
+  branch = "master"
+  digest = "1:64cbcc543ec1cb552373bb5786b3fb603396fba90e7adf659901b71cfeead8e6"
+  name = "github.com/openshift/library-go"
+  packages = [
+    "cmd/crd-schema-gen",
+    "cmd/crd-schema-gen/generator",
+  ]
+  pruneopts = "T"
+  revision = "f8a04595265370f59e61751050f633861faec718"
 
 [[projects]]
   branch = "master"
@@ -290,6 +325,29 @@
   ]
   pruneopts = "NUT"
   revision = "185b4288413d2a0dd0806f78c90dde719829e5ae"
+
+[[projects]]
+  digest = "1:e09ada96a5a41deda4748b1659cc8953961799e798aea557257b56baee4ecaf3"
+  name = "github.com/rogpeppe/go-internal"
+  packages = [
+    "modfile",
+    "module",
+    "semver",
+  ]
+  pruneopts = "NUT"
+  revision = "438578804ca6f31be148c27683afc419ce47c06e"
+  version = "v1.3.0"
+
+[[projects]]
+  digest = "1:6792bb72ea0e7112157d02e4e175cd421b43d004a853f56316a19beca6e0c074"
+  name = "github.com/spf13/afero"
+  packages = [
+    ".",
+    "mem",
+  ]
+  pruneopts = "NUT"
+  revision = "588a75ec4f32903aa5e39a2619ba6a4631e28424"
+  version = "v1.2.2"
 
 [[projects]]
   digest = "1:343d44e06621142ab09ae0c76c1799104cdfddd3ffb445d78b1adf8dc3ffaf3d"
@@ -478,8 +536,8 @@
   version = "kubernetes-1.13.4"
 
 [[projects]]
-  branch = "origin-4.0-kubernetes-1.12.4"
-  digest = "1:feafda832ac18a71eabea98ed41c358d4d208d08740d53a6c786591117568f5a"
+  branch = "origin-4.1-kubernetes-1.13.4"
+  digest = "1:09167b1f44c6ac3bcd8c1d9356234b2897c279ee14d258004fa0141c08b441c4"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -490,7 +548,7 @@
     "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "36be1826c980fa7ca82d91645e06e3157f159322"
+  revision = "3c74db8dd172051b029f91536c681a1b43694809"
   source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[projects]]
@@ -696,6 +754,22 @@
   revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
 
 [[projects]]
+  branch = "origin-4.1-kubernetes-1.13.4"
+  digest = "1:bfa25f6d0ca1839d884d1d154e99769416fa94334b8ec07692f90624ac364595"
+  name = "sigs.k8s.io/controller-tools"
+  packages = [
+    "pkg/crd/generator",
+    "pkg/crd/util",
+    "pkg/internal/codegen",
+    "pkg/internal/codegen/parse",
+    "pkg/internal/general",
+    "pkg/util",
+  ]
+  pruneopts = "NUT"
+  revision = "61258e1c31f7a84247fd608c0bda7274a50c2d67"
+  source = "https://github.com/openshift/kubernetes-sigs-controller-tools"
+
+[[projects]]
   digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
   name = "sigs.k8s.io/yaml"
   packages = ["."]
@@ -723,6 +797,7 @@
     "github.com/openshift/client-go/config/informers/externalversions/config/v1",
     "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1",
+    "github.com/openshift/library-go/cmd/crd-schema-gen",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
