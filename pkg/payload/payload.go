@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/pkg/errors"
+	"k8s.io/klog"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -207,7 +207,7 @@ type payloadTasks struct {
 }
 
 func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
-	glog.V(4).Infof("Loading updatepayload from %q", dir)
+	klog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
 	}

@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -97,7 +97,7 @@ func (o *Options) Run() error {
 		return fmt.Errorf("missing --release-image flag, it is required")
 	}
 	if len(o.PayloadOverride) > 0 {
-		glog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
+		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
 	}
 
 	// initialize the core objects
@@ -127,15 +127,15 @@ func (o *Options) Run() error {
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		sig := <-ch
-		glog.Infof("Shutting down due to %s", sig)
+		klog.Infof("Shutting down due to %s", sig)
 		cancel()
 
 		// exit after 2s no matter what
 		select {
 		case <-time.After(5 * time.Second):
-			glog.Fatalf("Exiting")
+			klog.Fatalf("Exiting")
 		case <-ch:
-			glog.Fatalf("Received shutdown signal twice, exiting")
+			klog.Fatalf("Received shutdown signal twice, exiting")
 		}
 	}()
 
@@ -150,7 +150,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		mux.Handle("/metrics", promhttp.Handler())
 		go func() {
 			if err := http.ListenAndServe(o.ListenAddr, mux); err != nil {
-				glog.Fatalf("Unable to start metrics server: %v", err)
+				klog.Fatalf("Unable to start metrics server: %v", err)
 			}
 		}()
 	}
@@ -175,7 +175,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					//   and client-go ContextCancelable, which allows us to block new API requests before
 					//   we step down. However, the CVO isn't that sensitive to races and can tolerate
 					//   brief overlap.
-					glog.Infof("Stepping down as leader")
+					klog.Infof("Stepping down as leader")
 					// give the controllers some time to shut down
 					time.Sleep(100 * time.Millisecond)
 					// if we still hold the leader lease, clear the owner identity (other lease watchers
@@ -183,17 +183,17 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					if err := lock.Update(resourcelock.LeaderElectionRecord{}); err == nil {
 						// if we successfully clear the owner identity, we can safely delete the record
 						if err := lock.Client.ConfigMaps(lock.ConfigMapMeta.Namespace).Delete(lock.ConfigMapMeta.Name, nil); err != nil {
-							glog.Warningf("Unable to step down cleanly: %v", err)
+							klog.Warningf("Unable to step down cleanly: %v", err)
 						}
 					}
-					glog.Infof("Finished shutdown")
+					klog.Infof("Finished shutdown")
 					exitClose.Do(func() { close(exit) })
 				case <-localCtx.Done():
 					// we will exit in OnStoppedLeading
 				}
 			},
 			OnStoppedLeading: func() {
-				glog.Warning("leaderelection lost")
+				klog.Warning("leaderelection lost")
 				exitClose.Do(func() { close(exit) })
 			},
 		},
@@ -206,7 +206,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 func createResourceLock(cb *ClientBuilder, namespace, name string) (*resourcelock.ConfigMapLock, error) {
 	client := cb.KubeClientOrDie("leader-election")
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: client.CoreV1().Events(namespace)})
 
 	id, err := os.Hostname()

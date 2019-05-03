@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -498,14 +498,14 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 
 			// no more work to hand out
 			if remaining == 0 {
-				glog.V(4).Infof("Graph is complete")
+				klog.V(4).Infof("Graph is complete")
 				return
 			}
 
 			// we walked the entire graph, there are still nodes remaining, but we're not waiting
 			// for anything
 			if inflight == 0 && found == 0 {
-				glog.V(4).Infof("No more reachable nodes in graph, continue")
+				klog.V(4).Infof("No more reachable nodes in graph, continue")
 				break
 			}
 
@@ -513,7 +513,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 			finished, ok := <-completeCh
 			if !ok {
 				// we've been aborted
-				glog.V(4).Infof("Stopped graph walker due to cancel")
+				klog.V(4).Infof("Stopped graph walker due to cancel")
 				return
 			}
 			if finished.success {
@@ -538,10 +538,10 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 				return a.Index < b.Index
 			})
 			workCh <- runTasks{index: -1, tasks: unreachable}
-			glog.V(4).Infof("Waiting for last tasks")
+			klog.V(4).Infof("Waiting for last tasks")
 			<-completeCh
 		}
-		glog.V(4).Infof("No more work")
+		klog.V(4).Infof("No more work")
 	}()
 
 	errCh := make(chan error, maxParallelism)
@@ -557,14 +557,14 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 			for {
 				select {
 				case <-nestedCtx.Done():
-					glog.V(4).Infof("Canceled worker %d", job)
+					klog.V(4).Infof("Canceled worker %d", job)
 					return
 				case runTask, ok := <-workCh:
 					if !ok {
-						glog.V(4).Infof("No more work for %d", job)
+						klog.V(4).Infof("No more work for %d", job)
 						return
 					}
-					glog.V(4).Infof("Running %d on %d", runTask.index, job)
+					klog.V(4).Infof("Running %d on %d", runTask.index, job)
 					err := fn(nestedCtx, runTask.tasks)
 					completeCh <- taskStatus{index: runTask.index, success: err == nil}
 					if err != nil {
@@ -575,9 +575,9 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		}(i)
 	}
 	go func() {
-		glog.V(4).Infof("Waiting for workers to complete")
+		klog.V(4).Infof("Waiting for workers to complete")
 		wg.Wait()
-		glog.V(4).Infof("Workers finished")
+		klog.V(4).Infof("Workers finished")
 		close(errCh)
 	}()
 
@@ -585,7 +585,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	for err := range errCh {
 		errs = append(errs, err)
 	}
-	glog.V(4).Infof("Result of work: %v", errs)
+	klog.V(4).Infof("Result of work: %v", errs)
 	if len(errs) > 0 {
 		return errs
 	}

@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/utils/pointer"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -93,7 +93,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		if !update.Force {
 			return PayloadInfo{}, vErr
 		}
-		glog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
+		klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
 		info.VerificationError = vErr
 	} else {
 		info.Verified = true

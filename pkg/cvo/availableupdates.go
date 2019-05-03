@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -32,7 +32,7 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getAvailableUpdates()
 	if u != nil && u.Upstream == upstream && u.Channel == channel && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		glog.V(4).Infof("Available updates were recently retrieved, will try later.")
+		klog.V(4).Infof("Available updates were recently retrieved, will try later.")
 		return nil
 	}
 
@@ -127,7 +127,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 
 	currentVersion, err := semver.Parse(version)
 	if err != nil {
-		glog.V(2).Infof("Unable to parse current semantic version %q: %v", version, err)
+		klog.V(2).Infof("Unable to parse current semantic version %q: %v", version, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidCurrentVersion",
 			Message: "The current cluster version is not a valid semantic version and cannot be used to calculate upgrades.",
@@ -136,7 +136,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 
 	updates, err := checkForUpdate(clusterID, upstream, channel, currentVersion)
 	if err != nil {
-		glog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
+		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed",
 			Message: fmt.Sprintf("Unable to retrieve available updates: %v", err),

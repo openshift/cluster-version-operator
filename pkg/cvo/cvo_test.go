@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/google/uuid"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
@@ -2471,7 +2471,7 @@ func fakeClientsetWithUpdates(obj *configv1.ClusterVersion) *fake.Clientset {
 			obj.Status = update.Status
 			rv, _ := strconv.Atoi(update.ResourceVersion)
 			obj.ResourceVersion = strconv.Itoa(rv + 1)
-			glog.V(5).Infof("updated object to %#v", obj)
+			klog.V(5).Infof("updated object to %#v", obj)
 			return true, obj.DeepCopy(), nil
 		}
 		return false, nil, fmt.Errorf("unrecognized")

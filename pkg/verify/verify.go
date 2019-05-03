@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
 
@@ -107,7 +107,7 @@ func LoadFromPayload(update *payload.Update) (Interface, error) {
 				}
 				stores = append(stores, u)
 			default:
-				glog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
+				klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
 			}
 		}
 		if len(stores) == 0 {
@@ -231,11 +231,11 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		for k, keyring := range remaining {
 			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
 			if err != nil {
-				glog.V(4).Infof("keyring %q could not verify signature: %v", k, err)
+				klog.V(4).Infof("keyring %q could not verify signature: %v", k, err)
 				continue
 			}
 			if err := verifyAtomicContainerSignature(content, releaseDigest); err != nil {
-				glog.V(4).Infof("signature %q is not valid: %v", path, err)
+				klog.V(4).Infof("signature %q is not valid: %v", path, err)
 				continue
 			}
 			delete(remaining, k)
@@ -265,9 +265,9 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 	}
 
 	if len(remaining) > 0 {
-		if glog.V(4) {
+		if klog.V(4) {
 			for k := range remaining {
-				glog.Infof("Unable to verify %s against keyring %s", releaseDigest, k)
+				klog.Infof("Unable to verify %s against keyring %s", releaseDigest, k)
 			}
 		}
 		return fmt.Errorf("unable to locate a valid signature for one or more sources")
@@ -291,7 +291,7 @@ func checkFileSignatures(ctx context.Context, dir string, maxSignaturesToCheck i
 			break
 		}
 		if err != nil {
-			glog.V(4).Infof("unable to load signature: %v", err)
+			klog.V(4).Infof("unable to load signature: %v", err)
 			continue
 		}
 		ok, err := fn(path, data)
@@ -329,7 +329,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 		// load the body, being careful not to allow unbounded reads
 		resp, err := client.Do(req)
 		if err != nil {
-			glog.V(4).Infof("unable to load signature: %v", err)
+			klog.V(4).Infof("unable to load signature: %v", err)
 			continue
 		}
 		data, err := func() ([]byte, error) {
@@ -347,7 +347,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 			}
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				if i == 1 {
-					glog.V(4).Infof("Could not find signature at store location %v", sigURL)
+					klog.V(4).Infof("Could not find signature at store location %v", sigURL)
 				}
 				return nil, fmt.Errorf("unable to retrieve signature from %v: %d", sigURL, resp.StatusCode)
 			}
@@ -358,7 +358,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 			break
 		}
 		if err != nil {
-			glog.V(4).Info(err)
+			klog.V(4).Info(err)
 			continue
 		}
 		if len(data) == 0 {

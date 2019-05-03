@@ -7,7 +7,7 @@ import (
 
 	"github.com/blang/semver"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	v1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
@@ -62,7 +62,7 @@ func New(
 	kubeClient kubernetes.Interface,
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
 
 	ctrl := &Controller{
@@ -91,11 +91,11 @@ func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
-	glog.Info("Starting AutoUpdateController")
-	defer glog.Info("Shutting down AutoUpdateController")
+	klog.Info("Starting AutoUpdateController")
+	defer klog.Info("Shutting down AutoUpdateController")
 
 	if !cache.WaitForCacheSync(stopCh, ctrl.cacheSynced...) {
-		glog.Info("Caches never synchronized")
+		klog.Info("Caches never synchronized")
 		return
 	}
 
@@ -140,26 +140,26 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 	}
 
 	if ctrl.queue.NumRequeues(key) < maxRetries {
-		glog.V(2).Infof("Error syncing controller %v: %v", key, err)
+		klog.V(2).Infof("Error syncing controller %v: %v", key, err)
 		ctrl.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	glog.V(2).Infof("Dropping controller %q out of the queue: %v", key, err)
+	klog.V(2).Infof("Dropping controller %q out of the queue: %v", key, err)
 	ctrl.queue.Forget(key)
 }
 
 func (ctrl *Controller) sync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
 	}()
 
 	clusterversion, err := ctrl.cvLister.Get(ctrl.name)
 	if errors.IsNotFound(err) {
-		glog.V(2).Infof("ClusterVersion %v has been deleted", key)
+		klog.V(2).Infof("ClusterVersion %v has been deleted", key)
 		return nil
 	}
 	if err != nil {
@@ -178,7 +178,7 @@ func (ctrl *Controller) sync(key string) error {
 
 	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
-		glog.Infof("Auto Update set to %v", up)
+		klog.Infof("Auto Update set to %v", up)
 	}
 	return err
 }
