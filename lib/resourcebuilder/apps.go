@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
@@ -63,7 +63,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			glog.Errorf("error getting Deployment %s during rollout: %v", deployment.Name, err)
+			klog.Errorf("error getting Deployment %s during rollout: %v", deployment.Name, err)
 			return false, nil
 		}
 
@@ -74,7 +74,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
 			return true, nil
 		}
-		glog.V(4).Infof("Deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		klog.V(4).Infof("Deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
 		return false, nil
 	}, ctx.Done())
 }
@@ -126,7 +126,7 @@ func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSets
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			glog.Errorf("error getting Daemonset %s during rollout: %v", daemonset.Name, err)
+			klog.Errorf("error getting Daemonset %s during rollout: %v", daemonset.Name, err)
 			return false, nil
 		}
 
@@ -137,7 +137,7 @@ func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSets
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
 			return true, nil
 		}
-		glog.V(4).Infof("Daemonset %s is not ready. status: (desired: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberReady, d.Status.NumberAvailable)
+		klog.V(4).Infof("Daemonset %s is not ready. status: (desired: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberReady, d.Status.NumberAvailable)
 		return false, nil
 	}, ctx.Done())
 }

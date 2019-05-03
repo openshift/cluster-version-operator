@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/verify"
 
 	"github.com/blang/semver"
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/google/uuid"
 
 	corev1 "k8s.io/api/core/v1"
@@ -140,7 +140,7 @@ func New(
 	enableMetrics bool,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
 
 	optr := &Operator{
@@ -200,9 +200,9 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 		return err
 	}
 	if verifier != nil {
-		glog.Infof("Verifying release authenticity: %v", verifier)
+		klog.Infof("Verifying release authenticity: %v", verifier)
 	} else {
-		glog.Warningf("WARNING: No release authenticity verification is configured, all releases are considered unverified")
+		klog.Warningf("WARNING: No release authenticity verification is configured, all releases are considered unverified")
 		verifier = verify.Reject
 	}
 	optr.verifier = verifier
@@ -232,11 +232,11 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	stopCh := ctx.Done()
 	workerStopCh := make(chan struct{})
 
-	glog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
-	defer glog.Info("Shutting down ClusterVersionOperator")
+	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
+	defer klog.Info("Shutting down ClusterVersionOperator")
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
-		glog.Info("Caches never synchronized")
+		klog.Info("Caches never synchronized")
 		return
 	}
 
@@ -313,14 +313,14 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 	}
 
 	if queue.NumRequeues(key) < maxRetries {
-		glog.V(2).Infof("Error syncing operator %v: %v", key, err)
+		klog.V(2).Infof("Error syncing operator %v: %v", key, err)
 		queue.AddRateLimited(key)
 		return
 	}
 
 	err = syncFailingStatus(nil, err)
 	utilruntime.HandleError(err)
-	glog.V(2).Infof("Dropping operator %q out of the queue %v: %v", key, queue, err)
+	klog.V(2).Infof("Dropping operator %q out of the queue %v: %v", key, queue, err)
 	queue.Forget(key)
 }
 
@@ -333,9 +333,9 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 // It returns an error if it could not update the cluster version object.
 func (optr *Operator) sync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
 
 	// ensure the cluster version exists, that the object is valid, and that
@@ -345,7 +345,7 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 	if changed {
-		glog.V(4).Infof("Cluster version changed, waiting for newer event")
+		klog.V(4).Infof("Cluster version changed, waiting for newer event")
 		return nil
 	}
 
@@ -358,10 +358,10 @@ func (optr *Operator) sync(key string) error {
 	// identify the desired next version
 	desired, ok := findUpdateFromConfig(config)
 	if ok {
-		glog.V(4).Infof("Desired version from spec is %#v", desired)
+		klog.V(4).Infof("Desired version from spec is %#v", desired)
 	} else {
 		desired = optr.currentVersion()
-		glog.V(4).Infof("Desired version from operator is %#v", desired)
+		klog.V(4).Infof("Desired version from operator is %#v", desired)
 	}
 
 	// handle the case of a misconfigured CVO by doing nothing
@@ -393,9 +393,9 @@ func (optr *Operator) sync(key string) error {
 // sync available updates. It only modifies cluster version.
 func (optr *Operator) availableUpdatesSync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing available updates %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing available updates %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
 	}()
 
 	config, err := optr.cvLister.Get(optr.name)

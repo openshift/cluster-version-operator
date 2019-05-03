@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
@@ -58,7 +58,7 @@ func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, 
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		j, err := client.Jobs(job.Namespace).Get(job.Name, metav1.GetOptions{})
 		if err != nil {
-			glog.Errorf("error getting Job %s: %v", job.Name, err)
+			klog.Errorf("error getting Job %s: %v", job.Name, err)
 			return false, nil
 		}
 

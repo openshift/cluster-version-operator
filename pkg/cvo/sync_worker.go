@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
@@ -225,7 +225,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
 func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
-	glog.V(5).Infof("Starting sync worker")
+	klog.V(5).Infof("Starting sync worker")
 
 	work := &SyncWork{}
 
@@ -238,26 +238,26 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 			waitingToReconcile := work.State == payload.ReconcilingPayload
 			select {
 			case <-ctx.Done():
-				glog.V(5).Infof("Stopped worker")
+				klog.V(5).Infof("Stopped worker")
 				return
 			case <-next:
 				waitingToReconcile = false
-				glog.V(5).Infof("Wait finished")
+				klog.V(5).Infof("Wait finished")
 			case <-w.notify:
-				glog.V(5).Infof("Work updated")
+				klog.V(5).Infof("Work updated")
 			}
 
 			// determine whether we need to do work
 			changed := w.calculateNext(work)
 			if !changed && waitingToReconcile {
-				glog.V(5).Infof("No change, waiting")
+				klog.V(5).Infof("No change, waiting")
 				continue
 			}
 
 			// until Update() has been called at least once, we do nothing
 			if work.Empty() {
 				next = time.After(w.minimumReconcileInterval)
-				glog.V(5).Infof("No work, waiting")
+				klog.V(5).Infof("No work, waiting")
 				continue
 			}
 
@@ -292,7 +292,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				// reporter hides status updates that occur earlier than the previous failure,
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
-				glog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
+				klog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
 				return w.syncOnce(ctx, work, maxWorkers, reporter)
 			}()
 			if err != nil {
@@ -311,7 +311,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				utilruntime.HandleError(fmt.Errorf("unable to synchronize image (waiting %s): %v", interval, err))
 				continue
 			}
-			glog.V(5).Infof("Sync succeeded, reconciling")
+			klog.V(5).Infof("Sync succeeded, reconciling")
 
 			work.Completed++
 			work.State = payload.ReconcilingPayload
@@ -319,7 +319,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 		}
 	}, 10*time.Millisecond, ctx.Done())
 
-	glog.V(5).Infof("Worker shut down")
+	klog.V(5).Infof("Worker shut down")
 }
 
 // statusWrapper prevents a newer status update from overwriting a previous
@@ -334,7 +334,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	if p.Failure != nil && status.Failure == nil {
 		if p.Actual == status.Actual {
 			if status.Fraction < p.Fraction {
-				glog.V(5).Infof("Dropping status report from earlier in sync loop")
+				klog.V(5).Infof("Dropping status report from earlier in sync loop")
 				return
 			}
 		}
@@ -345,7 +345,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	if status.Generation == 0 {
 		status.Generation = p.Generation
 	} else if status.Generation < p.Generation {
-		glog.Warningf("Received a Generation(%d) lower than previously known Generation(%d), this is most probably an internal error", status.Generation, p.Generation)
+		klog.Warningf("Received a Generation(%d) lower than previously known Generation(%d), this is most probably an internal error", status.Generation, p.Generation)
 	}
 	w.w.updateStatus(status)
 }
@@ -418,13 +418,13 @@ func (w *SyncWorker) updateStatus(update SyncWorkerStatus) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	glog.V(5).Infof("Status change %#v", update)
+	klog.V(5).Infof("Status change %#v", update)
 	w.status = update
 	select {
 	case w.report <- update:
 	default:
-		if glog.V(5) {
-			glog.Infof("Status report channel was full %#v", update)
+		if klog.V(5) {
+			klog.Infof("Status report channel was full %#v", update)
 		}
 	}
 }
@@ -450,13 +450,13 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
-	glog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
+	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 	update := work.Desired
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
 	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, update) {
-		glog.V(4).Infof("Loading payload")
+		klog.V(4).Infof("Loading payload")
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
 			Step:        "RetrievePayload",
@@ -494,7 +494,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		payloadUpdate.LoadedAt = time.Now()
 
 		w.payload = payloadUpdate
-		glog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
+		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
 
 	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
@@ -571,12 +571,12 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			}
 			cr.Update()
 
-			glog.V(4).Infof("Running sync for %s", task)
-			glog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
+			klog.V(4).Infof("Running sync for %s", task)
+			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
-				glog.V(4).Infof("Skipping %s as unmanaged", task)
+				klog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
 			}
 
@@ -584,7 +584,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				return err
 			}
 			cr.Inc()
-			glog.V(4).Infof("Done syncing for %s", task)
+			klog.V(4).Infof("Done syncing for %s", task)
 		}
 		return nil
 	})
@@ -721,7 +721,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 	// detail of the server
 	err := errors.FilterOut(errors.NewAggregate(errs), isCancelledError)
 	if err == nil {
-		glog.V(4).Infof("All errors were cancellation errors: %v", errs)
+		klog.V(4).Infof("All errors were cancellation errors: %v", errs)
 		return nil
 	}
 	agg, ok := err.(errors.Aggregate)
@@ -732,17 +732,17 @@ func summarizeTaskGraphErrors(errs []error) error {
 	}
 
 	// log the errors to assist in debugging future summarization
-	if glog.V(4) {
-		glog.Infof("Summarizing %d errors", len(errs))
+	if klog.V(4) {
+		klog.Infof("Summarizing %d errors", len(errs))
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {
 				if uErr.Task != nil {
-					glog.Infof("Update error %d/%d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Update error %d/%d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				} else {
-					glog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				}
 			} else {
-				glog.Infof("Update error: %T: %v", err, err)
+				klog.Infof("Update error: %T: %v", err, err)
 			}
 		}
 	}

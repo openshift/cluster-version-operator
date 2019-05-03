@@ -3,7 +3,7 @@ package resourcebuilder
 import (
 	"context"
 
-	"github.com/golang/glog"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
@@ -61,7 +61,7 @@ func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiex
 			return false, err
 		}
 		if err != nil {
-			glog.Errorf("error getting CustomResourceDefinition %s: %v", crd.Name, err)
+			klog.Errorf("error getting CustomResourceDefinition %s: %v", crd.Name, err)
 			return false, nil
 		}
 
@@ -70,7 +70,7 @@ func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiex
 				return true, nil
 			}
 		}
-		glog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", c.Name, c.Status.Conditions)
+		klog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", c.Name, c.Status.Conditions)
 		return false, nil
 	}, ctx.Done())
 }
