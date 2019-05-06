@@ -58,7 +58,10 @@ spec:
         effect: "NoSchedule"
       - key: "node.kubernetes.io/network-unavailable"
         operator: Exists
-        effect: "NoSchedule"  
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoSchedule" 
       - key: "node.kubernetes.io/unreachable"
         operator: "Exists"
         effect: "NoExecute"
