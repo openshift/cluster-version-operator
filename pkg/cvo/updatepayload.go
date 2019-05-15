@@ -7,18 +7,21 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+
+	"github.com/pkg/errors"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 
-	"k8s.io/klog"
 	configv1 "github.com/openshift/api/config/v1"
-
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
@@ -189,11 +192,74 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		},
 	}
 
-	_, err := r.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
+	// Prune older jobs while gracefully handling errors.
+	err := r.pruneJobs(2)
+	if err != nil {
+		klog.Warningf("failed to prune jobs: %v", err)
+	}
+
+	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
 	if err != nil {
 		return err
 	}
 	return resourcebuilder.WaitForJobCompletion(ctx, r.kubeClient.BatchV1(), job)
+}
+
+// pruneJobs deletes the older, finished jobs in the namespace.
+// retain - the number of newest jobs to keep.
+func (r *payloadRetriever) pruneJobs(retain int) error {
+	jobs, err := r.kubeClient.BatchV1().Jobs(r.namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return err
+	}
+	if len(jobs.Items) <= retain {
+		return nil
+	}
+
+	// Select jobs to be deleted
+	var deleteJobs []batchv1.Job
+	for _, job := range jobs.Items {
+		switch {
+		// Ignore jobs not begining with operatorName
+		case !strings.HasPrefix(job.Name, r.operatorName+"-"):
+			break
+		// Ignore jobs that have not yet started
+		case job.Status.StartTime == nil:
+			break
+		// Ignore jobs that are still active
+		case job.Status.Active == 1:
+			break
+		default:
+			deleteJobs = append(deleteJobs, job)
+		}
+	}
+	if len(deleteJobs) <= retain {
+		return nil
+	}
+
+	// Sort jobs by StartTime to determine the newest. nil StartTime is assumed newest.
+	sort.Slice(deleteJobs, func(i, j int) bool {
+		if deleteJobs[i].Status.StartTime == nil {
+			return false
+		}
+		if deleteJobs[j].Status.StartTime == nil {
+			return true
+		}
+		return deleteJobs[i].Status.StartTime.Before(deleteJobs[j].Status.StartTime)
+	})
+
+	var errs []error
+	for _, job := range deleteJobs[:len(deleteJobs)-retain] {
+		err := r.kubeClient.BatchV1().Jobs(r.namespace).Delete(job.Name, &metav1.DeleteOptions{})
+		if err != nil {
+			errs = append(errs, errors.Wrapf(err, "failed to delete job %v", job.Name))
+		}
+	}
+	agg := utilerrors.NewAggregate(errs)
+	if agg != nil {
+		return fmt.Errorf("error deleting jobs: %v", agg.Error())
+	}
+	return nil
 }
 
 // copyPayloadCmd returns command that copies cvo and release manifests from deafult location
