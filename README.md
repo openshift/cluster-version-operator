@@ -42,7 +42,7 @@ podman run --rm -ti \
 
 1. Use CVO `render` to render all the manifests from release-payload to a directory. [here](#using-cvo-to-render-the-release-payload-locally)
 
-2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manfiests>`.
+2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manifests>`.
 
 ## Running CVO tests
 
