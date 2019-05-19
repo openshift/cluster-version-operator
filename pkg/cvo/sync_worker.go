@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
+	"k8s.io/klog"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -751,10 +751,42 @@ func summarizeTaskGraphErrors(errs []error) error {
 	if len(errs) == 1 {
 		return errs[0]
 	}
+	// hide the generic "not available yet" when there are more specific errors present
+	if filtered := filterErrors(errs, isClusterOperatorNotAvailable); len(filtered) > 0 {
+		return newMultipleError(filtered)
+	}
+	// if we're only waiting for operators, condense the error down to a singleton
 	if err := newClusterOperatorsNotAvailable(errs); err != nil {
 		return err
 	}
 	return newMultipleError(errs)
+}
+
+// filterErrors returns only the errors in errs which are false for all fns.
+func filterErrors(errs []error, fns ...func(err error) bool) []error {
+	var filtered []error
+	for _, err := range errs {
+		if errorMatches(err, fns...) {
+			continue
+		}
+		filtered = append(filtered, err)
+	}
+	return filtered
+}
+
+func errorMatches(err error, fns ...func(err error) bool) bool {
+	for _, fn := range fns {
+		if fn(err) {
+			return true
+		}
+	}
+	return false
+}
+
+// isClusterOperatorNotAvailable returns true if this is a ClusterOperatorNotAvailable error
+func isClusterOperatorNotAvailable(err error) bool {
+	uErr, ok := err.(*payload.UpdateError)
+	return ok && uErr != nil && uErr.Reason == "ClusterOperatorNotAvailable"
 }
 
 // newClusterOperatorsNotAvailable unifies multiple ClusterOperatorNotAvailable errors into
