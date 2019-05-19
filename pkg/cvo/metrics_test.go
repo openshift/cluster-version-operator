@@ -131,7 +131,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-									{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}},
+									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}},
 								},
 							},
 						},
@@ -294,7 +294,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}},
+									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}},
 								},
 							},
 						},
@@ -328,7 +328,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionTrue},
+									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue},
 								},
 							},
 						},
