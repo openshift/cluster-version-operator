@@ -228,7 +228,7 @@ func TestOperator_sync(t *testing.T) {
 				Reconciling: false,
 				Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 				Failure: &payload.Error{
-					Reason:  "UpdatePayloadIntegrity",
+					Reason:  "LoadManifestsError",
 					Message: "unable to apply object",
 				},
 			},
@@ -253,7 +253,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -284,8 +284,8 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 0.0.1-abc: the contents of the update are invalid"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "Unable to apply 0.0.1-abc: failed to load manifests from the release image"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -305,7 +305,7 @@ func TestOperator_sync(t *testing.T) {
 						Reconciling: true,
 						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.Error{
-							Reason:  "UpdatePayloadIntegrity",
+							Reason:  "LoadManifestsError",
 							Message: "unable to apply object",
 						},
 					},
@@ -326,7 +326,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -357,8 +357,8 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "LoadManifestsError", Message: "Error while reconciling 0.0.1-abc: failed to load manifests from the release image"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -379,7 +379,7 @@ func TestOperator_sync(t *testing.T) {
 						Completed:   2,
 						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.Error{
-							Reason:  "UpdatePayloadIntegrity",
+							Reason:  "LoadManifestsError",
 							Message: "unable to apply object",
 						},
 					},
@@ -400,7 +400,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
@@ -431,8 +431,8 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
-							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "LoadManifestsError", Message: "unable to apply object"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "LoadManifestsError", Message: "Error while reconciling 0.0.1-abc: failed to load manifests from the release image"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},

@@ -54,8 +54,8 @@ func (e *Error) Summary() string {
 		return "a required extension is not available to update"
 	case "UpdatePayloadResourceInvalid":
 		return "some cluster configuration is invalid"
-	case "UpdatePayloadIntegrity":
-		return "the contents of the update are invalid"
+	case "LoadManifestsError":
+		return "failed to load manifests from the release image"
 
 	case "ImageVerificationFailed":
 		return "the image may not be safe to use"

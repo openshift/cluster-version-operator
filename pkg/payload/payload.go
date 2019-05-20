@@ -161,7 +161,7 @@ func Load(dir, releaseImage string) (*Payload, error) {
 	agg := utilerrors.NewAggregate(errs)
 	if agg != nil {
 		return nil, &Error{
-			Reason:  "UpdatePayloadIntegrity",
+			Reason:  "LoadManifestsError",
 			Message: fmt.Sprintf("Error loading manifests from %s: %v", dir, agg.Error()),
 		}
 	}
