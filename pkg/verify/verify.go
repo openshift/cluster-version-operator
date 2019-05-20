@@ -74,7 +74,7 @@ var Reject Interface = rejectVerifier{}
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
 //
-func LoadFromPayload(update *payload.Update) (Interface, error) {
+func LoadFromPayload(update *payload.Payload) (Interface, error) {
 	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 	for _, manifest := range update.Manifests {
 		if manifest.GVK != configMapGVK {

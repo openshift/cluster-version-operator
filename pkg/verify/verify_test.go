@@ -171,18 +171,18 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		update        *payload.Update
+		update        *payload.Payload
 		want          bool
 		wantErr       bool
 		wantVerifiers int
 	}{
 		{
 			name:   "is a no-op when no objects are found",
-			update: &payload.Update{},
+			update: &payload.Payload{},
 		},
 		{
 			name: "requires data",
-			update: &payload.Update{
+			update: &payload.Payload{
 				Manifests: []lib.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
@@ -204,7 +204,7 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 		},
 		{
 			name: "requires stores",
-			update: &payload.Update{
+			update: &payload.Payload{
 				Manifests: []lib.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
@@ -229,7 +229,7 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 		},
 		{
 			name: "requires verifiers",
-			update: &payload.Update{
+			update: &payload.Payload{
 				Manifests: []lib.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
@@ -254,7 +254,7 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 		},
 		{
 			name: "loads valid configuration",
-			update: &payload.Update{
+			update: &payload.Payload{
 				Manifests: []lib.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
@@ -281,7 +281,7 @@ func Test_loadReleaseVerifierFromPayload(t *testing.T) {
 		},
 		{
 			name: "only the first valid configuration is used",
-			update: &payload.Update{
+			update: &payload.Payload{
 				Manifests: []lib.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},

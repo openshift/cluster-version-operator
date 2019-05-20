@@ -145,7 +145,7 @@ type SyncWorker struct {
 	status   SyncWorkerStatus
 
 	// updated by the run method only
-	payload *payload.Update
+	payload *payload.Payload
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
@@ -503,7 +503,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 // apply updates the server with the contents of the provided image or returns an error.
 // Cancelling the context will abort the execution of the sync. Will be executed in parallel if
 // maxWorkers is set greater than 1.
-func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Payload, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	update := configv1.Update{
 		Version: payloadUpdate.ReleaseVersion,
 		Image:   payloadUpdate.ReleaseImage,

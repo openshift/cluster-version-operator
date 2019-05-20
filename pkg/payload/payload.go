@@ -1,3 +1,4 @@
+// Package payload provides tools for interacting with the content of release images.
 package payload
 
 import (
@@ -87,7 +88,7 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-type Update struct {
+type Payload struct {
 	ReleaseImage   string
 	ReleaseVersion string
 	// XXX: cincinatti.json struct
@@ -102,7 +103,7 @@ type Update struct {
 	Manifests    []lib.Manifest
 }
 
-func LoadUpdate(dir, releaseImage string) (*Update, error) {
+func LoadUpdate(dir, releaseImage string) (*Payload, error) {
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
@@ -206,7 +207,7 @@ type payloadTasks struct {
 	skipFiles  sets.String
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
+func loadUpdatePayloadMetadata(dir, releaseImage string) (*Payload, []payloadTasks, error) {
 	klog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
@@ -240,5 +241,5 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		preprocess: nil,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+	return &Payload{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
 }

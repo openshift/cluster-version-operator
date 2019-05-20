@@ -24,7 +24,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Update
+		want    *Payload
 		wantErr bool
 	}{
 		{
@@ -33,7 +33,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 				dir:          filepath.Join("..", "cvo", "testdata", "payloadtest"),
 				releaseImage: "image:1",
 			},
-			want: &Update{
+			want: &Payload{
 				ReleaseImage:   "image:1",
 				ReleaseVersion: "1.0.0-abc",
 				ImageRef: &imagev1.ImageStream{
