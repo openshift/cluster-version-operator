@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 	"unicode"
 
@@ -137,23 +136,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			}
 			sort.Strings(keys)
 
-			var reports []string
-			for _, op := range keys {
-				// we do not need to report `operator` version.
-				if op == "operator" {
-					continue
-				}
-				ver := undone[op]
-				if len(ver) == 1 {
-					reports = append(reports, fmt.Sprintf("missing version information for %s", op))
-					continue
-				}
-				reports = append(reports, fmt.Sprintf("upgrading %s from %s to %s", op, ver[1], ver[0]))
-			}
 			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
-			if len(reports) > 0 {
-				message = fmt.Sprintf("Cluster operator %s is still updating: %s", actual.Name, strings.Join(reports, ", "))
-			}
 			lastErr = &payload.UpdateError{
 				Nested:  errors.New(lowerFirst(message)),
 				Reason:  "ClusterOperatorNotAvailable",
@@ -176,11 +159,6 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 				available = true
 			case condition.Type == configv1.OperatorProgressing && condition.Status == configv1.ConditionFalse:
 				progressing = false
-			case condition.Type == configv1.ClusterStatusConditionType("Failing"):
-				if condition.Status == configv1.ConditionFalse {
-					failing = false
-				}
-				failingCondition = condition
 			case condition.Type == configv1.OperatorDegraded:
 				if condition.Status == configv1.ConditionFalse {
 					degradedValue = false

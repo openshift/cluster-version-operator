@@ -83,9 +83,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: missing version information for operand-1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: missing version information for operand-1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
@@ -109,9 +109,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: missing version information for operand-1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: missing version information for operand-1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
@@ -137,9 +137,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: upgrading operand-1 from v0 to v1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: upgrading operand-1 from v0 to v1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
@@ -165,9 +165,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: upgrading operand-1 from v0 to v1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: upgrading operand-1 from v0 to v1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
@@ -197,9 +197,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: upgrading operand-1 from v0 to v1, upgrading operand-2 from v0 to v1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: upgrading operand-1 from v0 to v1, upgrading operand-2 from v0 to v1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
@@ -229,9 +229,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is still updating: upgrading operand-2 from v0 to v1"),
+			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
-			Message: "Cluster operator test-co is still updating: upgrading operand-2 from v0 to v1",
+			Message: "Cluster operator test-co is still updating",
 			Name:    "test-co",
 		},
 	}, {
