@@ -221,7 +221,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
 		msg := "an error occurred"
-		if uErr, ok := err.(*payload.UpdateError); ok {
+		if uErr, ok := err.(*payload.Error); ok {
 			reason = uErr.Reason
 			msg = payload.SummaryForReason(reason, uErr.Name)
 		}
@@ -330,7 +330,7 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 	if now.Sub(status.LastProgress) > 10*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
 		return "", "", false
 	}
-	uErr, ok := status.Failure.(*payload.UpdateError)
+	uErr, ok := status.Failure.(*payload.Error)
 	if !ok {
 		return "", "", false
 	}

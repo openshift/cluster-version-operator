@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ImageForShortName returns the image using the updatepayload embedded in
+// ImageForShortName returns the image using the payload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
 	up, err := Load(DefaultPayloadDir, "")
@@ -23,5 +23,5 @@ func ImageForShortName(name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("error: Unknown name requested, could not find %s in UpdatePayload", name)
+	return "", fmt.Errorf("error: Unknown name requested, could not find %s in payload", name)
 }

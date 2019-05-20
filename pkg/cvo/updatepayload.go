@@ -85,7 +85,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		releaseDigest = update.Image[index+1:]
 	}
 	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
-		vErr := &payload.UpdateError{
+		vErr := &payload.Error{
 			Reason:  "ImageVerificationFailed",
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
 			Nested:  err,
@@ -103,7 +103,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	var err error
 	info.Directory, err = r.targetUpdatePayloadDir(ctx, update)
 	if err != nil {
-		return PayloadInfo{}, &payload.UpdateError{
+		return PayloadInfo{}, &payload.Error{
 			Reason:  "UpdatePayloadRetrievalFailed",
 			Message: fmt.Sprintf("Unable to download and prepare the update: %v", err),
 		}

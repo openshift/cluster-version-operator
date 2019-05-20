@@ -105,7 +105,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.Get(expected.Name)
 		if err != nil {
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.Error{
 				Nested:  err,
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
@@ -137,7 +137,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			sort.Strings(keys)
 
 			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.Error{
 				Nested:  errors.New(lowerFirst(message)),
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: message,
@@ -197,7 +197,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			if len(condition.Message) > 0 {
 				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, condition.Message)
 			}
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.Error{
 				Nested:  errors.New(lowerFirst(message)),
 				Reason:  "ClusterOperatorDegraded",
 				Message: message,
@@ -206,7 +206,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			return false, nil
 		}
 
-		lastErr = &payload.UpdateError{
+		lastErr = &payload.Error{
 			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, degraded=%v",
 				actual.Name, available, progressing, degraded,
 			),

@@ -357,7 +357,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.Error{
 		Reason:  "ImageVerificationFailed",
 		Message: fmt.Sprintf("The update cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
@@ -661,7 +661,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.Error{
 		Reason:  "ImageVerificationFailed",
 		Message: fmt.Sprintf("The update cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
@@ -887,7 +887,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.Error{
 		Reason:  "ImageVerificationFailed",
 		Message: fmt.Sprintf("The update cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
@@ -1385,7 +1385,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Step:        "ApplyResources",
 			Fraction:    float32(2) / 3,
 			VersionHash: "6GC9TkkG9PA=",
-			Failure: &payload.UpdateError{
+			Failure: &payload.Error{
 				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
 				Message: "Could not update test \"file-yml\" (3 of 3)",
@@ -1440,12 +1440,12 @@ func TestCVO_ParallelError(t *testing.T) {
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 	b := &errorResourceBuilder{errors: map[string]error{
-		"0000_10_a_file.yaml": &payload.UpdateError{
+		"0000_10_a_file.yaml": &payload.Error{
 			Reason: "ClusterOperatorNotAvailable",
 			Name:   "operator-1",
 		},
 		"0000_20_a_file.yaml": nil,
-		"0000_20_b_file.yaml": &payload.UpdateError{
+		"0000_20_b_file.yaml": &payload.Error{
 			Reason: "ClusterOperatorNotAvailable",
 			Name:   "operator-2",
 		},
@@ -1539,7 +1539,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			continue
 		}
 		err := status.Failure
-		uErr, ok := err.(*payload.UpdateError)
+		uErr, ok := err.(*payload.Error)
 		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" || uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
 			t.Fatalf("unexpected error: %v", err)
 		}

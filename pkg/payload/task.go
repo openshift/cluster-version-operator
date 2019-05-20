@@ -89,15 +89,15 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 		case <-time.After(d):
 			continue
 		case <-ctx.Done():
-			if uerr, ok := lastErr.(*UpdateError); ok {
+			if uerr, ok := lastErr.(*Error); ok {
 				uerr.Task = st.Copy()
 				return uerr
 			}
-			reason, cause := reasonForPayloadSyncError(lastErr)
+			reason, cause := reasonForError(lastErr)
 			if len(cause) > 0 {
 				cause = ": " + cause
 			}
-			return &UpdateError{
+			return &Error{
 				Nested:  lastErr,
 				Reason:  reason,
 				Message: fmt.Sprintf("Could not update %s%s", st, cause),
@@ -108,8 +108,8 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 	}
 }
 
-// UpdateError is a wrapper for errors that occur during a payload sync.
-type UpdateError struct {
+// Error is a wrapper for errors that occur during a payload sync.
+type Error struct {
 	Nested  error
 	Reason  string
 	Message string
@@ -118,18 +118,18 @@ type UpdateError struct {
 	Task *Task
 }
 
-func (e *UpdateError) Error() string {
+func (e *Error) Error() string {
 	return e.Message
 }
 
-func (e *UpdateError) Cause() error {
+func (e *Error) Cause() error {
 	return e.Nested
 }
 
-// reasonForUpdateError provides a succint explanation of a known error type for use in a human readable
+// reasonForError provides a succint explanation of a known error type for use in a human readable
 // message during update. Since all objects in the image should be successfully applied, messages
 // should direct the reader (likely a cluster administrator) to a possible cause in their own config.
-func reasonForPayloadSyncError(err error) (string, string) {
+func reasonForError(err error) (string, string) {
 	err = errors.Cause(err)
 	switch {
 	case apierrors.IsNotFound(err), apierrors.IsAlreadyExists(err):

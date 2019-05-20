@@ -227,7 +227,7 @@ func TestOperator_sync(t *testing.T) {
 				Step:        "Moving",
 				Reconciling: false,
 				Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-				Failure: &payload.UpdateError{
+				Failure: &payload.Error{
 					Reason:  "UpdatePayloadIntegrity",
 					Message: "unable to apply object",
 				},
@@ -304,7 +304,7 @@ func TestOperator_sync(t *testing.T) {
 						Step:        "Moving",
 						Reconciling: true,
 						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-						Failure: &payload.UpdateError{
+						Failure: &payload.Error{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
 						},
@@ -378,7 +378,7 @@ func TestOperator_sync(t *testing.T) {
 						Reconciling: true,
 						Completed:   2,
 						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-						Failure: &payload.UpdateError{
+						Failure: &payload.Error{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
 						},

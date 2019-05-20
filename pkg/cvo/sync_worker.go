@@ -704,7 +704,7 @@ func isImageVerificationError(err error) bool {
 	if err == nil {
 		return false
 	}
-	updateErr, ok := err.(*payload.UpdateError)
+	updateErr, ok := err.(*payload.Error)
 	if !ok {
 		return false
 	}
@@ -735,7 +735,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 	if klog.V(4) {
 		klog.Infof("Summarizing %d errors", len(errs))
 		for _, err := range errs {
-			if uErr, ok := err.(*payload.UpdateError); ok {
+			if uErr, ok := err.(*payload.Error); ok {
 				if uErr.Task != nil {
 					klog.Infof("Update error %d/%d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				} else {
@@ -762,7 +762,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 func newClusterOperatorsNotAvailable(errs []error) error {
 	names := make([]string, 0, len(errs))
 	for _, err := range errs {
-		uErr, ok := err.(*payload.UpdateError)
+		uErr, ok := err.(*payload.Error)
 		if !ok || uErr.Reason != "ClusterOperatorNotAvailable" {
 			return nil
 		}
@@ -780,7 +780,7 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 	}
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
-	return &payload.UpdateError{
+	return &payload.Error{
 		Nested:  errors.NewAggregate(errs),
 		Reason:  "ClusterOperatorsNotAvailable",
 		Message: fmt.Sprintf("Some cluster operators are still updating: %s", name),
@@ -826,7 +826,7 @@ func newMultipleError(errs []error) error {
 	if len(messages) == 0 {
 		return errs[0]
 	}
-	return &payload.UpdateError{
+	return &payload.Error{
 		Nested:  errors.NewAggregate(errs),
 		Reason:  "MultipleErrors",
 		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
