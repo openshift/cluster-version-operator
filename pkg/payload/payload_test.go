@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 )
 
-func Test_loadUpdatePayload(t *testing.T) {
+func Test_loadPayload(t *testing.T) {
 	type args struct {
 		dir          string
 		releaseImage string
@@ -104,13 +104,13 @@ func Test_loadUpdatePayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage)
+			got, err := Load(tt.args.dir, tt.args.releaseImage)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("loadPayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("loadUpdatePayload() = %s", diff.ObjectReflectDiff(tt.want, got))
+				t.Errorf("loadPayload() = %s", diff.ObjectReflectDiff(tt.want, got))
 			}
 		})
 	}

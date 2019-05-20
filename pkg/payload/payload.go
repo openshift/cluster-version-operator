@@ -103,8 +103,9 @@ type Payload struct {
 	Manifests    []lib.Manifest
 }
 
-func LoadUpdate(dir, releaseImage string) (*Payload, error) {
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+// Load loads a Payload from the given release image.
+func Load(dir, releaseImage string) (*Payload, error) {
+	payload, tasks, err := loadPayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
 	}
@@ -207,8 +208,8 @@ type payloadTasks struct {
 	skipFiles  sets.String
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Payload, []payloadTasks, error) {
-	klog.V(4).Infof("Loading updatepayload from %q", dir)
+func loadPayloadMetadata(dir, releaseImage string) (*Payload, []payloadTasks, error) {
+	klog.V(4).Infof("Loading payload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
 	}
