@@ -1387,8 +1387,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			Failure: &payload.Error{
 				Nested:  fmt.Errorf("unable to proceed"),
-				Reason:  "UpdatePayloadFailed",
-				Message: "Could not update test \"file-yml\" (3 of 3)",
+				Reason:  "ApplyManifestError",
+				Message: "Could not apply test \"file-yml\" (3 of 3): unable to proceed",
 				Task:    &payload.Task{Index: 3, Total: 3, Manifest: &worker.payload.Manifests[2]},
 			},
 			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -1423,8 +1423,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ApplyManifestError", Message: "Could not apply test \"file-yml\" (3 of 3): unable to proceed"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "ApplyManifestError", Message: "Error while reconciling 1.0.0-abc: Could not apply test \"file-yml\" (3 of 3): unable to proceed"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},

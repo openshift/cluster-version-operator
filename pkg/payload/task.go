@@ -91,15 +91,10 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 				uerr.Task = st.Copy()
 				return uerr
 			}
-			reason, cause := reasonForError(lastErr)
-			if len(cause) > 0 {
-				cause = ": " + cause
-			}
 			return &Error{
 				Nested:  lastErr,
-				Reason:  reason,
-				Message: fmt.Sprintf("Could not update %s%s", st, cause),
-
+				Reason:  "ApplyManifestError",
+				Message: fmt.Sprintf("Could not apply %s: %s", st, messageForError(lastErr)),
 				Task: st.Copy(),
 			}
 		}
