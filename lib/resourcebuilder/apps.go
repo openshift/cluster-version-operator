@@ -2,6 +2,7 @@ package resourcebuilder
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/klog"
@@ -9,8 +10,9 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
@@ -54,9 +56,11 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	return nil
 }
 func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
-	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		d, err := client.Deployments(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
+	var d *appsv1.Deployment
+	err := wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
+		var err error
+		d, err = client.Deployments(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
 			// exit early to recreate the deployment.
 			return false, err
 		}
@@ -77,6 +81,21 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		klog.V(4).Infof("Deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
 		return false, nil
 	}, ctx.Done())
+
+	if err == wait.ErrWaitTimeout {
+		message := fmt.Sprintf("Deployment %s failed to become ready in time.", d.Name)
+		if d != nil {
+			message += fmt.Sprintf("status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		}
+
+		return &payload.UpdateError{
+			Nested:  errors.New(message),
+			Reason:  "UpdatePayloadDeploymentStuck",
+			Message: fmt.Sprintf("Could not update deployment %s: deployment is not yet available”", deployment.Name),
+		}
+	}
+
+	return err
 }
 
 type daemonsetBuilder struct {
@@ -119,7 +138,7 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		d, err := client.DaemonSets(daemonset.Namespace).Get(daemonset.Name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			// exit early to recreate the daemonset.
 			return false, err
 		}
