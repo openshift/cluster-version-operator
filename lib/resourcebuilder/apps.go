@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"strings"
+
 	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib"
@@ -74,7 +76,28 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
 			return true, nil
 		}
-		klog.V(4).Infof("Deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+
+		deploymentConditions := make([]string, 0, len(d.Status.Conditions))
+		for _, dc := range d.Status.Conditions {
+			switch dc.Type {
+			case appsv1.DeploymentProgressing, appsv1.DeploymentAvailable:
+				if dc.Status == "False" {
+					deploymentConditions = append(deploymentConditions, fmt.Sprintf(", reason: %s, message: %s", dc.Reason, dc.Message))
+				}
+			case appsv1.DeploymentReplicaFailure:
+				if dc.Status == "True" {
+					deploymentConditions = append(deploymentConditions, fmt.Sprintf(", reason: %s, message: %s", dc.Reason, dc.Message))
+				}
+			}
+		}
+
+		klog.V(4).Infof("Deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d%s)",
+			d.Name,
+			d.Status.Replicas,
+			d.Status.UpdatedReplicas,
+			d.Status.ReadyReplicas,
+			d.Status.UnavailableReplicas,
+			strings.Join(deploymentConditions, ""))
 		return false, nil
 	}, ctx.Done())
 }
