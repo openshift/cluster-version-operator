@@ -36,6 +36,14 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	data, err = ioutil.ReadFile(filepath.Join("testdata", "keyrings", "combined.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	combined, err := openpgp.ReadArmoredKeyRing(bytes.NewBuffer(data))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	serveSignatures := http.FileServer(http.Dir(filepath.Join("testdata", "signatures")))
 	sigServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -84,6 +92,14 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 				sigServerURL,
 			},
 			verifiers: map[string]openpgp.EntityList{"simple": simple},
+		},
+		{
+			name:          "valid signature for sha over http with multi-key keyring",
+			releaseDigest: "sha256:edd9824f0404f1a139688017e7001370e2f3fbc088b94da84506653b473fe140",
+			stores: []*url.URL{
+				sigServerURL,
+			},
+			verifiers: map[string]openpgp.EntityList{"combined": combined},
 		},
 
 		{
