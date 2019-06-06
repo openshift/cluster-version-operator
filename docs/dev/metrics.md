@@ -31,10 +31,10 @@ Metrics about cluster operators:
 ```
 # HELP cluster_operator_conditions Report the conditions for active cluster operators. 0 is False and 1 is True.
 # TYPE cluster_operator_conditions gauge
-cluster_operator_conditions{condition="Available",name="version",namespace="openshift-cluster-version"} 1
-cluster_operator_conditions{condition="Degraded",name="version",namespace="openshift-cluster-version"} 0
-cluster_operator_conditions{condition="Progressing",name="version",namespace="openshift-cluster-version"} 0
-cluster_operator_conditions{condition="RetrievedUpdates",name="version",namespace="openshift-cluster-version"} 0
+cluster_operator_conditions{condition="Available",name="version",namespace="openshift-cluster-version",reason="Happy"} 1
+cluster_operator_conditions{condition="Degraded",name="version",namespace="openshift-cluster-version",reason=""} 0
+cluster_operator_conditions{condition="Progressing",name="version",namespace="openshift-cluster-version",reason=""} 0
+cluster_operator_conditions{condition="RetrievedUpdates",name="version",namespace="openshift-cluster-version",reason=""} 0
 # HELP cluster_operator_up Reports key highlights of the active cluster operators.
 # TYPE cluster_operator_up gauge
 cluster_operator_up{name="version",namespace="openshift-cluster-version",version="4.0.1"} 1
