@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -340,43 +339,29 @@ func (g *TaskGraph) Roots() []int {
 	return roots
 }
 
+// Tree renders the task graph in Graphviz DOT.
 func (g *TaskGraph) Tree() string {
-	roots := g.Roots()
-	visited := make([]int, len(g.Nodes))
-	stage := 0
-	var out []string
-	var depth []int
-	for len(roots) > 0 {
-		depth = append(depth, 0)
-		for _, i := range roots {
-			visited[i] = 1
-			if d := len(g.Nodes[i].Tasks); d > depth[len(depth)-1] {
-				depth[len(depth)-1] = d
-			}
-			out = append(out, fmt.Sprintf("%d: %d %s in=%v out=%v", stage, i, g.Nodes[i], g.Nodes[i].In, g.Nodes[i].Out))
-		}
-		roots = roots[0:0]
-		for i, b := range visited {
-			if b == 1 || !covers(visited, g.Nodes[i].In) {
-				continue
-			}
-			roots = append(roots, i)
-		}
-		stage++
+	out := []string{
+		"digraph tasks {",
+		"  labelloc=t;",
+		"  rankdir=TB;",
 	}
-	for i, b := range visited {
-		if b == 1 {
-			continue
+	for i, node := range g.Nodes {
+		label := make([]string, 0, len(node.Tasks))
+		for _, task := range node.Tasks {
+			label = append(label, strings.Replace(task.String(), "\"", "", -1))
 		}
-		out = append(out, fmt.Sprintf("unreachable: %d %s in=%v out=%v", i, g.Nodes[i], g.Nodes[i].In, g.Nodes[i].Out))
+		if len(label) == 0 {
+			label = append(label, "no manifests")
+		}
+		out = append(out, fmt.Sprintf("  %d [ label=\"%s\" shape=\"box\" ];", i, strings.Join(label, "\\n")))
 	}
-	var totalDepth int
-	var levels []string
-	for _, d := range depth {
-		levels = append(levels, strconv.Itoa(d))
-		totalDepth += d
+	for i, node := range g.Nodes {
+		for _, j := range node.Out {
+			out = append(out, fmt.Sprintf("  %d -> %d;", i, j))
+		}
 	}
-	out = append(out, fmt.Sprintf("summary: depth=%d, levels=%s", totalDepth, strings.Join(levels, ",")))
+	out = append(out, "}")
 	return strings.Join(out, "\n")
 }
 
