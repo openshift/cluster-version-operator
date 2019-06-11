@@ -9,7 +9,7 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 * `cluster` - the same as current, but the value is the creation timestamp of the cluster version (cluster age)
 * `failure` - if the failure condition is set, reports the last transition time for both desired and current versions
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
-* `completed` - the time the most recent version was completely applied, or is zero
+* `completed` - the time the most recent version was completely applied, or absent if not reached
 * `updating` - if the operator is moving to a new version, the time the update started
 
 ```
