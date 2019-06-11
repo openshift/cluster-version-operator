@@ -21,6 +21,13 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
+const (
+	// ClusterStatusFailing is set on the ClusterVersion status when a cluster
+	// cannot reach the desired state. It is considered more serious than Degraded
+	// and indicates the cluster is not healthy.
+	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
+)
+
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
 	if len(desired.Image) > 0 && desired.Image == current.Image {
 		if len(desired.Version) == 0 {
@@ -221,7 +228,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 		// set the failing condition
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               configv1.ClusterStatusConditionType("Failing"),
+			Type:               ClusterStatusFailing,
 			Status:             configv1.ConditionTrue,
 			Reason:             reason,
 			Message:            err.Error(),
@@ -249,7 +256,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 	} else {
 		// clear the failure condition
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.ClusterStatusConditionType("Failing"), Status: configv1.ConditionFalse, LastTransitionTime: now})
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
 
 		// update progressing
 		if status.Reconciling {
@@ -365,7 +372,7 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 
 	// reset the failing message
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:               configv1.ClusterStatusConditionType("Failing"),
+		Type:               ClusterStatusFailing,
 		Status:             configv1.ConditionTrue,
 		Message:            ierr.Error(),
 		LastTransitionTime: now,

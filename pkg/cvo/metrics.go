@@ -70,7 +70,7 @@ started.
 		clusterOperatorConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_conditions",
 			Help: "Report the conditions for active cluster operators. 0 is False and 1 is True.",
-		}, []string{"name", "condition"}),
+		}, []string{"name", "condition", "reason"}),
 		clusterOperatorConditionTransitions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_condition_transitions",
 			Help: "Reports the number of times that a condition on a cluster operator changes status",
@@ -122,7 +122,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.version.WithLabelValues("", "", "").Desc()
 	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
-	ch <- m.clusterOperatorConditions.WithLabelValues("", "").Desc()
+	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 }
 
@@ -142,7 +142,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
 			g := m.version.WithLabelValues("desired", update.Version, update.Image)
 			g.Set(float64(mostRecentTimestamp(cv)))
@@ -215,7 +215,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			break
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.ClusterStatusConditionType("Failing"))
+		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, ClusterStatusFailing)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
 			g.Set(1)
@@ -227,7 +227,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			if condition.Status == configv1.ConditionUnknown {
 				continue
 			}
-			g := m.clusterOperatorConditions.WithLabelValues(op.Name, string(condition.Type))
+			g := m.clusterOperatorConditions.WithLabelValues(op.Name, string(condition.Type), string(condition.Reason))
 			if condition.Status == configv1.ConditionTrue {
 				g.Set(1)
 			} else {
