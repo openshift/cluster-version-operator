@@ -6,11 +6,14 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 `image`. The `type` label reports which value is reported:
 
 * `current` - the version the operator is applying right now (the running CVO version) and the age of the payload
-* `cluster` - the same as current, but the value is the creation timestamp of the cluster version (cluster age)
+* `cluster` - the initial version of the cluster, and value is the creation timestamp of the cluster version (cluster age)
 * `failure` - if the failure condition is set, reports the last transition time for both desired and current versions
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
 * `completed` - the time the most recent version was completely applied, or absent if not reached
 * `updating` - if the operator is moving to a new version, the time the update started
+
+The `from_version` label is set where appropriate and is the previous completed version for the provided `type`. Empty for
+`cluster`, and otherwise empty if there was no previous completed version (still installing).
 
 ```
 # HELP cluster_version Reports the version of the cluster.
@@ -19,7 +22,7 @@ cluster_version{image="test/image:1",type="current",version="4.0.2"} 130000000
 cluster_version{image="test/image:1",type="failure",version="4.0.2"} 132000400
 cluster_version{image="test/image:2",type="desired",version="4.0.3"} 132000400
 cluster_version{image="test/image:1",type="completed",version="4.0.2"} 132000100
-cluster_version{image="test/image:1",type="cluster",version="4.0.2"} 131000000
+cluster_version{image="test/image:0",type="cluster",version="4.0.1"} 131000000
 cluster_version{image="test/image:2",type="updating",version="4.0.3"} 132000400
 # HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
 # TYPE cluster_version_available_updates gauge
