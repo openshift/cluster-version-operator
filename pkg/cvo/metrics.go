@@ -29,6 +29,7 @@ type operatorMetrics struct {
 	conditionTransitions map[conditionKey]int
 
 	version                             *prometheus.GaugeVec
+	update                              *prometheus.GaugeVec
 	availableUpdates                    *prometheus.GaugeVec
 	clusterOperatorUp                   *prometheus.GaugeVec
 	clusterOperatorConditions           *prometheus.GaugeVec
@@ -59,6 +60,10 @@ reached the completed state and is the time the update was
 started.
 .`,
 		}, []string{"type", "version", "image"}),
+		update: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_update",
+			Help: "Report cluster update duration in seconds.",
+		}, []string{"from_version", "from_image", "to_version", "to_image", "state"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -192,6 +197,37 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 				g.Set(float64(updating.StartedTime.Unix()))
 			}
 			ch <- g
+		}
+
+		var next configv1.UpdateHistory
+		now := time.Now()
+		for i, history := range cv.Status.History {
+			if i > 0 && history.State == configv1.CompletedUpdate {
+				g := m.update.WithLabelValues(history.Version, history.Image, next.Version, next.Image, string(next.State))
+				var stop time.Time
+				if next.CompletionTime == nil {
+					stop = now
+				} else {
+					stop = next.CompletionTime.Time
+				}
+				g.Set(stop.Sub(next.StartedTime.Time).Seconds())
+				ch <- g
+			}
+			next = history
+		}
+
+		if len(cv.Status.History) > 0 {
+			install := cv.Status.History[len(cv.Status.History)-1]
+			if install.State == configv1.PartialUpdate && install.CompletionTime == nil && len(cv.Status.History) == 1 {
+				g := m.update.WithLabelValues("", "", install.Version, install.Image, string(install.State))
+				g.Set(now.Sub(install.StartedTime.Time).Seconds())
+				ch <- g
+			}
+			if install.State == configv1.CompletedUpdate {
+				g := m.update.WithLabelValues("", "", install.Version, install.Image, string(install.State))
+				g.Set(install.CompletionTime.Time.Sub(install.StartedTime.Time).Seconds())
+				ch <- g
+			}
 		}
 
 		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {

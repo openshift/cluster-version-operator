@@ -15,6 +15,9 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+// ignoreValue instructs expectMetric to ignore the gauge value.
+const ignoreValue float64 = -123.456
+
 func Test_operatorMetrics_Collect(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -60,12 +63,12 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:              "test",
-								CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+								CreationTimestamp: metav1.Time{Time: time.Unix(1, 0)},
 							},
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
-									{State: configv1.PartialUpdate, Version: "0.0.2", Image: "test/image:1", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
-									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.PartialUpdate, Version: "0.0.2", Image: "test/image:1", StartedTime: metav1.Time{Time: time.Unix(4, 0)}},
+									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", StartedTime: metav1.Time{Time: time.Unix(1, 200000000)}, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
 								},
 							},
 						},
@@ -73,13 +76,15 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 4 {
+				if len(metrics) != 6 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 4, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0"})
-				expectMetric(t, metrics[3], 2, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0"})
+				expectMetric(t, metrics[3], 4, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[4], ignoreValue, map[string]string{"from_version": "0.0.1", "from_image": "test/image:0", "to_version": "0.0.2", "to_image": "test/image:1", "state": "Partial"})
+				expectMetric(t, metrics[5], 0.8, map[string]string{"from_version": "", "from_image": "", "to_version": "0.0.1", "to_image": "test/image:0", "state": "Completed"})
 			},
 		},
 		{
@@ -474,7 +479,7 @@ func expectMetric(t *testing.T, metric prometheus.Metric, value float64, labels 
 		t.Fatalf("unable to write metrics: %v", err)
 	}
 	if d.Gauge != nil {
-		if value != *d.Gauge.Value {
+		if value != ignoreValue && value != *d.Gauge.Value {
 			t.Fatalf("incorrect value for %s: %s", metric.Desc().String(), d.String())
 		}
 	}
