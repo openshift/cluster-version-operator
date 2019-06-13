@@ -8,7 +8,7 @@ import re
 import sys
 
 
-log_regexp = re.compile('^I[0-9]+ ([0-9:.]+) .* (Running sync|Done syncing) for ([^ ]+) "([^"]+)" \(([0-9]+) of ([0-9]+)\)')
+log_regexp = re.compile('^.*I[0-9]+ ([0-9:.]+) .* (Running sync|Done syncing) for ([^ ]+) "([^"]+)" \(([0-9]+) of ([0-9]+)\)')
 
 resources = {}
 reference_time = last_log = None
