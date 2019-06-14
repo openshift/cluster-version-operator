@@ -76,10 +76,45 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 4, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0"})
-				expectMetric(t, metrics[3], 2, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[0], 4, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+				expectMetric(t, metrics[3], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+			},
+		},
+		{
+			name: "collects completed history with prior completion",
+			optr: &Operator{
+				name:           "test",
+				releaseVersion: "0.0.3",
+				releaseImage:   "test/image:2",
+				releaseCreated: time.Unix(3, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:              "test",
+								CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+							},
+							Status: configv1.ClusterVersionStatus{
+								History: []configv1.UpdateHistory{
+									{State: configv1.PartialUpdate, Version: "0.0.3", Image: "test/image:2", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
+									{State: configv1.CompletedUpdate, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 4 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 4, map[string]string{"type": "completed", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "updating", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
+				expectMetric(t, metrics[3], 3, map[string]string{"type": "current", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
 			},
 		},
 		{
@@ -109,9 +144,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "updating", "version": "", "image": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "updating", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[2], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -141,7 +176,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": ""})
+				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available"})
 				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Failing"})
@@ -172,7 +207,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": ""})
+				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 1, map[string]string{"name": "test", "version": ""})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available", "reason": ""})
 				expectMetric(t, metrics[3], 0, map[string]string{"name": "test", "condition": "Custom", "reason": "CustomReason"})
@@ -203,9 +238,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": ""})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": ""})
-				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 			},
 		},
 		{
@@ -232,9 +267,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": ""})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 			},
 		},
 		{
@@ -266,9 +301,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2"})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -301,11 +336,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 5 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 5, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2"})
-				expectMetric(t, metrics[3], 4, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2"})
-				expectMetric(t, metrics[4], 4, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[0], 5, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[2], 4, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[3], 4, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[4], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -334,9 +369,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 3 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 	}

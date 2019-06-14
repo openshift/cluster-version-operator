@@ -53,12 +53,13 @@ if an error is preventing sync or upgrade with the last
 transition timestamp of the condition. The type 'completed' 
 is the timestamp when the last image was successfully
 applied. The type 'cluster' is the creation date of the
-cluster version object. The type 'updating' is set when
-the cluster is transitioning to a new version but has not
-reached the completed state and is the time the update was
-started.
+cluster version object and the initial version. The type
+'updating' is set when the cluster is transitioning to a
+new version but has not reached the completed state and
+is the time the update was started. The from_version label
+will be set to the last completed version.
 .`,
-		}, []string{"type", "version", "image"}),
+		}, []string{"type", "version", "image", "from_version"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -119,7 +120,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 }
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
-	ch <- m.version.WithLabelValues("", "", "").Desc()
+	ch <- m.version.WithLabelValues("", "", "", "").Desc()
 	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
@@ -128,27 +129,46 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
-	g := m.version.WithLabelValues("current", current.Version, current.Image)
-	if m.optr.releaseCreated.IsZero() {
-		g.Set(0)
-	} else {
-		g.Set(float64(m.optr.releaseCreated.Unix()))
-	}
-	ch <- g
+	var completed configv1.UpdateHistory
+
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
 
-		g := m.version.WithLabelValues("cluster", current.Version, current.Image)
+		var initial configv1.UpdateHistory
+		if last := len(cv.Status.History); last > 0 {
+			initial = cv.Status.History[last-1]
+		}
+
+		// if an update ran to completion, report the timestamp of that update and store the completed
+		// version for use in other metrics
+		for i, history := range cv.Status.History {
+			if history.State == configv1.CompletedUpdate {
+				completed = history
+				var previous configv1.UpdateHistory
+				for _, history := range cv.Status.History[i+1:] {
+					if history.State == configv1.CompletedUpdate {
+						previous = history
+						break
+					}
+				}
+				g := m.version.WithLabelValues("completed", history.Version, history.Image, previous.Version)
+				g.Set(float64(history.CompletionTime.Unix()))
+				ch <- g
+				break
+			}
+		}
+
+		g := m.version.WithLabelValues("cluster", initial.Version, initial.Image, "")
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
 		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-			g := m.version.WithLabelValues("desired", update.Version, update.Image)
+			g := m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version)
 			g.Set(float64(mostRecentTimestamp(cv)))
 			ch <- g
 			if failing != nil && failing.Status == configv1.ConditionTrue {
-				g = m.version.WithLabelValues("failure", update.Version, update.Image)
+				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)
 				if failing.LastTransitionTime.IsZero() {
 					g.Set(0)
 				} else {
@@ -158,7 +178,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 		if failing != nil && failing.Status == configv1.ConditionTrue {
-			g := m.version.WithLabelValues("failure", current.Version, current.Image)
+			g := m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version)
 			if failing.LastTransitionTime.IsZero() {
 				g.Set(0)
 			} else {
@@ -167,20 +187,10 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 
-		// if an update ran to completion, report the timestamp of that update
-		for _, history := range cv.Status.History {
-			if history.State == configv1.CompletedUpdate {
-				g := m.version.WithLabelValues("completed", history.Version, history.Image)
-				g.Set(float64(history.CompletionTime.Unix()))
-				ch <- g
-				break
-			}
-		}
-
 		// when the CVO is transitioning towards a new version report a unique series describing it
 		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpdate {
 			updating := cv.Status.History[0]
-			g := m.version.WithLabelValues("updating", updating.Version, updating.Image)
+			g := m.version.WithLabelValues("updating", updating.Version, updating.Image, completed.Version)
 			if updating.StartedTime.IsZero() {
 				g.Set(0)
 			} else {
@@ -199,6 +209,14 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 	}
+
+	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
+	if m.optr.releaseCreated.IsZero() {
+		g.Set(0)
+	} else {
+		g.Set(float64(m.optr.releaseCreated.Unix()))
+	}
+	ch <- g
 
 	// output cluster operator version and condition info
 	operators, _ := m.optr.coLister.List(labels.Everything())
