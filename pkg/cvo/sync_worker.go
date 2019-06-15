@@ -676,7 +676,7 @@ func (r *consistentReporter) Errors(errs []error) error {
 func (r *consistentReporter) CancelError() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	return errCanceled{fmt.Errorf("update was cancelled at %d/%d", r.done, r.total)}
+	return errCanceled{fmt.Errorf("update was cancelled at %d of %d", r.done, r.total)}
 }
 
 func (r *consistentReporter) Complete() {
@@ -737,7 +737,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {
 				if uErr.Task != nil {
-					klog.Infof("Update error %d/%d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Update error %d of %d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				} else {
 					klog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				}
