@@ -167,20 +167,15 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 
-		// record the last completed update is completed at least once (1) or no completed update has been applied (0)
-		var completedUpdate configv1.Update
-		completed := float64(0)
+		// if an update ran to completion, report the timestamp of that update
 		for _, history := range cv.Status.History {
 			if history.State == configv1.CompletedUpdate {
-				completedUpdate.Image = history.Image
-				completedUpdate.Version = history.Version
-				completed = float64(history.CompletionTime.Unix())
+				g := m.version.WithLabelValues("completed", history.Version, history.Image)
+				g.Set(float64(history.CompletionTime.Unix()))
+				ch <- g
 				break
 			}
 		}
-		g = m.version.WithLabelValues("completed", completedUpdate.Version, completedUpdate.Image)
-		g.Set(completed)
-		ch <- g
 
 		// when the CVO is transitioning towards a new version report a unique series describing it
 		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpdate {
