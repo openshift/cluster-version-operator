@@ -8,6 +8,7 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+// Tests ensurePodSpec
 func TestEnsurePodSpec(t *testing.T) {
 	tests := []struct {
 		name     string
