@@ -73,13 +73,14 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 4 {
+				if len(metrics) != 5 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 4, map[string]string{"type": "completed", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
-				expectMetric(t, metrics[2], 2, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
-				expectMetric(t, metrics[3], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "initial", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+				expectMetric(t, metrics[3], 2, map[string]string{"type": "updating", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
+				expectMetric(t, metrics[4], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
 			},
 		},
 		{
@@ -108,13 +109,14 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 4 {
+				if len(metrics) != 5 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 4, map[string]string{"type": "completed", "version": "0.0.2", "image": "test/image:1", "from_version": "0.0.1"})
-				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
-				expectMetric(t, metrics[2], 2, map[string]string{"type": "updating", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
-				expectMetric(t, metrics[3], 3, map[string]string{"type": "current", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "initial", "version": "0.0.1", "image": "test/image:0", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "cluster", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.1"})
+				expectMetric(t, metrics[3], 2, map[string]string{"type": "updating", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
+				expectMetric(t, metrics[4], 3, map[string]string{"type": "current", "version": "0.0.3", "image": "test/image:2", "from_version": "0.0.2"})
 			},
 		},
 		{
@@ -141,12 +143,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 3 {
+				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"type": "updating", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[2], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "updating", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[3], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -235,12 +238,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 3 {
+				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 2, map[string]string{"upstream": "<default>", "channel": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 			},
 		},
 		{
@@ -264,12 +268,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 3 {
+				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"upstream": "<default>", "channel": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 			},
 		},
 		{
@@ -298,12 +303,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 3 {
+				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -333,14 +339,15 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 5 {
+				if len(metrics) != 6 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 5, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
-				expectMetric(t, metrics[2], 4, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
-				expectMetric(t, metrics[3], 4, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[4], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[0], 5, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 5, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[3], 4, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
+				expectMetric(t, metrics[4], 4, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[5], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 		{
@@ -366,12 +373,13 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 3 {
+				if len(metrics) != 4 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				expectMetric(t, metrics[0], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[2], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 			},
 		},
 	}
