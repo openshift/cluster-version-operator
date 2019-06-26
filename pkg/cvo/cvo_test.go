@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -147,6 +148,27 @@ func (r *coLister) Get(name string) (*configv1.ClusterOperator, error) {
 	for _, s := range r.Items {
 		if s.Name == name {
 			return s, nil
+		}
+	}
+	return nil, errors.NewNotFound(schema.GroupResource{}, name)
+}
+
+type cmLister struct {
+	Err   error
+	Items []*corev1.ConfigMap
+}
+
+func (l *cmLister) List(selector labels.Selector) ([]*corev1.ConfigMap, error) {
+	return l.Items, l.Err
+}
+
+func (l *cmLister) Get(name string) (*corev1.ConfigMap, error) {
+	if l.Err != nil {
+		return nil, l.Err
+	}
+	for _, cm := range l.Items {
+		if cm.Name == name {
+			return cm, nil
 		}
 	}
 	return nil, errors.NewNotFound(schema.GroupResource{}, name)

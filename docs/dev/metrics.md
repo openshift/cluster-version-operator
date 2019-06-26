@@ -56,3 +56,13 @@ cluster_version_payload{type="pending",version="4.0.3"} 1
 # TYPE cluster_operator_payload_errors gauge
 cluster_operator_payload_errors{version="4.0.3"} 10
 ```
+
+Metrics about the installation:
+
+`cluster_installer` records information about the installation process. The type is either "openshift-install", indicating that `openshift-install` was used to install the cluster (IPI) or "", indicating that an unknown process installed the cluster (UPI). When `openshift-install` creates a cluster, it will also report its version and invoker. The version is helpful for determining exactly which builds are being used to install (e.g. were they official builds or had they been modified). The invoker is "user" by default, but it may be overridden by a consuming tool (e.g. Hive, CI).
+
+```
+# TYPE cluster_installer gauge
+cluster_installer{type="openshift-install",invoker="user",version="unreleased-master-1209-gfd08f44181f2111486749e2fb38399088f315cfb"} 1
+cluster_installer{type="",invoker="",version=""} 1
+```

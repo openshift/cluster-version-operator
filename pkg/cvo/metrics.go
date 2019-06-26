@@ -3,6 +3,7 @@ package cvo
 import (
 	"time"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -13,6 +14,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 func (optr *Operator) registerMetrics(coInformer cache.SharedInformer) error {
@@ -33,6 +35,7 @@ type operatorMetrics struct {
 	clusterOperatorUp                   *prometheus.GaugeVec
 	clusterOperatorConditions           *prometheus.GaugeVec
 	clusterOperatorConditionTransitions *prometheus.GaugeVec
+	clusterInstaller                    *prometheus.GaugeVec
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
@@ -78,6 +81,10 @@ version for 'cluster', or empty for 'initial'.
 			Name: "cluster_operator_condition_transitions",
 			Help: "Reports the number of times that a condition on a cluster operator changes status",
 		}, []string{"name", "condition"}),
+		clusterInstaller: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_installer",
+			Help: "Reports info about the installation process and, if applicable, the install tool.",
+		}, []string{"type", "version", "invoker"}),
 	}
 }
 
@@ -127,6 +134,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
+	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
@@ -267,6 +275,27 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	for key, value := range m.conditionTransitions {
 		g := m.clusterOperatorConditionTransitions.WithLabelValues(key.Name, key.Type)
 		g.Set(float64(value))
+		ch <- g
+	}
+
+	installer, err := m.optr.cmLister.Get(internal.InstallerConfigMap)
+	if err == nil {
+		version := "<missing>"
+		invoker := "<missing>"
+
+		if v, ok := installer.Data["version"]; ok {
+			version = v
+		}
+		if i, ok := installer.Data["invoker"]; ok {
+			invoker = i
+		}
+
+		g := m.clusterInstaller.WithLabelValues("openshift-install", version, invoker)
+		g.Set(1.0)
+		ch <- g
+	} else if apierrors.IsNotFound(err) {
+		g := m.clusterInstaller.WithLabelValues("", "", "")
+		g.Set(1.0)
 		ch <- g
 	}
 }

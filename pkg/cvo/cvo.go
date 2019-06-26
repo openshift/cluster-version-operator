@@ -18,9 +18,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -35,8 +37,9 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
-	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -101,6 +104,7 @@ type Operator struct {
 
 	cvLister    configlistersv1.ClusterVersionLister
 	coLister    configlistersv1.ClusterOperatorLister
+	cmLister    listerscorev1.ConfigMapNamespaceLister
 	proxyLister configlistersv1.ProxyLister
 	cacheSynced []cache.InformerSynced
 
@@ -136,6 +140,7 @@ func New(
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
+	cmInformer informerscorev1.ConfigMapInformer,
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -174,6 +179,8 @@ func New(
 
 	optr.cvLister = cvInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
+
+	optr.cmLister = cmInformer.Lister().ConfigMaps(internal.ConfigNamespace)
 
 	if enableMetrics {
 		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
@@ -515,7 +522,7 @@ type resourceBuilder struct {
 	burstConfig *rest.Config
 	modifier    resourcebuilder.MetaV1ObjectModifierFunc
 
-	clusterOperators internal.ClusterOperatorsGetter
+	clusterOperators cvointernal.ClusterOperatorsGetter
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
@@ -534,7 +541,7 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	}
 
 	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
-		return internal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
+		return cvointernal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
 	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)
@@ -543,7 +550,7 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	if err != nil {
 		return nil, err
 	}
-	return internal.NewGenericBuilder(client, *m)
+	return cvointernal.NewGenericBuilder(client, *m)
 }
 
 func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
