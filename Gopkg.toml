@@ -21,11 +21,6 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types", "gith
   unused-packages = false
 
 [[constraint]]
-  name = "github.com/golang/glog"
-  revision = "3c92600d7533018d216b534fe894ad60a1e6d5bf"
-  source = "https://github.com/openshift/golang-glog.git"
-
-[[constraint]]
   name = "github.com/google/uuid"
   revision = "8c31c18f31ede9fc8eae72290a7e7a8064e9b3e3"
 
