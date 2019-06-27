@@ -6,24 +6,26 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 `image`. The `type` label reports which value is reported:
 
 * `current` - the version the operator is applying right now (the running CVO version) and the age of the payload
-* `cluster` - the initial version of the cluster, and value is the creation timestamp of the cluster version (cluster age)
+* `initial` - the initial version of the cluster, and value is the creation timestamp of the cluster version (cluster age)
+* `cluster` - the current version of the cluster with from_version set to the initial version, and value is the creation timestamp of the cluster version (cluster age)
 * `failure` - if the failure condition is set, reports the last transition time for both desired and current versions
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
 * `completed` - the time the most recent version was completely applied, or absent if not reached
 * `updating` - if the operator is moving to a new version, the time the update started
 
 The `from_version` label is set where appropriate and is the previous completed version for the provided `type`. Empty for
-`cluster`, and otherwise empty if there was no previous completed version (still installing).
+`initial`, and otherwise empty if there was no previous completed version (still installing).
 
 ```
 # HELP cluster_version Reports the version of the cluster.
 # TYPE cluster_version gauge
-cluster_version{image="test/image:1",type="current",version="4.0.2"} 130000000
-cluster_version{image="test/image:1",type="failure",version="4.0.2"} 132000400
-cluster_version{image="test/image:2",type="desired",version="4.0.3"} 132000400
-cluster_version{image="test/image:1",type="completed",version="4.0.2"} 132000100
-cluster_version{image="test/image:0",type="cluster",version="4.0.1"} 131000000
-cluster_version{image="test/image:2",type="updating",version="4.0.3"} 132000400
+cluster_version{image="test/image:2",type="current",version="4.0.3",from_version="4.0.2"} 130000000
+cluster_version{image="test/image:2",type="failure",version="4.0.3",from_version="4.0.2"} 132000400
+cluster_version{image="test/image:4",type="desired",version="4.0.4",from_version="4.0.2"} 132000400
+cluster_version{image="test/image:2",type="completed",version="4.0.3",from_version="4.0.2"} 132000100
+cluster_version{image="test/image:1",type="initial",version="4.0.1",from_version=""} 131000000
+cluster_version{image="test/image:2",type="cluster",version="4.0.3",from_version="4.0.1"} 131000000
+cluster_version{image="test/image:3",type="updating",version="4.0.4",from_version="4.0.3"} 132000400
 # HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
 # TYPE cluster_version_available_updates gauge
 cluster_version_available_updates{channel="fast",upstream="https://api.openshift.com/api/upgrades_info/v1/graph"} 0

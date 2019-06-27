@@ -53,11 +53,13 @@ if an error is preventing sync or upgrade with the last
 transition timestamp of the condition. The type 'completed' 
 is the timestamp when the last image was successfully
 applied. The type 'cluster' is the creation date of the
-cluster version object and the initial version. The type
+cluster version object and the current version. The type
 'updating' is set when the cluster is transitioning to a
 new version but has not reached the completed state and
-is the time the update was started. The from_version label
-will be set to the last completed version.
+is the time the update was started. The type 'initial' is
+set to the oldest entry in the history. The from_version label
+will be set to the last completed version, the initial
+version for 'cluster', or empty for 'initial'.
 .`,
 		}, []string{"type", "version", "image", "from_version"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
@@ -158,7 +160,19 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
-		g := m.version.WithLabelValues("cluster", initial.Version, initial.Image, "")
+		// answers "which images were clusters initially installed with"
+		g := m.version.WithLabelValues("initial", initial.Version, initial.Image, "")
+		g.Set(float64(cv.CreationTimestamp.Unix()))
+		ch <- g
+
+		// answers "how old are clusters at this version currently and what version did they start at"
+		initialVersion := initial.Version
+		// clear the initial version if we have never "reached level" (i.e., we are still installing),
+		// which allows us to exclude clusters that are still being installed
+		if len(completed.Version) == 0 {
+			initialVersion = ""
+		}
+		g = m.version.WithLabelValues("cluster", current.Version, current.Image, initialVersion)
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
