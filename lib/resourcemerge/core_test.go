@@ -30,11 +30,16 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "remove regular containers from existing",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+					corev1.Container{Name: "to-be-removed"}}},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
 					corev1.Container{Name: "test"}}},
-			input: corev1.PodSpec{},
 
 			expectedModified: true,
-			expected:         corev1.PodSpec{},
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
 		},
 		{
 			name: "remove regular and init containers from existing",
