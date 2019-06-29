@@ -62,8 +62,8 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 }
 
 func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
-	var existingCurr *corev1.Container
 	for i, existingContainer := range *existing {
+		var existingCurr *corev1.Container
 		for _, requiredContainer := range required {
 			if existingContainer.Name == requiredContainer.Name {
 				existingCurr = &(*existing)[i]
