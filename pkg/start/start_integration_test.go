@@ -203,7 +203,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
 		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
@@ -271,7 +271,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
-	cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
+	cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version")
-	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
+	cv, err = client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +317,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
-	cv, err = client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
+	cv, err = client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
 		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
@@ -411,7 +411,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version that should fail")
-	cv, err := client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
+	cv, err := client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -440,7 +440,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	verifyReleasePayloadConfigMap2(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("switch back to 0.0.1 and verify it succeeds")
-	cv, err = client.Config().ClusterVersions().Patch(ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"image":"", "version":"0.0.1"}}}`))
+	cv, err = client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"image":"", "version":"0.0.1"}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -481,7 +481,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
 		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
@@ -604,7 +604,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.Config().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
 		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
@@ -711,7 +711,7 @@ metadata:
 func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
+		cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -822,7 +822,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, failingReason, failingMessage, progressingMessage string, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		cv, err := client.Config().ClusterVersions().Get(ns, metav1.GetOptions{})
+		cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}

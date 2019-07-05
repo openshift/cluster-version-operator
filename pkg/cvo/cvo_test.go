@@ -47,10 +47,10 @@ type clientCVLister struct {
 }
 
 func (c *clientCVLister) Get(name string) (*configv1.ClusterVersion, error) {
-	return c.client.Config().ClusterVersions().Get(name, metav1.GetOptions{})
+	return c.client.ConfigV1().ClusterVersions().Get(name, metav1.GetOptions{})
 }
 func (c *clientCVLister) List(selector labels.Selector) (ret []*configv1.ClusterVersion, err error) {
-	list, err := c.client.Config().ClusterVersions().List(metav1.ListOptions{LabelSelector: selector.String()})
+	list, err := c.client.ConfigV1().ClusterVersions().List(metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -66,10 +66,10 @@ type clientCOLister struct {
 }
 
 func (c *clientCOLister) Get(name string) (*configv1.ClusterOperator, error) {
-	return c.client.Config().ClusterOperators().Get(name, metav1.GetOptions{})
+	return c.client.ConfigV1().ClusterOperators().Get(name, metav1.GetOptions{})
 }
 func (c *clientCOLister) List(selector labels.Selector) (ret []*configv1.ClusterOperator, err error) {
-	list, err := c.client.Config().ClusterOperators().List(metav1.ListOptions{LabelSelector: selector.String()})
+	list, err := c.client.ConfigV1().ClusterOperators().List(metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
