@@ -61,12 +61,12 @@
   version = "v1.1.1"
 
 [[projects]]
-  digest = "1:32b7b054d74ab43a5fb9bac9681536821f484c8b90db7971c7d3ba024f2c1918"
+  branch = "master"
+  digest = "1:e2b86e41f3d669fc36b50d31d32d22c8ac656c75aa5ea89717ce7177e134ff2a"
   name = "github.com/golang/glog"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "3c92600d7533018d216b534fe894ad60a1e6d5bf"
-  source = "https://github.com/openshift/golang-glog.git"
+  revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
   branch = "master"
@@ -213,7 +213,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5f9e9064de248b2e2de27f1890007e277cc8deaa21bea00f61b74372a94c4a3f"
+  digest = "1:278ca049b05818a0f88289b44839a1c3f6fc5c3e04ee38e9dedda5116d4b2919"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -223,11 +223,11 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "515b3561c8a150ecbd1a2dd744c7bd829b3308f2"
+  revision = "06fefbf8a8cfda80b930ea27e8772eb95280310b"
 
 [[projects]]
   branch = "master"
-  digest = "1:192abee7a3aa1ad1e84356e6fa4c14e9161ed107b44ff8fa80bbf1015c5ef426"
+  digest = "1:997fb0392baf5e229435667acaf6aabcf7fcf6a753a8e42149872ed888252e61"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -244,7 +244,7 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "0255926f53935175fe90b8e7672c4c06c17d79e6"
+  revision = "c44a8b61b9f46cd9e802384dfeda0bc9942db68a"
 
 [[projects]]
   branch = "master"
@@ -784,7 +784,6 @@
     "github.com/blang/semver",
     "github.com/davecgh/go-spew/spew",
     "github.com/ghodss/yaml",
-    "github.com/golang/glog",
     "github.com/google/uuid",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/api/image/v1",
