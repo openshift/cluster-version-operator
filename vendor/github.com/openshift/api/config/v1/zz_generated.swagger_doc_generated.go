@@ -271,8 +271,9 @@ func (APIServerServingCerts) SwaggerDoc() map[string]string {
 }
 
 var map_APIServerSpec = map[string]string{
-	"servingCerts": "servingCert is the TLS cert info for serving secure traffic. If not specified, operator managed certificates will be used for serving secure traffic.",
-	"clientCA":     "clientCA references a ConfigMap containing a certificate bundle for the signers that will be recognized for incoming client certificates in addition to the operator managed signers. If this is empty, then only operator managed signers are valid. You usually only have to set this if you have your own PKI you wish to honor client certificates from. The ConfigMap must exist in the openshift-config namespace and contain the following required fields: - ConfigMap.Data[\"ca-bundle.crt\"] - CA bundle.",
+	"servingCerts":                 "servingCert is the TLS cert info for serving secure traffic. If not specified, operator managed certificates will be used for serving secure traffic.",
+	"clientCA":                     "clientCA references a ConfigMap containing a certificate bundle for the signers that will be recognized for incoming client certificates in addition to the operator managed signers. If this is empty, then only operator managed signers are valid. You usually only have to set this if you have your own PKI you wish to honor client certificates from. The ConfigMap must exist in the openshift-config namespace and contain the following required fields: - ConfigMap.Data[\"ca-bundle.crt\"] - CA bundle.",
+	"additionalCORSAllowedOrigins": "additionalCORSAllowedOrigins lists additional, user-defined regular expressions describing hosts for which the API server allows access using the CORS headers. This may be needed to access the API and the integrated OAuth server from JavaScript applications. The values are regular expressions that correspond to the Golang regular expression language.",
 }
 
 func (APIServerSpec) SwaggerDoc() map[string]string {
@@ -539,7 +540,7 @@ func (UpdateHistory) SwaggerDoc() map[string]string {
 }
 
 var map_Console = map[string]string{
-	"":         "Console holds cluster-wide information about Console.  The canonical name is `cluster`",
+	"":         "Console holds cluster-wide information about Console.  The canonical name is `cluster`.",
 	"metadata": "Standard object's metadata.",
 	"spec":     "spec holds user settable values for configuration",
 	"status":   "status holds observed values from the cluster. They may not be overridden.",
@@ -550,6 +551,7 @@ func (Console) SwaggerDoc() map[string]string {
 }
 
 var map_ConsoleAuthentication = map[string]string{
+	"":               "ConsoleAuthentication defines a list of optional configuration for console authentication.",
 	"logoutRedirect": "An optional, absolute URL to redirect web browsers to after logging out of the console. If not specified, it will redirect to the default login page. This is required when using an identity provider that supports single sign-on (SSO) such as: - OpenID (Keycloak, Azure) - RequestHeader (GSSAPI, SSPI, SAML) - OAuth (GitHub, GitLab, Google) Logging out of the console will destroy the user's token. The logoutRedirect provides the user the option to perform single logout (SLO) through the identity provider to destroy their single sign-on session.",
 }
 
@@ -565,7 +567,16 @@ func (ConsoleList) SwaggerDoc() map[string]string {
 	return map_ConsoleList
 }
 
+var map_ConsoleSpec = map[string]string{
+	"": "ConsoleSpec is the specification of the desired behavior of the Console.",
+}
+
+func (ConsoleSpec) SwaggerDoc() map[string]string {
+	return map_ConsoleSpec
+}
+
 var map_ConsoleStatus = map[string]string{
+	"":           "ConsoleStatus defines the observed status of the Console.",
 	"consoleURL": "The URL for the console. This will be derived from the host for the route that is created for the console.",
 }
 
@@ -690,13 +701,41 @@ func (RegistryLocation) SwaggerDoc() map[string]string {
 
 var map_RegistrySources = map[string]string{
 	"":                   "RegistrySources holds cluster-wide information about how to handle the registries config.",
-	"insecureRegistries": "InsecureRegistries are registries which do not have a valid SSL certificate or only support HTTP connections.",
+	"insecureRegistries": "InsecureRegistries are registries which do not have a valid TLS certificates or only support HTTP connections.",
 	"blockedRegistries":  "BlockedRegistries are blacklisted from image pull/push. All other registries are allowed.\n\nOnly one of BlockedRegistries or AllowedRegistries may be set.",
 	"allowedRegistries":  "AllowedRegistries are whitelisted for image pull/push. All other registries are blocked.\n\nOnly one of BlockedRegistries or AllowedRegistries may be set.",
 }
 
 func (RegistrySources) SwaggerDoc() map[string]string {
 	return map_RegistrySources
+}
+
+var map_AWSPlatformStatus = map[string]string{
+	"":       "AWSPlatformStatus holds the current status of the Amazon Web Services infrastructure provider.",
+	"region": "region holds the default AWS region for new AWS resources created by the cluster.",
+}
+
+func (AWSPlatformStatus) SwaggerDoc() map[string]string {
+	return map_AWSPlatformStatus
+}
+
+var map_AzurePlatformStatus = map[string]string{
+	"":                  "AzurePlatformStatus holds the current status of the Azure infrastructure provider.",
+	"resourceGroupName": "resourceGroupName is the Resource Group for new Azure resources created for the cluster.",
+}
+
+func (AzurePlatformStatus) SwaggerDoc() map[string]string {
+	return map_AzurePlatformStatus
+}
+
+var map_GCPPlatformStatus = map[string]string{
+	"":          "GCPPlatformStatus holds the current status of the Google Cloud Platform infrastructure provider.",
+	"projectID": "resourceGroupName is the Project ID for new GCP resources created for the cluster.",
+	"region":    "region holds the region for new GCP resources created for the cluster.",
+}
+
+func (GCPPlatformStatus) SwaggerDoc() map[string]string {
+	return map_GCPPlatformStatus
 }
 
 var map_Infrastructure = map[string]string{
@@ -729,15 +768,29 @@ func (InfrastructureSpec) SwaggerDoc() map[string]string {
 }
 
 var map_InfrastructureStatus = map[string]string{
-	"":                    "InfrastructureStatus describes the infrastructure the cluster is leveraging.",
-	"infrastructureName":  "infrastructureName uniquely identifies a cluster with a human friendly name. Once set it should not be changed. Must be of max length 27 and must have only alphanumeric or hyphen characters.",
-	"platform":            "platform is the underlying infrastructure provider for the cluster. This value controls whether infrastructure automation such as service load balancers, dynamic volume provisioning, machine creation and deletion, and other integrations are enabled. If None, no infrastructure automation is enabled. Allowed values are \"AWS\", \"Azure\", \"BareMetal\", \"GCP\", \"Libvirt\", \"OpenStack\", \"VSphere\", and \"None\". Individual components may not support all platforms, and must handle unrecognized platforms as None if they do not support that platform.",
-	"etcdDiscoveryDomain": "etcdDiscoveryDomain is the domain used to fetch the SRV records for discovering etcd servers and clients. For more info: https://github.com/etcd-io/etcd/blob/329be66e8b3f9e2e6af83c123ff89297e49ebd15/Documentation/op-guide/clustering.md#dns-discovery",
-	"apiServerURL":        "apiServerURL is a valid URL with scheme(http/https), address and port. apiServerURL can be used by components like kubelet on machines, to contact the `apisever` using the infrastructure provider rather than the kubernetes networking.",
+	"":                     "InfrastructureStatus describes the infrastructure the cluster is leveraging.",
+	"infrastructureName":   "infrastructureName uniquely identifies a cluster with a human friendly name. Once set it should not be changed. Must be of max length 27 and must have only alphanumeric or hyphen characters.",
+	"platform":             "platform is the underlying infrastructure provider for the cluster.\n\nDeprecated: Use platformStatus.type instead.",
+	"platformStatus":       "platformStatus holds status information specific to the underlying infrastructure provider.",
+	"etcdDiscoveryDomain":  "etcdDiscoveryDomain is the domain used to fetch the SRV records for discovering etcd servers and clients. For more info: https://github.com/etcd-io/etcd/blob/329be66e8b3f9e2e6af83c123ff89297e49ebd15/Documentation/op-guide/clustering.md#dns-discovery",
+	"apiServerURL":         "apiServerURL is a valid URI with scheme(http/https), address and port.  apiServerURL can be used by components like the web console to tell users where to find the Kubernetes API.",
+	"apiServerInternalURI": "apiServerInternalURL is a valid URI with scheme(http/https), address and port.  apiServerInternalURL can be used by components like kubelets, to contact the Kubernetes API server using the infrastructure provider rather than Kubernetes networking.",
 }
 
 func (InfrastructureStatus) SwaggerDoc() map[string]string {
 	return map_InfrastructureStatus
+}
+
+var map_PlatformStatus = map[string]string{
+	"":      "PlatformStatus holds the current status specific to the underlying infrastructure provider of the current cluster. Since these are used at status-level for the underlying cluster, it is supposed that only one of the status structs is set.",
+	"type":  "type is the underlying infrastructure provider for the cluster. This value controls whether infrastructure automation such as service load balancers, dynamic volume provisioning, machine creation and deletion, and other integrations are enabled. If None, no infrastructure automation is enabled. Allowed values are \"AWS\", \"Azure\", \"BareMetal\", \"GCP\", \"Libvirt\", \"OpenStack\", \"VSphere\", \"oVirt\", and \"None\". Individual components may not support all platforms, and must handle unrecognized platforms as None if they do not support that platform.",
+	"aws":   "AWS contains settings specific to the Amazon Web Services infrastructure provider.",
+	"azure": "Azure contains settings specific to the Azure infrastructure provider.",
+	"gcp":   "GCP contains settings specific to the Google Cloud Platform infrastructure provider.",
+}
+
+func (PlatformStatus) SwaggerDoc() map[string]string {
+	return map_PlatformStatus
 }
 
 var map_Ingress = map[string]string{
@@ -777,6 +830,26 @@ func (ClusterNetworkEntry) SwaggerDoc() map[string]string {
 	return map_ClusterNetworkEntry
 }
 
+var map_ExternalIPConfig = map[string]string{
+	"":                "ExternalIPConfig specifies some IP blocks relevant for the ExternalIP field of a Service resource.",
+	"policy":          "policy is a set of restrictions applied to the ExternalIP field. If nil, any value is allowed for an ExternalIP. If the empty/zero policy is supplied, then ExternalIP is not allowed to be set.",
+	"autoAssignCIDRs": "autoAssignCIDRs is a list of CIDRs from which to automatically assign Service.ExternalIP. These are assigned when the service is of type LoadBalancer. In general, this is only useful for bare-metal clusters. In Openshift 3.x, this was misleadingly called \"IngressIPs\". Automatically assigned External IPs are not affected by any ExternalIPPolicy rules. Currently, only one entry may be provided.",
+}
+
+func (ExternalIPConfig) SwaggerDoc() map[string]string {
+	return map_ExternalIPConfig
+}
+
+var map_ExternalIPPolicy = map[string]string{
+	"":              "ExternalIPPolicy configures exactly which IPs are allowed for the ExternalIP field in a Service. If the zero struct is supplied, then none are permitted. The policy controller always allows automatically assigned external IPs.",
+	"allowedCIDRs":  "allowedCIDRs is the list of allowed CIDRs.",
+	"rejectedCIDRs": "rejectedCIDRs is the list of disallowed CIDRs. These take precedence over allowedCIDRs.",
+}
+
+func (ExternalIPPolicy) SwaggerDoc() map[string]string {
+	return map_ExternalIPPolicy
+}
+
 var map_Network = map[string]string{
 	"":         "Network holds cluster-wide information about Network.  The canonical name is `cluster`",
 	"metadata": "Standard object's metadata.",
@@ -797,10 +870,11 @@ func (NetworkList) SwaggerDoc() map[string]string {
 }
 
 var map_NetworkSpec = map[string]string{
-	"":               "NetworkSpec is the desired network configuration. As a general rule, this SHOULD NOT be read directly. Instead, you should consume the NetworkStatus, as it indicates the currently deployed configuration. Currently, none of these fields may be changed after installation.",
+	"":               "NetworkSpec is the desired network configuration. As a general rule, this SHOULD NOT be read directly. Instead, you should consume the NetworkStatus, as it indicates the currently deployed configuration. Currently, changing ClusterNetwork, ServiceNetwork, or NetworkType after installation is not supported.",
 	"clusterNetwork": "IP address pool to use for pod IPs.",
 	"serviceNetwork": "IP address pool for services. Currently, we only support a single entry here.",
 	"networkType":    "NetworkType is the plugin that is to be deployed (e.g. OpenShiftSDN). This should match a value that the cluster-network-operator understands, or else no networking will be installed. Currently supported values are: - OpenShiftSDN",
+	"externalIP":     "externalIP defines configuration for controllers that affect Service.ExternalIP",
 }
 
 func (NetworkSpec) SwaggerDoc() map[string]string {
@@ -1077,8 +1151,9 @@ func (TemplateReference) SwaggerDoc() map[string]string {
 }
 
 var map_Proxy = map[string]string{
-	"":     "Proxy holds cluster-wide information on how to configure default proxies for the cluster. The canonical name is `cluster`",
-	"spec": "Spec holds user-settable values for the proxy configuration",
+	"":       "Proxy holds cluster-wide information on how to configure default proxies for the cluster. The canonical name is `cluster`",
+	"spec":   "Spec holds user-settable values for the proxy configuration",
+	"status": "status holds observed values from the cluster. They may not be overridden.",
 }
 
 func (Proxy) SwaggerDoc() map[string]string {
@@ -1094,13 +1169,25 @@ func (ProxyList) SwaggerDoc() map[string]string {
 }
 
 var map_ProxySpec = map[string]string{
+	"":           "ProxySpec contains cluster proxy creation configuration.",
 	"httpProxy":  "httpProxy is the URL of the proxy for HTTP requests.  Empty means unset and will not result in an env var.",
 	"httpsProxy": "httpsProxy is the URL of the proxy for HTTPS requests.  Empty means unset and will not result in an env var.",
-	"noProxy":    "noProxy is the list of domains for which the proxy should not be used.  Empty means unset and will not result in an env var.",
+	"noProxy":    "noProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in an env var.",
 }
 
 func (ProxySpec) SwaggerDoc() map[string]string {
 	return map_ProxySpec
+}
+
+var map_ProxyStatus = map[string]string{
+	"":           "ProxyStatus shows current known state of the cluster proxy.",
+	"httpProxy":  "httpProxy is the URL of the proxy for HTTP requests.",
+	"httpsProxy": "httpsProxy is the URL of the proxy for HTTPS requests.",
+	"noProxy":    "noProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used.",
+}
+
+func (ProxyStatus) SwaggerDoc() map[string]string {
+	return map_ProxyStatus
 }
 
 var map_Scheduler = map[string]string{
