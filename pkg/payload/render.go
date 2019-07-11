@@ -30,9 +30,12 @@ func Render(outputDir, releaseImage string) error {
 		odir      string
 		skipFiles sets.String
 	}{{
-		idir:      manifestsDir,
-		odir:      oManifestsDir,
-		skipFiles: sets.NewString("image-references"),
+		idir: manifestsDir,
+		odir: oManifestsDir,
+		skipFiles: sets.NewString(
+			"image-references",
+			"0000_90_cluster-version-operator_02_servicemonitor.yaml",
+		),
 	}, {
 		idir:      bootstrapDir,
 		odir:      oBootstrapDir,
