@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"net/url"
+
 	"github.com/blang/semver"
-	"k8s.io/klog"
 	"github.com/google/uuid"
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +39,12 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return nil
 	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), upstream, channel, optr.releaseVersion)
+	proxyURL, err := optr.getHTTPSProxyURL()
+	if err != nil {
+		return err
+	}
+
+	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, upstream, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -103,7 +111,7 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
@@ -134,7 +142,7 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 		}
 	}
 
-	updates, err := checkForUpdate(clusterID, upstream, channel, currentVersion)
+	updates, err := checkForUpdate(clusterID, proxyURL, upstream, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
@@ -159,13 +167,38 @@ func calculateAvailableUpdatesStatus(clusterID, upstream, channel, version strin
 	}
 }
 
-func checkForUpdate(clusterID, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
+func checkForUpdate(clusterID string, proxyURL *url.URL, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return nil, err
 	}
+
 	if len(upstream) == 0 {
 		return nil, fmt.Errorf("no upstream URL set for cluster version")
 	}
-	return cincinnati.NewClient(uuid).GetUpdates(upstream, channel, currentVersion)
+	return cincinnati.NewClient(uuid, proxyURL).GetUpdates(upstream, channel, currentVersion)
+}
+
+// getHTTPSProxyURL returns a url.URL object for the configured
+// https proxy only. It can be nil if does not exist or there is an error.
+func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
+	proxy, err := optr.proxyLister.Get("cluster")
+
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if &proxy.Spec != nil {
+		if proxy.Spec.HTTPSProxy != "" {
+			proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
+			if err != nil {
+				return nil, err
+			}
+			return proxyURL, nil
+		}
+	}
+	return nil, nil
 }
