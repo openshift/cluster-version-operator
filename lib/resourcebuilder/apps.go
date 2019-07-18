@@ -3,11 +3,9 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
-
 	"strings"
 
-	"k8s.io/klog"
-
+	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -17,18 +15,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 )
 
 type deploymentBuilder struct {
-	client   *appsclientv1.AppsV1Client
-	raw      []byte
-	modifier MetaV1ObjectModifierFunc
+	client      *appsclientv1.AppsV1Client
+	proxyGetter configv1.ProxiesGetter
+	raw         []byte
+	modifier    MetaV1ObjectModifierFunc
 }
 
 func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &deploymentBuilder{
-		client: appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		raw:    m.Raw,
+		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
+		proxyGetter: configv1.NewForConfigOrDie(config),
+		raw:         m.Raw,
 	}
 }
 
@@ -46,6 +47,26 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(deployment)
 	}
+
+	// if proxy injection is requested, get the proxy values and use them
+	if containerNamesString := deployment.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
+		proxyConfig, err := b.proxyGetter.Proxies().Get("cluster", metav1.GetOptions{})
+		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		err = updatePodSpecWithProxy(
+			&deployment.Spec.Template.Spec,
+			strings.Split(containerNamesString, ","),
+			proxyConfig.Status.HTTPProxy,
+			proxyConfig.Status.HTTPSProxy,
+			proxyConfig.Status.NoProxy,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
 	actual, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
 		return err
@@ -103,15 +124,17 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 }
 
 type daemonsetBuilder struct {
-	client   *appsclientv1.AppsV1Client
-	raw      []byte
-	modifier MetaV1ObjectModifierFunc
+	client      *appsclientv1.AppsV1Client
+	proxyGetter configv1.ProxiesGetter
+	raw         []byte
+	modifier    MetaV1ObjectModifierFunc
 }
 
 func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &daemonsetBuilder{
-		client: appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		raw:    m.Raw,
+		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
+		proxyGetter: configv1.NewForConfigOrDie(config),
+		raw:         m.Raw,
 	}
 }
 
@@ -129,6 +152,26 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(daemonset)
 	}
+
+	// if proxy injection is requested, get the proxy values and use them
+	if containerNamesString := daemonset.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
+		proxyConfig, err := b.proxyGetter.Proxies().Get("cluster", metav1.GetOptions{})
+		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		err = updatePodSpecWithProxy(
+			&daemonset.Spec.Template.Spec,
+			strings.Split(containerNamesString, ","),
+			proxyConfig.Status.HTTPProxy,
+			proxyConfig.Status.HTTPSProxy,
+			proxyConfig.Status.NoProxy,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
 	actual, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
 	if err != nil {
 		return err
