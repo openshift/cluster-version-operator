@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"k8s.io/klog"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"k8s.io/klog"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -325,6 +325,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
+			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.EnableMetrics,

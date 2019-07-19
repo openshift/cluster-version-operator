@@ -10,8 +10,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/verify"
 
 	"github.com/blang/semver"
-	"k8s.io/klog"
 	"github.com/google/uuid"
+	"k8s.io/klog"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -101,6 +101,7 @@ type Operator struct {
 
 	cvLister    configlistersv1.ClusterVersionLister
 	coLister    configlistersv1.ClusterOperatorLister
+	proxyLister configlistersv1.ProxyLister
 	cacheSynced []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
@@ -135,6 +136,7 @@ func New(
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
+	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	enableMetrics bool,
@@ -161,6 +163,9 @@ func New(
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 	}
+
+	optr.proxyLister = proxyInformer.Lister()
+	proxyInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 

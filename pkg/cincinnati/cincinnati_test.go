@@ -10,8 +10,8 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	_ "k8s.io/klog" // integration tests set glog flags.
 	"github.com/google/uuid"
+	_ "k8s.io/klog" // integration tests set glog flags.
 )
 
 func TestGetUpdates(t *testing.T) {
@@ -120,8 +120,9 @@ func TestGetUpdates(t *testing.T) {
 
 			ts := httptest.NewServer(http.HandlerFunc(handler))
 			defer ts.Close()
+			var proxyURL *url.URL
 
-			c := NewClient(clientID)
+			c := NewClient(clientID, proxyURL)
 
 			updates, err := c.GetUpdates(ts.URL, channelName, semver.MustParse(test.version))
 			if test.err == "" {

@@ -20,12 +20,13 @@ const (
 // Client is a Cincinnati client which can be used to fetch update graphs from
 // an upstream Cincinnati stack.
 type Client struct {
-	id uuid.UUID
+	id       uuid.UUID
+	proxyURL *url.URL
 }
 
 // NewClient creates a new Cincinnati client with the given client identifier.
-func NewClient(id uuid.UUID) Client {
-	return Client{id: id}
+func NewClient(id uuid.UUID, proxyURL *url.URL) Client {
+	return Client{id: id, proxyURL: proxyURL}
 }
 
 // Update is a single node from the update graph.
@@ -39,6 +40,7 @@ type Update node
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
 func (c Client) GetUpdates(upstream string, channel string, version semver.Version) ([]Update, error) {
+	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	cincinnatiURL, err := url.Parse(upstream)
 	if err != nil {
@@ -57,7 +59,11 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 	}
 	req.Header.Add("Accept", GraphMediaType)
 
-	client := http.Client{}
+	if c.proxyURL != nil {
+		transport.Proxy = http.ProxyURL(c.proxyURL)
+	}
+
+	client := http.Client{Transport: &transport}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

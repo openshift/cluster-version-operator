@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"k8s.io/klog"
 	"github.com/google/uuid"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
@@ -27,6 +26,7 @@ import (
 	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -41,6 +41,26 @@ var (
 	// defaultCompletionTime is a shorthand for verifying a completion time is set
 	defaultCompletionTime = metav1.Time{Time: time.Unix(2, 0)}
 )
+
+type clientProxyLister struct {
+	client clientset.Interface
+}
+
+func (c *clientProxyLister) Get(name string) (*configv1.Proxy, error) {
+	return c.client.ConfigV1().Proxies().Get(name, metav1.GetOptions{})
+}
+
+func (c *clientProxyLister) List(selector labels.Selector) (ret []*configv1.Proxy, err error) {
+	list, err := c.client.ConfigV1().Proxies().List(metav1.ListOptions{LabelSelector: selector.String()})
+	if err != nil {
+		return nil, err
+	}
+	var items []*configv1.Proxy
+	for i := range list.Items {
+		items = append(items, &list.Items[i])
+	}
+	return items, nil
+}
 
 type clientCVLister struct {
 	client clientset.Interface
@@ -59,6 +79,23 @@ func (c *clientCVLister) List(selector labels.Selector) (ret []*configv1.Cluster
 		items = append(items, &list.Items[i])
 	}
 	return items, nil
+}
+
+type proxyLister struct {
+	Err   error
+	Items []*configv1.Proxy
+}
+
+func (r *proxyLister) List(selector labels.Selector) (ret []*configv1.Proxy, err error) {
+	return r.Items, r.Err
+}
+func (r *proxyLister) Get(name string) (*configv1.Proxy, error) {
+	for _, s := range r.Items {
+		if s.Name == name {
+			return s, nil
+		}
+	}
+	return nil, errors.NewNotFound(schema.GroupResource{}, name)
 }
 
 type clientCOLister struct {
@@ -1959,6 +1996,7 @@ func TestOperator_sync(t *testing.T) {
 			if tt.init != nil {
 				tt.init(optr)
 			}
+			optr.proxyLister = &clientProxyLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
 			optr.coLister = &clientCOLister{client: optr.client}
 			if optr.configSync == nil {
@@ -2332,6 +2370,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			optr := tt.optr
 			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+			optr.proxyLister = &clientProxyLister{client: optr.client}
 			optr.coLister = &clientCOLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
 
