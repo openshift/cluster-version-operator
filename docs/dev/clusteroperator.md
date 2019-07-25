@@ -173,3 +173,22 @@ If an error blocks reaching 4.0.1, the conditions might be:
 * `Progressing` is true with message `Unable to apply 4.0.1: a required object is missing`
 
 The progressing message is the first message a human will see when debugging an issue, so it should be terse, succinct, and summarize the problem well.  The failing message can be more verbose. Start with simple, easy to understand messages and grow them over time to capture more detail.
+
+
+#### Conditions and Install/Upgrade
+
+Conditions determine when the CVO considers certain actions complete, the following table summarizes what it looks at and when.
+
+
+| operation | version | available | degraded | progressing | 
+|-----------|---------|-----------|----------|-------------|
+| Install completion[1] | current(whatever was being installed) | true | any | any
+| Begin upgrade | any | any | any | any
+| Begin upgrade (w/ force) | any | any | any | any 
+| Upgrade completion[2]| newVersion(target version for the upgrade) | true | false | false
+
+[1] Install works on all components in parallel, it does not wait for any component to complete before starting another one.
+
+[2] Upgrade will not proceed with upgrading components in the next runlevel until the previous runlevel completes.
+
+See also: https://github.com/openshift/cluster-version-operator/blob/a5f5007c17cc14281c558ea363518dcc5b6675c7/pkg/cvo/internal/operatorstatus.go#L176-L189
