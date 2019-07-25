@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -121,8 +122,9 @@ func TestGetUpdates(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(handler))
 			defer ts.Close()
 			var proxyURL *url.URL
+			var tlsConfig *tls.Config
 
-			c := NewClient(clientID, proxyURL)
+			c := NewClient(clientID, proxyURL, tlsConfig)
 
 			updates, err := c.GetUpdates(ts.URL, channelName, semver.MustParse(test.version))
 			if test.err == "" {

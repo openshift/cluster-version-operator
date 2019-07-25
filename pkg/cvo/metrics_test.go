@@ -10,7 +10,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -402,7 +401,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				releaseCreated: time.Unix(3, 0),
-				cmLister: &cmLister{
+				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{{
 						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
 						Data: map[string]string {"version": "v0.0.2", "invoker": "jane"},
@@ -423,7 +422,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				releaseCreated: time.Unix(3, 0),
-				cmLister: &cmLister{
+				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{{
 						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
 					}},
@@ -443,7 +442,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
 				releaseCreated: time.Unix(3, 0),
-				cmLister: &cmLister{
+				cmConfigLister: &cmConfigLister{
 					Err: errors.New("dial timeout"),
 				},
 			},
@@ -463,8 +462,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			if tt.optr.coLister == nil {
 				tt.optr.coLister = &coLister{}
 			}
-			if tt.optr.cmLister == nil {
-				tt.optr.cmLister = &cmLister{}
+			if tt.optr.cmConfigLister == nil {
+				tt.optr.cmConfigLister = &cmConfigLister{}
 			}
 			m := newOperatorMetrics(tt.optr)
 			descCh := make(chan *prometheus.Desc)
@@ -559,8 +558,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 			if tt.optr.coLister == nil {
 				tt.optr.coLister = &coLister{}
 			}
-			if tt.optr.cmLister == nil {
-				tt.optr.cmLister = &cmLister{}
+			if tt.optr.cmConfigLister == nil {
+				tt.optr.cmConfigLister = &cmConfigLister{}
 			}
 			m := newOperatorMetrics(tt.optr)
 			for i := range tt.changes {

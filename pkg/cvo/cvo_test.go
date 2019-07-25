@@ -32,7 +32,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
-
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -153,16 +152,16 @@ func (r *coLister) Get(name string) (*configv1.ClusterOperator, error) {
 	return nil, errors.NewNotFound(schema.GroupResource{}, name)
 }
 
-type cmLister struct {
+type cmConfigLister struct {
 	Err   error
 	Items []*corev1.ConfigMap
 }
 
-func (l *cmLister) List(selector labels.Selector) ([]*corev1.ConfigMap, error) {
+func (l *cmConfigLister) List(selector labels.Selector) ([]*corev1.ConfigMap, error) {
 	return l.Items, l.Err
 }
 
-func (l *cmLister) Get(name string) (*corev1.ConfigMap, error) {
+func (l *cmConfigLister) Get(name string) (*corev1.ConfigMap, error) {
 	if l.Err != nil {
 		return nil, l.Err
 	}

@@ -7,12 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/verify"
-
 	"github.com/blang/semver"
 	"github.com/google/uuid"
-	"k8s.io/klog"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,12 +23,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -41,6 +37,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
 
 const (
@@ -102,11 +99,12 @@ type Operator struct {
 	// syncBackoff allows the tests to use a quicker backoff
 	syncBackoff wait.Backoff
 
-	cvLister    configlistersv1.ClusterVersionLister
-	coLister    configlistersv1.ClusterOperatorLister
-	cmLister    listerscorev1.ConfigMapNamespaceLister
-	proxyLister configlistersv1.ProxyLister
-	cacheSynced []cache.InformerSynced
+	cvLister        configlistersv1.ClusterVersionLister
+	coLister        configlistersv1.ClusterOperatorLister
+	cmConfigLister  listerscorev1.ConfigMapNamespaceLister
+	cmManagedLister listerscorev1.ConfigMapNamespaceLister
+	proxyLister     configlistersv1.ProxyLister
+	cacheSynced     []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.RateLimitingInterface
@@ -140,7 +138,8 @@ func New(
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
-	cmInformer informerscorev1.ConfigMapInformer,
+	cmConfigInformer informerscorev1.ConfigMapInformer,
+	cmManagedInformer informerscorev1.ConfigMapInformer,
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -180,7 +179,8 @@ func New(
 	optr.cvLister = cvInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
 
-	optr.cmLister = cmInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+	optr.cmManagedLister = cmManagedInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
 
 	if enableMetrics {
 		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
