@@ -1,4 +1,4 @@
-required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types", "github.com/openshift/library-go/cmd/crd-schema-gen" ]
+required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 
 [prune]
   non-go = true
@@ -31,13 +31,6 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types", "gith
 [[constraint]]
   name = "k8s.io/client-go"
   version = "kubernetes-1.13.4"
-
-[[override]]
-  name = "k8s.io/apiextensions-apiserver"
-  # use origin fork with nullable support.
-  # TODO(sttts, sig-master): switch back to upstream version in 1.14
-  branch = "origin-4.1-kubernetes-1.13.4"
-  source = "https://github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
@@ -74,10 +67,3 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types", "gith
 [[override]]
   name = "github.com/openshift/library-go"
   branch = "master"
-
-[[override]]
-  name = "sigs.k8s.io/controller-tools"
-  # use origin fork with nullable support.
-  # TODO(soltysh, sig-master): switch back to upstream version in 1.14
-  branch = "origin-4.1-kubernetes-1.13.4"
-  source = "https://github.com/openshift/kubernetes-sigs-controller-tools"
