@@ -1,21 +1,20 @@
 package cvo
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
-	"time"
-
 	"net/url"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/google/uuid"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 
-	"k8s.io/apimachinery/pkg/api/equality"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	configv1 "github.com/openshift/api/config/v1"
-
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
@@ -24,6 +23,7 @@ import (
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
 func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+	var tlsConfig *tls.Config
 	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
@@ -39,12 +39,18 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return nil
 	}
 
-	proxyURL, err := optr.getHTTPSProxyURL()
+	proxyURL, cmNameRef, err := optr.getHTTPSProxyURL()
 	if err != nil {
 		return err
 	}
+	if cmNameRef != "" {
+		tlsConfig, err = optr.getTLSConfig(cmNameRef)
+		if err != nil {
+			return err
+		}
+	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, upstream, channel, optr.releaseVersion)
+	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -111,7 +117,7 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
@@ -142,7 +148,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, upstre
 		}
 	}
 
-	updates, err := checkForUpdate(clusterID, proxyURL, upstream, channel, currentVersion)
+	updates, err := checkForUpdate(clusterID, proxyURL, tlsConfig, upstream, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
@@ -167,7 +173,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, upstre
 	}
 }
 
-func checkForUpdate(clusterID string, proxyURL *url.URL, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
+func checkForUpdate(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return nil, err
@@ -176,29 +182,56 @@ func checkForUpdate(clusterID string, proxyURL *url.URL, upstream, channel strin
 	if len(upstream) == 0 {
 		return nil, fmt.Errorf("no upstream URL set for cluster version")
 	}
-	return cincinnati.NewClient(uuid, proxyURL).GetUpdates(upstream, channel, currentVersion)
+	return cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstream, channel, currentVersion)
 }
 
 // getHTTPSProxyURL returns a url.URL object for the configured
 // https proxy only. It can be nil if does not exist or there is an error.
-func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
+func (optr *Operator) getHTTPSProxyURL() (*url.URL, string, error) {
 	proxy, err := optr.proxyLister.Get("cluster")
 
 	if errors.IsNotFound(err) {
-		return nil, nil
+		return nil, "", nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	if &proxy.Spec != nil {
 		if proxy.Spec.HTTPSProxy != "" {
 			proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
 			if err != nil {
-				return nil, err
+				return nil, "", err
 			}
-			return proxyURL, nil
+			return proxyURL, proxy.Spec.TrustedCA.Name, nil
 		}
 	}
-	return nil, nil
+	return nil, "", nil
+}
+
+func (optr *Operator) getTLSConfig(cmNameRef string) (*tls.Config, error) {
+	cm, err := optr.cmManagedLister.Get(cmNameRef)
+
+	if err != nil {
+		return nil, err
+	}
+
+	certPool, _ := x509.SystemCertPool()
+	if certPool == nil {
+		certPool = x509.NewCertPool()
+	}
+
+	if cm.Data["ca-bundle.crt"] != "" {
+		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
+			return nil, fmt.Errorf("unable to add ca-bundle.crt certificates")
+		}
+	} else {
+		return nil, nil
+	}
+
+	config := &tls.Config{
+		RootCAs: certPool,
+	}
+
+	return config, nil
 }

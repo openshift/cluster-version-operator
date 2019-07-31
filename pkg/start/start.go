@@ -15,24 +15,22 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"k8s.io/klog"
-
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/client-go/informers"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
+	"k8s.io/klog"
 
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	externalversions "github.com/openshift/client-go/config/informers/externalversions"
-
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -301,9 +299,10 @@ type Context struct {
 	CVO        *cvo.Operator
 	AutoUpdate *autoupdate.Controller
 
-	CVInformerFactory externalversions.SharedInformerFactory
-	CMInformerFactory informers.SharedInformerFactory
-	InformerFactory   externalversions.SharedInformerFactory
+	CVInformerFactory        externalversions.SharedInformerFactory
+	CMConfigInformerFactory  informers.SharedInformerFactory
+	CMManagedInformerFactory informers.SharedInformerFactory
+	InformerFactory          externalversions.SharedInformerFactory
 }
 
 // NewControllerContext initializes the default Context for the current Options. It does
@@ -315,15 +314,18 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)(), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
-	cmInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod(o.ResyncInterval)(), internal.ConfigNamespace, func(opts *metav1.ListOptions) {
+	cmConfigInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod(o.ResyncInterval)(), internal.ConfigNamespace, func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", internal.InstallerConfigMap)
 	})
+	cmManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigManagedNamespace))
+
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
 
 	ctx := &Context{
-		CVInformerFactory: cvInformer,
-		CMInformerFactory: cmInformer,
-		InformerFactory:   sharedInformers,
+		CVInformerFactory:        cvInformer,
+		CMConfigInformerFactory:  cmConfigInformer,
+		CMManagedInformerFactory: cmManagedInformer,
+		InformerFactory:          sharedInformers,
 
 		CVO: cvo.New(
 			o.NodeName,
@@ -333,7 +335,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
-			cmInformer.Core().V1().ConfigMaps(),
+			cmConfigInformer.Core().V1().ConfigMaps(),
+			cmManagedInformer.Core().V1().ConfigMaps(),
 			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
@@ -361,6 +364,7 @@ func (c *Context) Start(ctx context.Context) {
 		go c.AutoUpdate.Run(2, ch)
 	}
 	c.CVInformerFactory.Start(ch)
-	c.CMInformerFactory.Start(ch)
+	c.CMConfigInformerFactory.Start(ch)
+	c.CMManagedInformerFactory.Start(ch)
 	c.InformerFactory.Start(ch)
 }

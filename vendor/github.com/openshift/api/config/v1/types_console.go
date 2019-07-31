@@ -6,13 +6,16 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Console holds cluster-wide information about Console.  The canonical name is `cluster`.
+// Console holds cluster-wide configuration for the web console, including the
+// logout URL, and reports the public URL of the console. The canonical name is
+// `cluster`.
 type Console struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec holds user settable values for configuration
+	// +kubebuilder:validation:Required
 	// +required
 	Spec ConsoleSpec `json:"spec"`
 	// status holds observed values from the cluster. They may not be overridden.

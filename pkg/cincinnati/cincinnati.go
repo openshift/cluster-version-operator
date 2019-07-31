@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -20,13 +21,14 @@ const (
 // Client is a Cincinnati client which can be used to fetch update graphs from
 // an upstream Cincinnati stack.
 type Client struct {
-	id       uuid.UUID
-	proxyURL *url.URL
+	id        uuid.UUID
+	proxyURL  *url.URL
+	tlsConfig *tls.Config
 }
 
 // NewClient creates a new Cincinnati client with the given client identifier.
-func NewClient(id uuid.UUID, proxyURL *url.URL) Client {
-	return Client{id: id, proxyURL: proxyURL}
+func NewClient(id uuid.UUID, proxyURL *url.URL, tlsConfig *tls.Config) Client {
+	return Client{id: id, proxyURL: proxyURL, tlsConfig: tlsConfig}
 }
 
 // Update is a single node from the update graph.
@@ -58,6 +60,9 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 		return nil, err
 	}
 	req.Header.Add("Accept", GraphMediaType)
+	if c.tlsConfig != nil {
+		transport.TLSClientConfig = c.tlsConfig
+	}
 
 	if c.proxyURL != nil {
 		transport.Proxy = http.ProxyURL(c.proxyURL)

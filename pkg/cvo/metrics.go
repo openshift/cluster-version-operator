@@ -5,14 +5,11 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-
 	"github.com/prometheus/client_golang/prometheus"
-
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 
 	configv1 "github.com/openshift/api/config/v1"
-
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
@@ -278,7 +275,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		ch <- g
 	}
 
-	installer, err := m.optr.cmLister.Get(internal.InstallerConfigMap)
+	installer, err := m.optr.cmConfigLister.Get(internal.InstallerConfigMap)
 	if err == nil {
 		version := "<missing>"
 		invoker := "<missing>"
