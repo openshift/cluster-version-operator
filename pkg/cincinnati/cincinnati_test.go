@@ -17,6 +17,7 @@ import (
 
 func TestGetUpdates(t *testing.T) {
 	clientID := uuid.Must(uuid.Parse("01234567-0123-0123-0123-0123456789ab"))
+	arch := "test-arch"
 	channelName := "test-channel"
 	tests := []struct {
 		name    string
@@ -28,14 +29,14 @@ func TestGetUpdates(t *testing.T) {
 	}{{
 		name:          "one update available",
 		version:       "4.0.0-4",
-		expectedQuery: "channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-4",
+		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-4",
 		available: []Update{
 			{semver.MustParse("4.0.0-5"), "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
 		},
 	}, {
 		name:          "two updates available",
 		version:       "4.0.0-5",
-		expectedQuery: "channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-5",
+		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-5",
 		available: []Update{
 			{semver.MustParse("4.0.0-6"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6"},
 			{semver.MustParse("4.0.0-6+2"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"},
@@ -43,11 +44,11 @@ func TestGetUpdates(t *testing.T) {
 	}, {
 		name:          "no updates available",
 		version:       "4.0.0-0.okd-0",
-		expectedQuery: "channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-0.okd-0",
+		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-0.okd-0",
 	}, {
 		name:          "unknown version",
 		version:       "4.0.0-3",
-		expectedQuery: "channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-3",
+		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-3",
 		err:           "currently installed version 4.0.0-3 not found in the \"test-channel\" channel",
 	}}
 	for _, test := range tests {
@@ -126,7 +127,7 @@ func TestGetUpdates(t *testing.T) {
 
 			c := NewClient(clientID, proxyURL, tlsConfig)
 
-			updates, err := c.GetUpdates(ts.URL, channelName, semver.MustParse(test.version))
+			updates, err := c.GetUpdates(ts.URL, arch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)

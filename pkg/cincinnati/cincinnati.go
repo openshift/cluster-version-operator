@@ -41,7 +41,7 @@ type Update node
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(upstream string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(upstream string, arch string, channel string, version semver.Version) ([]Update, error) {
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	cincinnatiURL, err := url.Parse(upstream)
@@ -49,6 +49,7 @@ func (c Client) GetUpdates(upstream string, channel string, version semver.Versi
 		return nil, fmt.Errorf("failed to parse upstream URL: %s", err)
 	}
 	queryParams := cincinnatiURL.Query()
+	queryParams.Add("arch", arch)
 	queryParams.Add("channel", channel)
 	queryParams.Add("id", c.id.String())
 	queryParams.Add("version", version.String())

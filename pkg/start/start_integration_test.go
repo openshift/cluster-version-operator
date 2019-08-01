@@ -14,6 +14,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"runtime"
 	"testing"
 	"time"
 
@@ -692,7 +693,7 @@ metadata:
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatal("no request received at upstream URL")
 	}
-	expectedQuery := fmt.Sprintf("channel=test-channel&id=%s&version=0.0.1", id.String())
+	expectedQuery := fmt.Sprintf("arch=%s&channel=test-channel&id=%s&version=0.0.1", runtime.GOARCH, id.String())
 	expectedQueryValues, err := url.ParseQuery(expectedQuery)
 	if err != nil {
 		t.Fatalf("could not parse expected query: %v", err)

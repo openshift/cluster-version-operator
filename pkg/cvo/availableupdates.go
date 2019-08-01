@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net/url"
+	"runtime"
 	"time"
 
 	"github.com/blang/semver"
@@ -30,6 +31,7 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		usedDefaultUpstream = true
 		upstream = optr.defaultUpstreamServer
 	}
+	arch := runtime.GOARCH
 	channel := config.Spec.Channel
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
@@ -50,7 +52,7 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		}
 	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, channel, optr.releaseVersion)
+	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -117,11 +119,18 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
 			Message: "No upstream server has been set to retrieve updates.",
+		}
+	}
+
+	if len(arch) == 0 {
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoArchitecture",
+			Message: "The set of architectures has not been configured.",
 		}
 	}
 
@@ -148,7 +157,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
-	updates, err := checkForUpdate(clusterID, proxyURL, tlsConfig, upstream, channel, currentVersion)
+	updates, err := checkForUpdate(clusterID, proxyURL, tlsConfig, upstream, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		return nil, configv1.ClusterOperatorStatusCondition{
@@ -173,7 +182,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 	}
 }
 
-func checkForUpdate(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
+func checkForUpdate(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return nil, err
@@ -182,7 +191,7 @@ func checkForUpdate(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, 
 	if len(upstream) == 0 {
 		return nil, fmt.Errorf("no upstream URL set for cluster version")
 	}
-	return cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstream, channel, currentVersion)
+	return cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstream, arch, channel, currentVersion)
 }
 
 // getHTTPSProxyURL returns a url.URL object for the configured
