@@ -210,7 +210,7 @@ func (optr *Operator) getHTTPSProxyURL() (*url.URL, string, error) {
 }
 
 func (optr *Operator) getTLSConfig(cmNameRef string) (*tls.Config, error) {
-	cm, err := optr.cmManagedLister.Get(cmNameRef)
+	cm, err := optr.cmConfigLister.Get(cmNameRef)
 
 	if err != nil {
 		return nil, err

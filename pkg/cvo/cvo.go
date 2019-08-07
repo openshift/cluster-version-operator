@@ -99,12 +99,11 @@ type Operator struct {
 	// syncBackoff allows the tests to use a quicker backoff
 	syncBackoff wait.Backoff
 
-	cvLister        configlistersv1.ClusterVersionLister
-	coLister        configlistersv1.ClusterOperatorLister
-	cmConfigLister  listerscorev1.ConfigMapNamespaceLister
-	cmManagedLister listerscorev1.ConfigMapNamespaceLister
-	proxyLister     configlistersv1.ProxyLister
-	cacheSynced     []cache.InformerSynced
+	cvLister       configlistersv1.ClusterVersionLister
+	coLister       configlistersv1.ClusterOperatorLister
+	cmConfigLister listerscorev1.ConfigMapNamespaceLister
+	proxyLister    configlistersv1.ProxyLister
+	cacheSynced    []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.RateLimitingInterface
@@ -139,7 +138,6 @@ func New(
 	cvInformer configinformersv1.ClusterVersionInformer,
 	coInformer configinformersv1.ClusterOperatorInformer,
 	cmConfigInformer informerscorev1.ConfigMapInformer,
-	cmManagedInformer informerscorev1.ConfigMapInformer,
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
@@ -180,7 +178,6 @@ func New(
 	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
 
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
-	optr.cmManagedLister = cmManagedInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
 
 	if enableMetrics {
 		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
