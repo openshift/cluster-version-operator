@@ -299,10 +299,9 @@ type Context struct {
 	CVO        *cvo.Operator
 	AutoUpdate *autoupdate.Controller
 
-	CVInformerFactory        externalversions.SharedInformerFactory
-	CMConfigInformerFactory  informers.SharedInformerFactory
-	CMManagedInformerFactory informers.SharedInformerFactory
-	InformerFactory          externalversions.SharedInformerFactory
+	CVInformerFactory              externalversions.SharedInformerFactory
+	OpenshiftConfigInformerFactory informers.SharedInformerFactory
+	InformerFactory                externalversions.SharedInformerFactory
 }
 
 // NewControllerContext initializes the default Context for the current Options. It does
@@ -314,18 +313,14 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)(), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
-	cmConfigInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod(o.ResyncInterval)(), internal.ConfigNamespace, func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", internal.InstallerConfigMap)
-	})
-	cmManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigManagedNamespace))
+	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigNamespace))
 
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
 
 	ctx := &Context{
-		CVInformerFactory:        cvInformer,
-		CMConfigInformerFactory:  cmConfigInformer,
-		CMManagedInformerFactory: cmManagedInformer,
-		InformerFactory:          sharedInformers,
+		CVInformerFactory:              cvInformer,
+		OpenshiftConfigInformerFactory: openshiftConfigInformer,
+		InformerFactory:                sharedInformers,
 
 		CVO: cvo.New(
 			o.NodeName,
@@ -335,8 +330,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
-			cmConfigInformer.Core().V1().ConfigMaps(),
-			cmManagedInformer.Core().V1().ConfigMaps(),
+			openshiftConfigInformer.Core().V1().ConfigMaps(),
 			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
@@ -364,7 +358,6 @@ func (c *Context) Start(ctx context.Context) {
 		go c.AutoUpdate.Run(2, ch)
 	}
 	c.CVInformerFactory.Start(ch)
-	c.CMConfigInformerFactory.Start(ch)
-	c.CMManagedInformerFactory.Start(ch)
+	c.OpenshiftConfigInformerFactory.Start(ch)
 	c.InformerFactory.Start(ch)
 }
