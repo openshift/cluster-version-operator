@@ -16,3 +16,49 @@ spec:
   selector:
     matchLabels:
       k8s-app: cluster-version-operator
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    k8s-app: cluster-version-operator
+  name: cluster-version-operator
+  namespace: openshift-cluster-version
+spec:
+  groups:
+  - name: cluster-version
+    rules:
+    - alert: ClusterVersionOperatorDown
+      annotations:
+        message: Cluster version operator has disappeared from Prometheus target discovery. Operator may be down or disabled, cluster will not be kept up to date and upgrades will not be possible.
+      expr: |
+        absent(up{job="cluster-version-operator"} == 1)
+      for: 10m
+      labels:
+        severity: critical
+  - name: cluster-operators
+    rules:
+    - alert: ClusterOperatorDown
+      annotations:
+        message: Cluster operator {{ "{{ $labels.name }}" }} has not been available for 10 mins. Operator may be down or disabled, cluster will not be kept up to date and upgrades will not be possible.
+      expr: |
+        cluster_operator_up{job="cluster-version-operator"} == 0
+      for: 10m
+      labels:
+        severity: critical
+    - alert: ClusterOperatorDegraded
+      annotations:
+        message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 mins. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
+      expr: |
+        cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"} == 1
+      for: 10m
+      labels:
+        severity: critical
+    - alert: ClusterOperatorFlapping
+      annotations:
+        message: Cluster operator {{ "{{ $labels.name }}" }} up status is changing often. This might cause upgrades to be unstable.
+      expr: |
+        changes(cluster_operator_up{job="cluster-version-operator"}[2m]) > 2
+      for: 10m
+      labels:
+        severity: warning
