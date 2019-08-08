@@ -3,15 +3,12 @@ package cvo
 import (
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/prometheus/client_golang/prometheus"
-
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
-
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/prometheus/client_golang/prometheus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -263,7 +260,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			break
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, ClusterStatusFailing)
+		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorDegraded)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
 			g.Set(1)
