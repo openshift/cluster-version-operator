@@ -174,7 +174,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}},
+									{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}},
 								},
 							},
 						},
@@ -188,7 +188,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available"})
-				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Failing"})
+				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Degraded"})
 				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
 			},
 		},
