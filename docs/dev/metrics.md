@@ -8,7 +8,7 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 * `current` - the version the operator is applying right now (the running CVO version) and the age of the payload
 * `initial` - the initial version of the cluster, and value is the creation timestamp of the cluster version (cluster age)
 * `cluster` - the current version of the cluster with from_version set to the initial version, and value is the creation timestamp of the cluster version (cluster age)
-* `failure` - if the failure condition is set, reports the last transition time for both desired and current versions
+* `failure` - if the failure condition is set, reports the last transition time for the condition.
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
 * `completed` - the time the most recent version was completely applied, or absent if not reached
 * `updating` - if the operator is moving to a new version, the time the update started
