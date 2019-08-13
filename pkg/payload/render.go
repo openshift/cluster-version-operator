@@ -34,7 +34,9 @@ func Render(outputDir, releaseImage string) error {
 		odir: oManifestsDir,
 		skipFiles: sets.NewString(
 			"image-references",
-			"0000_90_cluster-version-operator_00_servicemonitor.yaml",
+			"0000_90_cluster-version-operator_00_prometheusrole.yaml",
+			"0000_90_cluster-version-operator_01_prometheusrolebinding.yaml",
+			"0000_90_cluster-version-operator_02_servicemonitor.yaml",
 		),
 	}, {
 		idir:      bootstrapDir,
