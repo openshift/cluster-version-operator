@@ -230,6 +230,19 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			g.Set(float64(len(cv.Status.AvailableUpdates)))
 			ch <- g
 		}
+
+		for _, condition := range cv.Status.Conditions {
+			if condition.Status == configv1.ConditionUnknown {
+				continue
+			}
+			g := m.clusterOperatorConditions.WithLabelValues("version", string(condition.Type), string(condition.Reason))
+			if condition.Status == configv1.ConditionTrue {
+				g.Set(1)
+			} else {
+				g.Set(0)
+			}
+			ch <- g
+		}
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
