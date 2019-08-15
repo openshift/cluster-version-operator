@@ -269,7 +269,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: configv1.RetrievedUpdates, Status: configv1.ConditionTrue},
+									{Type: configv1.RetrievedUpdates, Status: configv1.ConditionTrue, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -277,14 +277,16 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 5 {
+				if len(metrics) != 6 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
+
 				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
-				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"name": "version", "condition": "RetrievedUpdates", "reason": "Because stuff"})
+				expectMetric(t, metrics[4], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[5], 1, map[string]string{"type": ""})
 			},
 		},
 		{
@@ -305,7 +307,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}},
+									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(5, 0)}, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -313,14 +315,15 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 5 {
+				if len(metrics) != 6 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
-				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"name": "version", "condition": "Available", "reason": "Because stuff"})
+				expectMetric(t, metrics[4], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[5], 1, map[string]string{"type": ""})
 			},
 		},
 		{
@@ -342,7 +345,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}},
+									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -350,7 +353,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 7 {
+				if len(metrics) != 8 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 5, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
@@ -358,8 +361,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				expectMetric(t, metrics[2], 5, map[string]string{"type": "desired", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
 				expectMetric(t, metrics[3], 4, map[string]string{"type": "failure", "version": "1.0.0", "image": "test/image:2", "from_version": ""})
 				expectMetric(t, metrics[4], 4, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[5], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[6], 1, map[string]string{"type": ""})
+				expectMetric(t, metrics[5], 1, map[string]string{"name": "version", "condition": "Failing", "reason": "Because stuff"})
+				expectMetric(t, metrics[6], 6, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[7], 1, map[string]string{"type": ""})
 			},
 		},
 		{
@@ -377,7 +381,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue},
+									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -385,14 +389,15 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
-				if len(metrics) != 5 {
+				if len(metrics) != 6 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
 				expectMetric(t, metrics[2], 0, map[string]string{"type": "failure", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
-				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"name": "version", "condition": "Failing", "reason": "Because stuff"})
+				expectMetric(t, metrics[4], 0, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[5], 1, map[string]string{"type": ""})
 			},
 		},
 		{
