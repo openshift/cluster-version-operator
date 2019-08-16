@@ -55,7 +55,8 @@ type Options struct {
 	NodeName   string
 	ListenAddr string
 
-	EnableAutoUpdate bool
+	EnableAutoUpdate            bool
+	EnableDefaultClusterVersion bool
 
 	// for testing only
 	Name            string
@@ -326,6 +327,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			o.NodeName,
 			o.Namespace, o.Name,
 			o.ReleaseImage,
+			o.EnableDefaultClusterVersion,
 			o.PayloadOverride,
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
