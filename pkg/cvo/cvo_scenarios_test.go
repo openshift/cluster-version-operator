@@ -69,11 +69,12 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 	})
 
 	o := &Operator{
-		namespace: "test",
-		name:      "version",
-		queue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
-		client:    client,
-		cvLister:  &clientCVLister{client: client},
+		namespace:                   "test",
+		name:                        "version",
+		enableDefaultClusterVersion: true,
+		queue:                       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
+		client:                      client,
+		cvLister:                    &clientCVLister{client: client},
 	}
 
 	dynamicScheme := runtime.NewScheme()

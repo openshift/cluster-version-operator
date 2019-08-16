@@ -88,6 +88,10 @@ type Operator struct {
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
+	// enableDefaultClusterVersion allows the operator to create a
+	// ClusterVersion object if one does not already exist.
+	enableDefaultClusterVersion bool
+
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
 	eventRecorder record.EventRecorder
@@ -135,6 +139,7 @@ func New(
 	nodename string,
 	namespace, name string,
 	releaseImage string,
+	enableDefaultClusterVersion bool,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
@@ -153,6 +158,8 @@ func New(
 		namespace:    namespace,
 		name:         name,
 		releaseImage: releaseImage,
+
+		enableDefaultClusterVersion: enableDefaultClusterVersion,
 
 		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
@@ -347,12 +354,16 @@ func (optr *Operator) sync(key string) error {
 
 	// ensure the cluster version exists, that the object is valid, and that
 	// all initial conditions are set.
-	original, changed, err := optr.getOrCreateClusterVersion()
+	original, changed, err := optr.getOrCreateClusterVersion(optr.enableDefaultClusterVersion)
 	if err != nil {
 		return err
 	}
 	if changed {
 		klog.V(4).Infof("Cluster version changed, waiting for newer event")
+		return nil
+	}
+	if original == nil {
+		klog.V(4).Infof("No ClusterVersion object and defaulting not enabled, waiting for one")
 		return nil
 	}
 
@@ -446,7 +457,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, bool, error) {
+func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
@@ -458,6 +469,10 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
+	}
+
+	if !enableDefault {
+		return nil, false, nil
 	}
 
 	var upstream configv1.URL
