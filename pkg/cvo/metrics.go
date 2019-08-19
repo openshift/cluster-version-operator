@@ -3,10 +3,10 @@ package cvo
 import (
 	"time"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"github.com/prometheus/client_golang/prometheus"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -181,23 +181,21 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
+		// answers "is there a desired update we have not yet satisfied"
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-			g := m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version)
+			g = m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version)
 			g.Set(float64(mostRecentTimestamp(cv)))
 			ch <- g
-			if failing != nil && failing.Status == configv1.ConditionTrue {
-				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)
-				if failing.LastTransitionTime.IsZero() {
-					g.Set(0)
-				} else {
-					g.Set(float64(failing.LastTransitionTime.Unix()))
-				}
-				ch <- g
-			}
 		}
+
+		// answers "if we are failing, are we updating or reconciling"
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
 		if failing != nil && failing.Status == configv1.ConditionTrue {
-			g := m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version)
+			if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
+				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)
+			} else {
+				g = m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version)
+			}
 			if failing.LastTransitionTime.IsZero() {
 				g.Set(0)
 			} else {
