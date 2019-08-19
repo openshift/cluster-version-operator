@@ -490,7 +490,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		},
 		Spec: configv1.ClusterVersionSpec{
 			Upstream:  upstream,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 			ClusterID: configv1.ClusterID(optr.telemetryID),
 		},
 	}

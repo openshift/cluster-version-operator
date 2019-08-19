@@ -274,7 +274,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 				})
 			},
@@ -301,7 +301,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -331,7 +331,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -374,7 +374,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -404,7 +404,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -448,7 +448,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -478,7 +478,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -518,7 +518,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -548,7 +548,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						Desired: configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
@@ -584,7 +584,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 					},
 				),
@@ -601,7 +601,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
@@ -638,7 +638,7 @@ func TestOperator_sync(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -665,7 +665,7 @@ func TestOperator_sync(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
@@ -702,7 +702,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 				}),
 			},
@@ -720,7 +720,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -761,7 +761,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -797,7 +797,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -851,7 +851,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -894,7 +894,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -954,7 +954,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1005,7 +1005,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1062,7 +1062,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1101,7 +1101,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1157,7 +1157,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1193,7 +1193,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1234,7 +1234,7 @@ func TestOperator_sync(t *testing.T) {
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
 							Upstream:  configv1.URL("http://localhost:8080/graph"),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -1284,7 +1284,7 @@ func TestOperator_sync(t *testing.T) {
 				name:         "default",
 				availableUpdates: &availableUpdates{
 					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
+					Channel:  "stable-4.2",
 					Updates: []configv1.Update{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
@@ -1302,7 +1302,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
@@ -1330,7 +1330,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  configv1.URL("http://localhost:8080/graph"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						AvailableUpdates: []configv1.Update{
@@ -1367,7 +1367,7 @@ func TestOperator_sync(t *testing.T) {
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				availableUpdates: &availableUpdates{
 					Upstream: "",
-					Channel:  "fast",
+					Channel:  "stable-4.2",
 					Updates: []configv1.Update{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
@@ -1385,7 +1385,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  "",
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
@@ -1413,7 +1413,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: configv1.ClusterID(id),
 						Upstream:  "",
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						AvailableUpdates: []configv1.Update{
@@ -1449,7 +1449,7 @@ func TestOperator_sync(t *testing.T) {
 				name:         "default",
 				availableUpdates: &availableUpdates{
 					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
+					Channel:  "stable-4.2",
 					Updates: []configv1.Update{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
@@ -1746,7 +1746,7 @@ func TestOperator_sync(t *testing.T) {
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
 							Upstream:  configv1.URL("http://localhost:8080/graph"),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -1806,7 +1806,7 @@ func TestOperator_sync(t *testing.T) {
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
 							Upstream:  configv1.URL("http://localhost:8080/graph"),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -1848,7 +1848,7 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Spec: configv1.ClusterVersionSpec{
 						Upstream: configv1.URL("http://localhost:8080/graph"),
-						Channel:  "fast",
+						Channel:  "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1893,7 +1893,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: "not-valid-cluster-id",
 						Upstream:  configv1.URL("#%GG"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 				}),
 			},
@@ -1913,7 +1913,7 @@ func TestOperator_sync(t *testing.T) {
 						// The object passed to status has these spec fields cleared
 						// ClusterID: "not-valid-cluster-id",
 						// Upstream:  configv1.URL("#%GG"),
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1952,7 +1952,7 @@ func TestOperator_sync(t *testing.T) {
 					Spec: configv1.ClusterVersionSpec{
 						ClusterID: "not-valid-cluster-id",
 						Upstream:  configv1.URL("#%GG"),
-						Channel:   "fast",
+						Channel:   "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -1991,7 +1991,7 @@ func TestOperator_sync(t *testing.T) {
 						ClusterID: "",
 						Upstream:  configv1.URL(""),
 
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
@@ -2089,7 +2089,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -2101,7 +2101,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			wantUpdates: &availableUpdates{
 				Upstream: "",
-				Channel:  "fast",
+				Channel:  "stable-4.2",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2167,7 +2167,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -2179,7 +2179,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			wantUpdates: &availableUpdates{
 				Upstream: "",
-				Channel:  "fast",
+				Channel:  "stable-4.2",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2206,7 +2206,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -2223,7 +2223,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			wantUpdates: &availableUpdates{
 				Upstream: "",
-				Channel:  "fast",
+				Channel:  "stable-4.2",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2257,7 +2257,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -2275,7 +2275,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			wantUpdates: &availableUpdates{
 				Upstream: "",
-				Channel:  "fast",
+				Channel:  "stable-4.2",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
@@ -2313,7 +2313,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -2331,7 +2331,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			wantUpdates: &availableUpdates{
 				Upstream: "",
-				Channel:  "fast",
+				Channel:  "stable-4.2",
 				Updates: []configv1.Update{
 					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
@@ -2352,7 +2352,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				minimumUpdateCheckInterval: 1 * time.Minute,
 				availableUpdates: &availableUpdates{
 					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
+					Channel:  "stable-4.2",
 					At:       time.Now(),
 				},
 
@@ -2368,7 +2368,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 						},
 						Spec: configv1.ClusterVersionSpec{
 							ClusterID: configv1.ClusterID(id),
-							Channel:   "fast",
+							Channel:   "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{

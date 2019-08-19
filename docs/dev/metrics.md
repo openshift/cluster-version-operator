@@ -28,7 +28,7 @@ cluster_version{image="test/image:2",type="cluster",version="4.0.3",from_version
 cluster_version{image="test/image:3",type="updating",version="4.0.4",from_version="4.0.3"} 132000400
 # HELP cluster_version_available_updates Report the count of available versions for an upstream and channel.
 # TYPE cluster_version_available_updates gauge
-cluster_version_available_updates{channel="fast",upstream="https://api.openshift.com/api/upgrades_info/v1/graph"} 0
+cluster_version_available_updates{channel="stable-4.2",upstream="https://api.openshift.com/api/upgrades_info/v1/graph"} 0
 ```
 
 Metrics about cluster operators:

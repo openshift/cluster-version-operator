@@ -127,7 +127,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 	})
 	verifyAllStatus(t, worker.StatusCh())
@@ -152,7 +152,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			History: []configv1.UpdateHistory{
@@ -193,7 +193,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
@@ -276,7 +276,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
@@ -398,7 +398,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 	})
 	verifyAllStatus(t, worker.StatusCh())
@@ -423,7 +423,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			History: []configv1.UpdateHistory{
@@ -464,7 +464,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			Desired:            desired,
@@ -547,7 +547,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
@@ -636,7 +636,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &desired,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -718,7 +718,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &desired,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -823,7 +823,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     actual.Spec.ClusterID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &copied,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -862,7 +862,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &desired,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -946,7 +946,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &desired,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -1046,7 +1046,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     actual.Spec.ClusterID,
-			Channel:       "fast",
+			Channel:       "stable-4.2",
 			DesiredUpdate: &copied,
 		},
 		Status: configv1.ClusterVersionStatus{
@@ -1089,7 +1089,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1256,7 +1256,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1412,7 +1412,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1466,7 +1466,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1579,7 +1579,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1621,7 +1621,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
@@ -1679,7 +1679,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
-			Channel:   "fast",
+			Channel:   "stable-4.2",
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)

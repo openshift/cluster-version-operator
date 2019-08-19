@@ -167,7 +167,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							Name: "default",
 						},
 						Spec: configv1.ClusterVersionSpec{
-							Channel: "fast",
+							Channel: "stable-4.2",
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
@@ -202,7 +202,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						Name: "default",
 					},
 					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
+						Channel: "stable-4.2",
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
