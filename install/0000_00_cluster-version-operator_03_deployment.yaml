@@ -22,6 +22,7 @@ spec:
         args:
           - "start"
           - "--release-image={{.ReleaseImage}}"
+          - "--telemetry-id={{.TelemetryID}}"
           - "--enable-auto-update=false"
           - "--v=4"
         resources:

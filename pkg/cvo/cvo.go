@@ -85,6 +85,9 @@ type Operator struct {
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
+	// telemetryID is the default Telemetry ID.
+	telemetryID string
+
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
 	eventRecorder record.EventRecorder
@@ -133,6 +136,7 @@ func New(
 	nodename string,
 	namespace, name string,
 	releaseImage string,
+	telemetryID string,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
@@ -152,6 +156,7 @@ func New(
 		namespace:    namespace,
 		name:         name,
 		releaseImage: releaseImage,
+		telemetryID:  telemetryID,
 
 		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
@@ -191,7 +196,7 @@ func New(
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage)
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage, optr.telemetryID)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
@@ -287,6 +292,7 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
 		UpdateFunc: func(old, new interface{}) {
+			// FIXME: check for Telemetry ID changes somewhere under this pathway, which I don't understand
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
@@ -455,6 +461,9 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
 		}
+		if obj.Spec.ClusterID != nil {
+			optr.telemetryID = obj.Spec.ClusterID
+		}
 		return obj, false, nil
 	}
 
@@ -467,7 +476,12 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		u := configv1.URL(optr.defaultUpstreamServer)
 		upstream = u
 	}
-	id, _ := uuid.NewRandom()
+	if optr.telemetryID == "" {
+		optr.telemetryID, err = uuid.NewRandom()
+		if err != nil {
+			return nil, false, err
+		}
+	}
 
 	// XXX: generate ClusterVersion from options calculated above.
 	config := &configv1.ClusterVersion{
@@ -477,7 +491,7 @@ func (optr *Operator) getOrCreateClusterVersion() (*configv1.ClusterVersion, boo
 		Spec: configv1.ClusterVersionSpec{
 			Upstream:  upstream,
 			Channel:   "fast",
-			ClusterID: configv1.ClusterID(id.String()),
+			ClusterID: configv1.ClusterID(optr.telemetryID),
 		},
 	}
 

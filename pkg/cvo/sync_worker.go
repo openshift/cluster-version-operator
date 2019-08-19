@@ -477,7 +477,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			return err
 		}
 
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image, "FIXME: get the Operator.telemetryID somehow?")
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,

@@ -50,6 +50,7 @@ const (
 // Options are the valid inputs to starting the CVO.
 type Options struct {
 	ReleaseImage string
+	TelemetryID  string
 
 	Kubeconfig string
 	NodeName   string
@@ -326,6 +327,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			o.NodeName,
 			o.Namespace, o.Name,
 			o.ReleaseImage,
+			o.TelemetryID,
 			o.PayloadOverride,
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),

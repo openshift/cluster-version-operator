@@ -90,6 +90,7 @@ const (
 type Update struct {
 	ReleaseImage   string
 	ReleaseVersion string
+	TelemetryID    string
 	// XXX: cincinatti.json struct
 
 	VerifiedImage bool
@@ -102,8 +103,8 @@ type Update struct {
 	Manifests    []lib.Manifest
 }
 
-func LoadUpdate(dir, releaseImage string) (*Update, error) {
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+func LoadUpdate(dir, releaseImage, telemetryID string) (*Update, error) {
+	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, telemetryID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +207,7 @@ type payloadTasks struct {
 	skipFiles  sets.String
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
+func loadUpdatePayloadMetadata(dir, releaseImage string, telemetryID string) (*Update, []payloadTasks, error) {
 	klog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
@@ -230,7 +231,10 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		return nil, nil, errors.Wrapf(err, "invalid image-references data %s", irf)
 	}
 
-	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	mrc := manifestRenderConfig{
+		ReleaseImage: releaseImage,
+		TelemetryID:  telemetryID,
+	}
 	tasks := []payloadTasks{{
 		idir:       cvoDir,
 		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
@@ -240,5 +244,10 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		preprocess: nil,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+	return &Update{
+		ImageRef:       imageRef,
+		ReleaseImage:   releaseImage,
+		ReleaseVersion: imageRef.Name,
+		TelemetryID:    telemetryID,
+	}, tasks, nil
 }

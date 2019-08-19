@@ -29,5 +29,6 @@ func init() {
 	cmd.PersistentFlags().StringVar(&opts.NodeName, "node-name", opts.NodeName, "kubernetes node name CVO is scheduled on.")
 	cmd.PersistentFlags().BoolVar(&opts.EnableAutoUpdate, "enable-auto-update", opts.EnableAutoUpdate, "Enables the autoupdate controller.")
 	cmd.PersistentFlags().StringVar(&opts.ReleaseImage, "release-image", opts.ReleaseImage, "The Openshift release image url.")
+	cmd.PersistentFlags().StringVar(&opts.telemetryID, "telemetry-id", "", "A telemetry ID which should be used for the default ClusterVersion spec.clusterID.")
 	rootCmd.AddCommand(cmd)
 }

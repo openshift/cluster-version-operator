@@ -20,6 +20,7 @@ var (
 	renderOpts struct {
 		releaseImage string
 		outputDir    string
+		telemetryID  string
 	}
 )
 
@@ -27,6 +28,7 @@ func init() {
 	rootCmd.AddCommand(renderCmd)
 	renderCmd.PersistentFlags().StringVar(&renderOpts.outputDir, "output-dir", "", "The output directory where the manifests will be rendered.")
 	renderCmd.PersistentFlags().StringVar(&renderOpts.releaseImage, "release-image", "", "The Openshift release image url.")
+	renderCmd.PersistentFlags().StringVar(&renderOpts.telemetryID, "telemetry-id", "", "A telemetry ID which should be used for the default ClusterVersion spec.clusterID.")
 }
 
 func runRenderCmd(cmd *cobra.Command, args []string) {
@@ -39,7 +41,7 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.releaseImage == "" {
 		klog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
+	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage, renderOpts.telemetryID); err != nil {
 		klog.Fatalf("Render command failed: %v", err)
 	}
 }

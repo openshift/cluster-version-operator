@@ -15,14 +15,17 @@ import (
 )
 
 // Render renders all the manifests from /manifests to outputDir.
-func Render(outputDir, releaseImage string) error {
+func Render(outputDir, releaseImage string, telemetryID string) error {
 	var (
 		manifestsDir  = filepath.Join(DefaultPayloadDir, CVOManifestDir)
 		oManifestsDir = filepath.Join(outputDir, "manifests")
 		bootstrapDir  = "/bootstrap"
 		oBootstrapDir = filepath.Join(outputDir, "bootstrap")
 
-		renderConfig = manifestRenderConfig{ReleaseImage: releaseImage}
+		renderConfig = manifestRenderConfig{
+			ReleaseImage: releaseImage,
+			TelemetryID:  telemetryID,
+		}
 	)
 
 	tasks := []struct {
@@ -103,6 +106,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 
 type manifestRenderConfig struct {
 	ReleaseImage string
+	TelemetryID  string
 }
 
 // renderManifest Executes go text template from `manifestBytes` with `config`.

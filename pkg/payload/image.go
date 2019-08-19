@@ -9,7 +9,7 @@ import (
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
-	up, err := LoadUpdate(DefaultPayloadDir, "")
+	up, err := LoadUpdate(DefaultPayloadDir, "", "")
 	if err != nil {
 		return "", errors.Wrapf(err, "error loading release manifests from %q", DefaultPayloadDir)
 	}
