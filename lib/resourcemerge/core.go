@@ -102,6 +102,7 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 	ensureEnvVar(modified, &existing.Env, required.Env)
 	ensureEnvFromSource(modified, &existing.EnvFrom, required.EnvFrom)
 	setStringIfSet(modified, &existing.WorkingDir, required.WorkingDir)
+	ensureResourceRequirements(modified, &existing.Resources, required.Resources)
 
 	// any port we specify, we require
 	for _, required := range required.Ports {
@@ -443,6 +444,18 @@ func ensureSELinuxOptions(modified *bool, existing *corev1.SELinuxOptions, requi
 	setStringIfSet(modified, &existing.Role, required.Role)
 	setStringIfSet(modified, &existing.Type, required.Type)
 	setStringIfSet(modified, &existing.Level, required.Level)
+}
+
+func ensureResourceRequirements(modified *bool, existing *corev1.ResourceRequirements, required corev1.ResourceRequirements) {
+	ensureResourceList(modified, &existing.Limits, &required.Limits)
+	ensureResourceList(modified, &existing.Requests, &required.Requests)
+}
+
+func ensureResourceList(modified *bool, existing *corev1.ResourceList, required *corev1.ResourceList) {
+	if !equality.Semantic.DeepEqual(existing, required) {
+		*modified = true
+		required.DeepCopyInto(existing)
+	}
 }
 
 func setBool(modified *bool, existing *bool, required bool) {
