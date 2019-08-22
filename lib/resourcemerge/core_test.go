@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/utils/pointer"
 )
@@ -112,6 +113,138 @@ func TestEnsurePodSpec(t *testing.T) {
 					corev1.Container{Name: "test-init"}},
 				Containers: []corev1.Container{
 					corev1.Container{Name: "test"}}},
+		},
+		{
+			name: "remove limits and requests on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"}}},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+		},
+		{
+			name: "modify limits and requests on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
+						},
+					},
+				},
+			},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "match limits and requests on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+
+			expectedModified: false,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "add limits and requests on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+							Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
+						},
+					},
+				},
+			},
 		},
 	}
 
