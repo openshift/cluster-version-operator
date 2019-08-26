@@ -188,6 +188,9 @@ func SummaryForReason(reason, name string) string {
 	case "ImageVerificationFailed":
 		return "the image may not be safe to use"
 
+	case "UpgradePreconditionCheckFailed":
+		return "it may not be safe to apply this update"
+
 	case "ClusterOperatorDegraded":
 		if len(name) > 0 {
 			return fmt.Sprintf("the cluster operator %s is degraded", name)

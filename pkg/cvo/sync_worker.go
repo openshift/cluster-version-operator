@@ -24,6 +24,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
@@ -128,6 +129,7 @@ type SyncWorker struct {
 	backoff     wait.Backoff
 	retriever   PayloadRetriever
 	builder     payload.ResourceBuilder
+	preconditions  precondition.List
 	reconciling bool
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
@@ -164,6 +166,15 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 		// if the reader is not fast enough.
 		report: make(chan SyncWorkerStatus, 500),
 	}
+}
+
+// NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
+// to a server, and obey limits about how often to reconcile or retry on errors.
+// It allows providing preconditions for loading payload.
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff) *SyncWorker {
+	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff)
+	worker.preconditions = preconditions
+	return worker
 }
 
 // StatusCh returns a channel that reports status from the worker. The channel is buffered and events
@@ -492,6 +503,30 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		}
 		payloadUpdate.VerifiedImage = info.Verified
 		payloadUpdate.LoadedAt = time.Now()
+
+		// need to make sure the payload is only set when the preconditions have been successfull
+		if !info.Local && len(w.preconditions) > 0 {
+			reporter.Report(SyncWorkerStatus{
+				Generation:  work.Generation,
+				Step:        "PreconditionChecks",
+				Initial:     work.State.Initializing(),
+				Reconciling: work.State.Reconciling(),
+				Actual:      update,
+				Verified:    info.Verified,
+			})
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx)); err != nil && !update.Force {
+				reporter.Report(SyncWorkerStatus{
+					Generation:  work.Generation,
+					Failure:     err,
+					Step:        "PreconditionChecks",
+					Initial:     work.State.Initializing(),
+					Reconciling: work.State.Reconciling(),
+					Actual:      update,
+					Verified:    info.Verified,
+				})
+				return err
+			}
+		}
 
 		w.payload = payloadUpdate
 		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)

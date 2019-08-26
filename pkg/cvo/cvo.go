@@ -37,6 +37,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
+	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
 
@@ -234,9 +236,10 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
-	optr.configSync = NewSyncWorker(
+	optr.configSync = NewSyncWorkerWithPreconditions(
 		optr.defaultPayloadRetriever(),
 		NewResourceBuilder(restConfig, burstRestConfig, optr.coLister),
+		optr.defaultPreconditionChecks(),
 		optr.minimumUpdateCheckInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
@@ -642,4 +645,10 @@ func hasReachedLevel(cv *configv1.ClusterVersion, desired configv1.Update) bool 
 		return false
 	}
 	return desired.Image == cv.Status.History[0].Image
+}
+
+func (optr *Operator) defaultPreconditionChecks() precondition.List {
+	return []precondition.Precondition{
+		preconditioncv.NewUpgradeable(optr.cvLister),
+	}
 }
