@@ -455,7 +455,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
-	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, update) {
+	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, configv1.Update{Image: update.Image}) {
 		klog.V(4).Infof("Loading payload")
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
