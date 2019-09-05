@@ -233,6 +233,118 @@ func TestByNumberAndComponent(t *testing.T) {
 	}
 }
 
+func TestShiftOrder(t *testing.T) {
+	tasks := func(names ...string) []*Task {
+		var arr []*Task
+		for _, name := range names {
+			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+		}
+		return arr
+	}
+	tests := []struct {
+		name   string
+		step   int
+		stride int
+		tasks  [][]*TaskNode
+		want   [][]*TaskNode
+	}{
+		{
+			step:   0,
+			stride: 8,
+			tasks: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+		},
+		{
+			step:   1,
+			stride: 8,
+			tasks: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+				},
+			},
+		},
+		{
+			step:   2,
+			stride: 8,
+			tasks: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+		},
+		{
+			step:   1,
+			stride: 2,
+			tasks: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_03_x-y-z_file1")},
+				},
+			},
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_03_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+				},
+			},
+		},
+		{
+			step:   2,
+			stride: 3,
+			tasks: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_03_x-y-z_file1")},
+				},
+			},
+			want: [][]*TaskNode{
+				{
+					&TaskNode{Tasks: tasks("0000_03_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_02_x-y-z_file1")},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fn := func([]*Task) [][]*TaskNode {
+				return test.tasks
+			}
+			if out := ShiftOrder(fn, test.step, test.stride)(nil); !reflect.DeepEqual(test.want, out) {
+				t.Errorf("%s", diff.ObjectReflectDiff(test.want, out))
+			}
+		})
+	}
+}
+
 func TestFlattenByNumberAndComponent(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task

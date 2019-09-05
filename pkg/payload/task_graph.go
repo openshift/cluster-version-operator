@@ -264,6 +264,29 @@ func (g *TaskGraph) Split(onFn func(task *Task) bool) {
 // explicit parallelizm allowed per task in an array of task nodes.
 type BreakFunc func([]*Task) [][]*TaskNode
 
+// ShiftOrder rotates each TaskNode by step*len/stride when stride > len,
+// or by step when stride < len, to ensure a different order within the
+// task node list is tried.
+func ShiftOrder(breakFn BreakFunc, step, stride int) BreakFunc {
+	return func(tasks []*Task) [][]*TaskNode {
+		steps := breakFn(tasks)
+		for i, stepTasks := range steps {
+			max := len(stepTasks)
+			var shift int
+			if max < stride {
+				shift = step % max
+			} else {
+				shift = int(float64(step)*float64(max)/float64(stride)) % max
+			}
+			copied := make([]*TaskNode, max)
+			copy(copied, stepTasks[shift:])
+			copy(copied[max-shift:], stepTasks[0:shift])
+			steps[i] = copied
+		}
+		return steps
+	}
+}
+
 // PermuteOrder returns a split function that ensures the order of
 // each step is shuffled based on r.
 func PermuteOrder(breakFn BreakFunc, r *rand.Rand) BreakFunc {
