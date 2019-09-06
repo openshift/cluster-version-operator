@@ -113,10 +113,17 @@ type Operator struct {
 	queue workqueue.RateLimitingInterface
 	// availableUpdatesQueue tracks checking for updates from the update server.
 	availableUpdatesQueue workqueue.RateLimitingInterface
+	// upgradeableQueue tracks checking for upgradeable.
+	upgradeableQueue workqueue.RateLimitingInterface
 
 	// statusLock guards access to modifying available updates
 	statusLock       sync.Mutex
 	availableUpdates *availableUpdates
+
+	// upgradeableStatusLock guards access to modifying Upgradeable conditions
+	upgradeableStatusLock sync.Mutex
+	upgradeable           *upgradeable
+	upgradeableChecks     []upgradeableCheck
 
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
@@ -171,10 +178,8 @@ func New(
 
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
+		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 	}
-
-	optr.proxyLister = proxyInformer.Lister()
-	proxyInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 
@@ -184,7 +189,11 @@ func New(
 	optr.cvLister = cvInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, cvInformer.Informer().HasSynced)
 
+	optr.proxyLister = proxyInformer.Lister()
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+
+	// make sure this is initialized after all the listers are initialized
+	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
 	if enableMetrics {
 		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
@@ -263,6 +272,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
 	go optr.configSync.Start(ctx, 16)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
 	go wait.Until(func() {
 		defer close(workerStopCh)
 
@@ -292,10 +302,12 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 		AddFunc: func(obj interface{}) {
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
+			optr.upgradeableQueue.Add(workQueueKey)
 		},
 		UpdateFunc: func(old, new interface{}) {
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
+			optr.upgradeableQueue.Add(workQueueKey)
 		},
 		DeleteFunc: func(obj interface{}) {
 			optr.queue.Add(workQueueKey)
@@ -430,6 +442,29 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 	}
 
 	return optr.syncAvailableUpdates(config)
+}
+
+// upgradeableSync is triggered on cluster version change (and periodic requeues) to
+// sync upgradeableCondition. It only modifies cluster version.
+func (optr *Operator) upgradeableSync(key string) error {
+	startTime := time.Now()
+	klog.V(4).Infof("Started syncing upgradeable %q (%v)", key, startTime)
+	defer func() {
+		klog.V(4).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
+	}()
+
+	config, err := optr.cvLister.Get(optr.name)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+		return nil
+	}
+
+	return optr.syncUpgradeable(config)
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than

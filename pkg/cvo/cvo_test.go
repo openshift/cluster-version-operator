@@ -12,9 +12,9 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
+	corev1 "k8s.io/api/core/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -1354,6 +1354,229 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
+			name: "new upgradable conditions, version is live and was recently synced, sync",
+			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
+				Reconciling: true,
+				Completed:   1,
+				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+			},
+			optr: Operator{
+				releaseImage: "image/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				upgradeable: &upgradeable{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
+						{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
+						{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+					},
+				},
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+						},
+						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name: "new upgradable conditions with some old ones, version is live and was recently synced, sync",
+			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
+				Reconciling: true,
+				Completed:   1,
+				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+			},
+			optr: Operator{
+				releaseImage: "image/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				upgradeable: &upgradeable{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
+						{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+					},
+				},
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+						},
+						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
+			name: "no upgradeable conditions, version is live and was recently synced, sync",
+			syncStatus: &SyncWorkerStatus{
+				Generation:  2,
+				Reconciling: true,
+				Completed:   1,
+				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+			},
+			optr: Operator{
+				releaseImage: "image/image:v4.0.1",
+				namespace:    "test",
+				name:         "default",
+				upgradeable: &upgradeable{
+					Conditions: []configv1.ClusterOperatorStatusCondition{},
+				},
+				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
+							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+						},
+					},
+				}),
+			},
+			wantActions: func(t *testing.T, optr *Operator) {
+				f := optr.client.(*fake.Clientset)
+				act := f.Actions()
+				if len(act) != 2 {
+					t.Fatalf("unknown actions: %d %#v", len(act), act)
+				}
+				expectGet(t, act[0], "clusterversions", "", "default")
+				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:       "default",
+						Generation: 2,
+					},
+					Spec: configv1.ClusterVersionSpec{
+						ClusterID: configv1.ClusterID(id),
+						Upstream:  configv1.URL("http://localhost:8080/graph"),
+						Channel:   "fast",
+					},
+					Status: configv1.ClusterVersionStatus{
+						History: []configv1.UpdateHistory{
+							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+						},
+						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						ObservedGeneration: 2,
+						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
+							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+						},
+					},
+				})
+			},
+		},
+		{
 			name: "new available updates for the default upstream URL, client has no upstream",
 			syncStatus: &SyncWorkerStatus{
 				Generation:  2,
@@ -2434,6 +2657,489 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.wantUpdates, optr.availableUpdates))
 			}
 			if (optr.queue.Len() > 0) != (optr.availableUpdates != nil) {
+				t.Fatalf("unexpected queue")
+			}
+		})
+	}
+}
+
+func TestOperator_upgradeableSync(t *testing.T) {
+	id := uuid.Must(uuid.NewRandom()).String()
+
+	tests := []struct {
+		name    string
+		key     string
+		optr    Operator
+		wantErr func(*testing.T, error)
+		want    *upgradeable
+	}{
+		{
+			name: "when version is missing, do nothing (other loops should create it)",
+			optr: Operator{
+				releaseVersion: "4.0.1",
+				releaseImage:   "image/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client:         fake.NewSimpleClientset(),
+			},
+		},
+		{
+			name: "report error condition when overrides is set for version",
+			optr: Operator{
+				releaseVersion: "",
+				releaseImage:   "image/image:v4.0.1",
+				namespace:      "test",
+				name:           "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "fast",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: true,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "ClusterVersionOverridesSet",
+					Message: "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing.",
+				}},
+			},
+		},
+		{
+			name: "report error condition when single clusteroperator is not upgradeable",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason",
+								Message: "some random reason why upgrades are not safe.",
+							}},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "RandomReason",
+					Message: "Cluster operator default-operator-1 cannot be upgraded: some random reason why upgrades are not safe.",
+				}},
+			},
+		},
+		{
+			name: "report error condition when single clusteroperator is not upgradeable",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason",
+								Message: "some random reason why upgrades are not safe.",
+							}},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-2",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "RandomReason",
+					Message: "Cluster operator default-operator-1 cannot be upgraded: some random reason why upgrades are not safe.",
+				}},
+			},
+		},
+		{
+			name: "report error condition when single clusteroperator is not upgradeable",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason",
+								Message: "some random reason why upgrades are not safe.",
+							}},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-2",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:   configv1.OperatorUpgradeable,
+								Status: configv1.ConditionTrue,
+							}},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "RandomReason",
+					Message: "Cluster operator default-operator-1 cannot be upgraded: some random reason why upgrades are not safe.",
+				}},
+			},
+		},
+		{
+			name: "report error condition when two clusteroperators are not upgradeable",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason",
+								Message: "some random reason why upgrades are not safe.",
+							}},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-2",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason2",
+								Message: "some random reason 2 why upgrades are not safe.",
+							}},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "ClusterOperatorsNotUpgradeable",
+					Message: "Multiple cluster operators cannot be upgradeable:\n* Cluster operator default-operator-1 cannot be upgraded: RandomReason: some random reason why upgrades are not safe.\n* Cluster operator default-operator-2 cannot be upgraded: RandomReason2: some random reason 2 why upgrades are not safe.",
+				}},
+			},
+		},
+		{
+			name: "report error condition when clusteroperators and version are not upgradeable",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: true,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason",
+								Message: "some random reason why upgrades are not safe.",
+							}},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-2",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:    configv1.OperatorUpgradeable,
+								Status:  configv1.ConditionFalse,
+								Reason:  "RandomReason2",
+								Message: "some random reason 2 why upgrades are not safe.",
+							}},
+						},
+					},
+				),
+			},
+			want: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "MultipleReasons",
+					Message: "Cluster cannot be upgraded for multiple reasons: ClusterOperatorsNotUpgradeable,ClusterVersionOverridesSet",
+				}, {
+					Type:    "UpgradeableClusterOperators",
+					Status:  configv1.ConditionFalse,
+					Reason:  "ClusterOperatorsNotUpgradeable",
+					Message: "Multiple cluster operators cannot be upgradeable:\n* Cluster operator default-operator-1 cannot be upgraded: RandomReason: some random reason why upgrades are not safe.\n* Cluster operator default-operator-2 cannot be upgraded: RandomReason2: some random reason 2 why upgrades are not safe.",
+				}, {
+					Type:    "UpgradeableClusterVersionOverrides",
+					Status:  configv1.ConditionFalse,
+					Reason:  "ClusterVersionOverridesSet",
+					Message: "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing.",
+				}},
+			},
+		},
+		{
+			name: "no error conditions",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			want: &upgradeable{},
+		},
+		{
+			name: "no error conditions",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+				),
+			},
+			want: &upgradeable{},
+		},
+		{
+			name: "no error conditions",
+			optr: Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				releaseVersion:        "v4.0.0",
+				releaseImage:          "image/image:v4.0.1",
+				namespace:             "test",
+				name:                  "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+						},
+					},
+					&configv1.ClusterOperator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default-operator-1",
+						},
+						Status: configv1.ClusterOperatorStatus{
+							Conditions: []configv1.ClusterOperatorStatusCondition{{
+								Type:   configv1.OperatorUpgradeable,
+								Status: configv1.ConditionTrue,
+							}},
+						},
+					},
+				),
+			},
+			want: &upgradeable{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			optr := tt.optr
+			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+			optr.proxyLister = &clientProxyLister{client: optr.client}
+			optr.coLister = &clientCOLister{client: optr.client}
+			optr.cvLister = &clientCVLister{client: optr.client}
+			optr.upgradeableChecks = optr.defaultUpgradeableChecks()
+
+			err := optr.upgradeableSync(optr.queueKey())
+			if err != nil && tt.wantErr == nil {
+				t.Fatalf("Operator.sync() unexpected error: %v", err)
+			}
+			if err != nil {
+				return
+			}
+
+			if optr.upgradeable != nil {
+				optr.upgradeable.At = time.Time{}
+				for i := range optr.upgradeable.Conditions {
+					optr.upgradeable.Conditions[i].LastTransitionTime = metav1.Time{}
+				}
+			}
+
+			if !reflect.DeepEqual(optr.upgradeable, tt.want) {
+				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.want, optr.upgradeable))
+			}
+			if (optr.queue.Len() > 0) != (optr.upgradeable != nil) {
 				t.Fatalf("unexpected queue")
 			}
 		})
