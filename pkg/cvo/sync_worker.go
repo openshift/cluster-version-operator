@@ -545,17 +545,22 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	graph.Split(payload.SplitOnJobs)
 	switch work.State {
 	case payload.InitializingPayload:
-		// create every component in parallel to maximize reaching steady
-		// state
+		// Create every component in parallel to maximize reaching steady
+		// state.
 		graph.Parallelize(payload.FlattenByNumberAndComponent)
 		maxWorkers = len(graph.Nodes)
 	case payload.ReconcilingPayload:
-		// run the graph in random order during reconcile so that we don't
+		// Run the graph in random order during reconcile so that we don't
 		// hang on any particular component - we seed from the number of
 		// times we've attempted this particular payload, so a particular
-		// payload always syncs in a reproducible order
-		r := rand.New(rand.NewSource(int64(work.Attempt)))
-		graph.Parallelize(payload.PermuteOrder(payload.FlattenByNumberAndComponent, r))
+		// payload always syncs in a reproducible order. We permute the
+		// same way for 8 successive attempts, shifting the tasks for each
+		// of those attempts to try to cover as much of the payload as
+		// possible within that interval.
+		steps := 8
+		epoch, iteration := work.Attempt/steps, work.Attempt%steps
+		r := rand.New(rand.NewSource(int64(epoch)))
+		graph.Parallelize(payload.ShiftOrder(payload.PermuteOrder(payload.FlattenByNumberAndComponent, r), iteration, steps))
 		maxWorkers = 2
 	default:
 		// perform an orderly roll out by payload order, using some parallelization
