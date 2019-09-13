@@ -233,6 +233,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.Namespace = ns
 	options.Name = ns
 	options.ListenAddr = ""
+	options.EnableDefaultClusterVersion = true
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
@@ -384,6 +385,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.Namespace = ns
 	options.Name = ns
 	options.ListenAddr = ""
+	options.EnableDefaultClusterVersion = true
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")

@@ -219,11 +219,12 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "create version and status",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
-				client:         fake.NewSimpleClientset(),
+				releaseVersion:              "4.0.1",
+				releaseImage:                "image/image:v4.0.1",
+				enableDefaultClusterVersion: true,
+				namespace:                   "test",
+				name:                        "default",
+				client:                      fake.NewSimpleClientset(),
 			},
 			wantActions: func(t *testing.T, optr *Operator) {
 				f := optr.client.(*fake.Clientset)
