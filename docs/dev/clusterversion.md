@@ -58,6 +58,7 @@ $ cat <<EOF >version-patch-first-override.yaml
   path: /spec/overrides
   value:
   - kind: DaemonSet
+    group: apps/v1
     name: cluster-network-operator
     namespace: openshift-cluster-network-operator
     unmanaged: true
@@ -70,6 +71,7 @@ $ cat <<EOF >version-patch-add-override.yaml
   path: /spec/overrides/-
   value:
     kind: DaemonSet
+    group: apps/v1
     name: cluster-network-operator
     namespace: openshift-cluster-network-operator
     unmanaged: true
