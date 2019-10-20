@@ -7,14 +7,9 @@ import (
 	"k8s.io/klog"
 )
 
-const (
-	componentName      = "version"
-	componentNamespace = "openshift-cluster-version"
-)
-
 var (
 	rootCmd = &cobra.Command{
-		Use:   componentName,
+		Use:   "cluster-version-operator",
 		Short: "Run Cluster Version Controller",
 		Long:  "",
 	}
