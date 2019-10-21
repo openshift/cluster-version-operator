@@ -589,5 +589,9 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	if len(errs) > 0 {
 		return errs
 	}
+	// if the context was cancelled, we may have unfinished work
+	if err := ctx.Err(); err != nil {
+		return []error{err}
+	}
 	return nil
 }
