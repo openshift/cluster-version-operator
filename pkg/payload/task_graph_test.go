@@ -704,7 +704,21 @@ func TestRunGraph(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+			manifest := &lib.Manifest{OriginalFilename: name}
+			err := manifest.UnmarshalJSON([]byte(fmt.Sprintf(`
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "%s",
+    "namespace": "default"
+  }
+}
+`, name)))
+			if err != nil {
+				t.Fatalf("load %s: %v", name, err)
+			}
+			arr = append(arr, &Task{Manifest: manifest})
 		}
 		return arr
 	}
@@ -862,7 +876,7 @@ func TestRunGraph(t *testing.T) {
 				return nil
 			},
 			want:     []string{"a"},
-			wantErrs: []string{"context canceled"},
+			wantErrs: []string{`1 incomplete task nodes, beginning with configmap "default/b" (0 of 0)`, "context canceled"},
 		},
 	}
 	for _, tt := range tests {
