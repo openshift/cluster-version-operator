@@ -84,7 +84,9 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 		}
 	} else {
 		klog.V(5).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
-		last.CompletionTime = &now
+		if last.CompletionTime == nil {
+			last.CompletionTime = &now
+		}
 		if completed {
 			config.Status.History = append([]configv1.UpdateHistory{
 				{
