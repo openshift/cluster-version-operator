@@ -2,15 +2,16 @@ package resourceapply
 
 import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextclientv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-	apiextlistersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
 
-func ApplyCustomResourceDefinition(client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
+func ApplyCustomResourceDefinitionV1beta1(client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.CustomResourceDefinitions().Create(required)
@@ -25,7 +26,7 @@ func ApplyCustomResourceDefinition(client apiextclientv1beta1.CustomResourceDefi
 	}
 
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureCustomResourceDefinition(modified, existing, *required)
+	resourcemerge.EnsureCustomResourceDefinitionV1beta1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
@@ -34,8 +35,8 @@ func ApplyCustomResourceDefinition(client apiextclientv1beta1.CustomResourceDefi
 	return actual, true, err
 }
 
-func ApplyCustomResourceDefinitionFromCache(lister apiextlistersv1beta1.CustomResourceDefinitionLister, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
-	existing, err := lister.Get(required.Name)
+func ApplyCustomResourceDefinitionV1(client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
+	existing, err := client.CustomResourceDefinitions().Get(required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.CustomResourceDefinitions().Create(required)
 		return actual, true, err
@@ -48,9 +49,8 @@ func ApplyCustomResourceDefinitionFromCache(lister apiextlistersv1beta1.CustomRe
 		return nil, false, nil
 	}
 
-	existing = existing.DeepCopy()
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureCustomResourceDefinition(modified, existing, *required)
+	resourcemerge.EnsureCustomResourceDefinitionV1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}

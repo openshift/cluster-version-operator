@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
@@ -15,6 +16,7 @@ import (
 func init() {
 	rm := NewResourceMapper()
 	rm.RegisterGVK(apiextv1beta1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newCRDBuilder)
+	rm.RegisterGVK(apiextv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newCRDBuilder)
 	rm.RegisterGVK(apiregv1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
 	rm.RegisterGVK(apiregv1beta1.SchemeGroupVersion.WithKind("APIService"), newAPIServiceBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newDeploymentBuilder)
