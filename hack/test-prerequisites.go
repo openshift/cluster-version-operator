@@ -38,7 +38,7 @@ func main() {
 				log.Fatalf("Unable to parse CRD %s: %v", path, err)
 			}
 			name = crd.Name
-			_, err = client.Apiextensions().CustomResourceDefinitions().Create(&crd)
+			_, err = client.ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 			if errors.IsAlreadyExists(err) {
 				return true, nil
 			}

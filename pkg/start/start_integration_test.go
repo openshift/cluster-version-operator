@@ -13,8 +13,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"strings"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -196,7 +196,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
 		},
@@ -207,7 +207,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -348,7 +348,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
 		},
@@ -359,7 +359,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -476,7 +476,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(6))
 
-	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
 		},
@@ -487,7 +487,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -519,7 +519,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 
 	// wait until the lock record exists
 	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, err := kc.Core().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -533,7 +533,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	t.Logf("verify the controller writes a leadership change event")
-	events, err := kc.Core().Events(ns).List(metav1.ListOptions{})
+	events, err := kc.CoreV1().Events(ns).List(metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -547,7 +547,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	var endTime time.Time
 	// the lock should be deleted immediately
 	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-		_, err := kc.Core().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			endTime = time.Now()
 			return true, nil
@@ -599,7 +599,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.Core().Namespaces().Create(&v1.Namespace{
+	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: ns,
 		},
@@ -610,7 +610,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.Core().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
