@@ -10,8 +10,6 @@ import (
 )
 
 func TestEnsureDeployment(t *testing.T) {
-	replicas := int32(2)
-	expectedReplicas := int32(2)
 	labelSelector := metav1.LabelSelector{}
 	tests := []struct {
 		name     string
@@ -25,29 +23,29 @@ func TestEnsureDeployment(t *testing.T) {
 			name: "different replica count",
 			existing: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &replicas}},
+					Replicas: int32Pointer(2)}},
 			required: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &expectedReplicas}},
+					Replicas: int32Pointer(3)}},
 
 			expectedModified: true,
 			expected: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &expectedReplicas}},
+					Replicas: int32Pointer(3)}},
 		},
 		{
 			name: "same replica count",
 			existing: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &replicas}},
+					Replicas: int32Pointer(2)}},
 			required: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &replicas}},
+					Replicas: int32Pointer(2)}},
 
 			expectedModified: false,
 			expected: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: &replicas}},
+					Replicas: int32Pointer(2)}},
 		},
 		{
 			name:     "existing-selector-nil-required-selector-non-nil",
@@ -76,4 +74,8 @@ func TestEnsureDeployment(t *testing.T) {
 			}
 		})
 	}
+}
+
+func int32Pointer(i int32) *int32 {
+	return &i
 }
