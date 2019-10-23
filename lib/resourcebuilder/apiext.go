@@ -8,7 +8,9 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextclientv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,15 +19,17 @@ import (
 )
 
 type crdBuilder struct {
-	client   *apiextclientv1beta1.ApiextensionsV1beta1Client
-	raw      []byte
-	modifier MetaV1ObjectModifierFunc
+	raw           []byte
+	modifier      MetaV1ObjectModifierFunc
+	clientV1beta1 *apiextclientv1beta1.ApiextensionsV1beta1Client
+	clientV1      *apiextclientv1.ApiextensionsV1Client
 }
 
 func newCRDBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &crdBuilder{
-		client: apiextclientv1beta1.NewForConfigOrDie(withProtobuf(config)),
-		raw:    m.Raw,
+		raw:           m.Raw,
+		clientV1beta1: apiextclientv1beta1.NewForConfigOrDie(withProtobuf(config)),
+		clientV1:      apiextclientv1.NewForConfigOrDie(withProtobuf(config)),
 	}
 }
 
@@ -39,34 +43,53 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 }
 
 func (b *crdBuilder) Do(ctx context.Context) error {
-	crd := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(b.raw)
-	if b.modifier != nil {
-		b.modifier(crd)
+	crd := resourceread.ReadCustomResourceDefinitionOrDie(b.raw)
+
+	var updated bool
+	var err error
+	var name string
+
+	switch crd := crd.(type) {
+	case *apiextv1beta1.CustomResourceDefinition:
+		if b.modifier != nil {
+			b.modifier(crd)
+		}
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, crd)
+		if err != nil {
+			return err
+		}
+		name = crd.Name
+	case *apiextv1.CustomResourceDefinition:
+		if b.modifier != nil {
+			b.modifier(crd)
+		}
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, crd)
+		if err != nil {
+			return err
+		}
+		name = crd.Name
 	}
-	_, updated, err := resourceapply.ApplyCustomResourceDefinition(b.client, crd)
-	if err != nil {
-		return err
-	}
+
 	if updated {
-		return waitForCustomResourceDefinitionCompletion(ctx, b.client, crd)
+		return waitForCustomResourceDefinitionCompletion(ctx, b.clientV1, name)
 	}
 	return nil
 }
 
-func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd *apiextv1beta1.CustomResourceDefinition) error {
+func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, crd string) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		c, err := client.CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+		c, err := client.CustomResourceDefinitions().Get(crd, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the crd.
 			return false, err
 		}
 		if err != nil {
-			klog.Errorf("error getting CustomResourceDefinition %s: %v", crd.Name, err)
+			klog.Errorf("error getting CustomResourceDefinition %s: %v", crd, err)
 			return false, nil
 		}
 
 		for _, condition := range c.Status.Conditions {
-			if condition.Type == apiextv1beta1.Established && condition.Status == apiextv1beta1.ConditionTrue {
+			if condition.Type == apiextv1.Established && condition.Status == apiextv1.ConditionTrue {
 				return true, nil
 			}
 		}
