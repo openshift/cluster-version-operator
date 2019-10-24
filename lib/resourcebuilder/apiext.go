@@ -71,12 +71,12 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 	}
 
 	if updated {
-		return waitForCustomResourceDefinitionCompletion(ctx, b.clientV1, name)
+		return waitForCustomResourceDefinitionCompletion(ctx, b.clientV1beta1, name)
 	}
 	return nil
 }
 
-func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, crd string) error {
+func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd string) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		c, err := client.CustomResourceDefinitions().Get(crd, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -89,7 +89,7 @@ func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiex
 		}
 
 		for _, condition := range c.Status.Conditions {
-			if condition.Type == apiextv1.Established && condition.Status == apiextv1.ConditionTrue {
+			if condition.Type == apiextv1beta1.Established && condition.Status == apiextv1beta1.ConditionTrue {
 				return true, nil
 			}
 		}
