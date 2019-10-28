@@ -177,7 +177,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1999d654799bdb63e9ed03fda9c240119c4a8ac782dfe565e90214678f669125"
+  digest = "1:680939b9b56ebe46bbff646a1e8fcc18141a5a67ed99e061c0638583e9150f52"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -186,8 +186,8 @@
     "image/v1",
     "security/v1",
   ]
-  pruneopts = "NUT"
-  revision = "d92789481b059132f1febccd9bb47cb27220f248"
+  pruneopts = "UT"
+  revision = "c556078b427fbf38b9645bb91b703b800195ddb1"
 
 [[projects]]
   branch = "master"
@@ -367,7 +367,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:461f95709aa3b74651a3a26d25c816801e10b5adc2bdef8bff9671494fdd13ab"
+  digest = "1:e8074db5811031e438301937752755e84de48028d254d69ed9e3bbe74f9d0c0f"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -382,9 +382,10 @@
     "internal/imports",
     "internal/module",
     "internal/semver",
+    "internal/span",
   ]
   pruneopts = "NUT"
-  revision = "9cd7e18f8ef73a428ee6125634aae52a8d0c94d4"
+  revision = "b2104f82a97df5456531b2816ef2022c7f4431c0"
 
 [[projects]]
   digest = "1:c8131c929081f0fa26901a27eec93162a44afb3fc89a38573520dd4e3f1b1621"
@@ -466,7 +467,7 @@
   version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:ecf78750f1bf5f171896e0332a208e7c04e91085abcac3523d4f5317f1d24bb7"
+  digest = "1:6aab404e4451f049e6c4dfdb102d43fb209b445cdac708f7e74b5e70b41ddd90"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -476,7 +477,6 @@
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
   revision = "8f644eb6e783291c4b8cb8cb25a9983be1a74f5c"
@@ -538,11 +538,10 @@
   version = "kubernetes-1.16.0"
 
 [[projects]]
-  digest = "1:c58b46a5c3993704a92a2278f8102491ea45b137cf365979ba89e3bdd74d8b09"
+  digest = "1:845b5d54e096d577fdfedaf2c0cc6013d898d03d5b4731a0ec0ab597c344c6bc"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
-    "discovery/cached",
     "discovery/cached/memory",
     "discovery/fake",
     "dynamic",
@@ -823,10 +822,11 @@
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1",
     "k8s.io/api/rbac/v1beta1",
+    "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
+    "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1",
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/api/meta",
@@ -850,7 +850,7 @@
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/discovery",
-    "k8s.io/client-go/discovery/cached",
+    "k8s.io/client-go/discovery/cached/memory",
     "k8s.io/client-go/dynamic",
     "k8s.io/client-go/dynamic/fake",
     "k8s.io/client-go/informers",
