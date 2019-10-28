@@ -20,6 +20,10 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
   non-go = false
   unused-packages = false
 
+[[prune.project]]
+  name = "github.com/openshift/api"
+  non-go = false
+
 [[constraint]]
   name = "github.com/google/uuid"
   version = "v1.1.1"
