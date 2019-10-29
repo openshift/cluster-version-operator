@@ -157,10 +157,18 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
+	cvUpdated := false
 	// update the config with the latest available updates
 	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
+		cvUpdated = true
 		config = updated
-	} else if original == nil || original == config {
+	}
+	// update the config with upgradeable
+	if updated := optr.getUpgradeable().NeedsUpdate(config); updated != nil {
+		cvUpdated = true
+		config = updated
+	}
+	if !cvUpdated && (original == nil || original == config) {
 		original = config.DeepCopy()
 	}
 

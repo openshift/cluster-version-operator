@@ -27,6 +27,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
 func Test_SyncWorker_apply(t *testing.T) {
@@ -441,4 +442,29 @@ func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state 
 		builder = builder.WithModifier(m)
 	}
 	return builder.Do(ctx)
+}
+
+type testPrecondition struct {
+	attempt      int
+	SuccessAfter int
+}
+
+func (pf *testPrecondition) Name() string {
+	return fmt.Sprintf("TestPrecondition SuccessAfter: %d", pf.SuccessAfter)
+}
+
+func (pf *testPrecondition) Run(_ context.Context) error {
+	if pf.SuccessAfter == 0 {
+		return nil
+	}
+	pf.attempt++
+	if pf.attempt >= pf.SuccessAfter {
+		return nil
+	}
+	return &precondition.Error{
+		Nested:  nil,
+		Reason:  "CheckFailure",
+		Message: fmt.Sprintf("failing, attempt: %d will succeed after %d attempt", pf.attempt, pf.SuccessAfter),
+		Name:    pf.Name(),
+	}
 }
