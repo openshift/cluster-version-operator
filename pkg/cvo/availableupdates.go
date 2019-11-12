@@ -127,6 +127,14 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
+	upstreamURI, err := url.Parse(upstream)
+	if err != nil {
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidURI",
+			Message: fmt.Sprintf("failed to parse upstream URL: %s", err),
+		}
+	}
+
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return nil, configv1.ClusterOperatorStatusCondition{
@@ -165,7 +173,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
-	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstream, arch, channel, currentVersion)
+	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {

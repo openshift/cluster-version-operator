@@ -58,22 +58,18 @@ func (err *Error) Error() string {
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(upstream string, arch string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
-	cincinnatiURL, err := url.Parse(upstream)
-	if err != nil {
-		return nil, &Error{Reason: "InvalidURI", Message: fmt.Sprintf("failed to parse upstream URL: %s", err)}
-	}
-	queryParams := cincinnatiURL.Query()
+	queryParams := uri.Query()
 	queryParams.Add("arch", arch)
 	queryParams.Add("channel", channel)
 	queryParams.Add("id", c.id.String())
 	queryParams.Add("version", version.String())
-	cincinnatiURL.RawQuery = queryParams.Encode()
+	uri.RawQuery = queryParams.Encode()
 
 	// Download the update graph.
-	req, err := http.NewRequest("GET", cincinnatiURL.String(), nil)
+	req, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
 		return nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
 	}

@@ -127,7 +127,12 @@ func TestGetUpdates(t *testing.T) {
 
 			c := NewClient(clientID, proxyURL, tlsConfig)
 
-			updates, err := c.GetUpdates(ts.URL, arch, channelName, semver.MustParse(test.version))
+			uri, err := url.Parse(ts.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			updates, err := c.GetUpdates(uri, arch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)
