@@ -5,6 +5,8 @@ metadata:
     k8s-app: cluster-version-operator
   name: cluster-version-operator
   namespace: openshift-cluster-version
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   endpoints:
   - interval: 30s
@@ -24,6 +26,8 @@ metadata:
     k8s-app: cluster-version-operator
   name: cluster-version-operator
   namespace: openshift-cluster-version
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   groups:
   - name: cluster-version
