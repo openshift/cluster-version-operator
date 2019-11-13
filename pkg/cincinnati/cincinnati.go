@@ -34,6 +34,23 @@ func NewClient(id uuid.UUID, proxyURL *url.URL, tlsConfig *tls.Config) Client {
 // Update is a single node from the update graph.
 type Update node
 
+// Error is returned when are unable to get updates.
+type Error struct {
+	// Reason is the reason suggested for the ClusterOperator status condition.
+	Reason string
+
+	// Message is the message suggested for the ClusterOperator status condition.
+	Message string
+
+	// cause is the upstream error, if any, being wrapped by this error.
+	cause error
+}
+
+// Error serializes the error as a string, to satisfy the error interface.
+func (err *Error) Error() string {
+	return fmt.Sprintf("%s: %s", err.Reason, err.Message)
+}
+
 // GetUpdates fetches the next-applicable update payloads from the specified
 // upstream Cincinnati stack given the current version and channel. The next-
 // applicable updates are determined by downloading the update graph, finding
@@ -41,24 +58,20 @@ type Update node
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(upstream string, arch string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
-	cincinnatiURL, err := url.Parse(upstream)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse upstream URL: %s", err)
-	}
-	queryParams := cincinnatiURL.Query()
+	queryParams := uri.Query()
 	queryParams.Add("arch", arch)
 	queryParams.Add("channel", channel)
 	queryParams.Add("id", c.id.String())
 	queryParams.Add("version", version.String())
-	cincinnatiURL.RawQuery = queryParams.Encode()
+	uri.RawQuery = queryParams.Encode()
 
 	// Download the update graph.
-	req, err := http.NewRequest("GET", cincinnatiURL.String(), nil)
+	req, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
 	}
 	req.Header.Add("Accept", GraphMediaType)
 	if c.tlsConfig != nil {
@@ -72,23 +85,23 @@ func (c Client) GetUpdates(upstream string, arch string, channel string, version
 	client := http.Client{Transport: &transport}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, &Error{Reason: "RemoteFailed", Message: err.Error(), cause: err}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected HTTP status: %s", resp.Status)
+		return nil, &Error{Reason: "ResponseFailed", Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status)}
 	}
 
 	// Parse the graph.
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, &Error{Reason: "ResponseFailed", Message: err.Error(), cause: err}
 	}
 
 	var graph graph
 	if err = json.Unmarshal(body, &graph); err != nil {
-		return nil, err
+		return nil, &Error{Reason: "ResponseInvalid", Message: err.Error(), cause: err}
 	}
 
 	// Find the current version within the graph.
@@ -102,7 +115,10 @@ func (c Client) GetUpdates(upstream string, arch string, channel string, version
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("currently installed version %s not found in the %q channel", version, channel)
+		return nil, &Error{
+			Reason:  "VersionNotFound",
+			Message: fmt.Sprintf("currently installed version %s not found in the %q channel", version, channel),
+		}
 	}
 
 	// Find the children of the current version.

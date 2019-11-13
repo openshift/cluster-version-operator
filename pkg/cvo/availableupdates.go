@@ -127,6 +127,22 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
+	upstreamURI, err := url.Parse(upstream)
+	if err != nil {
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidURI",
+			Message: fmt.Sprintf("failed to parse upstream URL: %s", err),
+		}
+	}
+
+	uuid, err := uuid.Parse(string(clusterID))
+	if err != nil {
+		return nil, configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidID",
+			Message: fmt.Sprintf("invalid cluster ID: %s", err),
+		}
+	}
+
 	if len(arch) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoArchitecture",
@@ -157,12 +173,19 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
-	updates, err := checkForUpdate(clusterID, proxyURL, tlsConfig, upstream, arch, channel, currentVersion)
+	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
+		if updateError, ok := err.(*cincinnati.Error); ok {
+			return nil, configv1.ClusterOperatorStatusCondition{
+				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: updateError.Reason,
+				Message: fmt.Sprintf("Unable to retrieve available updates: %s", updateError.Message),
+			}
+		}
+		// this should never happen
 		return nil, configv1.ClusterOperatorStatusCondition{
-			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "RemoteFailed",
-			Message: fmt.Sprintf("Unable to retrieve available updates: %v", err),
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "Unknown",
+			Message: fmt.Sprintf("Unable to retrieve available updates: %s", err),
 		}
 	}
 
@@ -180,18 +203,6 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 
 		LastTransitionTime: metav1.Now(),
 	}
-}
-
-func checkForUpdate(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel string, currentVersion semver.Version) ([]cincinnati.Update, error) {
-	uuid, err := uuid.Parse(string(clusterID))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(upstream) == 0 {
-		return nil, fmt.Errorf("no upstream URL set for cluster version")
-	}
-	return cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstream, arch, channel, currentVersion)
 }
 
 // getHTTPSProxyURL returns a url.URL object for the configured

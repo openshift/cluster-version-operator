@@ -2451,7 +2451,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
-					Reason:  "RemoteFailed",
+					Reason:  "ResponseFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
 			},
