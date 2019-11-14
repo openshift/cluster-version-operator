@@ -241,7 +241,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3})
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -394,7 +394,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2})
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -500,7 +500,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3})
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, ns, ns)
@@ -673,7 +673,7 @@ metadata:
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3})
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	ctx, cancel := context.WithCancel(context.Background())

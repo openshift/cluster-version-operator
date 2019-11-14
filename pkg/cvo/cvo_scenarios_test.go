@@ -90,6 +90,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		wait.Backoff{
 			Steps: 1,
 		},
+		"",
 	)
 	o.configSync = worker
 

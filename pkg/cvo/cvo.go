@@ -139,6 +139,10 @@ type Operator struct {
 	// lastAtLock guards access to controller memory about the sync loop
 	lastAtLock          sync.Mutex
 	lastResourceVersion int64
+
+	// exclude is an optional identifier used to exclude certain manifests
+	// via annotation
+	exclude string
 }
 
 // New returns a new cluster version operator.
@@ -156,6 +160,7 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	enableMetrics bool,
+	exclude string,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -181,6 +186,8 @@ func New(
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
+
+		exclude: exclude,
 	}
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
@@ -246,6 +253,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 			Factor:   1.3,
 			Steps:    3,
 		},
+		optr.exclude,
 	)
 
 	return nil

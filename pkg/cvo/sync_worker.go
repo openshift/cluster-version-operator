@@ -126,11 +126,11 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 //     syncOnce() returns nil -> Reconciling
 //
 type SyncWorker struct {
-	backoff     wait.Backoff
-	retriever   PayloadRetriever
-	builder     payload.ResourceBuilder
-	preconditions  precondition.List
-	reconciling bool
+	backoff       wait.Backoff
+	retriever     PayloadRetriever
+	builder       payload.ResourceBuilder
+	preconditions precondition.List
+	reconciling   bool
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
 	// used to define the maximum backoff interval when syncOnce() returns an error.
@@ -148,11 +148,16 @@ type SyncWorker struct {
 
 	// updated by the run method only
 	payload *payload.Update
+
+	// exclude is an identifier used to determine which
+	// manifests should be excluded based on an annotation
+	// of the form exclude.release.openshift.io/<identifier>=true
+	exclude string
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
 	return &SyncWorker{
 		retriever: retriever,
 		builder:   builder,
@@ -165,14 +170,16 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 		// Status() or use the result of calling Update() instead because the channel can be out of date
 		// if the reader is not fast enough.
 		report: make(chan SyncWorkerStatus, 500),
+
+		exclude: exclude,
 	}
 }
 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff) *SyncWorker {
-	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff)
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
+	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude)
 	worker.preconditions = preconditions
 	return worker
 }
@@ -614,7 +621,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			klog.V(4).Infof("Running sync for %s", task)
 			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
-			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
+			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, task.Manifest)
 			if ok && ov.Unmanaged {
 				klog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
@@ -906,7 +913,7 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdentifier string, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -914,6 +921,10 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *li
 			ov.Name == name {
 			return overrides[idx], true
 		}
+	}
+	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
+	if annotations := manifest.Object().GetAnnotations(); annotations != nil && annotations[excludeAnnotation] == "true" {
+		return configv1.ComponentOverride{Unmanaged: true}, true
 	}
 	return configv1.ComponentOverride{}, false
 }

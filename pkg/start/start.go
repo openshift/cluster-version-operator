@@ -58,6 +58,11 @@ type Options struct {
 	EnableAutoUpdate            bool
 	EnableDefaultClusterVersion bool
 
+	// Exclude is used to determine whether to exclude
+	// certain manifests based on an annotation:
+	// exclude.release.openshift.io/<identifier>=true
+	Exclude string
+
 	// for testing only
 	Name            string
 	Namespace       string
@@ -87,6 +92,7 @@ func NewOptions() *Options {
 		PayloadOverride: os.Getenv("PAYLOAD_OVERRIDE"),
 		ResyncInterval:  minResyncPeriod,
 		EnableMetrics:   true,
+		Exclude:         os.Getenv("EXCLUDE_MANIFESTS"),
 	}
 }
 
@@ -99,6 +105,9 @@ func (o *Options) Run() error {
 	}
 	if len(o.PayloadOverride) > 0 {
 		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
+	}
+	if len(o.Exclude) > 0 {
+		klog.Infof("Excluding manifests for %q", o.Exclude)
 	}
 
 	// initialize the core objects
@@ -337,6 +346,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.EnableMetrics,
+			o.Exclude,
 		),
 	}
 	if o.EnableAutoUpdate {
