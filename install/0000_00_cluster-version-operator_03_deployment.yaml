@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: cluster-version-operator
   namespace: openshift-cluster-version
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   selector:
     matchLabels:

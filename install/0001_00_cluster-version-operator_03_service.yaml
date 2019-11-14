@@ -5,6 +5,8 @@ metadata:
   namespace: openshift-cluster-version
   labels:
     k8s-app: cluster-version-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   type: ClusterIP
   selector:
