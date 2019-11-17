@@ -2,7 +2,9 @@ package cvo
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -651,4 +653,22 @@ func (optr *Operator) defaultPreconditionChecks() precondition.List {
 	return []precondition.Precondition{
 		preconditioncv.NewUpgradeable(optr.cvLister),
 	}
+}
+
+// getTransportOpts retrieves the URL of the cluster proxy and the CA
+// trust, if they exist.
+func (optr *Operator) getTransportOpts() (*url.URL, *tls.Config, error) {
+	proxyURL, cmNameRef, err := optr.getHTTPSProxyURL()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var tlsConfig *tls.Config
+	if cmNameRef != "" {
+		tlsConfig, err = optr.getTLSConfig(cmNameRef)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	return proxyURL, tlsConfig, nil
 }
