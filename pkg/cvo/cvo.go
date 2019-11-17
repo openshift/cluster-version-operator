@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
@@ -24,6 +25,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
@@ -207,6 +209,16 @@ func New(
 	return optr
 }
 
+// verifyClientBuilder is a wrapper around the operator's HTTPClient method.
+// It is used by the releaseVerifier to get an up-to-date http client.
+type verifyClientBuilder struct {
+	builder func() (*http.Client, error)
+}
+
+func (vcb *verifyClientBuilder) HTTPClient() (*http.Client, error) {
+	return vcb.builder()
+}
+
 // InitializeFromPayload retrieves the payload contents and verifies the initial state, then configures the
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
@@ -223,8 +235,11 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 	optr.releaseVersion = update.ImageRef.Name
 
+	// Wraps operator's HTTPClient method to allow releaseVerifier to create http client with up-to-date config.
+	clientBuilder := &verifyClientBuilder{builder: optr.HTTPClient}
+
 	// attempt to load a verifier as defined in the payload
-	verifier, err := verify.LoadFromPayload(update)
+	verifier, err := verify.LoadFromPayload(update, clientBuilder)
 	if err != nil {
 		return err
 	}
@@ -653,6 +668,27 @@ func (optr *Operator) defaultPreconditionChecks() precondition.List {
 	return []precondition.Precondition{
 		preconditioncv.NewUpgradeable(optr.cvLister),
 	}
+}
+
+// HTTPClient provides a method for generating an HTTP client
+// with the proxy and trust settings, if set in the cluster.
+func (optr *Operator) HTTPClient() (*http.Client, error) {
+	proxyURL, tlsConfig, err := optr.getTransportOpts()
+	if err != nil {
+		return nil, err
+	}
+	transportOption := &http.Transport{
+		Proxy:           http.ProxyURL(proxyURL),
+		TLSClientConfig: tlsConfig,
+	}
+	transportConfig := &transport.Config{Transport: transportOption}
+	transport, err := transport.New(transportConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &http.Client{
+		Transport: transport,
+	}, nil
 }
 
 // getTransportOpts retrieves the URL of the cluster proxy and the CA
