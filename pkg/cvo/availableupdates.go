@@ -24,7 +24,6 @@ import (
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
 func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
-	var tlsConfig *tls.Config
 	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
@@ -41,15 +40,9 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return nil
 	}
 
-	proxyURL, cmNameRef, err := optr.getHTTPSProxyURL()
+	proxyURL, tlsConfig, err := optr.getTransportOpts()
 	if err != nil {
 		return err
-	}
-	if cmNameRef != "" {
-		tlsConfig, err = optr.getTLSConfig(cmNameRef)
-		if err != nil {
-			return err
-		}
 	}
 
 	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
