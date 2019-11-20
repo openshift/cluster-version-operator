@@ -3,7 +3,7 @@
 ## Building and Publishing CVO
 
 ```sh
-./hack/build-image.sh && REPO=<your personal repo (quay.io/ahbinavdahiya | docker.io/abhinavdahiya)> ./hack/push-image.go
+./hack/build-image.sh && REPO=<your personal repo (quay.io/ahbinavdahiya | docker.io/abhinavdahiya)> ./hack/push-image.sh
 ```
 
 1. This builds image locally and then pushes `${VERSION}` and `latest` tags to `${REPO}/origin-cluster-version-operator`.
@@ -17,7 +17,7 @@
 2. Run the following command to create release-image at `docker.io/abhinavdahiya/origin-release:latest`:
 
 ```sh
-oc adm release new -n openshift --server https://api.ci.openshift.org \
+oc adm release new -n origin \
     --from-image-stream=origin-v4.0 \
     --to-image-base=docker.io/abhinavdahiya/origin-cluster-version-operator:latest \
     --to-image docker.io/abhinavdahiya/origin-release:latest
