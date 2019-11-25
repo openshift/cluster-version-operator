@@ -202,6 +202,51 @@ func ensureContainerPort(modified *bool, existing *corev1.ContainerPort, require
 	}
 }
 
+func EnsureServicePorts(modified *bool, existing *[]corev1.ServicePort, required []corev1.ServicePort) {
+	for i, existingServicePort := range *existing {
+		var existingCurr *corev1.ServicePort
+		for _, requiredServicePort := range required {
+			if existingServicePort.Name == requiredServicePort.Name {
+				existingCurr = &(*existing)[i]
+				ensureServicePort(modified, existingCurr, requiredServicePort)
+				break
+			}
+		}
+		if existingCurr == nil {
+			*modified = true
+			*existing = append((*existing)[:i], (*existing)[i+1:]...)
+		}
+	}
+
+	for _, requiredServicePort := range required {
+		match := false
+		for _, existingServicePort := range *existing {
+			if existingServicePort.Name == requiredServicePort.Name {
+				match = true
+				break
+			}
+		}
+		if !match {
+			*modified = true
+			*existing = append(*existing, requiredServicePort)
+		}
+	}
+}
+
+func ensureServicePort(modified *bool, existing *corev1.ServicePort, required corev1.ServicePort) {
+	ensureServicePortDefaults(&required)
+	if !equality.Semantic.DeepEqual(required, *existing) {
+		*modified = true
+		*existing = required
+	}
+}
+
+func ensureServicePortDefaults(servicePort *corev1.ServicePort) {
+	if servicePort.Protocol == "" {
+		servicePort.Protocol = corev1.ProtocolTCP
+	}
+}
+
 func ensureVolumeMount(modified *bool, existing *corev1.VolumeMount, required corev1.VolumeMount) {
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true

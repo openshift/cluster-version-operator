@@ -55,8 +55,10 @@ func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) 
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	resourcemerge.EnsureServicePorts(modified, &existing.Spec.Ports, required.Spec.Ports)
 	selectorSame := equality.Semantic.DeepEqual(existing.Spec.Selector, required.Spec.Selector)
 	typeSame := equality.Semantic.DeepEqual(existing.Spec.Type, required.Spec.Type)
+
 	if selectorSame && typeSame && !*modified {
 		return nil, false, nil
 	}
