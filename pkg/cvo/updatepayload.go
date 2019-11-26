@@ -285,13 +285,14 @@ func copyPayloadCmd(tdir string) string {
 // update is in the history.
 func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
-	if update == nil {
+	switch {
+	case update != nil && len(update.Image) > 0:
+		return *update, true
+	case update != nil && len(update.Version) > 0:
+		return findUpdateFromConfigVersion(config, update.Version, update.Force)
+	default:
 		return configv1.Update{}, false
 	}
-	if len(update.Image) == 0 {
-		return findUpdateFromConfigVersion(config, update.Version, update.Force)
-	}
-	return *update, true
 }
 
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
