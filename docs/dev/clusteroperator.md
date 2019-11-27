@@ -12,19 +12,10 @@ Cluster-admins make use of these resources to check the status of their clusters
 
 ## How should I include ClusterOperator Custom Resource in /manifests
 
-### How ClusterVersionOperator handles ClusterOperator in release image
+When ClusterVersionOperator encounters a ClusterOperator Custom Resource manifest, it does not push it into the cluster.
+Instead, the operators create ClusterOperator themselves, and the CVO waits for the ClusterOperator status to [match expected targets](../user/reconciliation.md#clusteroperator).
 
-When ClusterVersionOperator encounters a ClusterOperator Custom Resource,
-
-- It uses the `.metadata.name` to find the corresponding ClusterOperator instance in the cluster
-- It then waits for the instance in the cluster until
-  - `.status.versions[name=operator].version` in the live instance matches the `.status.version` from the release image and
-  - the live instance `.status.conditions` report available
-- It then continues to the next task.
-
-ClusterVersionOperator will only deploy files with `.yaml`, `.yml`, or `.json` extensions, like `kubectl create -f DIR`.
-
-**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterOperator resource in `/manifests` is only a communication mechanism, to tell the ClusterVersionOperator, which ClusterOperator resource to wait for. The ClusterVersionOperator does not create the ClusterOperator resource, creating and updating it is the responsibility of the respective operator.
+**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed.
 
 ### What should be the contents of ClusterOperator Custom Resource in /manifests
 
@@ -140,55 +131,34 @@ When your operator begins rolling out a new version it must continue to report t
 
 Refer [the godocs](https://godoc.org/github.com/openshift/api/config/v1#ClusterStatusConditionType) for conditions.
 
-In general, ClusterOperators should contain at least three core conditions:
-
 * `Progressing` must be true if the operator is actually making change to the operand.
 The change may be anything: desired user state, desired user configuration, observed configuration, version update, etc.
 If this is false, it means the operator is not trying to apply any new state.
 If it remains true for an extended period of time, it suggests something is wrong in the cluster.  It can probably wait until Monday.
 * `Available` must be true if the operand is functional and available in the cluster at the level in status.
 If this is false, it means there is an outage.  Someone is probably getting paged.
-* `Failing` should be true if the operator has encountered an error that is preventing it or its operand from working properly.
+* `Degraded` should be true if the operator has encountered an error that is preventing it or its operand from working properly.
 The operand may still be available, but intent may not have been fulfilled.
 If this is true, it means that the operand is at risk of an outage or improper configuration.  It can probably wait until the morning, but someone needs to look at it.
 
-The message reported for each of these conditions is important.  All messages should start with a capital letter (like a sentence) and be written for an end user / admin to debug the problem.  `Failing` should describe in detail (a few sentences at most) why the current controller is blocked. The detail should be sufficient for an engineer or support person to triage the problem. `Available` should convey useful information about what is available, and be a single sentence without punctuation.  `Progressing` is the most important message because it is shown by default in the CLI as a column and should be a terse, human-readable message describing the current state of the object in 5-10 words (the more succinct the better).
+The message reported for each of these conditions is important.  All messages should start with a capital letter (like a sentence) and be written for an end user / admin to debug the problem.  `Degraded` should describe in detail (a few sentences at most) why the current controller is blocked. The detail should be sufficient for an engineer or support person to triage the problem. `Available` should convey useful information about what is available, and be a single sentence without punctuation.  `Progressing` is the most important message because it is shown by default in the CLI as a column and should be a terse, human-readable message describing the current state of the object in 5-10 words (the more succinct the better).
 
 For instance, if the CVO is working towards 4.0.1 and has already successfully deployed 4.0.0, the conditions might be reporting:
 
-* `Failing` is false with no message
+* `Degraded` is false with no message
 * `Available` is true with message `Cluster has deployed 4.0.0`
 * `Progressing` is true with message `Working towards 4.0.1`
 
 If the controller reaches 4.0.1, the conditions might be:
 
-* `Failing` is false with no message
+* `Degraded` is false with no message
 * `Available` is true with message `Cluster has deployed 4.0.1`
 * `Progressing` is false with message `Cluster version is 4.0.1`
 
 If an error blocks reaching 4.0.1, the conditions might be:
 
-* `Failing` is true with a detailed message `Unable to apply 4.0.1: could not update 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
+* `Degraded` is true with a detailed message `Unable to apply 4.0.1: could not update 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
 * `Available` is true with message `Cluster has deployed 4.0.0`
 * `Progressing` is true with message `Unable to apply 4.0.1: a required object is missing`
 
-The progressing message is the first message a human will see when debugging an issue, so it should be terse, succinct, and summarize the problem well.  The failing message can be more verbose. Start with simple, easy to understand messages and grow them over time to capture more detail.
-
-
-#### Conditions and Install/Upgrade
-
-Conditions determine when the CVO considers certain actions complete, the following table summarizes what it looks at and when.
-
-
-| operation | version | available | degraded | progressing | 
-|-----------|---------|-----------|----------|-------------|
-| Install completion[1] | current(whatever was being installed) | true | any | any
-| Begin upgrade | any | any | any | any
-| Begin upgrade (w/ force) | any | any | any | any 
-| Upgrade completion[2]| newVersion(target version for the upgrade) | true | false | false
-
-[1] Install works on all components in parallel, it does not wait for any component to complete before starting another one.
-
-[2] Upgrade will not proceed with upgrading components in the next runlevel until the previous runlevel completes.
-
-See also: https://github.com/openshift/cluster-version-operator/blob/a5f5007c17cc14281c558ea363518dcc5b6675c7/pkg/cvo/internal/operatorstatus.go#L176-L189
+The progressing message is the first message a human will see when debugging an issue, so it should be terse, succinct, and summarize the problem well.  The degraded message can be more verbose. Start with simple, easy to understand messages and grow them over time to capture more detail.

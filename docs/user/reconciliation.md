@@ -74,6 +74,7 @@ $ cat /tmp/release/release-manifests/image-references
 ## Manifest graph
 
 The cluster-version operator unpacks the release image, ingests manifests, loads them into a graph.
+Only manifests with `.yaml`, `.yml`, or `.json` extensions are considered, like `kubectl create -f DIR`.
 For upgrades, the graph is ordered by the number and component of the manifest file:
 
 <div style="text-align:center">
