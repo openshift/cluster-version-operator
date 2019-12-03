@@ -1,6 +1,7 @@
 package resourcemerge
 
 import (
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -252,6 +253,394 @@ func TestEnsurePodSpec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			modified := pointer.BoolPtr(false)
 			ensurePodSpec(modified, &test.existing, test.input)
+			if *modified != test.expectedModified {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
+			}
+
+			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
+				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+			}
+		})
+	}
+}
+
+func TestEnsureServicePorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing corev1.Service
+		input    corev1.Service
+
+		expectedModified bool
+		expected         corev1.Service
+	}{
+		{
+			name: "empty inputs",
+			existing: corev1.Service{},
+			input:    corev1.Service{},
+			expectedModified: false,
+			expected: corev1.Service{},
+		},
+		{
+			name: "add port (no name)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "add port (with name)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "remove port (no name)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Port: 8282,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+		},
+		{
+			name: "remove port (with name)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "bar",
+							Port: 8282,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+		},
+		{
+			name: "replace port (same port name, different port)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "test",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8080,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "test",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "test",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replace port (no name, different port)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Port: 8080,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replace multiple ports",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Port: 8080,
+						},
+						{
+							Name: "bar",
+							Port: 8081,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8283,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8282,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8283,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "equal (same ports different order)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8080,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8081,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8081,
+						},
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8080,
+						},
+					},
+				},
+			},
+			expectedModified: false,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8080,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolUDP,
+							Port: 8081,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "equal (Protocol defaults to ProtocolTCP)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Port: 8080,
+							Protocol: corev1.ProtocolTCP,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolTCP,
+							Port: 8081,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Port: 8080,
+						},
+						{
+							Name: "bar",
+							Port: 8081,
+						},
+					},
+				},
+			},
+			expectedModified: false,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolTCP,
+							Port: 8080,
+						},
+						{
+							Name: "bar",
+							Protocol: corev1.ProtocolTCP,
+							Port: 8081,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replace nodePort and targetPort, defaults to ProtocolTCP)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Port: 8080,
+							TargetPort: intstr.FromInt(8081),
+							NodePort: 8081,
+							Protocol: corev1.ProtocolTCP,
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Port: 8080,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name: "foo",
+							Protocol: corev1.ProtocolTCP,
+							Port: 8080,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modified := pointer.BoolPtr(false)
+			EnsureServicePorts(modified, &test.existing.Spec.Ports, test.input.Spec.Ports)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
 			}
