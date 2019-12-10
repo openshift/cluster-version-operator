@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/openpgp"
@@ -42,21 +43,26 @@ const maxSignatureSearch = 10
 
 var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
 
-// releaseVerifier implements a signature intersection operation on a provided release
+// ReleaseVerifier implements a signature intersection operation on a provided release
 // digest - all verifiers must have at least one valid signature attesting the release
 // digest. If any failure occurs the caller should assume the content is unverified.
-type releaseVerifier struct {
+type ReleaseVerifier struct {
 	verifiers     map[string]openpgp.EntityList
 	stores        []*url.URL
 	clientBuilder ClientBuilder
+
+	lock           sync.Mutex
+	signatureCache map[string][][]byte
 }
 
 // NewReleaseVerifier creates a release verifier for the provided inputs.
-func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, stores []*url.URL, clientBuilder ClientBuilder) Interface {
-	return &releaseVerifier{
+func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, stores []*url.URL, clientBuilder ClientBuilder) *ReleaseVerifier {
+	return &ReleaseVerifier{
 		verifiers:     verifiers,
 		stores:        stores,
 		clientBuilder: clientBuilder,
+
+		signatureCache: make(map[string][][]byte),
 	}
 }
 
@@ -78,7 +84,7 @@ func (s simpleClientBuilder) HTTPClient() (*http.Client, error) {
 }
 
 // Verifiers returns a copy of the verifiers in this payload.
-func (v *releaseVerifier) Verifiers() map[string]openpgp.EntityList {
+func (v *ReleaseVerifier) Verifiers() map[string]openpgp.EntityList {
 	out := make(map[string]openpgp.EntityList)
 	for k, v := range v.verifiers {
 		out[k] = v
@@ -87,7 +93,7 @@ func (v *releaseVerifier) Verifiers() map[string]openpgp.EntityList {
 }
 
 // String summarizes the verifier for human consumption
-func (v *releaseVerifier) String() string {
+func (v *ReleaseVerifier) String() string {
 	var keys []string
 	for name := range v.verifiers {
 		keys = append(keys, name)
@@ -138,7 +144,7 @@ func (v *releaseVerifier) String() string {
 // Verify ensures that at least one valid signature exists for an image with digest
 // matching release digest in any of the provided stores for all verifiers, or returns
 // an error.
-func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
+func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
 	if len(v.verifiers) == 0 || len(v.stores) == 0 {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
@@ -148,6 +154,11 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 	if !validReleaseDigest.MatchString(releaseDigest) {
 		return fmt.Errorf("the provided release image digest contains prohibited characters")
 	}
+
+	if v.hasVerified(releaseDigest) {
+		return nil
+	}
+
 	parts := strings.SplitN(releaseDigest, ":", 3)
 	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
 		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
@@ -160,6 +171,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		remaining[k] = v
 	}
 
+	var signedWith [][]byte
 	verifier := func(path string, signature []byte) (bool, error) {
 		for k, keyring := range remaining {
 			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
@@ -172,6 +184,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 				continue
 			}
 			delete(remaining, k)
+			signedWith = append(signedWith, signature)
 		}
 		return len(remaining) > 0, nil
 	}
@@ -210,7 +223,52 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		}
 		return fmt.Errorf("unable to locate a valid signature for one or more sources")
 	}
+
+	v.cacheVerification(releaseDigest, signedWith)
+
 	return nil
+}
+
+// Signatures returns a copy of any cached signatures that have been validated
+// so far. It may return no signatures.
+func (v *ReleaseVerifier) Signatures() map[string][][]byte {
+	copied := make(map[string][][]byte)
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	for k, v := range v.signatureCache {
+		copied[k] = v
+	}
+	return copied
+}
+
+// hasVerified returns true if the digest has already been verified.
+func (v *ReleaseVerifier) hasVerified(releaseDigest string) bool {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	_, ok := v.signatureCache[releaseDigest]
+	return ok
+}
+
+const maxSignatureCacheSize = 64
+
+// cacheVerification caches the result of signature check for a digest for later retrieval.
+func (v *ReleaseVerifier) cacheVerification(releaseDigest string, signedWith [][]byte) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	if len(signedWith) == 0 || len(releaseDigest) == 0 || v.signatureCache == nil {
+		return
+	}
+	// remove the new entry
+	delete(v.signatureCache, releaseDigest)
+	// ensure the cache doesn't grow beyond our cap
+	for k := range v.signatureCache {
+		if len(v.signatureCache) < maxSignatureCacheSize {
+			break
+		}
+		delete(v.signatureCache, k)
+	}
+	v.signatureCache[releaseDigest] = signedWith
 }
 
 // checkFileSignatures reads signatures as "signature-1", "signature-2", etc out of a directory until
