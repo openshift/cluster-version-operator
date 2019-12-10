@@ -2,9 +2,11 @@ package cvo
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,7 +35,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
 
 var (
@@ -3244,4 +3250,190 @@ func fakeClientsetWithUpdates(obj *configv1.ClusterVersion) *fake.Clientset {
 		return false, nil, fmt.Errorf("unrecognized")
 	})
 	return client
+}
+
+func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
+	redhatData, err := ioutil.ReadFile(filepath.Join("..", "verify", "testdata", "keyrings", "redhat.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		update        *payload.Update
+		want          bool
+		wantErr       bool
+		wantVerifiers int
+	}{
+		{
+			name:   "is a no-op when no objects are found",
+			update: &payload.Update{},
+		},
+		{
+			name: "requires data",
+			update: &payload.Update{
+				Manifests: []lib.Manifest{
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "release-verification",
+									"namespace": "openshift-config-managed",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "requires stores",
+			update: &payload.Update{
+				Manifests: []lib.Manifest{
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "verification",
+									"namespace": "openshift-config",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+								"data": map[string]interface{}{
+									"verifier-public-key-redhat": string(redhatData),
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "requires verifiers",
+			update: &payload.Update{
+				Manifests: []lib.Manifest{
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "release-verification",
+									"namespace": "openshift-config-managed",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+								"data": map[string]interface{}{
+									"store-local": "file://../verify/testdata/signatures",
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "loads valid configuration",
+			update: &payload.Update{
+				Manifests: []lib.Manifest{
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "release-verification",
+									"namespace": "openshift-config-managed",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+								"data": map[string]interface{}{
+									"verifier-public-key-redhat": string(redhatData),
+									"store-local":                "file://../verify/testdata/signatures",
+								},
+							},
+						},
+					},
+				},
+			},
+			want:          true,
+			wantVerifiers: 1,
+		},
+		{
+			name: "only the first valid configuration is used",
+			update: &payload.Update{
+				Manifests: []lib.Manifest{
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "release-verification",
+									"namespace": "openshift-config-managed",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+								"data": map[string]interface{}{
+									"verifier-public-key-redhat": string(redhatData),
+									"store-local":                "\nfile://../verify/testdata/signatures\n",
+								},
+							},
+						},
+					},
+					{
+						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"metadata": map[string]interface{}{
+									"name":      "release-verificatio-2n",
+									"namespace": "openshift-config-managed",
+									"annotations": map[string]interface{}{
+										"release.openshift.io/verification-config-map": "",
+									},
+								},
+								"data": map[string]interface{}{
+									"verifier-public-key-redhat":   string(redhatData),
+									"verifier-public-key-redhat-2": string(redhatData),
+									"store-local":                  "file://../verify/testdata/signatures",
+								},
+							},
+						},
+					},
+				},
+			},
+			want:          true,
+			wantVerifiers: 1,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := loadConfigMapVerifierDataFromUpdate(tt.update, verify.DefaultClient)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("loadReleaseVerifierFromPayload() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if (got != nil) != tt.want {
+				t.Fatal(got)
+			}
+			if err != nil {
+				return
+			}
+			if got == nil {
+				return
+			}
+			rv := got.(*verify.ReleaseVerifier)
+			if len(rv.Verifiers()) != tt.wantVerifiers {
+				t.Fatalf("unexpected release verifier: %#v", rv)
+			}
+		})
+	}
 }

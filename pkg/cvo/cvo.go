@@ -12,9 +12,11 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
@@ -246,7 +248,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	clientBuilder := &verifyClientBuilder{builder: optr.HTTPClient}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, err := verify.LoadFromPayload(update, clientBuilder)
+	verifier, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder)
 	if err != nil {
 		return err
 	}
@@ -274,6 +276,33 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	)
 
 	return nil
+}
+
+// loadConfigMapVerifierDataFromUpdate fetches the first config map in the payload with the correct annotation.
+// It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
+// package for more details on the algorithm for verification. If the annotation is set, a verifier or error
+// is always returned.
+func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder) (verify.Interface, error) {
+	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
+	for _, manifest := range update.Manifests {
+		if manifest.GVK != configMapGVK {
+			continue
+		}
+		if _, ok := manifest.Obj.GetAnnotations()[verify.ReleaseAnnotationConfigMapVerifier]; !ok {
+			continue
+		}
+		src := fmt.Sprintf("the config map %s/%s", manifest.Obj.GetNamespace(), manifest.Obj.GetName())
+		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
+		if err != nil {
+			return nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
+		}
+		verifier, err := verify.NewFromConfigMap(src, data, clientBuilder)
+		if err != nil {
+			return nil, err
+		}
+		return verifier, nil
+	}
+	return nil, nil
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.

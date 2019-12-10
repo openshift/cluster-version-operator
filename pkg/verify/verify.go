@@ -18,13 +18,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
-
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 // Interface performs verification of the provided content. The default implementation
@@ -43,95 +38,6 @@ func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
 // Reject fails always fails verification.
 var Reject Interface = rejectVerifier{}
 
-// LoadFromPayload looks for a config map in the v1 API group within the provided update with the
-// annotation "release.openshift.io/verification-config-map". Only the first payload item in
-// lexographic order will be considered - all others are ignored.
-//
-// The presence of one or more config maps instructs the CVO to verify updates before they are
-// downloaded.
-//
-// The keys within the config map define how verification is performed:
-//
-// verifier-public-key-*: One or more GPG public keys in ASCII form that must have signed the
-//                        release image by digest.
-//
-// store-*: A URL (scheme file://, http://, or https://) location that contains signatures. These
-//          signatures are in the atomic container signature format. The URL will have the digest
-//          of the image appended to it as "<STORE>/<ALGO>=<DIGEST>/signature-<NUMBER>" as described
-//          in the container image signing format. The docker-image-manifest section of the
-//          signature must match the release image digest. Signatures are searched starting at
-//          NUMBER 1 and incrementing if the signature exists but is not valid. The signature is a
-//          GPG signed and encrypted JSON message. The file store is provided for testing only at
-//          the current time, although future versions of the CVO might allow host mounting of
-//          signatures.
-//
-// See https://github.com/containers/image/blob/ab49b0a48428c623a8f03b41b9083d48966b34a9/docs/signature-protocols.md
-// for a description of the signature store
-//
-// The returned verifier will require that any new release image will only be considered verified
-// if each provided public key has signed the release image digest. The signature may be in any
-// store and the lookup order is internally defined.
-//
-func LoadFromPayload(update *payload.Update, clientBuilder ClientBuilder) (Interface, error) {
-	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
-	for _, manifest := range update.Manifests {
-		if manifest.GVK != configMapGVK {
-			continue
-		}
-		if _, ok := manifest.Obj.GetAnnotations()["release.openshift.io/verification-config-map"]; !ok {
-			continue
-		}
-
-		src := fmt.Sprintf("the config map %s/%s", manifest.Obj.GetNamespace(), manifest.Obj.GetName())
-		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
-		if err != nil {
-			return nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
-		}
-		verifiers := make(map[string]openpgp.EntityList)
-		var stores []*url.URL
-		for k, v := range data {
-			switch {
-			case strings.HasPrefix(k, "verifier-public-key-"):
-				keyring, err := loadArmoredOrUnarmoredGPGKeyRing([]byte(v))
-				if err != nil {
-					return nil, errors.Wrapf(err, "%s has an invalid key %q that must be a GPG public key: %v", src, k, err)
-				}
-				verifiers[k] = keyring
-			case strings.HasPrefix(k, "store-"):
-				v = strings.TrimSpace(v)
-				u, err := url.Parse(v)
-				if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {
-					return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)
-				}
-				stores = append(stores, u)
-			default:
-				klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
-			}
-		}
-		if len(stores) == 0 {
-			return nil, fmt.Errorf("%s did not provide any signature stores to read from and cannot be used", src)
-		}
-		if len(verifiers) == 0 {
-			return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
-		}
-
-		return &releaseVerifier{
-			verifiers:     verifiers,
-			stores:        stores,
-			clientBuilder: clientBuilder,
-		}, nil
-	}
-	return nil, nil
-}
-
-func loadArmoredOrUnarmoredGPGKeyRing(data []byte) (openpgp.EntityList, error) {
-	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(data))
-	if err == nil {
-		return keyring, nil
-	}
-	return openpgp.ReadKeyRing(bytes.NewReader(data))
-}
-
 const maxSignatureSearch = 10
 
 var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
@@ -145,18 +51,39 @@ type releaseVerifier struct {
 	clientBuilder ClientBuilder
 }
 
+// NewReleaseVerifier creates a release verifier for the provided inputs.
+func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, stores []*url.URL, clientBuilder ClientBuilder) Interface {
+	return &releaseVerifier{
+		verifiers:     verifiers,
+		stores:        stores,
+		clientBuilder: clientBuilder,
+	}
+}
+
 // ClientBuilder provides a method for generating an HTTP Client configured
 // with cluster proxy settings, if they exist.
 type ClientBuilder interface {
 	HTTPClient() (*http.Client, error)
 }
 
-// simpleClientBuilder implements the ClientBuilder interface and should be used for testing.
+// DefaultClient uses the default http.Client for accessing signatures.
+var DefaultClient = simpleClientBuilder{}
+
+// simpleClientBuilder implements the ClientBuilder interface and may be used for testing.
 type simpleClientBuilder struct{}
 
 // HTTPClient from simpleClientBuilder creates an httpClient with no configuration.
-func (s *simpleClientBuilder) HTTPClient() (*http.Client, error) {
+func (s simpleClientBuilder) HTTPClient() (*http.Client, error) {
 	return &http.Client{}, nil
+}
+
+// Verifiers returns a copy of the verifiers in this payload.
+func (v *releaseVerifier) Verifiers() map[string]openpgp.EntityList {
+	out := make(map[string]openpgp.EntityList)
+	for k, v := range v.verifiers {
+		out[k] = v
+	}
+	return out
 }
 
 // String summarizes the verifier for human consumption
