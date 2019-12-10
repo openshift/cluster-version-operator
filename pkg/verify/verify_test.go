@@ -3,17 +3,19 @@ package verify
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"golang.org/x/crypto/openpgp"
 )
 
-func Test_releaseVerifier_Verify(t *testing.T) {
+func Test_ReleaseVerifier_Verify(t *testing.T) {
 	data, err := ioutil.ReadFile(filepath.Join("testdata", "keyrings", "redhat.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -158,19 +160,19 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			v := &releaseVerifier{
+			v := &ReleaseVerifier{
 				verifiers:     tt.verifiers,
 				stores:        tt.stores,
 				clientBuilder: DefaultClient,
 			}
 			if err := v.Verify(context.Background(), tt.releaseDigest); (err != nil) != tt.wantErr {
-				t.Errorf("releaseVerifier.Verify() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("ReleaseVerifier.Verify() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func Test_releaseVerifier_String(t *testing.T) {
+func Test_ReleaseVerifier_String(t *testing.T) {
 	data, err := ioutil.ReadFile(filepath.Join("testdata", "keyrings", "redhat.txt"))
 	if err != nil {
 		t.Fatal(err)
@@ -206,13 +208,83 @@ func Test_releaseVerifier_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			v := &releaseVerifier{
+			v := &ReleaseVerifier{
 				verifiers: tt.verifiers,
 				stores:    tt.stores,
 			}
 			if got := v.String(); got != tt.want {
-				t.Errorf("releaseVerifier.String() = %v, want %v", got, tt.want)
+				t.Errorf("ReleaseVerifier.String() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func Test_ReleaseVerifier_Signatures(t *testing.T) {
+	data, err := ioutil.ReadFile(filepath.Join("testdata", "keyrings", "redhat.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	redhatPublic, err := openpgp.ReadArmoredKeyRing(bytes.NewBuffer(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const signedDigest = "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7"
+
+	// verify we don't cache a negative result
+	verifier := NewReleaseVerifier(
+		map[string]openpgp.EntityList{"redhat": redhatPublic},
+		[]*url.URL{{Scheme: "file", Path: "testdata/signatures-wrong"}},
+		DefaultClient,
+	)
+	if err := verifier.Verify(context.Background(), signedDigest); err == nil || err.Error() != "unable to locate a valid signature for one or more sources" {
+		t.Fatal(err)
+	}
+	if sigs := verifier.Signatures(); len(sigs) != 0 {
+		t.Fatalf("%#v", sigs)
+	}
+
+	// verify we cache a valid request
+	verifier = NewReleaseVerifier(
+		map[string]openpgp.EntityList{"redhat": redhatPublic},
+		[]*url.URL{{Scheme: "file", Path: "testdata/signatures"}},
+		DefaultClient,
+	)
+	if err := verifier.Verify(context.Background(), signedDigest); err != nil {
+		t.Fatal(err)
+	}
+	if sigs := verifier.Signatures(); len(sigs) != 1 {
+		t.Fatalf("%#v", sigs)
+	}
+
+	// verify we hit the cache instead of verifying, even after changing the stores directory
+	verifier.stores = []*url.URL{{Scheme: "file", Path: "testdata/signatures-wrong"}}
+	if err := verifier.Verify(context.Background(), signedDigest); err != nil {
+		t.Fatal(err)
+	}
+	if sigs := verifier.Signatures(); len(sigs) != 1 {
+		t.Fatalf("%#v", sigs)
+	}
+
+	// verify we maintain a maximum number of cache entries a valid request
+	expectedSignature, err := ioutil.ReadFile(filepath.Join("testdata", "signatures", "sha256=e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7", "signature-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	verifier = NewReleaseVerifier(
+		map[string]openpgp.EntityList{"redhat": redhatPublic},
+		[]*url.URL{{Scheme: "file", Path: "testdata/signatures"}},
+		DefaultClient,
+	)
+	for i := 0; i < maxSignatureCacheSize*2; i++ {
+		verifier.signatureCache[fmt.Sprintf("test-%d", i)] = [][]byte{[]byte("blah")}
+	}
+
+	if err := verifier.Verify(context.Background(), signedDigest); err != nil {
+		t.Fatal(err)
+	}
+	if sigs := verifier.Signatures(); len(sigs) != 64 || !reflect.DeepEqual(sigs[signedDigest], [][]byte{expectedSignature}) {
+		t.Fatalf("%d %#v", len(sigs), sigs)
 	}
 }
