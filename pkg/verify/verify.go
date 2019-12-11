@@ -27,6 +27,8 @@ import (
 // in this package uses the container signature format defined at https://github.com/containers/image
 // to authenticate that a given release image digest has been signed by a trusted party.
 type Interface interface {
+	// Verify should return nil if the provided release digest has suffient signatures to be considered
+	// valid. It should return an error in all other cases.
 	Verify(ctx context.Context, releaseDigest string) error
 }
 
@@ -50,8 +52,30 @@ func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
 // Reject fails always fails verification.
 var Reject Interface = rejectVerifier{}
 
+// ClientBuilder provides a method for generating an HTTP Client configured
+// with cluster proxy settings, if they exist.
+type ClientBuilder interface {
+	// HTTPClient returns a client suitable for retrieving signatures. It is not
+	// required to be unique per call, but may be called concurrently.
+	HTTPClient() (*http.Client, error)
+}
+
+// DefaultClient uses the default http.Client for accessing signatures.
+var DefaultClient = simpleClientBuilder{}
+
+// simpleClientBuilder implements the ClientBuilder interface and may be used for testing.
+type simpleClientBuilder struct{}
+
+// HTTPClient from simpleClientBuilder creates an http.Client with no configuration.
+func (s simpleClientBuilder) HTTPClient() (*http.Client, error) {
+	return &http.Client{}, nil
+}
+
+// maxSignatureSearch prevents unbounded recursion on malicious signature stores (if
+// an attacker was able to take ownership of the store to perform DoS on clusters).
 const maxSignatureSearch = 10
 
+// validReleaseDigest is a verification rule to filter clearly invalid digests.
 var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
 
 // ReleaseVerifier implements a signature intersection operation on a provided release
@@ -89,26 +113,9 @@ func (v *ReleaseVerifier) WithStores(stores ...SignatureStore) *ReleaseVerifier 
 	}
 }
 
-// ClientBuilder provides a method for generating an HTTP Client configured
-// with cluster proxy settings, if they exist.
-type ClientBuilder interface {
-	HTTPClient() (*http.Client, error)
-}
-
-// DefaultClient uses the default http.Client for accessing signatures.
-var DefaultClient = simpleClientBuilder{}
-
-// simpleClientBuilder implements the ClientBuilder interface and may be used for testing.
-type simpleClientBuilder struct{}
-
-// HTTPClient from simpleClientBuilder creates an httpClient with no configuration.
-func (s simpleClientBuilder) HTTPClient() (*http.Client, error) {
-	return &http.Client{}, nil
-}
-
 // Verifiers returns a copy of the verifiers in this payload.
 func (v *ReleaseVerifier) Verifiers() map[string]openpgp.EntityList {
-	out := make(map[string]openpgp.EntityList)
+	out := make(map[string]openpgp.EntityList, len(v.verifiers))
 	for k, v := range v.verifiers {
 		out[k] = v
 	}

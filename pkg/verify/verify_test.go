@@ -348,7 +348,7 @@ func Test_ReleaseVerifier_Signatures(t *testing.T) {
 	if err := verifier.Verify(context.Background(), signedDigest); err != nil {
 		t.Fatal(err)
 	}
-	if sigs := verifier.Signatures(); len(sigs) != 64 || !reflect.DeepEqual(sigs[signedDigest], [][]byte{expectedSignature}) {
+	if sigs := verifier.Signatures(); len(sigs) != maxSignatureCacheSize || !reflect.DeepEqual(sigs[signedDigest], [][]byte{expectedSignature}) {
 		t.Fatalf("%d %#v", len(sigs), sigs)
 	}
 }
