@@ -305,7 +305,7 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 		if err != nil {
 			return nil, nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
 		}
-		verifier, err := verify.NewFromConfigMap(src, data, clientBuilder)
+		verifier, err := verify.NewFromConfigMapData(src, data, clientBuilder)
 		if err != nil {
 			return nil, nil, err
 		}

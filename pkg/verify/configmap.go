@@ -14,10 +14,10 @@ import (
 // ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
 // release payload to indicate that this config map controls signing for the payload.
 // Only the first config map within the payload should be used, regardless of whether
-// it has data. See NewFromConfigMap for more.
+// it has data. See NewFromConfigMapData for more.
 const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-config-map"
 
-// NewFromConfigMap expects to receive the data field of the first config map in the release
+// NewFromConfigMapData expects to receive the data field of the first config map in the release
 // image payload with the annotation "release.openshift.io/verification-config-map". Only the
 // first payload item in lexographic order will be considered - all others are ignored. The
 // verifier returned by this method
@@ -46,7 +46,7 @@ const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-co
 // The returned verifier will require that any new release image will only be considered verified
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
-func NewFromConfigMap(src string, data map[string]string, clientBuilder ClientBuilder) (*ReleaseVerifier, error) {
+func NewFromConfigMapData(src string, data map[string]string, clientBuilder ClientBuilder) (*ReleaseVerifier, error) {
 	verifiers := make(map[string]openpgp.EntityList)
 	var stores []*url.URL
 	for k, v := range data {
