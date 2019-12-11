@@ -46,6 +46,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
+	"github.com/openshift/cluster-version-operator/pkg/verify/verifyconfigmap"
 )
 
 const (
@@ -136,6 +137,9 @@ type Operator struct {
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
 	verifier verify.Interface
+	// signatureStore, if set, will be used to periodically persist signatures to
+	// the cluster as a config map
+	signatureStore *verify.StorePersister
 
 	configSync ConfigSyncWorker
 	// statusInterval is how often the configSync worker is allowed to retrigger
@@ -238,7 +242,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	}
 	// XXX: set this to the cincinnati version in preference
 	if _, err := semver.Parse(update.ImageRef.Name); err != nil {
-		return fmt.Errorf("The local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
+		return fmt.Errorf("the local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
 	}
 
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
@@ -246,9 +250,13 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 
 	// Wraps operator's HTTPClient method to allow releaseVerifier to create http client with up-to-date config.
 	clientBuilder := &verifyClientBuilder{builder: optr.HTTPClient}
+	configClient, err := coreclientsetv1.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("unable to create a configuration client: %v", err)
+	}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder)
+	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder, configClient)
 	if err != nil {
 		return err
 	}
@@ -259,6 +267,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 		verifier = verify.Reject
 	}
 	optr.verifier = verifier
+	optr.signatureStore = signatureStore
 
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
@@ -282,7 +291,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 // It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
 // package for more details on the algorithm for verification. If the annotation is set, a verifier or error
 // is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder) (verify.Interface, error) {
+func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
 	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 	for _, manifest := range update.Manifests {
 		if manifest.GVK != configMapGVK {
@@ -294,15 +303,21 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 		src := fmt.Sprintf("the config map %s/%s", manifest.Obj.GetNamespace(), manifest.Obj.GetName())
 		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
 		if err != nil {
-			return nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
+			return nil, nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
 		}
 		verifier, err := verify.NewFromConfigMap(src, data, clientBuilder)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return verifier, nil
+
+		// allow the verifier to consult the cluster for signature data, and also configure
+		// a process that writes signatures back to that store
+		signatureStore := verifyconfigmap.NewStore(configMapClient, nil)
+		verifier = verifier.WithStores(signatureStore)
+		persister := verify.NewSignatureStorePersister(signatureStore, verifier)
+		return verifier, persister, nil
 	}
-	return nil, nil
+	return nil, nil, nil
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
@@ -339,6 +354,9 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 			utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 		}
 	}, time.Second, stopCh)
+	if optr.signatureStore != nil {
+		go optr.signatureStore.Run(ctx, optr.minimumUpdateCheckInterval*2)
+	}
 
 	<-stopCh
 

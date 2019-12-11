@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	kfake "k8s.io/client-go/kubernetes/fake"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -3417,12 +3418,16 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadConfigMapVerifierDataFromUpdate(tt.update, verify.DefaultClient)
+			f := kfake.NewSimpleClientset()
+			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, verify.DefaultClient, f.CoreV1())
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("loadReleaseVerifierFromPayload() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if (got != nil) != tt.want {
 				t.Fatal(got)
+			}
+			if tt.want && store == nil {
+				t.Fatalf("expected valid store")
 			}
 			if err != nil {
 				return

@@ -80,7 +80,7 @@ func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, locations []*ur
 }
 
 // WithStores copies the provided verifier and adds any provided stores to the list.
-func (v *ReleaseVerifier) WithStores(stores []SignatureStore) *ReleaseVerifier {
+func (v *ReleaseVerifier) WithStores(stores ...SignatureStore) *ReleaseVerifier {
 	return &ReleaseVerifier{
 		verifiers:      v.verifiers,
 		locations:      v.locations,
