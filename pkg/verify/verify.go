@@ -30,6 +30,17 @@ type Interface interface {
 	Verify(ctx context.Context, releaseDigest string) error
 }
 
+// SignatureStore retrieves signatures for a digest or returns an error. It requires String()
+// for describing the store.
+type SignatureStore interface {
+	// DigestSignatures returns zero or more signatures for the provided digest, or returns an
+	// error if no signatures could be retrieved.
+	DigestSignatures(ctx context.Context, digest string) ([][]byte, error)
+	// String should return a description of where this store finds signatures in a short
+	// clause intended for display in a description of the verifier.
+	String() string
+}
+
 type rejectVerifier struct{}
 
 func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
@@ -47,22 +58,34 @@ var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
 // digest - all verifiers must have at least one valid signature attesting the release
 // digest. If any failure occurs the caller should assume the content is unverified.
 type ReleaseVerifier struct {
-	verifiers     map[string]openpgp.EntityList
-	stores        []*url.URL
+	verifiers map[string]openpgp.EntityList
+
+	locations     []*url.URL
 	clientBuilder ClientBuilder
+	stores        []SignatureStore
 
 	lock           sync.Mutex
 	signatureCache map[string][][]byte
 }
 
 // NewReleaseVerifier creates a release verifier for the provided inputs.
-func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, stores []*url.URL, clientBuilder ClientBuilder) *ReleaseVerifier {
+func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, locations []*url.URL, clientBuilder ClientBuilder) *ReleaseVerifier {
 	return &ReleaseVerifier{
 		verifiers:     verifiers,
-		stores:        stores,
+		locations:     locations,
 		clientBuilder: clientBuilder,
 
 		signatureCache: make(map[string][][]byte),
+	}
+}
+
+// WithStores copies the provided verifier and adds any provided stores to the list.
+func (v *ReleaseVerifier) WithStores(stores []SignatureStore) *ReleaseVerifier {
+	return &ReleaseVerifier{
+		verifiers:      v.verifiers,
+		locations:      v.locations,
+		stores:         append(append(make([]SignatureStore, 0, len(v.stores)+len(stores)), v.stores...), stores...),
+		signatureCache: v.Signatures(),
 	}
 }
 
@@ -128,24 +151,44 @@ func (v *ReleaseVerifier) String() string {
 		}
 		fmt.Fprint(&builder, ")")
 	}
-	fmt.Fprintf(&builder, " - will check for signatures in containers/image format at")
-	if len(v.stores) == 0 {
-		fmt.Fprint(&builder, " <ERROR: no stores>")
-	}
-	for i, store := range v.stores {
-		if i != 0 {
-			fmt.Fprint(&builder, ",")
+
+	hasLocations := len(v.locations) > 0
+	hasStores := len(v.stores) > 0
+	if hasLocations || hasStores {
+		fmt.Fprintf(&builder, " - will check for signatures in containers/image format")
+		if hasLocations {
+			fmt.Fprintf(&builder, " at")
+			for i, location := range v.locations {
+				if i != 0 {
+					fmt.Fprint(&builder, ",")
+				}
+				fmt.Fprintf(&builder, " %s", location.String())
+			}
 		}
-		fmt.Fprintf(&builder, " %s", store.String())
+		if hasStores {
+			if hasLocations {
+				fmt.Fprintf(&builder, " and from")
+			} else {
+				fmt.Fprintf(&builder, " from")
+			}
+			for i, store := range v.stores {
+				if i != 0 {
+					fmt.Fprint(&builder, ",")
+				}
+				fmt.Fprintf(&builder, " %s", store.String())
+			}
+		}
+	} else {
+		fmt.Fprintf(&builder, " - <ERROR: no locations or stores>")
 	}
 	return builder.String()
 }
 
 // Verify ensures that at least one valid signature exists for an image with digest
-// matching release digest in any of the provided stores for all verifiers, or returns
+// matching release digest in any of the provided locations for all verifiers, or returns
 // an error.
 func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
-	if len(v.verifiers) == 0 || len(v.stores) == 0 {
+	if len(v.verifiers) == 0 || (len(v.locations) == 0 && len(v.stores) == 0) {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
 	if len(releaseDigest) == 0 {
@@ -189,29 +232,54 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		return len(remaining) > 0, nil
 	}
 
-	client, err := v.clientBuilder.HTTPClient()
-	if err != nil {
-		return err
-	}
-
-	for _, store := range v.stores {
+	// check the stores to see if they match any signatures
+	for i, store := range v.stores {
 		if len(remaining) == 0 {
 			break
 		}
-		switch store.Scheme {
+		signatures, err := store.DigestSignatures(ctx, releaseDigest)
+		if err != nil {
+			klog.V(4).Infof("store %s could not load signatures: %v", store, err)
+			continue
+		}
+		for _, signature := range signatures {
+			hasUnsigned, err := verifier(fmt.Sprintf("store %d", i), signature)
+			if err != nil {
+				return err
+			}
+			if !hasUnsigned {
+				break
+			}
+		}
+	}
+
+	var client *http.Client
+	for _, location := range v.locations {
+		if len(remaining) == 0 {
+			break
+		}
+		switch location.Scheme {
 		case "file":
-			dir := filepath.Join(store.Path, name)
+			dir := filepath.Join(location.Path, name)
 			if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		case "http", "https":
-			copied := *store
-			copied.Path = path.Join(store.Path, name)
+			if client == nil {
+				var err error
+				client, err = v.clientBuilder.HTTPClient()
+				if err != nil {
+					return err
+				}
+			}
+
+			copied := *location
+			copied.Path = path.Join(location.Path, name)
 			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", store)
+			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
 		}
 	}
 
