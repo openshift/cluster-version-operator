@@ -3,6 +3,8 @@ kind: Role
 metadata:
   name: prometheus-k8s
   namespace: openshift-cluster-version
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
 - apiGroups:
   - ""
