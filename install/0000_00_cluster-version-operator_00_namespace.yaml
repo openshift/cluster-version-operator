@@ -4,7 +4,6 @@ metadata:
   name: openshift-cluster-version
   annotations:
     openshift.io/node-selector: ""
-    exclude.release.openshift.io/internal-openshift-hosted: "true"
   labels:
     name: openshift-cluster-version
     openshift.io/run-level: "1"

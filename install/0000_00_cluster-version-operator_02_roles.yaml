@@ -2,8 +2,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: cluster-version-operator
-  annotations:
-    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   kind: ClusterRole
   name: cluster-admin
