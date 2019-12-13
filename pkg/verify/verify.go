@@ -18,13 +18,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/transport"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -74,7 +72,7 @@ var Reject Interface = rejectVerifier{}
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
 //
-func LoadFromPayload(update *payload.Update) (Interface, error) {
+func LoadFromPayload(update *payload.Update, clientBuilder ClientBuilder) (Interface, error) {
 	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 	for _, manifest := range update.Manifests {
 		if manifest.GVK != configMapGVK {
@@ -117,16 +115,10 @@ func LoadFromPayload(update *payload.Update) (Interface, error) {
 			return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
 		}
 
-		transport, err := transport.New(&transport.Config{})
-		if err != nil {
-			return nil, errors.Wrapf(err, "unable to create HTTP client for verifying signatures: %v", err)
-		}
 		return &releaseVerifier{
-			verifiers: verifiers,
-			stores:    stores,
-			client: &http.Client{
-				Transport: transport,
-			},
+			verifiers:     verifiers,
+			stores:        stores,
+			clientBuilder: clientBuilder,
 		}, nil
 	}
 	return nil, nil
@@ -148,9 +140,23 @@ var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
 // digest - all verifiers must have at least one valid signature attesting the release
 // digest. If any failure occurs the caller should assume the content is unverified.
 type releaseVerifier struct {
-	verifiers map[string]openpgp.EntityList
-	stores    []*url.URL
-	client    *http.Client
+	verifiers     map[string]openpgp.EntityList
+	stores        []*url.URL
+	clientBuilder ClientBuilder
+}
+
+// ClientBuilder provides a method for generating an HTTP Client configured
+// with cluster proxy settings, if they exist.
+type ClientBuilder interface {
+	HTTPClient() (*http.Client, error)
+}
+
+// simpleClientBuilder implements the ClientBuilder interface and should be used for testing.
+type simpleClientBuilder struct{}
+
+// HTTPClient from simpleClientBuilder creates an httpClient with no configuration.
+func (s *simpleClientBuilder) HTTPClient() (*http.Client, error) {
+	return &http.Client{}, nil
 }
 
 // String summarizes the verifier for human consumption
@@ -243,6 +249,11 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		return len(remaining) > 0, nil
 	}
 
+	client, err := v.clientBuilder.HTTPClient()
+	if err != nil {
+		return err
+	}
+
 	for _, store := range v.stores {
 		if len(remaining) == 0 {
 			break
@@ -256,7 +267,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		case "http", "https":
 			copied := *store
 			copied.Path = path.Join(store.Path, name)
-			if err := checkHTTPSignatures(ctx, v.client, copied, maxSignatureSearch, verifier); err != nil {
+			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		default:
@@ -325,7 +336,6 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 			return fmt.Errorf("could not build request to check signature: %v", err)
 		}
 		req = req.WithContext(ctx)
-
 		// load the body, being careful not to allow unbounded reads
 		resp, err := client.Do(req)
 		if err != nil {
