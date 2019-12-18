@@ -121,6 +121,8 @@ type Operator struct {
 	availableUpdatesQueue workqueue.RateLimitingInterface
 	// upgradeableQueue tracks checking for upgradeable.
 	upgradeableQueue workqueue.RateLimitingInterface
+	// upgradeableMinorQueue tracks checking for upgradeable.
+	upgradeableMinorQueue workqueue.RateLimitingInterface
 
 	// statusLock guards access to modifying available updates
 	statusLock       sync.Mutex
@@ -130,6 +132,11 @@ type Operator struct {
 	upgradeableStatusLock sync.Mutex
 	upgradeable           *upgradeable
 	upgradeableChecks     []upgradeableCheck
+
+	// upgradeableMinorStatusLock guards access to modifying UpgradeableMinor conditions
+	upgradeableMinorStatusLock sync.Mutex
+	upgradeableMinor           *upgradeableMinor
+	upgradeableMinorChecks     []upgradeableMinorCheck
 
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
@@ -187,9 +194,10 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
+		upgradeableMinorQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeableMinorQueue"),
 
 		exclude: exclude,
 	}
@@ -207,6 +215,7 @@ func New(
 
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
+	optr.upgradeableMinorChecks = optr.defaultUpgradeableMinorChecks()
 
 	if enableMetrics {
 		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
@@ -301,6 +310,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	go optr.configSync.Start(ctx, 16)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableMinorSync) }, time.Second, stopCh)
 	go wait.Until(func() {
 		defer close(workerStopCh)
 
@@ -495,6 +505,29 @@ func (optr *Operator) upgradeableSync(key string) error {
 	return optr.syncUpgradeable(config)
 }
 
+// upgradeableMinorSync is triggered on cluster version change (and periodic requeues) to
+// sync upgradeableMinorCondition. It only modifies cluster version.
+func (optr *Operator) upgradeableMinorSync(key string) error {
+	startTime := time.Now()
+	klog.V(4).Infof("Started syncing upgradeableMinor %q (%v)", key, startTime)
+	defer func() {
+		klog.V(4).Infof("Finished syncing upgradeableMinor %q (%v)", key, time.Since(startTime))
+	}()
+
+	config, err := optr.cvLister.Get(optr.name)
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+		return nil
+	}
+
+	return optr.syncUpgradeableMinor(config)
+}
+
 // isOlderThanLastUpdate returns true if the cluster version is older than
 // the last update we saw.
 func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) bool {
@@ -675,6 +708,7 @@ func hasReachedLevel(cv *configv1.ClusterVersion, desired configv1.Update) bool 
 func (optr *Operator) defaultPreconditionChecks() precondition.List {
 	return []precondition.Precondition{
 		preconditioncv.NewUpgradeable(optr.cvLister),
+		preconditioncv.NewUpgradeableMinor(optr.cvLister),
 	}
 }
 

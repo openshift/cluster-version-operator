@@ -29,7 +29,7 @@ func NewUpgradeable(lister configv1listers.ClusterVersionLister) *Upgradeable {
 // Run runs the Upgradeable precondition.
 // If the feature gate `key` is not found, or the api for clusterversion doesn't exist, this check is inert and always returns nil error.
 // Otherwise, if Upgradeable condition is set to false in the object, it returns an PreconditionError when possible.
-func (pf *Upgradeable) Run(ctx context.Context) error {
+func (pf *Upgradeable) Run(ctx context.Context, desiredVersion string) error {
 	cv, err := pf.lister.Get(pf.key)
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
