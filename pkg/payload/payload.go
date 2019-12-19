@@ -216,22 +216,23 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		releaseDir = filepath.Join(dir, ReleaseManifestDir)
 	)
 
-	// XXX: load cincinnatiJSONFile
-	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
-	// XXX: load imageReferencesFile
-	irf := filepath.Join(releaseDir, imageReferencesFile)
-	imageRefData, err := ioutil.ReadFile(irf)
+	imageRef, err := loadImageReferences(releaseDir)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	imageRef, err := resourceread.ReadImageStreamV1(imageRefData)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "invalid image-references data %s", irf)
-	}
+	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
+
+	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+}
+
+func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
+	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
+	irf := filepath.Join(releaseDir, imageReferencesFile)
 
 	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
-	tasks := []payloadTasks{{
+
+	return []payloadTasks{{
 		idir:       cvoDir,
 		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
 		skipFiles:  sets.NewString(),
@@ -240,5 +241,19 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		preprocess: nil,
 		skipFiles:  sets.NewString(cjf, irf),
 	}}
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+}
+
+func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
+	irf := filepath.Join(releaseDir, imageReferencesFile)
+	imageRefData, err := ioutil.ReadFile(irf)
+	if err != nil {
+		return nil, err
+	}
+
+	imageRef, err := resourceread.ReadImageStreamV1(imageRefData)
+	if err != nil {
+		return nil, errors.Wrapf(err, "invalid image-references data %s", irf)
+	}
+
+	return imageRef, nil
 }

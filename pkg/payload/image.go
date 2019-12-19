@@ -2,6 +2,7 @@ package payload
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/pkg/errors"
 )
@@ -9,12 +10,18 @@ import (
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
-	up, err := LoadUpdate(DefaultPayloadDir, "")
-	if err != nil {
-		return "", errors.Wrapf(err, "error loading release manifests from %q", DefaultPayloadDir)
+	if err := ValidateDirectory(DefaultPayloadDir); err != nil {
+		return "", err
 	}
 
-	for _, tag := range up.ImageRef.Spec.Tags {
+	releaseDir := filepath.Join(DefaultPayloadDir, ReleaseManifestDir)
+
+	imageRef, err := loadImageReferences(releaseDir)
+	if err != nil {
+		return "", errors.Wrapf(err, "error loading image references from %q", releaseDir)
+	}
+
+	for _, tag := range imageRef.Spec.Tags {
 		if tag.Name == name {
 			// we found the short name in ImageStream
 			if tag.From != nil && tag.From.Kind == "DockerImage" {
