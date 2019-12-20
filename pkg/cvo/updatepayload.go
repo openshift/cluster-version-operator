@@ -14,6 +14,7 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
@@ -169,6 +170,13 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 						}},
 						SecurityContext: &corev1.SecurityContext{
 							Privileged: pointer.BoolPtr(true),
+						},
+						Resources: corev1.ResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceCPU:              resource.MustParse("10m"),
+								corev1.ResourceMemory:           resource.MustParse("50Mi"),
+								corev1.ResourceEphemeralStorage: resource.MustParse("2Mi"),
+							},
 						},
 					}},
 					Volumes: []corev1.Volume{{
