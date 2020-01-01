@@ -1,14 +1,14 @@
 # ClusterVersion Custom Resource
 
-The `ClusterVersion` is a custom resource object which holds the current version of the cluster.
+The `ClusterVersion` is a custom resource object which holds the desired version of the cluster.
 This object is used by the administrator to declare their target cluster state, which the cluster-version operator (CVO) then works to transition the cluster to that target state.
 
-## Finding your current update image
+## Finding your desired update image
 
-You can extract the current update image from the `ClusterVersion` object:
+You can extract the desired update image from the `ClusterVersion` object:
 
 ```console
-$ oc get clusterversion -o jsonpath='{.status.current.image}{"\n"}' version
+$ oc get clusterversion -o jsonpath='{.status.desired.image}{"\n"}' version
 registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833
 ```
 
