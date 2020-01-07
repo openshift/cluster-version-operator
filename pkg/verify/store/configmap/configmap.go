@@ -1,4 +1,4 @@
-package verifyconfigmap
+package configmap
 
 import (
 	"context"
@@ -16,6 +16,8 @@ import (
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog"
+
+	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 )
 
 // ReleaseLabelConfigMap is a label applied to a configmap inside the
@@ -87,10 +89,10 @@ func digestToKeyPrefix(digest string) (string, error) {
 	return fmt.Sprintf("%s-%s", algo, hash), nil
 }
 
-// DigestSignatures returns a list of signatures that match the request
+// Signatures returns a list of signatures that match the request
 // digest out of config maps labelled with ReleaseLabelConfigMap in the
 // openshift-config-managed namespace.
-func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, error) {
+func (s *Store) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
 	// avoid repeatedly reloading config maps
 	items := s.mostRecentConfigMaps()
 	r := s.limiter.Reserve()
@@ -100,7 +102,7 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 		})
 		if err != nil {
 			s.rememberMostRecentConfigMaps([]corev1.ConfigMap{})
-			return nil, err
+			return err
 		}
 		items = configMaps.Items
 		s.rememberMostRecentConfigMaps(configMaps.Items)
@@ -108,23 +110,28 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 
 	prefix, err := digestToKeyPrefix(digest)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var signatures [][]byte
 	for _, cm := range items {
 		klog.V(4).Infof("searching for %s in signature config map %s", prefix, cm.ObjectMeta.Name)
 		for k, v := range cm.BinaryData {
 			if strings.HasPrefix(k, prefix) {
 				klog.V(4).Infof("key %s from signature config map %s matches %s", k, cm.ObjectMeta.Name, digest)
-				signatures = append(signatures, v)
+				done, err := fn(ctx, v, nil)
+				if err != nil || done {
+					return err
+				}
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 			}
 		}
 	}
-	return signatures, nil
+	return nil
 }
 
-// Store attempts to persist the provided signatures into a form DigestSignatures will
+// Store attempts to persist the provided signatures into a form Signatures will
 // retrieve.
 func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byte) error {
 	cm := &corev1.ConfigMap{
