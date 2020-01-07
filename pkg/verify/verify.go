@@ -31,12 +31,12 @@ import (
 // in this package uses the container signature format defined at https://github.com/containers/image
 // to authenticate that a given release image digest has been signed by a trusted party.
 type Interface interface {
-	Verify(ctx context.Context, releaseDigest string) error
+	Verify(ctx context.Context, releaseName string, releaseDigest string) error
 }
 
 type rejectVerifier struct{}
 
-func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
+func (rejectVerifier) Verify(ctx context.Context, releaseName string, releaseDigest string) error {
 	return fmt.Errorf("verification is not possible")
 }
 
@@ -211,7 +211,7 @@ func (v *releaseVerifier) String() string {
 // Verify ensures that at least one valid signature exists for an image with digest
 // matching release digest in any of the provided stores for all verifiers, or returns
 // an error.
-func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
+func (v *releaseVerifier) Verify(ctx context.Context, name string, releaseDigest string) error {
 	if len(v.verifiers) == 0 || len(v.stores) == 0 {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
@@ -226,7 +226,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
 	}
 	algo, hash := parts[0], parts[1]
-	name := fmt.Sprintf("%s=%s", algo, hash)
+	digestPathSegment := fmt.Sprintf("%s=%s", algo, hash)
 
 	remaining := make(map[string]openpgp.EntityList, len(v.verifiers))
 	for k, v := range v.verifiers {
@@ -240,7 +240,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 				klog.V(4).Infof("keyring %q could not verify signature: %v", k, err)
 				continue
 			}
-			if err := verifyAtomicContainerSignature(content, releaseDigest); err != nil {
+			if err := verifyAtomicContainerSignature(content, name, releaseDigest); err != nil {
 				klog.V(4).Infof("signature %q is not valid: %v", path, err)
 				continue
 			}
@@ -260,13 +260,13 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		}
 		switch store.Scheme {
 		case "file":
-			dir := filepath.Join(store.Path, name)
+			dir := filepath.Join(store.Path, digestPathSegment)
 			if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		case "http", "https":
 			copied := *store
-			copied.Path = path.Join(store.Path, name)
+			copied.Path = path.Join(store.Path, digestPathSegment)
 			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
@@ -466,7 +466,7 @@ type optionalSignature struct {
 // verifyAtomicContainerSignature verifiers that the provided data authenticates the
 // specified release digest. If error is returned the provided data does NOT authenticate
 // the release digest and the signature must be ignored.
-func verifyAtomicContainerSignature(data []byte, releaseDigest string) error {
+func verifyAtomicContainerSignature(data []byte, name string, digest string) error {
 	d := json.NewDecoder(bytes.NewReader(data))
 	d.DisallowUnknownFields()
 	var sig signature
@@ -479,8 +479,11 @@ func verifyAtomicContainerSignature(data []byte, releaseDigest string) error {
 	if len(sig.Critical.Identity.DockerReference) == 0 {
 		return fmt.Errorf("signature must have an identity")
 	}
-	if sig.Critical.Image.DockerManifestDigest != releaseDigest {
+	if sig.Critical.Image.DockerManifestDigest != digest {
 		return fmt.Errorf("signature digest does not match")
+	}
+	if name != "" && sig.Critical.Identity.DockerReference != name {
+		return fmt.Errorf("signed name %q does not match expected %q", sig.Critical.Identity.DockerReference, name)
 	}
 	return nil
 }

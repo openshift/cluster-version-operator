@@ -61,6 +61,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 		name          string
 		verifiers     map[string]openpgp.EntityList
 		stores        []*url.URL
+		releaseName   string
 		releaseDigest string
 		wantErr       bool
 	}{
@@ -69,6 +70,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 
 		{
 			name:          "valid signature for sha over file",
+			releaseName:   "registry.access.redhat.com/rhel7:7.6",
 			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
 			stores: []*url.URL{
 				{Scheme: "file", Path: "testdata/signatures"},
@@ -77,6 +79,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 		},
 		{
 			name:          "valid signature for sha over http",
+			releaseName:   "registry.access.redhat.com/rhel7:7.6",
 			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
 			stores: []*url.URL{
 				sigServerURL,
@@ -85,6 +88,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 		},
 		{
 			name:          "valid signature for sha over http with custom gpg key",
+			releaseName:   "registry.svc.ci.openshift.org/ocp/release:4.0.0-0.ci-2019-04-19-181452",
 			releaseDigest: "sha256:edd9824f0404f1a139688017e7001370e2f3fbc088b94da84506653b473fe140",
 			stores: []*url.URL{
 				sigServerURL,
@@ -93,6 +97,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 		},
 		{
 			name:          "valid signature for sha over http with multi-key keyring",
+			releaseName:   "registry.svc.ci.openshift.org/ocp/release:4.0.0-0.ci-2019-04-19-181452",
 			releaseDigest: "sha256:edd9824f0404f1a139688017e7001370e2f3fbc088b94da84506653b473fe140",
 			stores: []*url.URL{
 				sigServerURL,
@@ -156,6 +161,16 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
 			wantErr:   true,
 		},
+		{
+			name:          "RHEL image but expected OCP release name",
+			releaseName:   "registry.svc.ci.openshift.org/ocp/release:4.0.0-0.ci-2019-04-19-181452",
+			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
+			stores: []*url.URL{
+				sigServerURL,
+			},
+			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
+			wantErr:   true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -167,7 +182,7 @@ func Test_releaseVerifier_Verify(t *testing.T) {
 				stores:        tt.stores,
 				clientBuilder: &simpleClientBuilder{},
 			}
-			if err := v.Verify(context.Background(), tt.releaseDigest); (err != nil) != tt.wantErr {
+			if err := v.Verify(context.Background(), tt.releaseName, tt.releaseDigest); (err != nil) != tt.wantErr {
 				t.Errorf("releaseVerifier.Verify() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

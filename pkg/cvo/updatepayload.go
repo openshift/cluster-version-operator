@@ -88,7 +88,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	if index := strings.LastIndex(update.Image, "@"); index != -1 {
 		releaseDigest = update.Image[index+1:]
 	}
-	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
+	if err := r.verifier.Verify(ctx, fmt.Sprintf("quay.io/openshift-release-dev/ocp-release:%s", update.Version), releaseDigest); err != nil {
 		vErr := &payload.UpdateError{
 			Reason:  "ImageVerificationFailed",
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
