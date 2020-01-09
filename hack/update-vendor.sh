@@ -8,6 +8,7 @@ set -euo pipefail
 cd "$(git rev-parse --show-cdup)"
 
 # Run dep.
-dep ensure
+go mod vendor
+go mod verify
 
 (cd hack && ./update-codegen.sh)
