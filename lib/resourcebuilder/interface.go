@@ -91,3 +91,5 @@ func New(mapper *ResourceMapper, rest *rest.Config, m lib.Manifest) (Interface, 
 // defaultObjectPollInterval is the default interval to poll the API to determine whether an object
 // is ready. Use this when a more specific interval is not necessary.
 const defaultObjectPollInterval = 3 * time.Second
+
+const deploymentApplyPollInterval = 30 * time.Second
