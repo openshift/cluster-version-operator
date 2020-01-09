@@ -77,7 +77,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	return nil
 }
 func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
-	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
+	return wait.PollImmediateUntil(deploymentApplyPollInterval, func() (bool, error) {
 		d, err := client.Deployments(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the deployment.
