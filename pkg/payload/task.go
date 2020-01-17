@@ -53,11 +53,15 @@ func (st *Task) Copy() *Task {
 }
 
 func (st *Task) String() string {
+	name := st.Manifest.Object().GetName()
+	if len(name) == 0 {
+		name = st.Manifest.OriginalFilename
+	}
 	ns := st.Manifest.Object().GetNamespace()
 	if len(ns) == 0 {
-		return fmt.Sprintf("%s %q (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), st.Manifest.Object().GetName(), st.Index, st.Total)
+		return fmt.Sprintf("%s %q (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), name, st.Index, st.Total)
 	}
-	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, st.Manifest.Object().GetName(), st.Index, st.Total)
+	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, name, st.Index, st.Total)
 }
 
 // Run attempts to create the provided object until it succeeds or context is cancelled. It returns the
