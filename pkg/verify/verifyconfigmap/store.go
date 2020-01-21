@@ -41,7 +41,6 @@ func NewStore(client corev1client.ConfigMapsGetter, limiter *rate.Limiter) *Stor
 	return &Store{
 		client: client,
 		ns:     "openshift-config-managed",
-		limiter: limiter,
 	}
 }
 
