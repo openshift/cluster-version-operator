@@ -18,7 +18,7 @@ type securityBuilder struct {
 
 func newSecurityBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &securityBuilder{
-		client: securityclientv1.NewForConfigOrDie(withProtobuf(config)),
+		client: securityclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,
 	}
 }
