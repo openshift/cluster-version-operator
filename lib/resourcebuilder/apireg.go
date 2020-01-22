@@ -3,9 +3,9 @@ package resourcebuilder
 import (
 	"context"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"k8s.io/client-go/rest"
 	apiregclientv1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 )
@@ -16,7 +16,7 @@ type apiServiceBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newAPIServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newAPIServiceBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &apiServiceBuilder{
 		client: apiregclientv1.NewForConfigOrDie(config),
 		raw:    m.Raw,

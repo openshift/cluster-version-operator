@@ -12,11 +12,9 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
@@ -35,18 +33,17 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
-	"github.com/openshift/cluster-version-operator/pkg/verify/verifyconfigmap"
 )
 
 const (
@@ -256,7 +253,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder, configClient)
+	verifier, signatureStore, err := verify.LoadConfigMapVerifierDataFromUpdate(update.Manifests, clientBuilder, configClient)
 	if err != nil {
 		return err
 	}
@@ -285,39 +282,6 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	)
 
 	return nil
-}
-
-// loadConfigMapVerifierDataFromUpdate fetches the first config map in the payload with the correct annotation.
-// It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
-// package for more details on the algorithm for verification. If the annotation is set, a verifier or error
-// is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
-	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
-	for _, manifest := range update.Manifests {
-		if manifest.GVK != configMapGVK {
-			continue
-		}
-		if _, ok := manifest.Obj.GetAnnotations()[verify.ReleaseAnnotationConfigMapVerifier]; !ok {
-			continue
-		}
-		src := fmt.Sprintf("the config map %s/%s", manifest.Obj.GetNamespace(), manifest.Obj.GetName())
-		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
-		if err != nil {
-			return nil, nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
-		}
-		verifier, err := verify.NewFromConfigMapData(src, data, clientBuilder)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		// allow the verifier to consult the cluster for signature data, and also configure
-		// a process that writes signatures back to that store
-		signatureStore := verifyconfigmap.NewStore(configMapClient, nil)
-		verifier = verifier.WithStores(signatureStore)
-		persister := verify.NewSignatureStorePersister(signatureStore, verifier)
-		return verifier, persister, nil
-	}
-	return nil, nil, nil
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
@@ -656,7 +620,7 @@ func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators confi
 	}
 }
 
-func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (resourcebuilder.Interface, error) {
+func (b *resourceBuilder) builderFor(m *manifest.Manifest, state payload.State) (resourcebuilder.Interface, error) {
 	config := b.config
 	if state == payload.InitializingPayload {
 		config = b.burstConfig
@@ -675,7 +639,7 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	return cvointernal.NewGenericBuilder(client, *m)
 }
 
-func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *resourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	builder, err := b.builderFor(m, state)
 	if err != nil {
 		return err

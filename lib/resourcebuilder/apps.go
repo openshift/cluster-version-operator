@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,7 +25,7 @@ type deploymentBuilder struct {
 	modifier    MetaV1ObjectModifierFunc
 }
 
-func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newDeploymentBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &deploymentBuilder{
 		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
 		proxyGetter: configv1.NewForConfigOrDie(config),
@@ -130,7 +130,7 @@ type daemonsetBuilder struct {
 	modifier    MetaV1ObjectModifierFunc
 }
 
-func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newDaemonsetBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &daemonsetBuilder{
 		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
 		proxyGetter: configv1.NewForConfigOrDie(config),

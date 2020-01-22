@@ -17,8 +17,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -54,7 +54,7 @@ type clusterOperatorBuilder struct {
 	mode     resourcebuilder.Mode
 }
 
-func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
+func newClusterOperatorBuilder(config *rest.Config, m manifest.Manifest) resourcebuilder.Interface {
 	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{
 		getter: configclientv1.NewForConfigOrDie(config).ClusterOperators(),
 	}, m)
@@ -75,7 +75,7 @@ func (g clientClusterOperatorsGetter) Get(name string) (*configv1.ClusterOperato
 
 // NewClusterOperatorBuilder accepts the ClusterOperatorsGetter interface which may be implemented by a
 // client or a lister cache.
-func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m lib.Manifest) resourcebuilder.Interface {
+func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m manifest.Manifest) resourcebuilder.Interface {
 	return &clusterOperatorBuilder{
 		client: client,
 		raw:    m.Raw,

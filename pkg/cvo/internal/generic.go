@@ -16,8 +16,8 @@ import (
 	"k8s.io/client-go/dynamic"
 
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 )
 
 // readUnstructuredV1OrDie reads operatorstatus object from bytes. Panics on error.
@@ -72,7 +72,7 @@ type genericBuilder struct {
 
 // NewGenericBuilder returns an implentation of resourcebuilder.Interface that
 // uses dynamic clients for applying.
-func NewGenericBuilder(client dynamic.ResourceInterface, m lib.Manifest) (resourcebuilder.Interface, error) {
+func NewGenericBuilder(client dynamic.ResourceInterface, m manifest.Manifest) (resourcebuilder.Interface, error) {
 	return &genericBuilder{
 		client: client,
 		raw:    m.Raw,

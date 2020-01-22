@@ -23,9 +23,9 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
@@ -108,9 +108,9 @@ func Test_SyncWorker_apply(t *testing.T) {
 	}}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			var manifests []lib.Manifest
+			var manifests []manifest.Manifest
 			for _, s := range test.manifests {
-				m := lib.Manifest{}
+				m := manifest.Manifest{}
 				if err := json.Unmarshal([]byte(s), &m); err != nil {
 					t.Fatal(err)
 				}
@@ -147,7 +147,7 @@ type cancelAfterErrorBuilder struct {
 	remainingErrors int
 }
 
-func (b *cancelAfterErrorBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *cancelAfterErrorBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	err := b.builder.Apply(ctx, m, state)
 	if err != nil {
 		if b.remainingErrors == 0 {
@@ -295,9 +295,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 	}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			var manifests []lib.Manifest
+			var manifests []manifest.Manifest
 			for _, s := range test.manifests {
-				m := lib.Manifest{}
+				m := manifest.Manifest{}
 				if err := json.Unmarshal([]byte(s), &m); err != nil {
 					t.Fatal(err)
 				}
@@ -332,7 +332,7 @@ type testBuilder struct {
 	modifiers []resourcebuilder.MetaV1ObjectModifierFunc
 	mode      resourcebuilder.Mode
 
-	m *lib.Manifest
+	m *manifest.Manifest
 }
 
 func (t *testBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
@@ -351,7 +351,7 @@ func (t *testBuilder) Do(_ context.Context) error {
 }
 
 func newTestBuilder(r *recorder, rts map[action]error) resourcebuilder.NewInteraceFunc {
-	return func(_ *rest.Config, m lib.Manifest) resourcebuilder.Interface {
+	return func(_ *rest.Config, m manifest.Manifest) resourcebuilder.Interface {
 		return &testBuilder{recorder: r, reactors: rts, m: &m}
 	}
 }
@@ -395,11 +395,11 @@ func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, ove
 }
 
 type fakeResourceBuilder struct {
-	M   []*lib.Manifest
+	M   []*manifest.Manifest
 	Err error
 }
 
-func (b *fakeResourceBuilder) Apply(m *lib.Manifest) error {
+func (b *fakeResourceBuilder) Apply(m *manifest.Manifest) error {
 	b.M = append(b.M, m)
 	return b.Err
 }
@@ -430,7 +430,7 @@ type testResourceBuilder struct {
 	modifiers []resourcebuilder.MetaV1ObjectModifierFunc
 }
 
-func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *testResourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	ns := m.Object().GetNamespace()
 	fakeGVR := schema.GroupVersionResource{Group: m.GVK.Group, Version: m.GVK.Version, Resource: strings.ToLower(m.GVK.Kind)}
 	client := b.client.Resource(fakeGVR).Namespace(ns)

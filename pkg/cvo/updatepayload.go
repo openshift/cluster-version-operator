@@ -24,13 +24,14 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/pkg/manifest/render"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
 
 func (optr *Operator) defaultPayloadDir() string {
 	if len(optr.payloadDir) == 0 {
-		return payload.DefaultPayloadDir
+		return render.DefaultPayloadDir
 	}
 	return optr.payloadDir
 }
@@ -121,7 +122,7 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
 	tdir := filepath.Join(r.workingDir, payloadHash)
-	err := payload.ValidateDirectory(tdir)
+	err := render.ValidateDirectory(tdir)
 	if os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
 		err = r.fetchUpdatePayloadToDir(ctx, tdir, update)
@@ -131,7 +132,7 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	}
 
 	// now that payload has been loaded check validation.
-	if err := payload.ValidateDirectory(tdir); err != nil {
+	if err := render.ValidateDirectory(tdir); err != nil {
 		return "", err
 	}
 	return tdir, nil
@@ -277,12 +278,12 @@ func (r *payloadRetriever) pruneJobs(retain int) error {
 // `mkdir -p <target dir> && mv <default release manifest dir> <target release manifests dir>`
 func copyPayloadCmd(tdir string) string {
 	var (
-		fromCVOPath = filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir)
-		toCVOPath   = filepath.Join(tdir, payload.CVOManifestDir)
+		fromCVOPath = filepath.Join(render.DefaultPayloadDir, render.CVOManifestDir)
+		toCVOPath   = filepath.Join(tdir, render.CVOManifestDir)
 		cvoCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromCVOPath, toCVOPath)
 
-		fromReleasePath = filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir)
-		toReleasePath   = filepath.Join(tdir, payload.ReleaseManifestDir)
+		fromReleasePath = filepath.Join(render.DefaultPayloadDir, render.ReleaseManifestDir)
+		toReleasePath   = filepath.Join(tdir, render.ReleaseManifestDir)
 		releaseCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromReleasePath, toReleasePath)
 	)
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)

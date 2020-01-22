@@ -4,9 +4,9 @@ import (
 	"context"
 
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"k8s.io/client-go/rest"
 )
 
@@ -16,7 +16,7 @@ type securityBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newSecurityBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newSecurityBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &securityBuilder{
 		client: securityclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,

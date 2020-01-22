@@ -26,7 +26,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
@@ -2523,7 +2523,7 @@ func (b *blockingResourceBuilder) Send(err error) {
 	b.ch <- err
 }
 
-func (b *blockingResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *blockingResourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	return <-b.ch
 }
 
@@ -2531,7 +2531,7 @@ type errorResourceBuilder struct {
 	errors map[string]error
 }
 
-func (b *errorResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *errorResourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	if err, ok := b.errors[m.OriginalFilename]; ok {
 		return err
 	}

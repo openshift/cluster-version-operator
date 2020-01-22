@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
 	kfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -37,7 +37,7 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
 )
@@ -3273,7 +3273,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		{
 			name: "requires data",
 			update: &payload.Update{
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
 						Obj: &unstructured.Unstructured{
@@ -3295,7 +3295,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		{
 			name: "requires stores",
 			update: &payload.Update{
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
 						Obj: &unstructured.Unstructured{
@@ -3320,7 +3320,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		{
 			name: "requires verifiers",
 			update: &payload.Update{
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
 						Obj: &unstructured.Unstructured{
@@ -3345,7 +3345,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		{
 			name: "loads valid configuration",
 			update: &payload.Update{
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
 						Obj: &unstructured.Unstructured{
@@ -3372,7 +3372,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		{
 			name: "only the first valid configuration is used",
 			update: &payload.Update{
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						GVK: schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
 						Obj: &unstructured.Unstructured{
@@ -3419,7 +3419,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := kfake.NewSimpleClientset()
-			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, verify.DefaultClient, f.CoreV1())
+			got, store, err := verify.LoadConfigMapVerifierDataFromUpdate(tt.update.Manifests, verify.DefaultClient, f.CoreV1())
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("loadReleaseVerifierFromPayload() error = %v, wantErr %v", err, tt.wantErr)
 			}

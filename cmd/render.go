@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
-	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/manifest/render"
 )
 
 var (
@@ -39,7 +39,7 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.releaseImage == "" {
 		klog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
+	if err := render.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
 		klog.Fatalf("Render command failed: %v", err)
 	}
 }

@@ -3,9 +3,9 @@ package resourcebuilder
 import (
 	"context"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 )
@@ -16,7 +16,7 @@ type serviceAccountBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newServiceAccountBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newServiceAccountBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &serviceAccountBuilder{
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -47,7 +47,7 @@ type configMapBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newConfigMapBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newConfigMapBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &configMapBuilder{
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -78,7 +78,7 @@ type namespaceBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newNamespaceBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newNamespaceBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &namespaceBuilder{
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -109,7 +109,7 @@ type serviceBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newServiceBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newServiceBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &serviceBuilder{
 		client: coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,

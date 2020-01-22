@@ -13,7 +13,7 @@ import (
 
 	imagev1 "github.com/openshift/api/image/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 )
 
 func Test_loadUpdatePayload(t *testing.T) {
@@ -46,7 +46,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 					},
 				},
 				ManifestHash: "6GC9TkkG9PA=",
-				Manifests: []lib.Manifest{
+				Manifests: []manifest.Manifest{
 					{
 						OriginalFilename: "0000_10_a_file.json",
 						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtest", "release-manifests", "0000_10_a_file.json")),

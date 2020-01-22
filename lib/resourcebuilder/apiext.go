@@ -5,9 +5,9 @@ import (
 
 	"k8s.io/klog"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -25,7 +25,7 @@ type crdBuilder struct {
 	clientV1      *apiextclientv1.ApiextensionsV1Client
 }
 
-func newCRDBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newCRDBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &crdBuilder{
 		raw:           m.Raw,
 		clientV1beta1: apiextclientv1beta1.NewForConfigOrDie(withProtobuf(config)),

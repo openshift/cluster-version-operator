@@ -6,9 +6,9 @@ import (
 
 	"k8s.io/klog"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	batchv1 "k8s.io/api/batch/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -22,7 +22,7 @@ type jobBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newJobBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &jobBuilder{
 		client: batchclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,

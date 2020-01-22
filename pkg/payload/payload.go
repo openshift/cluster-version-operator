@@ -1,25 +1,19 @@
 package payload
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"hash/fnv"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/pkg/errors"
 	"k8s.io/klog"
 
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/sets"
-
 	imagev1 "github.com/openshift/api/image/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
+	"github.com/openshift/cluster-version-operator/pkg/manifest/render"
 )
 
 // State describes the state of the payload and alters
@@ -77,16 +71,6 @@ func (s State) String() string {
 	}
 }
 
-const (
-	DefaultPayloadDir = "/"
-
-	CVOManifestDir     = "manifests"
-	ReleaseManifestDir = "release-manifests"
-
-	cincinnatiJSONFile  = "release-metadata"
-	imageReferencesFile = "image-references"
-)
-
 type Update struct {
 	ReleaseImage   string
 	ReleaseVersion string
@@ -99,152 +83,43 @@ type Update struct {
 
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
-	Manifests    []lib.Manifest
+	Manifests    []manifest.Manifest
 }
 
 func LoadUpdate(dir, releaseImage string) (*Update, error) {
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+	payload, err := loadUpdatePayloadImageData(dir, releaseImage)
 	if err != nil {
 		return nil, err
 	}
 
-	var manifests []lib.Manifest
-	var errs []error
-	for _, task := range tasks {
-		files, err := ioutil.ReadDir(task.idir)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-
-			switch filepath.Ext(file.Name()) {
-			case ".yaml", ".yml", ".json":
-			default:
-				continue
-			}
-
-			p := filepath.Join(task.idir, file.Name())
-			if task.skipFiles.Has(p) {
-				continue
-			}
-
-			raw, err := ioutil.ReadFile(p)
-			if err != nil {
-				errs = append(errs, errors.Wrapf(err, "error reading file %s", file.Name()))
-				continue
-			}
-			if task.preprocess != nil {
-				raw, err = task.preprocess(raw)
-				if err != nil {
-					errs = append(errs, errors.Wrapf(err, "error running preprocess on %s", file.Name()))
-					continue
-				}
-			}
-			ms, err := lib.ParseManifests(bytes.NewReader(raw))
-			if err != nil {
-				errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
-				continue
-			}
-			for i := range ms {
-				ms[i].OriginalFilename = filepath.Base(file.Name())
-			}
-			manifests = append(manifests, ms...)
-		}
+	manifests, err := render.LoadManifests(dir, releaseImage)
+	if err != nil {
+		return nil, err
 	}
+	manifestHash := render.LoadManifestsHash(manifests)
 
-	agg := utilerrors.NewAggregate(errs)
-	if agg != nil {
-		return nil, &UpdateError{
-			Reason:  "UpdatePayloadIntegrity",
-			Message: fmt.Sprintf("Error loading manifests from %s: %v", dir, agg.Error()),
-		}
-	}
-
-	hash := fnv.New64()
-	for _, manifest := range manifests {
-		hash.Write(manifest.Raw)
-	}
-
-	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	payload.ManifestHash = manifestHash
 	payload.Manifests = manifests
 	return payload, nil
 }
 
-// ValidateDirectory checks if a directory can be a candidate update by
-// looking for known files. It returns an error if the directory cannot
-// be an update.
-func ValidateDirectory(dir string) error {
-	// XXX: validate that cincinnati.json is correct
-	// 		validate image-references files is correct.
-
-	// make sure cvo and release manifests dirs exist.
-	_, err := os.Stat(filepath.Join(dir, CVOManifestDir))
-	if err != nil {
-		return err
+func loadUpdatePayloadImageData(dir, releaseImage string) (*Update, error) {
+	klog.V(4).Infof("Loading updatepayload image data from %q", dir)
+	if err := render.ValidateDirectory(dir); err != nil {
+		return nil, err
 	}
-	releaseDir := filepath.Join(dir, ReleaseManifestDir)
-	_, err = os.Stat(releaseDir)
-	if err != nil {
-		return err
-	}
-
-	// make sure image-references file exists in releaseDir
-	_, err = os.Stat(filepath.Join(releaseDir, imageReferencesFile))
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-type payloadTasks struct {
-	idir       string
-	preprocess func([]byte) ([]byte, error)
-	skipFiles  sets.String
-}
-
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
-	klog.V(4).Infof("Loading updatepayload from %q", dir)
-	if err := ValidateDirectory(dir); err != nil {
-		return nil, nil, err
-	}
-	var (
-		cvoDir     = filepath.Join(dir, CVOManifestDir)
-		releaseDir = filepath.Join(dir, ReleaseManifestDir)
-	)
+	var releaseDir = filepath.Join(dir, render.ReleaseManifestDir)
 
 	imageRef, err := loadImageReferences(releaseDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
-
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
-}
-
-func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
-	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
-	irf := filepath.Join(releaseDir, imageReferencesFile)
-
-	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
-
-	return []payloadTasks{{
-		idir:       cvoDir,
-		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
-		skipFiles:  sets.NewString(),
-	}, {
-		idir:       releaseDir,
-		preprocess: nil,
-		skipFiles:  sets.NewString(cjf, irf),
-	}}
+	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, nil
 }
 
 func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
-	irf := filepath.Join(releaseDir, imageReferencesFile)
+	irf := filepath.Join(releaseDir, render.ImageReferencesFile)
 	imageRefData, err := ioutil.ReadFile(irf)
 	if err != nil {
 		return nil, err

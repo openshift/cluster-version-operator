@@ -5,16 +5,18 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
+
+	"github.com/openshift/cluster-version-operator/pkg/manifest/render"
 )
 
 // ImageForShortName returns the image using the updatepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
-	if err := ValidateDirectory(DefaultPayloadDir); err != nil {
+	if err := render.ValidateDirectory(render.DefaultPayloadDir); err != nil {
 		return "", err
 	}
 
-	releaseDir := filepath.Join(DefaultPayloadDir, ReleaseManifestDir)
+	releaseDir := filepath.Join(render.DefaultPayloadDir, render.ReleaseManifestDir)
 
 	imageRef, err := loadImageReferences(releaseDir)
 	if err != nil {

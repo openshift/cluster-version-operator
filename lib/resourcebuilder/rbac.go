@@ -3,9 +3,9 @@ package resourcebuilder
 import (
 	"context"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/rest"
 )
@@ -16,7 +16,7 @@ type clusterRoleBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newClusterRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newClusterRoleBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &clusterRoleBuilder{
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -47,7 +47,7 @@ type clusterRoleBindingBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newClusterRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newClusterRoleBindingBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &clusterRoleBindingBuilder{
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -78,7 +78,7 @@ type roleBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newRoleBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newRoleBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &roleBuilder{
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,
@@ -109,7 +109,7 @@ type roleBindingBuilder struct {
 	modifier MetaV1ObjectModifierFunc
 }
 
-func newRoleBindingBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newRoleBindingBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &roleBindingBuilder{
 		client: rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		raw:    m.Raw,

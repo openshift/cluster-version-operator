@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 )
 
 var (
@@ -62,7 +62,7 @@ type MetaV1ObjectModifierFunc func(metav1.Object)
 // NewInteraceFunc returns an Interface.
 // It requires rest Config that can be used to create a client
 // and the Manifest.
-type NewInteraceFunc func(rest *rest.Config, m lib.Manifest) Interface
+type NewInteraceFunc func(rest *rest.Config, m manifest.Manifest) Interface
 
 // Mode is how this builder is being used.
 type Mode int
@@ -80,7 +80,7 @@ type Interface interface {
 }
 
 // New returns Interface using the mapping stored in mapper for m Manifest.
-func New(mapper *ResourceMapper, rest *rest.Config, m lib.Manifest) (Interface, error) {
+func New(mapper *ResourceMapper, rest *rest.Config, m manifest.Manifest) (Interface, error) {
 	f, ok := mapper.gvkToNew[m.GVK]
 	if !ok {
 		return nil, fmt.Errorf("No mapping found for gvk: %v", m.GVK)

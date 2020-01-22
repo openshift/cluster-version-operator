@@ -14,7 +14,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/cluster-version-operator/pkg/manifest"
 )
 
 var (
@@ -32,13 +32,13 @@ func init() {
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
-	Apply(context.Context, *lib.Manifest, State) error
+	Apply(context.Context, *manifest.Manifest, State) error
 }
 
 type Task struct {
 	Index    int
 	Total    int
-	Manifest *lib.Manifest
+	Manifest *manifest.Manifest
 	Requeued int
 	Backoff  wait.Backoff
 }
