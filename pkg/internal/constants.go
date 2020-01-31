@@ -1,7 +1,8 @@
 package internal
 
 const (
-	ConfigNamespace    = "openshift-config"
-	InstallerConfigMap = "openshift-install"
-	ManifestsConfigMap = "openshift-install-manifests"
+	ConfigNamespace        = "openshift-config"
+	ConfigManagedNamespace = "openshift-config-managed"
+	InstallerConfigMap     = "openshift-install"
+	ManifestsConfigMap     = "openshift-install-manifests"
 )

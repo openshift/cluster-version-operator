@@ -115,11 +115,12 @@ type Operator struct {
 	// syncBackoff allows the tests to use a quicker backoff
 	syncBackoff wait.Backoff
 
-	cvLister       configlistersv1.ClusterVersionLister
-	coLister       configlistersv1.ClusterOperatorLister
-	cmConfigLister listerscorev1.ConfigMapNamespaceLister
-	proxyLister    configlistersv1.ProxyLister
-	cacheSynced    []cache.InformerSynced
+	cvLister              configlistersv1.ClusterVersionLister
+	coLister              configlistersv1.ClusterOperatorLister
+	cmConfigLister        listerscorev1.ConfigMapNamespaceLister
+	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
+	proxyLister           configlistersv1.ProxyLister
+	cacheSynced           []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.RateLimitingInterface
@@ -212,6 +213,7 @@ func New(
 
 	optr.proxyLister = proxyInformer.Lister()
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+	optr.cmConfigManagedLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
 
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
@@ -743,17 +745,15 @@ func (optr *Operator) HTTPClient() (*http.Client, error) {
 // getTransportOpts retrieves the URL of the cluster proxy and the CA
 // trust, if they exist.
 func (optr *Operator) getTransportOpts() (*url.URL, *tls.Config, error) {
-	proxyURL, cmNameRef, err := optr.getHTTPSProxyURL()
+	proxyURL, err := optr.getHTTPSProxyURL()
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var tlsConfig *tls.Config
-	if cmNameRef != "" {
-		tlsConfig, err = optr.getTLSConfig(cmNameRef)
-		if err != nil {
-			return nil, nil, err
-		}
+	tlsConfig, err = optr.getTLSConfig()
+	if err != nil {
+		return nil, nil, err
 	}
 	return proxyURL, tlsConfig, nil
 }
