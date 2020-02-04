@@ -247,6 +247,27 @@ func TestEnsurePodSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "remove a container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-A"},
+					corev1.Container{Name: "test-B"},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-B"},
+				},
+			},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test-B"},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
