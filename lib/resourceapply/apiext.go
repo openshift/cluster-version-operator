@@ -8,6 +8,7 @@ import (
 	apiextclientv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 )
 
@@ -30,6 +31,8 @@ func ApplyCustomResourceDefinitionV1beta1(client apiextclientv1beta1.CustomResou
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating CRD %s", required.Name)
 
 	actual, err := client.CustomResourceDefinitions().Update(existing)
 	return actual, true, err
@@ -54,6 +57,8 @@ func ApplyCustomResourceDefinitionV1(client apiextclientv1.CustomResourceDefinit
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating CRD %s", required.Name)
 
 	actual, err := client.CustomResourceDefinitions().Update(existing)
 	return actual, true, err
