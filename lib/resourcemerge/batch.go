@@ -2,22 +2,16 @@ package resourcemerge
 
 import (
 	batchv1 "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 )
 
 // EnsureJob ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureJob(modified *bool, existing *batchv1.Job, required batchv1.Job) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
-	if existing.Spec.Selector == nil {
-		*modified = true
-		existing.Spec.Selector = required.Spec.Selector
+	if required.Spec.Selector != nil {
+		panic("spec.selector is not supported in Job manifests")
 	}
-	if !equality.Semantic.DeepEqual(existing.Spec.Selector, required.Spec.Selector) {
-		*modified = true
-		existing.Spec.Selector = required.Spec.Selector
-	}
+	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	setInt32Ptr(modified, &existing.Spec.Parallelism, required.Spec.Parallelism)
 	setInt32Ptr(modified, &existing.Spec.Completions, required.Spec.Completions)
 	setInt64Ptr(modified, &existing.Spec.ActiveDeadlineSeconds, required.Spec.ActiveDeadlineSeconds)

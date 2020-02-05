@@ -164,3 +164,10 @@ For subsequent updates, the builder blocks until:
 ### Job
 
 After pushing the merged Job into the cluster, the builder blocks until the Job succeeds.
+
+The cluster-version operator will panic if spec.selector is set because there are no clear use-cases for setting it in release manifests.
+
+Subsequent updates:
+
+* The cluster-version operator is currently unable to delete and recreate a Job to track changes in release manifests. Please avoid making changes to Job manifests until the cluster-version operator supports Job delete/recreate.
+* A Job's spec.selector will never be updated because spec.selector is immutable.
