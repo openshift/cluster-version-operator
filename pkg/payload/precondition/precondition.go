@@ -28,10 +28,20 @@ func (e *Error) Cause() error {
 	return e.Nested
 }
 
+// ReleaseContext holds information about the update being considered
+type ReleaseContext struct {
+	// DesiredVersion is the version of the payload being considered.
+	// While this might be a semantic version, consumers should not
+	// require SemVer validity so they can handle custom releases
+	// where the author decided to use a different naming scheme, or
+	// to leave the version completely unset.
+	DesiredVersion string
+}
+
 // Precondition defines the precondition check for a payload.
 type Precondition interface {
 	// Run executes the precondition checks ands returns an error when the precondition fails.
-	Run(context.Context) error
+	Run(ctx context.Context, releaseContext ReleaseContext) error
 
 	// Name returns a human friendly name for the precondition.
 	Name() string
@@ -42,10 +52,10 @@ type List []Precondition
 
 // RunAll runs all the reflight checks in order, returning a list of errors if any.
 // All checks are run, regardless if any one precondition fails.
-func (pfList List) RunAll(ctx context.Context) []error {
+func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext) []error {
 	var errs []error
 	for _, pf := range pfList {
-		if err := pf.Run(ctx); err != nil {
+		if err := pf.Run(ctx, releaseContext); err != nil {
 			klog.Errorf("Precondition %q failed: %v", pf.Name(), err)
 			errs = append(errs, err)
 		}

@@ -521,7 +521,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Actual:      update,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx)); err != nil && !update.Force {
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion})); err != nil && !update.Force {
 				reporter.Report(SyncWorkerStatus{
 					Generation:  work.Generation,
 					Failure:     err,
