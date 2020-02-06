@@ -207,6 +207,16 @@ func SummaryForReason(reason, name string) string {
 		return "a cluster operator has not yet rolled out"
 	case "ClusterOperatorsNotAvailable":
 		return "some cluster operators have not yet rolled out"
+	case "WorkloadNotAvailable":
+		if len(name) > 0 {
+			return fmt.Sprintf("the workload %s has not yet successfully rolled out", name)
+		}
+		return "a workload has not yet rolled out"
+	case "WorkloadNotProgressing":
+		if len(name) > 0 {
+			return fmt.Sprintf("the workload %s cannot roll out", name)
+		}
+		return "a workload cannot roll out"
 	}
 
 	if strings.HasPrefix(reason, "UpdatePayload") {
