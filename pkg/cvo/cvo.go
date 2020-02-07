@@ -663,7 +663,11 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	}
 
 	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
-		return cvointernal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
+		client, err := clientset.NewForConfig(config)
+		if err != nil {
+			return nil, err
+		}
+		return cvointernal.NewClusterOperatorBuilder(b.clusterOperators, client.ConfigV1().ClusterOperators(), *m), nil
 	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)
@@ -694,6 +698,8 @@ func stateToMode(state payload.State) resourcebuilder.Mode {
 		return resourcebuilder.UpdatingMode
 	case payload.ReconcilingPayload:
 		return resourcebuilder.ReconcilingMode
+	case payload.PrecreatingPayload:
+		return resourcebuilder.PrecreatingMode
 	default:
 		panic(fmt.Sprintf("unexpected payload state %d", int(state)))
 	}

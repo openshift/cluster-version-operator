@@ -71,6 +71,7 @@ const (
 	UpdatingMode Mode = iota
 	ReconcilingMode
 	InitializingMode
+	PrecreatingMode
 )
 
 type Interface interface {
