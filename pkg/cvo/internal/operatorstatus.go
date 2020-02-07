@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
@@ -48,16 +49,16 @@ func readClusterOperatorV1OrDie(objBytes []byte) *configv1.ClusterOperator {
 }
 
 type clusterOperatorBuilder struct {
-	client   ClusterOperatorsGetter
-	raw      []byte
-	modifier resourcebuilder.MetaV1ObjectModifierFunc
-	mode     resourcebuilder.Mode
+	client       ClusterOperatorsGetter
+	createClient configclientv1.ClusterOperatorInterface
+	raw          []byte
+	modifier     resourcebuilder.MetaV1ObjectModifierFunc
+	mode         resourcebuilder.Mode
 }
 
 func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuilder.Interface {
-	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{
-		getter: configclientv1.NewForConfigOrDie(config).ClusterOperators(),
-	}, m)
+	client := configclientv1.NewForConfigOrDie(config).ClusterOperators()
+	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{getter: client}, client, m)
 }
 
 // ClusterOperatorsGetter abstracts object access with a client or a cache lister.
@@ -75,10 +76,11 @@ func (g clientClusterOperatorsGetter) Get(name string) (*configv1.ClusterOperato
 
 // NewClusterOperatorBuilder accepts the ClusterOperatorsGetter interface which may be implemented by a
 // client or a lister cache.
-func NewClusterOperatorBuilder(client ClusterOperatorsGetter, m lib.Manifest) resourcebuilder.Interface {
+func NewClusterOperatorBuilder(client ClusterOperatorsGetter, createClient configclientv1.ClusterOperatorInterface, m lib.Manifest) resourcebuilder.Interface {
 	return &clusterOperatorBuilder{
-		client: client,
-		raw:    m.Raw,
+		client:       client,
+		createClient: createClient,
+		raw:          m.Raw,
 	}
 }
 
@@ -97,6 +99,26 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(os)
 	}
+
+	// create the object, and if we successfully created, update the status
+	if b.mode == resourcebuilder.PrecreatingMode {
+		clusterOperator, err := b.createClient.Create(os)
+		if err != nil {
+			if kerrors.IsAlreadyExists(err) {
+				return nil
+			}
+			return err
+		}
+		clusterOperator.Status.RelatedObjects = os.Status.DeepCopy().RelatedObjects
+		if _, err := b.createClient.UpdateStatus(clusterOperator); err != nil {
+			if kerrors.IsConflict(err) {
+				return nil
+			}
+			return err
+		}
+		return nil
+	}
+
 	return waitForOperatorStatusToBeDone(ctx, 1*time.Second, b.client, os, b.mode)
 }
 

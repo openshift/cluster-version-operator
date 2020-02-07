@@ -56,6 +56,11 @@ const (
 	// Our goal is to get the entire payload created, even if some
 	// operators are still converging.
 	InitializingPayload
+	// PrecreatingPayload indicates we are selectively creating
+	// specific resources during a first pass of the payload to
+	// provide better visibility during install and upgrade of
+	// error conditions.
+	PrecreatingPayload
 )
 
 // Initializing is true if the state is InitializingPayload.
