@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -286,26 +287,33 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		ch <- g
 	}
 
-	installer, err := m.optr.cmConfigLister.Get(internal.InstallerConfigMap)
-	if err == nil {
-		version := "<missing>"
-		invoker := "<missing>"
-
-		if v, ok := installer.Data["version"]; ok {
-			version = v
-		}
-		if i, ok := installer.Data["invoker"]; ok {
-			invoker = i
-		}
-
-		g := m.clusterInstaller.WithLabelValues("openshift-install", version, invoker)
-		g.Set(1.0)
-		ch <- g
+	if installer, err := m.optr.cmConfigLister.Get(internal.InstallerConfigMap); err == nil {
+		ch <- gaugeFromInstallConfigMap(installer, m.clusterInstaller, "openshift-install")
+	} else if !apierrors.IsNotFound(err) {
+	} else if manifests, err := m.optr.cmConfigLister.Get(internal.ManifestsConfigMap); err == nil {
+		ch <- gaugeFromInstallConfigMap(manifests, m.clusterInstaller, "other")
 	} else if apierrors.IsNotFound(err) {
 		g := m.clusterInstaller.WithLabelValues("", "", "")
 		g.Set(1.0)
 		ch <- g
 	}
+}
+
+func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec, installType string) prometheus.Gauge {
+	version := "<missing>"
+	invoker := "<missing>"
+
+	if v, ok := cm.Data["version"]; ok {
+		version = v
+	}
+	if i, ok := cm.Data["invoker"]; ok {
+		invoker = i
+	}
+
+	g := gauge.WithLabelValues(installType, version, invoker)
+	g.Set(1.0)
+
+	return g
 }
 
 // mostRecentTimestamp finds the most recent change recorded to the status and
