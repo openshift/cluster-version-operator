@@ -1,8 +1,9 @@
 package resourcemerge
 
 import (
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"testing"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -247,6 +248,96 @@ func TestEnsurePodSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "add ports on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replace ports on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 9191},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 9191},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "remove container ports",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name:  "test",
+						Ports: []corev1.ContainerPort{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -274,11 +365,11 @@ func TestEnsureServicePorts(t *testing.T) {
 		expected         corev1.Service
 	}{
 		{
-			name: "empty inputs",
-			existing: corev1.Service{},
-			input:    corev1.Service{},
+			name:             "empty inputs",
+			existing:         corev1.Service{},
+			input:            corev1.Service{},
 			expectedModified: false,
-			expected: corev1.Service{},
+			expected:         corev1.Service{},
 		},
 		{
 			name: "add port (no name)",
@@ -290,7 +381,7 @@ func TestEnsureServicePorts(t *testing.T) {
 					Ports: []corev1.ServicePort{
 						{
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -301,7 +392,7 @@ func TestEnsureServicePorts(t *testing.T) {
 					Ports: []corev1.ServicePort{
 						{
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -316,9 +407,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -328,9 +419,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -381,9 +472,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "test",
+							Name:     "test",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8080,
+							Port:     8080,
 						},
 					},
 				},
@@ -392,9 +483,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "test",
+							Name:     "test",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -404,9 +495,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "test",
+							Name:     "test",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -428,7 +519,7 @@ func TestEnsureServicePorts(t *testing.T) {
 					Ports: []corev1.ServicePort{
 						{
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -439,7 +530,7 @@ func TestEnsureServicePorts(t *testing.T) {
 					Ports: []corev1.ServicePort{
 						{
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 					},
 				},
@@ -465,14 +556,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8283,
+							Port:     8283,
 						},
 					},
 				},
@@ -482,14 +573,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8282,
+							Port:     8282,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8283,
+							Port:     8283,
 						},
 					},
 				},
@@ -501,14 +592,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8080,
+							Port:     8080,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8081,
+							Port:     8081,
 						},
 					},
 				},
@@ -517,14 +608,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8081,
+							Port:     8081,
 						},
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8080,
+							Port:     8080,
 						},
 					},
 				},
@@ -534,14 +625,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8080,
+							Port:     8080,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolUDP,
-							Port: 8081,
+							Port:     8081,
 						},
 					},
 				},
@@ -553,14 +644,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
-							Port: 8080,
+							Name:     "foo",
+							Port:     8080,
 							Protocol: corev1.ProtocolTCP,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolTCP,
-							Port: 8081,
+							Port:     8081,
 						},
 					},
 				},
@@ -584,14 +675,14 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolTCP,
-							Port: 8080,
+							Port:     8080,
 						},
 						{
-							Name: "bar",
+							Name:     "bar",
 							Protocol: corev1.ProtocolTCP,
-							Port: 8081,
+							Port:     8081,
 						},
 					},
 				},
@@ -603,11 +694,11 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
-							Port: 8080,
+							Name:       "foo",
+							Port:       8080,
 							TargetPort: intstr.FromInt(8081),
-							NodePort: 8081,
-							Protocol: corev1.ProtocolTCP,
+							NodePort:   8081,
+							Protocol:   corev1.ProtocolTCP,
 						},
 					},
 				},
@@ -627,9 +718,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name: "foo",
+							Name:     "foo",
 							Protocol: corev1.ProtocolTCP,
-							Port: 8080,
+							Port:     8080,
 						},
 					},
 				},
