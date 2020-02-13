@@ -246,6 +246,96 @@ func TestEnsurePodSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "add ports on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "replace ports on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 9191},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 9191},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "remove container ports",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name: "test",
+						Ports: []corev1.ContainerPort{
+							corev1.ContainerPort{ContainerPort: 8080},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{Name: "test"},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Name:  "test",
+						Ports: []corev1.ContainerPort{},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

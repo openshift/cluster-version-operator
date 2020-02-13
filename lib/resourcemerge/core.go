@@ -103,23 +103,7 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 	ensureEnvFromSource(modified, &existing.EnvFrom, required.EnvFrom)
 	setStringIfSet(modified, &existing.WorkingDir, required.WorkingDir)
 	ensureResourceRequirements(modified, &existing.Resources, required.Resources)
-
-	// any port we specify, we require
-	for _, required := range required.Ports {
-		var existingCurr *corev1.ContainerPort
-		for j, curr := range existing.Ports {
-			if curr.Name == required.Name {
-				existingCurr = &existing.Ports[j]
-				break
-			}
-		}
-		if existingCurr == nil {
-			*modified = true
-			existing.Ports = append(existing.Ports, corev1.ContainerPort{})
-			existingCurr = &existing.Ports[len(existing.Ports)-1]
-		}
-		ensureContainerPort(modified, existingCurr, required)
-	}
+	ensureContainerPorts(modified, &existing.Ports, required.Ports)
 
 	// any volume mount we specify, we require
 	for _, required := range required.VolumeMounts {
@@ -192,6 +176,37 @@ func ensureProbeHandler(modified *bool, existing *corev1.Handler, required corev
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
+	}
+}
+
+func ensureContainerPorts(modified *bool, existing *[]corev1.ContainerPort, required []corev1.ContainerPort) {
+	for i := len(*existing) - 1; i >= 0; i-- {
+		existingContainerPort := &(*existing)[i]
+		var existingCurr *corev1.ContainerPort
+		for _, requiredContainerPort := range required {
+			if existingContainerPort.Name == requiredContainerPort.Name {
+				existingCurr = &(*existing)[i]
+				ensureContainerPort(modified, existingCurr, requiredContainerPort)
+				break
+			}
+		}
+		if existingCurr == nil {
+			*modified = true
+			*existing = append((*existing)[:i], (*existing)[i+1:]...)
+		}
+	}
+	for _, requiredContainerPort := range required {
+		match := false
+		for _, existingContainerPort := range *existing {
+			if existingContainerPort.Name == requiredContainerPort.Name {
+				match = true
+				break
+			}
+		}
+		if !match {
+			*modified = true
+			*existing = append(*existing, requiredContainerPort)
+		}
 	}
 }
 
