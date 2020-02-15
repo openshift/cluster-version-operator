@@ -404,7 +404,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects openshift-install info",
+			name: "collects legacy openshift-install info",
 			optr: &Operator{
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
@@ -422,6 +422,54 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
 				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane"})
+			},
+		},
+		{
+			name: "collects openshift-install info",
+			optr: &Operator{
+				releaseVersion: "0.0.2",
+				releaseImage:   "test/image:1",
+				releaseCreated: time.Unix(3, 0),
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
+							Data:       map[string]string{"version": "v0.0.2", "invoker": "jane"},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "openshift-install-manifests"},
+							Data:       map[string]string{"version": "v0.0.1", "invoker": "bill"},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane"})
+			},
+		},
+		{
+			name: "collects openshift-install-manifests info",
+			optr: &Operator{
+				releaseVersion: "0.0.2",
+				releaseImage:   "test/image:1",
+				releaseCreated: time.Unix(3, 0),
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{{
+						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install-manifests"},
+						Data:       map[string]string{"version": "v0.0.1", "invoker": "bill"},
+					}},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "other", "version": "v0.0.1", "invoker": "bill"})
 			},
 		},
 		{
