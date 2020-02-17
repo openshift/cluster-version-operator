@@ -20,6 +20,7 @@ type jobBuilder struct {
 	client   *batchclientv1.BatchV1Client
 	raw      []byte
 	modifier MetaV1ObjectModifierFunc
+	mode     Mode
 }
 
 func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
@@ -30,6 +31,7 @@ func newJobBuilder(config *rest.Config, m lib.Manifest) Interface {
 }
 
 func (b *jobBuilder) WithMode(m Mode) Interface {
+	b.mode = m
 	return b
 }
 
@@ -47,7 +49,7 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	if updated {
+	if updated && b.mode != InitializingMode {
 		return WaitForJobCompletion(ctx, b.client, job)
 	}
 	return nil
