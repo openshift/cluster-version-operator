@@ -39,8 +39,8 @@ func NewStore(client corev1client.ConfigMapsGetter, limiter *rate.Limiter) *Stor
 		limiter = rate.NewLimiter(rate.Every(30*time.Second), 1)
 	}
 	return &Store{
-		client: client,
-		ns:     "openshift-config-managed",
+		client:  client,
+		ns:      "openshift-config-managed",
 		limiter: limiter,
 	}
 }
@@ -66,6 +66,18 @@ func (s *Store) mostRecentConfigMaps() []corev1.ConfigMap {
 	return s.last
 }
 
+// digestToKeyPrefix changes digest to use '-' in place of ':',
+// {algo}-{hash} instead of {algo}:{hash}, because colons are not
+// allowed in ConfigMap keys.
+func digestToKeyPrefix(digest string) (string, error) {
+	parts := strings.SplitN(digest, ":", 3)
+	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
+		return "", fmt.Errorf("the provided digest must be of the form ALGO:HASH")
+	}
+	algo, hash := parts[0], parts[1]
+	return fmt.Sprintf("%s-%s", algo, hash), nil
+}
+
 // DigestSignatures returns a list of signatures that match the request
 // digest out of config maps labelled with ReleaseLabelConfigMap in the
 // openshift-config-managed namespace.
@@ -85,12 +97,10 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 		s.rememberMostRecentConfigMaps(configMaps.Items)
 	}
 
-	parts := strings.SplitN(digest, ":", 3)
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return nil, fmt.Errorf("the provided digest must be of the form ALGO:HASH")
+	prefix, err := digestToKeyPrefix(digest)
+	if err != nil {
+		return nil, err
 	}
-	algo, hash := parts[0], parts[1]
-	prefix := fmt.Sprintf("%s-%s", algo, hash)
 
 	var signatures [][]byte
 	for _, cm := range items {
@@ -117,8 +127,12 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 		BinaryData: make(map[string][]byte),
 	}
 	for digest, signatures := range signaturesByDigest {
+		prefix, err := digestToKeyPrefix(digest)
+		if err != nil {
+			return err
+		}
 		for i := 0; i < len(signatures); i++ {
-			cm.BinaryData[fmt.Sprintf("%s-%d", digest, i)] = signatures[i]
+			cm.BinaryData[fmt.Sprintf("%s-%d", prefix, i)] = signatures[i]
 		}
 	}
 	return retry.OnError(
