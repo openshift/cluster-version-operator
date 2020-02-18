@@ -85,10 +85,17 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 		s.rememberMostRecentConfigMaps(configMaps.Items)
 	}
 
+	parts := strings.SplitN(digest, ":", 3)
+	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
+		return nil, fmt.Errorf("the provided digest must be of the form ALGO:HASH")
+	}
+	algo, hash := parts[0], parts[1]
+	prefix := fmt.Sprintf("%s-%s", algo, hash)
+
 	var signatures [][]byte
 	for _, cm := range items {
 		for k, v := range cm.BinaryData {
-			if strings.HasPrefix(k, digest) {
+			if strings.HasPrefix(k, prefix) {
 				signatures = append(signatures, v)
 			}
 		}
