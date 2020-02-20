@@ -122,12 +122,8 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 		ensureVolumeMount(modified, existingCurr, required)
 	}
 
-	if required.LivenessProbe != nil {
-		ensureProbePtr(modified, &existing.LivenessProbe, required.LivenessProbe)
-	}
-	if required.ReadinessProbe != nil {
-		ensureProbePtr(modified, &existing.ReadinessProbe, required.ReadinessProbe)
-	}
+	ensureProbePtr(modified, &existing.LivenessProbe, required.LivenessProbe)
+	ensureProbePtr(modified, &existing.ReadinessProbe, required.ReadinessProbe)
 
 	// our security context should always win
 	ensureSecurityContextPtr(modified, &existing.SecurityContext, required.SecurityContext)
@@ -154,11 +150,10 @@ func ensureEnvFromSource(modified *bool, existing *[]corev1.EnvFromSource, requi
 }
 
 func ensureProbePtr(modified *bool, existing **corev1.Probe, required *corev1.Probe) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
-	if *existing == nil {
+	if *existing == nil || required == nil {
 		*modified = true
 		*existing = required
 		return
