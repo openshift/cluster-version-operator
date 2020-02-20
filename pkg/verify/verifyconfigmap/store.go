@@ -3,6 +3,7 @@ package verifyconfigmap
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
+	"k8s.io/klog"
 )
 
 // ReleaseLabelConfigMap is a label applied to a configmap inside the
@@ -53,8 +55,14 @@ func (s *Store) String() string {
 // rememberMostRecentConfigMaps stores a set of config maps containing
 // signatures.
 func (s *Store) rememberMostRecentConfigMaps(last []corev1.ConfigMap) {
+	names := make([]string, 0, len(last))
+	for _, cm := range last {
+		names = append(names, cm.ObjectMeta.Name)
+	}
+	sort.Strings(names)
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	klog.V(4).Infof("remember most recent signature config maps: %s", strings.Join(names, " "))
 	s.last = last
 }
 
@@ -63,6 +71,7 @@ func (s *Store) rememberMostRecentConfigMaps(last []corev1.ConfigMap) {
 func (s *Store) mostRecentConfigMaps() []corev1.ConfigMap {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+	klog.V(4).Info("use cached most recent signature config maps")
 	return s.last
 }
 
@@ -104,8 +113,10 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 
 	var signatures [][]byte
 	for _, cm := range items {
+		klog.V(4).Infof("searching for %s in signature config map %s", prefix, cm.ObjectMeta.Name)
 		for k, v := range cm.BinaryData {
 			if strings.HasPrefix(k, prefix) {
+				klog.V(4).Infof("key %s from signature config map %s matches %s", k, cm.ObjectMeta.Name, digest)
 				signatures = append(signatures, v)
 			}
 		}
@@ -126,6 +137,7 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 		},
 		BinaryData: make(map[string][]byte),
 	}
+	count := 0
 	for digest, signatures := range signaturesByDigest {
 		prefix, err := digestToKeyPrefix(digest)
 		if err != nil {
@@ -133,6 +145,7 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 		}
 		for i := 0; i < len(signatures); i++ {
 			cm.BinaryData[fmt.Sprintf("%s-%d", prefix, i)] = signatures[i]
+			count += 1
 		}
 	}
 	return retry.OnError(
@@ -142,6 +155,9 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			existing, err := s.client.ConfigMaps(s.ns).Get(cm.Name, metav1.GetOptions{})
 			if errors.IsNotFound(err) {
 				_, err := s.client.ConfigMaps(s.ns).Create(cm)
+				if err != nil {
+					klog.V(4).Infof("create signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
+				}
 				return err
 			}
 			if err != nil {
@@ -151,6 +167,9 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			existing.BinaryData = cm.BinaryData
 			existing.Data = cm.Data
 			_, err = s.client.ConfigMaps(s.ns).Update(existing)
+			if err != nil {
+				klog.V(4).Infof("update signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
+			}
 			return err
 		},
 	)
