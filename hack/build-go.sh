@@ -3,7 +3,7 @@
 set -eu
 
 REPO=github.com/openshift/cluster-version-operator
-GOFLAGS=${GOFLAGS:-}
+GOFLAGS=${GOFLAGS:--mod=vendor}
 GLDFLAGS=${GLDFLAGS:-}
 
 eval $(go env | grep -e "GOHOSTOS" -e "GOHOSTARCH")
