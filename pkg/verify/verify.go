@@ -197,6 +197,7 @@ func (v *ReleaseVerifier) String() string {
 // matching release digest in any of the provided locations for all verifiers, or returns
 // an error.
 func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
+	klog.Infof("Verfiying %s", releaseDigest)
 	if len(v.verifiers) == 0 || (len(v.locations) == 0 && len(v.stores) == 0) {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
@@ -225,6 +226,7 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 
 	var signedWith [][]byte
 	verifier := func(path string, signature []byte) (bool, error) {
+		klog.Infof("verfier %s", path)
 		for k, keyring := range remaining {
 			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
 			if err != nil {
@@ -243,6 +245,7 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 
 	// check the stores to see if they match any signatures
 	for i, store := range v.stores {
+		klog.Info("Checking stores...")
 		if len(remaining) == 0 {
 			break
 		}
@@ -261,7 +264,6 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 			}
 		}
 	}
-
 	var client *http.Client
 	for _, location := range v.locations {
 		if len(remaining) == 0 {
@@ -291,13 +293,12 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
 		}
 	}
-
 	if len(remaining) > 0 {
-		if klog.V(4) {
-			for k := range remaining {
-				klog.Infof("Unable to verify %s against keyring %s", releaseDigest, k)
-			}
+		//if klog.V(4) {
+		for k := range remaining {
+			klog.Infof("Unable to verify %s against keyring %s", releaseDigest, k)
 		}
+		//}
 		return fmt.Errorf("unable to locate a valid signature for one or more sources")
 	}
 
@@ -384,10 +385,12 @@ var errNotFound = fmt.Errorf("no more signatures to check")
 // over HTTP or HTTPS until either the provided fn returns an error, false, or the server returns 404. No
 // more than maxSignaturesToCheck will be read. If the provided context is cancelled search will be terminated.
 func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
+	klog.Infof("checkHTTPSignatures %s/%s", u.Host, u.Path)
 	base := filepath.Join(u.Path, "signature-")
 	sigURL := u
 	for i := 1; i < maxSignatureSearch; i++ {
 		if err := ctx.Err(); err != nil {
+			klog.Info("checkHTTPSignatures 1")
 			return err
 		}
 
@@ -395,12 +398,14 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 
 		req, err := http.NewRequest("GET", sigURL.String(), nil)
 		if err != nil {
+			klog.Info("checkHTTPSignatures 2")
 			return fmt.Errorf("could not build request to check signature: %v", err)
 		}
 		req = req.WithContext(ctx)
 		// load the body, being careful not to allow unbounded reads
 		resp, err := client.Do(req)
 		if err != nil {
+			klog.Infof("unable to load signature: %v", err)
 			klog.V(4).Infof("unable to load signature: %v", err)
 			continue
 		}
@@ -415,36 +420,46 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 			}()
 
 			if resp.StatusCode == 404 {
+				klog.Info("checkHTTPSignatures 3")
 				return nil, errNotFound
 			}
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				if i == 1 {
+					klog.Infof("Could not find signature at store location %v", sigURL)
 					klog.V(4).Infof("Could not find signature at store location %v", sigURL)
 				}
+				klog.Info("checkHTTPSignatures 4")
 				return nil, fmt.Errorf("unable to retrieve signature from %v: %d", sigURL, resp.StatusCode)
 			}
 
+			klog.Info("checkHTTPSignatures 5")
 			return ioutil.ReadAll(resp.Body)
 		}()
 		if err == errNotFound {
+			klog.Info("checkHTTPSignatures 6")
 			break
 		}
 		if err != nil {
+			klog.Info(err)
 			klog.V(4).Info(err)
 			continue
 		}
 		if len(data) == 0 {
+			klog.Info("checkHTTPSignatures 7")
 			continue
 		}
 
 		ok, err := fn(sigURL.String(), data)
 		if err != nil {
+			klog.Info("checkHTTPSignatures 8")
 			return err
 		}
 		if !ok {
+			klog.Info("checkHTTPSignatures 9")
 			break
 		}
 	}
+	klog.Info("checkHTTPSignatures 10")
 	return nil
 }
 
