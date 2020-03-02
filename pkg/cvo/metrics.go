@@ -259,9 +259,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			break
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorDegraded)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
-		if available && !failing {
+		if available {
 			g.Set(1)
 		} else {
 			g.Set(0)
