@@ -51,7 +51,7 @@ type Precondition interface {
 // List is a list of precondition checks.
 type List []Precondition
 
-// RunAll runs all the reflight checks in order, returning a list of errors if any.
+// RunAll runs all the preflight checks in order, returning a list of errors if any.
 // All checks are run, regardless if any one precondition fails.
 func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext, cv *configv1.ClusterVersion) []error {
 	var errs []error

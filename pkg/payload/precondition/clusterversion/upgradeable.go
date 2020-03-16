@@ -61,6 +61,18 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		}
 	}
 
+	// When a cluster is already in progress with an upgrade we should not start an upgrade
+	if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); c != nil {
+		if c.Status == configv1.ConditionTrue {
+			return &precondition.Error{
+				Nested:  err,
+				Reason:  "UpgradeInProgress",
+				Message: "Update target can not be changed before the current update completes",
+				Name:    pf.Name(),
+			}
+		}
+	}
+
 	// if we are upgradeable==true we can always upgrade
 	up := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorUpgradeable)
 	if up == nil {
