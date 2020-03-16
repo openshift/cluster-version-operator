@@ -192,6 +192,9 @@ func SummaryForReason(reason, name string) string {
 	case "ImageVerificationFailed":
 		return "the image may not be safe to use"
 
+	case "UpgradeInProgress":
+		return "an upgrade is in progress"
+
 	case "UpgradePreconditionCheckFailed":
 		return "it may not be safe to apply this update"
 

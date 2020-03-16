@@ -135,6 +135,7 @@ type upgradeableCheck interface {
 
 type clusterOperatorsUpgradeable struct {
 	coLister configlistersv1.ClusterOperatorLister
+	operator *Operator
 }
 
 func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
@@ -142,7 +143,7 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 		Type:   configv1.ClusterStatusConditionType("UpgradeableClusterOperators"),
 		Status: configv1.ConditionFalse,
 	}
-	ops, err := check.coLister.List(labels.Everything())
+	ops, err := check.operator.coLister.List(labels.Everything())
 	if meta.IsNoMatchError(err) {
 		return nil
 	}
@@ -150,6 +151,31 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 		cond.Reason = "FailedToListClusterOperators"
 		cond.Message = errors.Wrap(err, "failed to list cluster operators").Error()
 		return cond
+	}
+
+	// Set upgradeable = false to stop the y stream upgrades to happen when an upgrade is in progress.
+	// This will only impact the Y stream updates as CVO ignores this for z stream updates
+	var isUpgradeInProgress bool
+	for _, op := range ops {
+		if sc := resourcemerge.FindOperatorStatusCondition(op.Status.Conditions, configv1.OperatorProgressing); sc != nil {
+			isUpgradeInProgress = true
+		}
+	}
+	now := metav1.Now()
+	if isUpgradeInProgress {
+		var statusConds []configv1.ClusterOperatorStatusCondition
+		statusConds = append(statusConds, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorUpgradeable,
+			Status:             configv1.ConditionFalse,
+			Reason:             "UpgradeInProgress",
+			Message:            fmt.Sprintf("Cluster cannot be upgraded between minor versions"),
+			LastTransitionTime: now,
+		})
+		check.operator.setUpgradeable(&upgradeable{
+			Conditions: statusConds,
+		})
+		// requeue
+		//optr.queue.Add(optr.queueKey())
 	}
 
 	type notUpgradeableCondition struct {
@@ -217,7 +243,7 @@ func (check *clusterVersionOverridesUpgradebale) Check() *configv1.ClusterOperat
 
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
-		&clusterOperatorsUpgradeable{coLister: optr.coLister},
+		&clusterOperatorsUpgradeable{operator: optr},
 		&clusterVersionOverridesUpgradebale{name: optr.name, cvLister: optr.cvLister},
 	}
 }
