@@ -40,7 +40,7 @@ podman run --rm -ti \
 
 ## Installing CVO and operators in cluster.
 
-1. Use CVO `render` to render all the manifests from release-payload to a directory. [here](#using-cvo-to-render-the-release-payload-locally)
+1. Use CVO `render` to render all the manifests from release-payload to a directory.
 
 2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manifests>`.
 
