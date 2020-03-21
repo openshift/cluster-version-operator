@@ -21,3 +21,9 @@ verify-codegen-crds:
 verify-codegen: verify-codegen-crds
 verify: verify-codegen
 .PHONY: update-codegen-crds update-codegen verify-codegen-crds verify-codegen verify
+
+# TODO: Add install step for golangci-lint version 1.24.0
+# TODO: Once we fix the resonable amount of lint issues, we need to make it default in the unit test
+.PHONY: lint
+lint:
+	golangci-lint run -c ./golangci.yml ./pkg/... ./cmd/... ./lib/...
