@@ -23,6 +23,12 @@ oc adm release new -n origin \
     --to-image docker.io/abhinavdahiya/origin-release:latest
 ```
 
+## Installing CVO and operators in cluster.
+
+1. Use CVO `render` to render all the manifests from release-payload to a directory. Refer the [Using CVO to render the release-image locally](#using-cvo-to-render-the-release-payload-locally) section for more information.
+
+2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manifests>`.
+
 ## Using CVO to render the release-image locally
 
 1. Run the following command to get render the release-payload contents to `/tmp/cvo`
@@ -37,12 +43,6 @@ podman run --rm -ti \
 ```
 
 `<release image>` can be personal release image generated using [this](#building-release-image-using-local-cvo) or Origin's release image like `registry.svc.ci.openshift.org/openshift/origin-release:v4.0`.
-
-## Installing CVO and operators in cluster.
-
-1. Use CVO `render` to render all the manifests from release-payload to a directory. [here](#using-cvo-to-render-the-release-payload-locally)
-
-2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manifests>`.
 
 ## Running CVO tests
 
