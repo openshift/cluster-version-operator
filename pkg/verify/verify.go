@@ -16,22 +16,31 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
-
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 // Interface performs verification of the provided content. The default implementation
 // in this package uses the container signature format defined at https://github.com/containers/image
 // to authenticate that a given release image digest has been signed by a trusted party.
 type Interface interface {
+	// Verify should return nil if the provided release digest has suffient signatures to be considered
+	// valid. It should return an error in all other cases.
 	Verify(ctx context.Context, releaseDigest string) error
+}
+
+// SignatureStore retrieves signatures for a digest or returns an error. It requires String()
+// for describing the store.
+type SignatureStore interface {
+	// DigestSignatures returns zero or more signatures for the provided digest, or returns an
+	// error if no signatures could be retrieved.
+	DigestSignatures(ctx context.Context, digest string) ([][]byte, error)
+	// String should return a description of where this store finds signatures in a short
+	// clause intended for display in a description of the verifier.
+	String() string
 }
 
 type rejectVerifier struct{}
@@ -43,124 +52,80 @@ func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
 // Reject fails always fails verification.
 var Reject Interface = rejectVerifier{}
 
-// LoadFromPayload looks for a config map in the v1 API group within the provided update with the
-// annotation "release.openshift.io/verification-config-map". Only the first payload item in
-// lexographic order will be considered - all others are ignored.
-//
-// The presence of one or more config maps instructs the CVO to verify updates before they are
-// downloaded.
-//
-// The keys within the config map define how verification is performed:
-//
-// verifier-public-key-*: One or more GPG public keys in ASCII form that must have signed the
-//                        release image by digest.
-//
-// store-*: A URL (scheme file://, http://, or https://) location that contains signatures. These
-//          signatures are in the atomic container signature format. The URL will have the digest
-//          of the image appended to it as "<STORE>/<ALGO>=<DIGEST>/signature-<NUMBER>" as described
-//          in the container image signing format. The docker-image-manifest section of the
-//          signature must match the release image digest. Signatures are searched starting at
-//          NUMBER 1 and incrementing if the signature exists but is not valid. The signature is a
-//          GPG signed and encrypted JSON message. The file store is provided for testing only at
-//          the current time, although future versions of the CVO might allow host mounting of
-//          signatures.
-//
-// See https://github.com/containers/image/blob/ab49b0a48428c623a8f03b41b9083d48966b34a9/docs/signature-protocols.md
-// for a description of the signature store
-//
-// The returned verifier will require that any new release image will only be considered verified
-// if each provided public key has signed the release image digest. The signature may be in any
-// store and the lookup order is internally defined.
-//
-func LoadFromPayload(update *payload.Update, clientBuilder ClientBuilder) (Interface, error) {
-	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
-	for _, manifest := range update.Manifests {
-		if manifest.GVK != configMapGVK {
-			continue
-		}
-		if _, ok := manifest.Obj.GetAnnotations()["release.openshift.io/verification-config-map"]; !ok {
-			continue
-		}
-
-		src := fmt.Sprintf("the config map %s/%s", manifest.Obj.GetNamespace(), manifest.Obj.GetName())
-		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
-		if err != nil {
-			return nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
-		}
-		verifiers := make(map[string]openpgp.EntityList)
-		var stores []*url.URL
-		for k, v := range data {
-			switch {
-			case strings.HasPrefix(k, "verifier-public-key-"):
-				keyring, err := loadArmoredOrUnarmoredGPGKeyRing([]byte(v))
-				if err != nil {
-					return nil, errors.Wrapf(err, "%s has an invalid key %q that must be a GPG public key: %v", src, k, err)
-				}
-				verifiers[k] = keyring
-			case strings.HasPrefix(k, "store-"):
-				v = strings.TrimSpace(v)
-				u, err := url.Parse(v)
-				if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {
-					return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)
-				}
-				stores = append(stores, u)
-			default:
-				klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
-			}
-		}
-		if len(stores) == 0 {
-			return nil, fmt.Errorf("%s did not provide any signature stores to read from and cannot be used", src)
-		}
-		if len(verifiers) == 0 {
-			return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
-		}
-
-		return &releaseVerifier{
-			verifiers:     verifiers,
-			stores:        stores,
-			clientBuilder: clientBuilder,
-		}, nil
-	}
-	return nil, nil
-}
-
-func loadArmoredOrUnarmoredGPGKeyRing(data []byte) (openpgp.EntityList, error) {
-	keyring, err := openpgp.ReadArmoredKeyRing(bytes.NewReader(data))
-	if err == nil {
-		return keyring, nil
-	}
-	return openpgp.ReadKeyRing(bytes.NewReader(data))
-}
-
-const maxSignatureSearch = 10
-
-var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
-
-// releaseVerifier implements a signature intersection operation on a provided release
-// digest - all verifiers must have at least one valid signature attesting the release
-// digest. If any failure occurs the caller should assume the content is unverified.
-type releaseVerifier struct {
-	verifiers     map[string]openpgp.EntityList
-	stores        []*url.URL
-	clientBuilder ClientBuilder
-}
-
 // ClientBuilder provides a method for generating an HTTP Client configured
 // with cluster proxy settings, if they exist.
 type ClientBuilder interface {
+	// HTTPClient returns a client suitable for retrieving signatures. It is not
+	// required to be unique per call, but may be called concurrently.
 	HTTPClient() (*http.Client, error)
 }
 
-// simpleClientBuilder implements the ClientBuilder interface and should be used for testing.
+// DefaultClient uses the default http.Client for accessing signatures.
+var DefaultClient = simpleClientBuilder{}
+
+// simpleClientBuilder implements the ClientBuilder interface and may be used for testing.
 type simpleClientBuilder struct{}
 
-// HTTPClient from simpleClientBuilder creates an httpClient with no configuration.
-func (s *simpleClientBuilder) HTTPClient() (*http.Client, error) {
+// HTTPClient from simpleClientBuilder creates an http.Client with no configuration.
+func (s simpleClientBuilder) HTTPClient() (*http.Client, error) {
 	return &http.Client{}, nil
 }
 
+// maxSignatureSearch prevents unbounded recursion on malicious signature stores (if
+// an attacker was able to take ownership of the store to perform DoS on clusters).
+const maxSignatureSearch = 10
+
+// validReleaseDigest is a verification rule to filter clearly invalid digests.
+var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
+
+// ReleaseVerifier implements a signature intersection operation on a provided release
+// digest - all verifiers must have at least one valid signature attesting the release
+// digest. If any failure occurs the caller should assume the content is unverified.
+type ReleaseVerifier struct {
+	verifiers map[string]openpgp.EntityList
+
+	locations     []*url.URL
+	clientBuilder ClientBuilder
+	stores        []SignatureStore
+
+	lock           sync.Mutex
+	signatureCache map[string][][]byte
+}
+
+// NewReleaseVerifier creates a release verifier for the provided inputs.
+func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, locations []*url.URL, clientBuilder ClientBuilder) *ReleaseVerifier {
+	return &ReleaseVerifier{
+		verifiers:     verifiers,
+		locations:     locations,
+		clientBuilder: clientBuilder,
+
+		signatureCache: make(map[string][][]byte),
+	}
+}
+
+// WithStores copies the provided verifier and adds any provided stores to the list.
+func (v *ReleaseVerifier) WithStores(stores ...SignatureStore) *ReleaseVerifier {
+	return &ReleaseVerifier{
+		verifiers:     v.verifiers,
+		locations:     v.locations,
+		clientBuilder: v.clientBuilder,
+
+		stores:         append(append(make([]SignatureStore, 0, len(v.stores)+len(stores)), v.stores...), stores...),
+		signatureCache: v.Signatures(),
+	}
+}
+
+// Verifiers returns a copy of the verifiers in this payload.
+func (v *ReleaseVerifier) Verifiers() map[string]openpgp.EntityList {
+	out := make(map[string]openpgp.EntityList, len(v.verifiers))
+	for k, v := range v.verifiers {
+		out[k] = v
+	}
+	return out
+}
+
 // String summarizes the verifier for human consumption
-func (v *releaseVerifier) String() string {
+func (v *ReleaseVerifier) String() string {
 	var keys []string
 	for name := range v.verifiers {
 		keys = append(keys, name)
@@ -195,24 +160,44 @@ func (v *releaseVerifier) String() string {
 		}
 		fmt.Fprint(&builder, ")")
 	}
-	fmt.Fprintf(&builder, " - will check for signatures in containers/image format at")
-	if len(v.stores) == 0 {
-		fmt.Fprint(&builder, " <ERROR: no stores>")
-	}
-	for i, store := range v.stores {
-		if i != 0 {
-			fmt.Fprint(&builder, ",")
+
+	hasLocations := len(v.locations) > 0
+	hasStores := len(v.stores) > 0
+	if hasLocations || hasStores {
+		fmt.Fprintf(&builder, " - will check for signatures in containers/image format")
+		if hasLocations {
+			fmt.Fprintf(&builder, " at")
+			for i, location := range v.locations {
+				if i != 0 {
+					fmt.Fprint(&builder, ",")
+				}
+				fmt.Fprintf(&builder, " %s", location.String())
+			}
 		}
-		fmt.Fprintf(&builder, " %s", store.String())
+		if hasStores {
+			if hasLocations {
+				fmt.Fprintf(&builder, " and from")
+			} else {
+				fmt.Fprintf(&builder, " from")
+			}
+			for i, store := range v.stores {
+				if i != 0 {
+					fmt.Fprint(&builder, ",")
+				}
+				fmt.Fprintf(&builder, " %s", store.String())
+			}
+		}
+	} else {
+		fmt.Fprintf(&builder, " - <ERROR: no locations or stores>")
 	}
 	return builder.String()
 }
 
 // Verify ensures that at least one valid signature exists for an image with digest
-// matching release digest in any of the provided stores for all verifiers, or returns
+// matching release digest in any of the provided locations for all verifiers, or returns
 // an error.
-func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
-	if len(v.verifiers) == 0 || len(v.stores) == 0 {
+func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
+	if len(v.verifiers) == 0 || (len(v.locations) == 0 && len(v.stores) == 0) {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
 	if len(releaseDigest) == 0 {
@@ -221,6 +206,11 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 	if !validReleaseDigest.MatchString(releaseDigest) {
 		return fmt.Errorf("the provided release image digest contains prohibited characters")
 	}
+
+	if v.hasVerified(releaseDigest) {
+		return nil
+	}
+
 	parts := strings.SplitN(releaseDigest, ":", 3)
 	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
 		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
@@ -233,6 +223,7 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		remaining[k] = v
 	}
 
+	var signedWith [][]byte
 	verifier := func(path string, signature []byte) (bool, error) {
 		for k, keyring := range remaining {
 			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
@@ -245,33 +236,59 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 				continue
 			}
 			delete(remaining, k)
+			signedWith = append(signedWith, signature)
 		}
 		return len(remaining) > 0, nil
 	}
 
-	client, err := v.clientBuilder.HTTPClient()
-	if err != nil {
-		return err
-	}
-
-	for _, store := range v.stores {
+	// check the stores to see if they match any signatures
+	for i, store := range v.stores {
 		if len(remaining) == 0 {
 			break
 		}
-		switch store.Scheme {
+		signatures, err := store.DigestSignatures(ctx, releaseDigest)
+		if err != nil {
+			klog.V(4).Infof("store %s could not load signatures: %v", store, err)
+			continue
+		}
+		for _, signature := range signatures {
+			hasUnsigned, err := verifier(fmt.Sprintf("store %d", i), signature)
+			if err != nil {
+				return err
+			}
+			if !hasUnsigned {
+				break
+			}
+		}
+	}
+
+	var client *http.Client
+	for _, location := range v.locations {
+		if len(remaining) == 0 {
+			break
+		}
+		switch location.Scheme {
 		case "file":
-			dir := filepath.Join(store.Path, name)
+			dir := filepath.Join(location.Path, name)
 			if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		case "http", "https":
-			copied := *store
-			copied.Path = path.Join(store.Path, name)
+			if client == nil {
+				var err error
+				client, err = v.clientBuilder.HTTPClient()
+				if err != nil {
+					return err
+				}
+			}
+
+			copied := *location
+			copied.Path = path.Join(location.Path, name)
 			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
 				return err
 			}
 		default:
-			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", store)
+			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
 		}
 	}
 
@@ -283,7 +300,52 @@ func (v *releaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		}
 		return fmt.Errorf("unable to locate a valid signature for one or more sources")
 	}
+
+	v.cacheVerification(releaseDigest, signedWith)
+
 	return nil
+}
+
+// Signatures returns a copy of any cached signatures that have been validated
+// so far. It may return no signatures.
+func (v *ReleaseVerifier) Signatures() map[string][][]byte {
+	copied := make(map[string][][]byte)
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	for k, v := range v.signatureCache {
+		copied[k] = v
+	}
+	return copied
+}
+
+// hasVerified returns true if the digest has already been verified.
+func (v *ReleaseVerifier) hasVerified(releaseDigest string) bool {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+	_, ok := v.signatureCache[releaseDigest]
+	return ok
+}
+
+const maxSignatureCacheSize = 64
+
+// cacheVerification caches the result of signature check for a digest for later retrieval.
+func (v *ReleaseVerifier) cacheVerification(releaseDigest string, signedWith [][]byte) {
+	v.lock.Lock()
+	defer v.lock.Unlock()
+
+	if len(signedWith) == 0 || len(releaseDigest) == 0 || v.signatureCache == nil {
+		return
+	}
+	// remove the new entry
+	delete(v.signatureCache, releaseDigest)
+	// ensure the cache doesn't grow beyond our cap
+	for k := range v.signatureCache {
+		if len(v.signatureCache) < maxSignatureCacheSize {
+			break
+		}
+		delete(v.signatureCache, k)
+	}
+	v.signatureCache[releaseDigest] = signedWith
 }
 
 // checkFileSignatures reads signatures as "signature-1", "signature-2", etc out of a directory until
