@@ -8,3 +8,4 @@ approvers:
   - wking
   - vrutkovs
   - jottofar
+component: "Cluster Version Operator"
