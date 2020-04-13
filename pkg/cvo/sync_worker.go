@@ -511,7 +511,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		payloadUpdate.VerifiedImage = info.Verified
 		payloadUpdate.LoadedAt = time.Now()
 
-		// need to make sure the payload is only set when the preconditions have been successfull
+		// need to make sure the payload is only set when the preconditions have been successful
 		if !info.Local && len(w.preconditions) > 0 {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
