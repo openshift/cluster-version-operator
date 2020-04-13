@@ -270,7 +270,7 @@ func (r *payloadRetriever) pruneJobs(retain int) error {
 	return nil
 }
 
-// copyPayloadCmd returns command that copies cvo and release manifests from deafult location
+// copyPayloadCmd returns a shell command that copies CVO and release manifests from the default location
 // to the target dir.
 // It is made up of 2 commands:
 // `mkdir -p <target dir> && mv <default cvo manifest dir> <target cvo manifests dir>`
