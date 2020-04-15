@@ -151,7 +151,9 @@ func (o *Options) Run() error {
 
 func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
 	runContext, runCancel := context.WithCancel(ctx)
+	defer runCancel()
 	shutdownContext, shutdownCancel := context.WithCancel(ctx)
+	defer shutdownCancel()
 	errorChannel := make(chan error, 1)
 	errorChannelCount := 0
 	if o.ListenAddr != "" {
@@ -351,6 +353,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
 
+	coInformer := sharedInformers.Config().V1().ClusterOperators()
 	ctx := &Context{
 		CVInformerFactory:              cvInformer,
 		OpenshiftConfigInformerFactory: openshiftConfigInformer,
@@ -364,12 +367,11 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			o.PayloadOverride,
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),
-			sharedInformers.Config().V1().ClusterOperators(),
+			coInformer,
 			openshiftConfigInformer.Core().V1().ConfigMaps(),
 			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
-			o.ListenAddr != "",
 			o.Exclude,
 		),
 	}
@@ -381,6 +383,11 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace),
 		)
+	}
+	if o.ListenAddr != "" {
+		if err := ctx.CVO.RegisterMetrics(coInformer.Informer()); err != nil {
+			panic(err)
+		}
 	}
 	return ctx
 }

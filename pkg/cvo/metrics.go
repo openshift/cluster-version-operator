@@ -20,7 +20,9 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
-func (optr *Operator) registerMetrics(coInformer cache.SharedInformer) error {
+// RegisterMetrics initializes metrics and registers them with the
+// Prometheus implementation.
+func (optr *Operator) RegisterMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
 	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: m.clusterOperatorChanged,
