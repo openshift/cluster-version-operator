@@ -8,18 +8,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/cockroachdb/cmux"
-
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -188,56 +183,23 @@ func (o *Options) makeTLSConfig() (*tls.Config, error) {
 }
 
 func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
-	// listen on metrics
+	runContext, runCancel := context.WithCancel(ctx)
+	shutdownContext, shutdownCancel := context.WithCancel(ctx)
+	errorChannel := make(chan error, 1)
+	errorChannelCount := 0
 	if o.ListenAddr != "" {
-		handler := http.NewServeMux()
-		handler.Handle("/metrics", promhttp.Handler())
-		tcpl, err := net.Listen("tcp", o.ListenAddr)
-		if err != nil {
-			klog.Fatalf("Listen error: %v", err)
-		}
-
-		// if a TLS connection was requested, set up a connection mux that will send TLS requests to
-		// the TLS server but send HTTP requests to the HTTP server. Preserves the ability for legacy
-		// HTTP, needed during upgrade, while still allowing TLS certs and end to end metrics protection.
-		m := cmux.New(tcpl)
-
-		// match HTTP first
-		httpl := m.Match(cmux.HTTP1())
-		go func() {
-			s := &http.Server{
-				Handler: handler,
-			}
-			if err := s.Serve(httpl); err != cmux.ErrListenerClosed {
-				klog.Fatalf("HTTP serve error: %v", err)
-			}
-		}()
-
+		var tlsConfig *tls.Config
 		if o.ServingCertFile != "" || o.ServingKeyFile != "" {
-			tlsConfig, err := o.makeTLSConfig()
+			var err error
+			tlsConfig, err = o.makeTLSConfig()
 			if err != nil {
 				klog.Fatalf("Failed to create TLS config: %v", err)
 			}
-
-			tlsListener := tls.NewListener(m.Match(cmux.Any()), tlsConfig)
-			klog.Infof("Metrics port listening for HTTP and HTTPS on %v", o.ListenAddr)
-			go func() {
-				s := &http.Server{
-					Handler: handler,
-				}
-				if err := s.Serve(tlsListener); err != cmux.ErrListenerClosed {
-					klog.Fatalf("HTTPS serve error: %v", err)
-				}
-			}()
-
-			go func() {
-				if err := m.Serve(); err != nil {
-					klog.Errorf("CMUX serve error: %v", err)
-				}
-			}()
-		} else {
-			klog.Infof("Metrics port listening for HTTP on %v", o.ListenAddr)
 		}
+		errorChannelCount++
+		go func() {
+			errorChannel <- cvo.RunMetrics(runContext, shutdownContext, o.ListenAddr, tlsConfig)
+		}()
 	}
 
 	exit := make(chan struct{})
@@ -253,9 +215,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(localCtx context.Context) {
-				controllerCtx.Start(ctx)
+				controllerCtx.Start(runContext)
 				select {
-				case <-ctx.Done():
+				case <-runContext.Done():
 					// WARNING: this is not completely safe until we have Kube 1.14 and ReleaseOnCancel
 					//   and client-go ContextCancelable, which allows us to block new API requests before
 					//   we step down. However, the CVO isn't that sensitive to races and can tolerate
@@ -283,6 +245,34 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			},
 		},
 	})
+
+	for errorChannelCount > 0 {
+		var shutdownTimer *time.Timer
+		if shutdownTimer == nil { // running
+			select {
+			case <-runContext.Done():
+				shutdownTimer = time.NewTimer(2 * time.Minute)
+			case err := <-errorChannel:
+				errorChannelCount--
+				if err != nil {
+					klog.Error(err)
+					runCancel() // this will cause shutdownTimer initialization in the next loop
+				}
+			}
+		} else { // shutting down
+			select {
+			case <-shutdownTimer.C: // never triggers after the channel is stopped, although it would not matter much if it did because subsequent cancel calls do nothing.
+				shutdownCancel()
+				shutdownTimer.Stop()
+			case err := <-errorChannel:
+				errorChannelCount--
+				if err != nil {
+					klog.Error(err)
+					runCancel()
+				}
+			}
+		}
+	}
 
 	<-exit
 }
