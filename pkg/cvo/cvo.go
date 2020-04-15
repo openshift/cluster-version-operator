@@ -169,7 +169,6 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
-	enableMetrics bool,
 	exclude string,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -214,11 +213,6 @@ func New(
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
-	if enableMetrics {
-		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
-			panic(err)
-		}
-	}
 	return optr
 }
 
