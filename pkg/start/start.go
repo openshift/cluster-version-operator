@@ -67,7 +67,6 @@ type Options struct {
 	Name            string
 	Namespace       string
 	PayloadOverride string
-	EnableMetrics   bool
 	ResyncInterval  time.Duration
 }
 
@@ -91,7 +90,6 @@ func NewOptions() *Options {
 		Name:            defaultEnv("CVO_NAME", defaultComponentName),
 		PayloadOverride: os.Getenv("PAYLOAD_OVERRIDE"),
 		ResyncInterval:  minResyncPeriod,
-		EnableMetrics:   true,
 		Exclude:         os.Getenv("EXCLUDE_MANIFESTS"),
 	}
 }
@@ -155,7 +153,7 @@ func (o *Options) Run() error {
 
 func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
 	// listen on metrics
-	if len(o.ListenAddr) > 0 {
+	if o.ListenAddr != "" {
 		mux := http.NewServeMux()
 		mux.Handle("/metrics", promhttp.Handler())
 		go func() {
@@ -345,7 +343,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
-			o.EnableMetrics,
+			o.ListenAddr != "",
 			o.Exclude,
 		),
 	}
