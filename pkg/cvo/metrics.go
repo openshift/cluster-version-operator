@@ -1,14 +1,19 @@
 package cvo
 
 import (
+	"context"
+	"net"
+	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -84,6 +89,67 @@ version for 'cluster', or empty for 'initial'.
 			Help: "Reports info about the installation process and, if applicable, the install tool.",
 		}, []string{"type", "version", "invoker"}),
 	}
+}
+
+// RunMetrics launches an server bound to listenAddress serving
+// Prometheus metrics at /metrics over HTTP.  Continues serving until
+// runContext.Done() and then attempts a clean shutdown limited by
+// shutdownContext.Done().  Assumes runContext.Done() occurs before or
+// simultaneously with shutdownContext.Done().
+func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress string) error {
+	handler := http.NewServeMux()
+	handler.Handle("/metrics", promhttp.Handler())
+	server := &http.Server{
+		Handler: handler,
+	}
+
+	errorChannel := make(chan error, 1)
+	errorChannelCount := 1
+	go func() {
+		tcpListener, err := net.Listen("tcp", listenAddress)
+		if err != nil {
+			errorChannel <- err
+			return
+		}
+
+		klog.Infof("Metrics port listening for HTTP on %v", listenAddress)
+
+		errorChannel <- server.Serve(tcpListener)
+	}()
+
+	shutdown := false
+	var loopError error
+	for errorChannelCount > 0 {
+		if shutdown {
+			err := <-errorChannel
+			errorChannelCount--
+			if err != nil && err != http.ErrServerClosed {
+				if loopError == nil {
+					loopError = err
+				} else if err != nil { // log the error we are discarding
+					klog.Errorf("Failed to gracefully shut down metrics server: %s", err)
+				}
+			}
+		} else {
+			select {
+			case <-runContext.Done(): // clean shutdown
+			case err := <-errorChannel: // crashed before a shutdown was requested
+				errorChannelCount--
+				if err != nil && err != http.ErrServerClosed {
+					loopError = err
+				}
+			}
+			shutdown = true
+			shutdownError := server.Shutdown(shutdownContext)
+			if loopError == nil {
+				loopError = shutdownError
+			} else if shutdownError != nil { // log the error we are discarding
+				klog.Errorf("Failed to gracefully shut down metrics server: %s", shutdownError)
+			}
+		}
+	}
+
+	return loopError
 }
 
 type conditionKey struct {

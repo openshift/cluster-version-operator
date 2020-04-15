@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -152,14 +150,14 @@ func (o *Options) Run() error {
 }
 
 func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
-	// listen on metrics
+	runContext, runCancel := context.WithCancel(ctx)
+	shutdownContext, shutdownCancel := context.WithCancel(ctx)
+	errorChannel := make(chan error, 1)
+	errorChannelCount := 0
 	if o.ListenAddr != "" {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
+		errorChannelCount++
 		go func() {
-			if err := http.ListenAndServe(o.ListenAddr, mux); err != nil {
-				klog.Fatalf("Unable to start metrics server: %v", err)
-			}
+			errorChannel <- cvo.RunMetrics(runContext, shutdownContext, o.ListenAddr)
 		}()
 	}
 
@@ -176,9 +174,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(localCtx context.Context) {
-				controllerCtx.Start(ctx)
+				controllerCtx.Start(runContext)
 				select {
-				case <-ctx.Done():
+				case <-runContext.Done():
 					// WARNING: this is not completely safe until we have Kube 1.14 and ReleaseOnCancel
 					//   and client-go ContextCancelable, which allows us to block new API requests before
 					//   we step down. However, the CVO isn't that sensitive to races and can tolerate
@@ -206,6 +204,34 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			},
 		},
 	})
+
+	for errorChannelCount > 0 {
+		var shutdownTimer *time.Timer
+		if shutdownTimer == nil { // running
+			select {
+			case <-runContext.Done():
+				shutdownTimer = time.NewTimer(2 * time.Minute)
+			case err := <-errorChannel:
+				errorChannelCount--
+				if err != nil {
+					klog.Error(err)
+					runCancel() // this will cause shutdownTimer initialization in the next loop
+				}
+			}
+		} else { // shutting down
+			select {
+			case <-shutdownTimer.C: // never triggers after the channel is stopped, although it would not matter much if it did because subsequent cancel calls do nothing.
+				shutdownCancel()
+				shutdownTimer.Stop()
+			case err := <-errorChannel:
+				errorChannelCount--
+				if err != nil {
+					klog.Error(err)
+					runCancel()
+				}
+			}
+		}
+	}
 
 	<-exit
 }
