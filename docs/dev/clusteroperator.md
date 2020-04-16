@@ -148,31 +148,31 @@ If this is false, it means the operator is not trying to apply any new state.
 If it remains true for an extended period of time, it suggests something is wrong in the cluster.  It can probably wait until Monday.
 * `Available` must be true if the operand is functional and available in the cluster at the level in status.
 If this is false, it means there is an outage.  Someone is probably getting paged.
-* `Failing` should be true if the operator has encountered an error that is preventing it or its operand from working properly.
+* `Degraded` should be true if the operator has encountered an error that is preventing it or its operand from working properly.
 The operand may still be available, but intent may not have been fulfilled.
 If this is true, it means that the operand is at risk of an outage or improper configuration.  It can probably wait until the morning, but someone needs to look at it.
 
-The message reported for each of these conditions is important.  All messages should start with a capital letter (like a sentence) and be written for an end user / admin to debug the problem.  `Failing` should describe in detail (a few sentences at most) why the current controller is blocked. The detail should be sufficient for an engineer or support person to triage the problem. `Available` should convey useful information about what is available, and be a single sentence without punctuation.  `Progressing` is the most important message because it is shown by default in the CLI as a column and should be a terse, human-readable message describing the current state of the object in 5-10 words (the more succinct the better).
+The message reported for each of these conditions is important.  All messages should start with a capital letter (like a sentence) and be written for an end user / admin to debug the problem.  `Degraded` should describe in detail (a few sentences at most) why the current controller is blocked. The detail should be sufficient for an engineer or support person to triage the problem. `Available` should convey useful information about what is available, and be a single sentence without punctuation.  `Progressing` is the most important message because it is shown by default in the CLI as a column and should be a terse, human-readable message describing the current state of the object in 5-10 words (the more succinct the better).
 
 For instance, if the CVO is working towards 4.0.1 and has already successfully deployed 4.0.0, the conditions might be reporting:
 
-* `Failing` is false with no message
+* `Degraded` is false with no message
 * `Available` is true with message `Cluster has deployed 4.0.0`
 * `Progressing` is true with message `Working towards 4.0.1`
 
 If the controller reaches 4.0.1, the conditions might be:
 
-* `Failing` is false with no message
+* `Degraded` is false with no message
 * `Available` is true with message `Cluster has deployed 4.0.1`
 * `Progressing` is false with message `Cluster version is 4.0.1`
 
 If an error blocks reaching 4.0.1, the conditions might be:
 
-* `Failing` is true with a detailed message `Unable to apply 4.0.1: could not update 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
+* `Degraded` is true with a detailed message `Unable to apply 4.0.1: could not update 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
 * `Available` is true with message `Cluster has deployed 4.0.0`
 * `Progressing` is true with message `Unable to apply 4.0.1: a required object is missing`
 
-The progressing message is the first message a human will see when debugging an issue, so it should be terse, succinct, and summarize the problem well.  The failing message can be more verbose. Start with simple, easy to understand messages and grow them over time to capture more detail.
+The progressing message is the first message a human will see when debugging an issue, so it should be terse, succinct, and summarize the problem well.  The degraded message can be more verbose. Start with simple, easy to understand messages and grow them over time to capture more detail.
 
 
 #### Conditions and Install/Upgrade
@@ -180,11 +180,11 @@ The progressing message is the first message a human will see when debugging an 
 Conditions determine when the CVO considers certain actions complete, the following table summarizes what it looks at and when.
 
 
-| operation | version | available | degraded | progressing | 
+| operation | version | available | degraded | progressing |
 |-----------|---------|-----------|----------|-------------|
 | Install completion[1] | current(whatever was being installed) | true | any | any
 | Begin upgrade | any | any | any | any
-| Begin upgrade (w/ force) | any | any | any | any 
+| Begin upgrade (w/ force) | any | any | any | any
 | Upgrade completion[2]| newVersion(target version for the upgrade) | true | false | false
 
 [1] Install works on all components in parallel, it does not wait for any component to complete before starting another one.
