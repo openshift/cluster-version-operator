@@ -222,5 +222,9 @@ func SummaryForReason(reason, name string) string {
 	if strings.HasPrefix(reason, "UpdatePayload") {
 		return "the update could not be applied"
 	}
-	return "an unknown error has occurred"
+
+	if len(name) > 0 {
+		return fmt.Sprintf("%s has an unknown error: %s", name, reason)
+	}
+	return fmt.Sprintf("an unknown error has occurred: %s", reason)
 }
