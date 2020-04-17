@@ -142,13 +142,18 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 			return false, nil
 		}
 
-		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionTrue {
+		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse && progressingCondition.Reason == "ProgressDeadlineExceeded" {
 			lastErr = &payload.UpdateError{
-				Nested:  fmt.Errorf("deployment %s is progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
+				Nested:  fmt.Errorf("deployment %s is not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
 				Reason:  "WorkloadNotAvailable",
-				Message: fmt.Sprintf("deployment %s is progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
+				Message: fmt.Sprintf("deployment %s is not progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
 				Name:    iden,
 			}
+			return false, nil
+		}
+
+		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionTrue {
+			klog.V(4).Infof("deployment %s is progressing", iden)
 			return false, nil
 		}
 
@@ -251,12 +256,7 @@ func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSets
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
 			return true, nil
 		}
-		lastErr = &payload.UpdateError{
-			Nested:  fmt.Errorf("daemonset %s is progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedNumberScheduled, d.Status.DesiredNumberScheduled, d.Status.NumberAvailable, d.Status.DesiredNumberScheduled),
-			Reason:  "WorkloadNotAvailable",
-			Message: fmt.Sprintf("daemonset %s is progressing", iden),
-			Name:    iden,
-		}
+		klog.V(4).Infof("daemonset %s is progressing", iden)
 		return false, nil
 	}, ctx.Done())
 	if err != nil {
