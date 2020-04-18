@@ -23,7 +23,7 @@ func init() {
 
 // ReadCustomResourceDefinitionOrDie reads crd object from bytes as v1 or v1beta1. Panics on error.
 func ReadCustomResourceDefinitionOrDie(objBytes []byte) runtime.Object {
-	requiredObj, err := runtime.Decode(apiExtensionsCodecs.UniversalDecoder(apiextv1beta1.SchemeGroupVersion), objBytes)
+	requiredObj, err := runtime.Decode(apiExtensionsCodecs.UniversalDecoder(apiextv1beta1.SchemeGroupVersion, apiextv1.SchemeGroupVersion), objBytes)
 	if err != nil {
 		panic(err)
 	}
