@@ -176,7 +176,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "4.0.1"
-	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
+	current := o.currentVersion()
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -200,7 +200,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			Desired:            desired,
+			Desired:            current,
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
 			},
@@ -283,8 +283,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
@@ -447,7 +447,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "4.0.1"
-	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
+	current := o.currentVersion()
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -470,7 +470,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			Desired:            desired,
+			Desired:            current,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
@@ -554,8 +554,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
@@ -708,7 +708,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "4.0.1"
-	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
+	current := o.currentVersion()
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -731,7 +731,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			Desired:            desired,
+			Desired:            current,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
@@ -815,8 +815,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
@@ -890,7 +890,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	//
 	o.releaseImage = "image/image:0"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
+	current := o.currentVersion()
+	target := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -901,11 +902,11 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -954,12 +955,12 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step:   "RetrievePayload",
-			Actual: configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual: target,
 		},
 		SyncWorkerStatus{
 			Step:    "RetrievePayload",
 			Failure: payloadErr,
-			Actual:  configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual:  target,
 		},
 	)
 
@@ -983,11 +984,11 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
@@ -1006,7 +1007,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	// Step 2: Set allowUnverifiedImages to true, trigger a sync and the operator should apply the payload
 	//
 	// set an updtae
-	copied := desired
+	copied := target
 	copied.Force = true
 	actual.Spec.DesiredUpdate = &copied
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", VerificationError: payloadErr}, nil)
@@ -1092,7 +1093,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
+			Desired:            current,
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1115,7 +1116,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	//
 	o.releaseImage = "image/image:0"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
+	current := o.currentVersion()
+	target := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -1126,11 +1128,11 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1179,12 +1181,12 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step:   "RetrievePayload",
-			Actual: configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual: target,
 		},
 		SyncWorkerStatus{
 			Step:    "RetrievePayload",
 			Failure: payloadErr,
-			Actual:  configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual:  target,
 		},
 	)
 
@@ -1208,11 +1210,11 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
@@ -1231,7 +1233,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	// Step 2: Set allowUnverifiedImages to true, trigger a sync and the operator should apply the payload
 	//
 	// set an updtae
-	copied := desired
+	copied := target
 	copied.Force = true
 	actual.Spec.DesiredUpdate = &copied
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", VerificationError: payloadErr}, nil)
@@ -1317,7 +1319,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
+			Desired:            current,
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1377,7 +1379,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	//
 	o.releaseImage = "image/image:0"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
+	current := o.currentVersion()
+	target := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -1388,11 +1391,11 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1464,11 +1467,11 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
@@ -1487,7 +1490,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	// Step 2: Set allowUnverifiedImages to true, trigger a sync and the operator should apply the payload
 	//
 	// set an updtae
-	copied := desired
+	copied := target
 	copied.Force = true
 	actual.Spec.DesiredUpdate = &copied
 	//
@@ -1578,7 +1581,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
+			Desired:            current,
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1601,7 +1604,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	//
 	o.releaseImage = "image/image:0"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
+	current := o.currentVersion()
+	target := configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -1613,11 +1617,11 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1666,13 +1670,13 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step:       "RetrievePayload",
-			Actual:     configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual:     target,
 			Generation: 1,
 		},
 		SyncWorkerStatus{
 			Step:       "RetrievePayload",
 			Failure:    payloadErr,
-			Actual:     configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Actual:     target,
 			Generation: 1,
 		},
 	)
@@ -1697,12 +1701,12 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
 			Channel:       "fast",
-			DesiredUpdate: &desired,
+			DesiredUpdate: &target,
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 1,
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
@@ -1720,7 +1724,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 
 	// Step 2: Simulate a verified payload being retrieved and ensure the operator sets verified
 	//
-	copied := desired
+	copied := target
 	actual.ObjectMeta.Generation = 2
 	actual.Spec.DesiredUpdate = &copied
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
@@ -1801,7 +1805,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			ObservedGeneration: 2,
-			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			Desired:            current,
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1829,7 +1833,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	current := o.currentVersion()
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -1842,8 +1846,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
@@ -1996,7 +2000,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	current := o.currentVersion()
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -2009,8 +2013,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2165,8 +2169,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2206,7 +2210,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	current := o.currentVersion()
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -2219,8 +2223,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:    desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:    current,
 			History:    []configv1.UpdateHistory{},
 			Conditions: []configv1.ClusterOperatorStatusCondition{},
 		},
@@ -2332,8 +2336,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "7m-gGRrpkDU=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
@@ -2361,7 +2365,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	current := o.currentVersion()
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -2374,8 +2378,8 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
@@ -2419,7 +2423,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 	//
 	o.releaseImage = "image/image:1"
 	o.releaseVersion = "1.0.0-abc"
-	desired := configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"}
+	current := o.currentVersion()
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
 	cvs["version"] = &configv1.ClusterVersion{
@@ -2432,8 +2436,8 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 			Channel:   "fast",
 		},
 		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
+			// Prefers the operator's version over Cincinnati's nominal release version (although in general they will remain in sync)
+			Desired:     current,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},

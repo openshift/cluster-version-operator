@@ -126,8 +126,6 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 
 	// TODO: prune Z versions over transitions to Y versions, keep initial installed version
 	pruneStatusHistory(config, 50)
-
-	config.Status.Desired = desired
 }
 
 func pruneStatusHistory(config *configv1.ClusterVersion, maxHistory int) {
@@ -181,6 +179,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	version := versionString(status.Actual)
 
 	mergeOperatorHistory(config, status.Actual, status.Verified, now, status.Completed > 0)
+	config.Status.Desired = optr.currentVersion()
 
 	// update validation errors
 	var reason string
@@ -400,7 +399,9 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 		LastTransitionTime: now,
 	})
 
-	mergeOperatorHistory(config, optr.currentVersion(), false, now, false)
+	current := optr.currentVersion()
+	mergeOperatorHistory(config, current, false, now, false)
+	config.Status.Desired = current
 
 	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
@@ -410,7 +411,7 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 	return ierr
 }
 
-// applyClusterVersionStatus attempts to overwrite the status subresource of required. If
+// applyClusterVersionStatus attempts to overwrite the status subresource, if required. If
 // original is provided it is compared to required and no update will be made if the
 // object does not change. The method will retry a conflict by retrieving the latest live
 // version and updating the metadata of required. required is modified if the object on
