@@ -52,11 +52,7 @@ import (
 )
 
 const (
-	// maxRetries is the number of times a machineconfig pool will be retried before it is dropped out of the queue.
-	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
-	// a machineconfig pool is going to be requeued:
-	//
-	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
+	// maxRetries is the number of times a work-item will be retried before it is dropped out of the queue.
 	maxRetries = 15
 )
 
@@ -400,14 +396,14 @@ func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err e
 	}
 
 	if queue.NumRequeues(key) < maxRetries {
-		klog.V(2).Infof("Error syncing operator %v: %v", key, err)
+		klog.V(2).Infof("Error handling %v: %v", key, err)
 		queue.AddRateLimited(key)
 		return
 	}
 
 	err = syncFailingStatus(ctx, nil, err)
 	utilruntime.HandleError(err)
-	klog.V(2).Infof("Dropping operator %q out of the queue %v: %v", key, queue, err)
+	klog.V(2).Infof("Dropping %q out of the queue %v: %v", key, queue, err)
 	queue.Forget(key)
 }
 
