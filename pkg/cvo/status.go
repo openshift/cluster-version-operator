@@ -350,7 +350,7 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 	return "", "", false
 }
 
-// syncDegradedStatus handles generic errors in the cluster version. It tries to preserve
+// syncFailingStatus handles generic errors in the cluster version. It tries to preserve
 // all status fields that it can by using the provided config or loading the latest version
 // from the cache (instead of clearing the status).
 // if ierr is nil, return nil
