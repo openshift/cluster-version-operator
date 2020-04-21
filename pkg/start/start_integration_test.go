@@ -243,6 +243,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
+	current := controllers.CVO.currentVersion()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -259,7 +260,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
-	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
+	verifyClusterVersionStatus(t, lastCV, current, 1)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("wait for the next resync and verify that status didn't change")
