@@ -20,6 +20,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
+const noChannel string = "NoChannel"
+
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
@@ -179,7 +181,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 
 	if len(channel) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
-			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoChannel",
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: noChannel,
 			Message: "The update channel has not been configured.",
 		}
 	}
