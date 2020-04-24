@@ -512,7 +512,11 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		payloadUpdate.LoadedAt = time.Now()
 
 		// need to make sure the payload is only set when the preconditions have been successful
-		if !info.Local && len(w.preconditions) > 0 {
+		if len(w.preconditions) == 0 {
+			klog.V(4).Info("No preconditions configured.")
+		} else if info.Local {
+			klog.V(4).Info("Skipping preconditions for a local operator image payload.")
+		} else {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
 				Step:        "PreconditionChecks",
@@ -521,17 +525,21 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Actual:      update,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion})); err != nil && !update.Force {
-				reporter.Report(SyncWorkerStatus{
-					Generation:  work.Generation,
-					Failure:     err,
-					Step:        "PreconditionChecks",
-					Initial:     work.State.Initializing(),
-					Reconciling: work.State.Reconciling(),
-					Actual:      update,
-					Verified:    info.Verified,
-				})
-				return err
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion})); err != nil {
+				if update.Force {
+					klog.V(4).Infof("Forcing past precondition failures: %s", err)
+				} else {
+					reporter.Report(SyncWorkerStatus{
+						Generation:  work.Generation,
+						Failure:     err,
+						Step:        "PreconditionChecks",
+						Initial:     work.State.Initializing(),
+						Reconciling: work.State.Reconciling(),
+						Actual:      update,
+						Verified:    info.Verified,
+					})
+					return err
+				}
 			}
 		}
 
