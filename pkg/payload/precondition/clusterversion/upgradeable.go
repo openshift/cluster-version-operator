@@ -8,6 +8,7 @@ import (
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"
@@ -46,12 +47,18 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 	// if we are upgradeable==true we can always upgrade
 	up := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorUpgradeable)
-	if up == nil || up.Status != configv1.ConditionFalse {
+	if up == nil {
+		klog.V(4).Infof("Precondition %s passed: no Upgradeable condition on ClusterVersion.", pf.Name())
+		return nil
+	}
+	if up.Status != configv1.ConditionFalse {
+		klog.V(4).Infof("Precondition %s passed: Upgradeable %s since %v: %s: %s", pf.Name(), up.Status, up.LastTransitionTime, up.Reason, up.Message)
 		return nil
 	}
 
 	// we can always allow the upgrade if there isn't a version already installed
 	if len(cv.Status.History) == 0 {
+		klog.V(4).Infof("Precondition %s passed: no release history.", pf.Name())
 		return nil
 	}
 
@@ -60,6 +67,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	if currentMinor == desiredMinor {
+		klog.V(4).Infof("Precondition %q passed: minor from the current %s matches minor from the target %s (both %s).", pf.Name(), cv.Status.History[0].Version, releaseContext.DesiredVersion, currentMinor)
 		return nil
 	}
 
