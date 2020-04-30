@@ -106,7 +106,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -377,7 +377,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		VerificationError: payloadErr,
 	}
 
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -638,7 +638,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		Directory: "testdata/payloadtest",
 		Local:     true,
 	}
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
@@ -938,7 +938,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -1163,7 +1163,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -1415,7 +1415,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	worker.preconditions = []precondition.Precondition{&testPrecondition{SuccessAfter: 3}}
 
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: The operator should report that it is blocked on precondition checks failing
 	//
@@ -1650,7 +1650,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -1886,7 +1886,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
 	//
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -2045,10 +2045,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	if worker.work.State != payload.ReconcilingPayload {
 		t.Fatalf("The worker should be reconciling: %v", worker.work)
 	}
-
-	// Step 2: Start the sync worker and verify the sequence of events
 	//
-	go worker.Start(ctx, 1)
+	go worker.Start(ctx, 1, o.name, o.cvLister)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -2252,7 +2250,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	cancellable, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go worker.Start(cancellable, 1)
+	go worker.Start(cancellable, 1, o.name, o.cvLister)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -2470,7 +2468,7 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 	t.Helper()
 	if len(items) == 0 {
 		if len(ch) > 0 {
-			t.Fatalf("expected status to empty, got %#v", <-ch)
+			t.Fatalf("expected status to be empty, got %#v", <-ch)
 		}
 		return
 	}

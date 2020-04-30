@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 	"k8s.io/klog"
@@ -29,7 +30,7 @@ import (
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
-	Start(ctx context.Context, maxWorkers int)
+	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
 	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
@@ -241,7 +242,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
-func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
+func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
 	klog.V(5).Infof("Starting sync worker")
 
 	work := &SyncWork{}
@@ -306,11 +307,15 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				w.lock.Unlock()
 				defer cancelFn()
 
+				config, err := lister.Get(cvoOptrName)
+				if err != nil {
+					return err
+				}
 				// reporter hides status updates that occur earlier than the previous failure,
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
 				klog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
-				return w.syncOnce(ctx, work, maxWorkers, reporter)
+				return w.syncOnce(ctx, work, maxWorkers, reporter, config)
 			}()
 			if err != nil {
 				// backoff wait
@@ -466,7 +471,7 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // sync retrieves the image and applies it to the server, returning an error if
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter, clusterVersion *configv1.ClusterVersion) error {
 	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 	update := work.Desired
 
@@ -524,7 +529,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Actual:      update,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion})); err != nil {
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion}, clusterVersion)); err != nil {
 				if update.Force {
 					klog.V(4).Infof("Forcing past precondition failures: %s", err)
 				} else {

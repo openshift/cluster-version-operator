@@ -22,6 +22,7 @@ import (
 	clientgotesting "k8s.io/client-go/testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -387,7 +388,8 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 	return ch
 }
 
-func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {}
+func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
+}
 
 func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
@@ -453,7 +455,7 @@ func (pf *testPrecondition) Name() string {
 	return fmt.Sprintf("TestPrecondition SuccessAfter: %d", pf.SuccessAfter)
 }
 
-func (pf *testPrecondition) Run(_ context.Context, _ precondition.ReleaseContext) error {
+func (pf *testPrecondition) Run(_ context.Context, _ precondition.ReleaseContext, cv *configv1.ClusterVersion) error {
 	if pf.SuccessAfter == 0 {
 		return nil
 	}
