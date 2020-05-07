@@ -52,7 +52,7 @@ func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionFalse,
 			Reason:             "MultipleReasons",
-			Message:            fmt.Sprintf("Cluster cannot be upgraded for multiple reasons: %s", strings.Join(reasons, ",")),
+			Message:            fmt.Sprintf("Cluster cannot be upgraded between minor versions for multiple reasons: %s", strings.Join(reasons, ",")),
 			LastTransitionTime: now,
 		})
 	}
@@ -170,14 +170,14 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	reason := ""
 	if len(notup) == 1 {
 		reason = notup[0].condition.Reason
-		msg = fmt.Sprintf("Cluster operator %s cannot be upgraded: %s", notup[0].name, notup[0].condition.Message)
+		msg = fmt.Sprintf("Cluster operator %s cannot be upgraded between minor versions: %s", notup[0].name, notup[0].condition.Message)
 	} else {
 		reason = "ClusterOperatorsNotUpgradeable"
 		var msgs []string
 		for _, cond := range notup {
-			msgs = append(msgs, fmt.Sprintf("Cluster operator %s cannot be upgraded: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
+			msgs = append(msgs, fmt.Sprintf("Cluster operator %s cannot be upgraded between minor versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
 		}
-		msg = fmt.Sprintf("Multiple cluster operators cannot be upgradeable:\n* %s", strings.Join(msgs, "\n* "))
+		msg = fmt.Sprintf("Multiple cluster operators cannot be upgraded between minor versions:\n* %s", strings.Join(msgs, "\n* "))
 	}
 	cond.Reason = reason
 	cond.Message = msg
