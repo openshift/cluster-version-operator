@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/blang/semver v3.5.0+incompatible
+	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
 	github.com/davecgh/go-spew v1.1.1
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
