@@ -52,7 +52,7 @@ spec:
         severity: critical
     - alert: ClusterOperatorDegraded
       annotations:
-        message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 mins. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
+        message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 mins. Operator is degraded because {{ "{{ $labels.reason }}" }}.
       expr: |
         cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"} == 1
       for: 10m
