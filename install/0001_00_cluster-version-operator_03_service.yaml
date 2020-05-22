@@ -6,6 +6,7 @@ metadata:
   labels:
     k8s-app: cluster-version-operator
   annotations:
+    service.beta.openshift.io/serving-cert-secret-name: cluster-version-operator-serving-cert
     exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   type: ClusterIP
