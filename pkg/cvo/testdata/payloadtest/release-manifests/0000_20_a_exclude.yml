@@ -1,0 +1,6 @@
+kind: Test
+apiVersion: v1
+metadata:
+  name: file-20-yml
+  annotations:
+    exclude.release.openshift.io/exclude-test: "true"
