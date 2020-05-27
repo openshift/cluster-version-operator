@@ -495,7 +495,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			return err
 		}
 
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image, w.exclude)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -653,7 +653,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			klog.V(4).Infof("Running sync for %s", task)
 			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
-			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, task.Manifest)
+			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
 				klog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
@@ -945,7 +945,7 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdentifier string, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -953,10 +953,6 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdent
 			ov.Name == name {
 			return overrides[idx], true
 		}
-	}
-	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	if annotations := manifest.Object().GetAnnotations(); annotations != nil && annotations[excludeAnnotation] == "true" {
-		return configv1.ComponentOverride{Unmanaged: true}, true
 	}
 	return configv1.ComponentOverride{}, false
 }

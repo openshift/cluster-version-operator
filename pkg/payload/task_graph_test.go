@@ -487,7 +487,7 @@ func Test_TaskGraph_real(t *testing.T) {
 	if len(path) == 0 {
 		t.Skip("TEST_GRAPH_PATH unset")
 	}
-	p, err := LoadUpdate(path, "arbitrary/image:1")
+	p, err := LoadUpdate(path, "arbitrary/image:1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
