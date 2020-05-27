@@ -93,22 +93,22 @@ So the graph nodes are all parallelized with the by-number ordering flattened ou
 
 For the usual reconciliation loop (neither an upgrade between releases nor a fresh install), the flattened graph is also randomly permuted to avoid hanging on ordering bugs.
 
-## Synchronizing the graph
+## Reconciling the graph
 
 The cluster-version operator spawns worker goroutines that walk the graph, pushing manifests in their queue.
-For each manifest in the node, the worker synchronizes the cluster with the manifest using a resource builder.
+For each manifest in the node, the worker reconciles the cluster with the manifest using a resource builder.
 On error (or timeout), the worker abandons the manifest, graph node, and any dependencies of that graph node.
 On success, the worker proceeds to the next manifest in the graph node.
 
 ## Resource builders
 
-Resource builders synchronize the cluster with a manifest from the release image.
+Resource builders reconcile a cluster object with a manifest from the release image.
 The general approach is to generates a merged manifest combining critical spec properties from the release-image manifest with data from a preexisting in-cluster object, if any.
 If the merged manifest differs from the in-cluster object, the merged manifest is pushed back into the cluster.
 
 Some types have additional logic, as described in the following subsections.
 Note that this logic only applies to manifests included in the release image itself.
-For example, only [ClusterOperator](../dev/clusteroperator.md) from the release image will have the blocking logic described [below](#clusteroperator); if an admin or secondary operator pushed a ClusterOperator object, it would not impact the cluster-version operator's graph synchronization.
+For example, only [ClusterOperator](../dev/clusteroperator.md) from the release image will have the blocking logic described [below](#clusteroperator); if an admin or secondary operator pushed a ClusterOperator object, it would not impact the cluster-version operator's graph reconciliation.
 
 ### ClusterOperator
 
