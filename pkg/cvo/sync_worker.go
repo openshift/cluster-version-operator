@@ -613,8 +613,8 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	// update each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		for _, task := range tasks {
-			if contextIsCancelled(ctx) {
-				return cr.CancelError()
+			if err := ctx.Err(); err != nil {
+				return cr.ContextError(err)
 			}
 			cr.Update()
 
@@ -658,11 +658,11 @@ func init() {
 	)
 }
 
-type errCanceled struct {
+type errContext struct {
 	err error
 }
 
-func (e errCanceled) Error() string { return e.err.Error() }
+func (e errContext) Error() string { return e.err.Error() }
 
 // consistentReporter hides the details of calculating the status based on the progress
 // of the graph runner.
@@ -699,7 +699,7 @@ func (r *consistentReporter) Error(err error) {
 	copied := r.status
 	copied.Step = "ApplyResources"
 	copied.Fraction = float32(r.done) / float32(r.total)
-	if !isCancelledError(err) {
+	if !isContextError(err) {
 		copied.Failure = err
 	}
 	r.reporter.Report(copied)
@@ -720,10 +720,10 @@ func (r *consistentReporter) Errors(errs []error) error {
 	return err
 }
 
-func (r *consistentReporter) CancelError() error {
+func (r *consistentReporter) ContextError(err error) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	return errCanceled{fmt.Errorf("update was cancelled at %d of %d", r.done, r.total)}
+	return errContext{fmt.Errorf("update %s at %d of %d", err, r.done, r.total)}
 }
 
 func (r *consistentReporter) Complete() {
@@ -739,11 +739,11 @@ func (r *consistentReporter) Complete() {
 	r.reporter.Report(copied)
 }
 
-func isCancelledError(err error) bool {
+func isContextError(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := err.(errCanceled)
+	_, ok := err.(errContext)
 	return ok
 }
 
@@ -764,11 +764,12 @@ func isImageVerificationError(err error) bool {
 // not truly an error (cancellation).
 // TODO: take into account install vs upgrade
 func summarizeTaskGraphErrors(errs []error) error {
-	// we ignore cancellation errors since they don't provide good feedback to users and are an internal
-	// detail of the server
-	err := errors.FilterOut(errors.NewAggregate(errs), isCancelledError)
+	// we ignore context errors (canceled or timed out) since they don't
+	// provide good feedback to users and are an internal detail of the
+	// server
+	err := errors.FilterOut(errors.NewAggregate(errs), isContextError)
 	if err == nil {
-		klog.V(4).Infof("All errors were cancellation errors: %v", errs)
+		klog.V(4).Infof("All errors were context errors: %v", errs)
 		return nil
 	}
 	agg, ok := err.(errors.Aggregate)
@@ -936,16 +937,6 @@ func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1Obj
 	oref := metav1.NewControllerRef(config, ownerKind)
 	return func(obj metav1.Object) {
 		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})
-	}
-}
-
-// contextIsCancelled returns true if the provided context is cancelled.
-func contextIsCancelled(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-		return false
 	}
 }
 
