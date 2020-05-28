@@ -130,7 +130,6 @@ type SyncWorker struct {
 	retriever     PayloadRetriever
 	builder       payload.ResourceBuilder
 	preconditions precondition.List
-	reconciling   bool
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
 	// used to define the maximum backoff interval when syncOnce() returns an error.
