@@ -329,7 +329,9 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				utilruntime.HandleError(fmt.Errorf("unable to synchronize image (waiting %s): %v", interval, err))
 				continue
 			}
-			klog.V(5).Infof("Sync succeeded, reconciling")
+			if work.State != payload.ReconcilingPayload {
+				klog.V(4).Infof("Sync succeeded, transitioning from %s to %s", work.State, payload.ReconcilingPayload)
+			}
 
 			work.Completed++
 			work.State = payload.ReconcilingPayload
