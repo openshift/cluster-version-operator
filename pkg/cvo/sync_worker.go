@@ -636,8 +636,10 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		return nil
 	})
 	if len(errs) > 0 {
-		err := cr.Errors(errs)
-		return err
+		if err := cr.Errors(errs); err != nil {
+			return err
+		}
+		return errs[0]
 	}
 
 	// update the status
