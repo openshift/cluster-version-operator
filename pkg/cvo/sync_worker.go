@@ -382,10 +382,8 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
-	} else {
-		if changed {
-			work.State = payload.UpdatingPayload
-		}
+	} else if changed {
+		work.State = payload.UpdatingPayload
 	}
 	// always clear the completed variable if we are not reconciling
 	if work.State != payload.ReconcilingPayload {
