@@ -572,7 +572,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 						klog.V(4).Infof("No more work for %d", job)
 						return
 					}
-					klog.V(4).Infof("Running %d on %d", runTask.index, job)
+					klog.V(4).Infof("Running %d on worker %d", runTask.index, job)
 					err := fn(nestedCtx, runTask.tasks)
 					completeCh <- taskStatus{index: runTask.index, success: err == nil}
 					if err != nil {
