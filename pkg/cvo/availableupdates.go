@@ -65,14 +65,27 @@ type availableUpdates struct {
 	Upstream string
 	Channel  string
 
-	At time.Time
+	// LastAttempt records the time of the most recent attempt at update
+	// retrieval, regardless of whether it was successful.
+	LastAttempt time.Time
+
+	// LastSyncOrConfigChange records the most recent time when any of
+	// the following events occurred:
+	//
+	// * Upstream changed, reflecting a new authority, and obsoleting
+	//   any information retrieved from (or failures // retrieving from) the
+	//   previous authority.
+	// * Channel changes.  Same reasoning as for Upstream.
+	// * A slice of Updates was successfully retrieved, even if that
+	//   slice was empty.
+	LastSyncOrConfigChange time.Time
 
 	Updates   []configv1.Update
 	Condition configv1.ClusterOperatorStatusCondition
 }
 
 func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
-	return u.At.After(time.Now().Add(-interval))
+	return u.LastAttempt.After(time.Now().Add(-interval))
 }
 
 func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
@@ -95,12 +108,26 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *confi
 
 // setAvailableUpdates updates the currently calculated version of updates.
 func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
+	success := false
 	if u != nil {
-		u.At = time.Now()
+		u.LastAttempt = time.Now()
+		if u.Condition.Type == configv1.RetrievedUpdates {
+			success = u.Condition.Status == configv1.ConditionTrue
+		} else {
+			klog.Warningf("Unrecognized condition %s=%s (%s: %s): cannot judge update retrieval success", u.Condition.Type, u.Condition.Status, u.Condition.Reason, u.Condition.Message)
+		}
 	}
 
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
+	if u != nil && (optr.availableUpdates == nil ||
+		optr.availableUpdates.Upstream != u.Upstream ||
+		optr.availableUpdates.Channel != u.Channel ||
+		success) {
+		u.LastSyncOrConfigChange = u.LastAttempt
+	} else if optr.availableUpdates != nil {
+		u.LastSyncOrConfigChange = optr.availableUpdates.LastSyncOrConfigChange
+	}
 	optr.availableUpdates = u
 }
 

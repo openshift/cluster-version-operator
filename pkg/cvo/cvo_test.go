@@ -2581,10 +2581,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			optr: Operator{
 				defaultUpstreamServer:      "http://localhost:8080/graph",
 				minimumUpdateCheckInterval: 1 * time.Minute,
-				availableUpdates: &availableUpdates{
-					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
-					At:       time.Now(),
+				availableUpdates:    &availableUpdates{
+					Upstream:    "http://localhost:8080/graph",
+					Channel:     "fast",
+					LastAttempt: time.Now(),
 				},
 
 				releaseVersion: "4.0.1",
@@ -2658,7 +2658,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					optr.availableUpdates.Upstream = "<default>"
 				}
 				optr.availableUpdates.Condition.LastTransitionTime = metav1.Time{}
-				optr.availableUpdates.At = time.Time{}
+				optr.availableUpdates.LastAttempt = time.Time{}
+				optr.availableUpdates.LastSyncOrConfigChange = time.Time{}
 			}
 			if !reflect.DeepEqual(optr.availableUpdates, tt.wantUpdates) {
 				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.wantUpdates, optr.availableUpdates))
