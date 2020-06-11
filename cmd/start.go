@@ -30,5 +30,7 @@ func init() {
 	cmd.PersistentFlags().BoolVar(&opts.EnableAutoUpdate, "enable-auto-update", opts.EnableAutoUpdate, "Enables the autoupdate controller.")
 	cmd.PersistentFlags().BoolVar(&opts.EnableDefaultClusterVersion, "enable-default-cluster-version", opts.EnableDefaultClusterVersion, "Allows the operator to create a ClusterVersion object if one does not already exist.")
 	cmd.PersistentFlags().StringVar(&opts.ReleaseImage, "release-image", opts.ReleaseImage, "The Openshift release image url.")
+	cmd.PersistentFlags().StringVar(&opts.ServingCertFile, "serving-cert-file", opts.ServingCertFile, "The X.509 certificate file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file, or neither.")
+	cmd.PersistentFlags().StringVar(&opts.ServingKeyFile, "serving-key-file", opts.ServingKeyFile, "The X.509 key file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file, or neither.")
 	rootCmd.AddCommand(cmd)
 }

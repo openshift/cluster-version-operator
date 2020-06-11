@@ -26,6 +26,8 @@ spec:
           - "--release-image={{.ReleaseImage}}"
           - "--enable-auto-update=false"
           - "--enable-default-cluster-version=true"
+          - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
+          - "--serving-key-file=/etc/tls/serving-cert/tls.key"
           - "--v=4"
         resources:
           requests:
@@ -38,6 +40,9 @@ spec:
             readOnly: true
           - mountPath: /etc/cvo/updatepayloads
             name: etc-cvo-updatepayloads
+            readOnly: true
+          - mountPath: /etc/tls/serving-cert
+            name: serving-cert
             readOnly: true
         env:
           - name: KUBERNETES_SERVICE_PORT # allows CVO to communicate with apiserver directly on same host.
@@ -80,3 +85,6 @@ spec:
         - name: etc-cvo-updatepayloads
           hostPath:
             path: /etc/cvo/updatepayloads
+        - name: serving-cert
+          secret:
+            secretName: cluster-version-operator-serving-cert

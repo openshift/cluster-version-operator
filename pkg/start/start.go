@@ -4,14 +4,19 @@ package start
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/cockroachdb/cmux"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -34,6 +39,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/library-go/pkg/crypto"
 )
 
 const (
@@ -49,7 +55,9 @@ const (
 
 // Options are the valid inputs to starting the CVO.
 type Options struct {
-	ReleaseImage string
+	ReleaseImage    string
+	ServingCertFile string
+	ServingKeyFile  string
 
 	Kubeconfig string
 	NodeName   string
@@ -103,6 +111,12 @@ func (o *Options) Run() error {
 	if o.ReleaseImage == "" {
 		return fmt.Errorf("missing --release-image flag, it is required")
 	}
+	if o.ServingCertFile == "" && o.ServingKeyFile != "" {
+		return fmt.Errorf("--serving-key-file was set, so --serving-cert-file must also be set")
+	}
+	if o.ServingKeyFile == "" && o.ServingCertFile != "" {
+		return fmt.Errorf("--serving-cert-file was set, so --serving-key-file must also be set")
+	}
 	if len(o.PayloadOverride) > 0 {
 		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
 	}
@@ -153,16 +167,79 @@ func (o *Options) Run() error {
 	return nil
 }
 
+func (o *Options) makeTLSConfig() (*tls.Config, error) {
+	// Load the initial certificate contents.
+	certBytes, err := ioutil.ReadFile(o.ServingCertFile)
+	if err != nil {
+		return nil, err
+	}
+	keyBytes, err := ioutil.ReadFile(o.ServingKeyFile)
+	if err != nil {
+		return nil, err
+	}
+	certificate, err := tls.X509KeyPair(certBytes, keyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return crypto.SecureTLSConfig(&tls.Config{
+		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return &certificate, nil
+		},
+	}), nil
+}
+
 func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
 	// listen on metrics
 	if len(o.ListenAddr) > 0 {
-		mux := http.NewServeMux()
-		mux.Handle("/metrics", promhttp.Handler())
+		handler := http.NewServeMux()
+		handler.Handle("/metrics", promhttp.Handler())
+		tcpl, err := net.Listen("tcp", o.ListenAddr)
+		if err != nil {
+			klog.Fatalf("Listen error: %v", err)
+		}
+
+		// if a TLS connection was requested, set up a connection mux that will send TLS requests to
+		// the TLS server but send HTTP requests to the HTTP server. Preserves the ability for legacy
+		// HTTP, needed during upgrade, while still allowing TLS certs and end to end metrics protection.
+		m := cmux.New(tcpl)
+
+		// match HTTP first
+		httpl := m.Match(cmux.HTTP1())
 		go func() {
-			if err := http.ListenAndServe(o.ListenAddr, mux); err != nil {
-				klog.Fatalf("Unable to start metrics server: %v", err)
+			s := &http.Server{
+				Handler: handler,
+			}
+			if err := s.Serve(httpl); err != cmux.ErrListenerClosed {
+				klog.Fatalf("HTTP serve error: %v", err)
 			}
 		}()
+
+		if o.ServingCertFile != "" || o.ServingKeyFile != "" {
+			tlsConfig, err := o.makeTLSConfig()
+			if err != nil {
+				klog.Fatalf("Failed to create TLS config: %v", err)
+			}
+
+			tlsListener := tls.NewListener(m.Match(cmux.Any()), tlsConfig)
+			klog.Infof("Metrics port listening for HTTP and HTTPS on %v", o.ListenAddr)
+			go func() {
+				s := &http.Server{
+					Handler: handler,
+				}
+				if err := s.Serve(tlsListener); err != cmux.ErrListenerClosed {
+					klog.Fatalf("HTTPS serve error: %v", err)
+				}
+			}()
+
+			go func() {
+				if err := m.Serve(); err != nil {
+					klog.Errorf("CMUX serve error: %v", err)
+				}
+			}()
+		} else {
+			klog.Infof("Metrics port listening for HTTP on %v", o.ListenAddr)
+		}
 	}
 
 	exit := make(chan struct{})
