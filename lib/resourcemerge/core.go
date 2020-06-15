@@ -164,6 +164,10 @@ func ensureProbePtr(modified *bool, existing **corev1.Probe, required *corev1.Pr
 
 func ensureProbe(modified *bool, existing *corev1.Probe, required corev1.Probe) {
 	setInt32(modified, &existing.InitialDelaySeconds, required.InitialDelaySeconds)
+	setInt32(modified, &existing.TimeoutSeconds, required.TimeoutSeconds)
+	setInt32(modified, &existing.PeriodSeconds, required.PeriodSeconds)
+	setInt32(modified, &existing.SuccessThreshold, required.SuccessThreshold)
+	setInt32(modified, &existing.FailureThreshold, required.FailureThreshold)
 
 	ensureProbeHandler(modified, &existing.Handler, required.Handler)
 }
