@@ -11,7 +11,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store/serial"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/parallel"
 )
 
 // ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
@@ -87,7 +87,7 @@ func NewFromConfigMapData(src string, data map[string]string, clientBuilder Clie
 		return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
 	}
 
-	return NewReleaseVerifier(verifiers, &serial.Store{Stores: stores}), nil
+	return NewReleaseVerifier(verifiers, &parallel.Store{Stores: stores}), nil
 }
 
 func loadArmoredOrUnarmoredGPGKeyRing(data []byte) (openpgp.EntityList, error) {
