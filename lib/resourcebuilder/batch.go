@@ -45,11 +45,11 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(job)
 	}
-	_, updated, err := resourceapply.ApplyJob(b.client, job)
+	_, upgraded, err := resourceapply.ApplyJob(b.client, job)
 	if err != nil {
 		return err
 	}
-	if updated && b.mode != InitializingMode {
+	if upgraded && b.mode != InitializingMode {
 		return WaitForJobCompletion(ctx, b.client, job)
 	}
 	return nil

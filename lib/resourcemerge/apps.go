@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureDeployment ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required appsv1.Deployment) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
@@ -28,7 +28,7 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 }
 
 // EnsureDaemonSet ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureDaemonSet(modified *bool, existing *appsv1.DaemonSet, required appsv1.DaemonSet) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 

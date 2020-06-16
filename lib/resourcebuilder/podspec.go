@@ -6,9 +6,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// updatePodSpecWithProxy mutates the input podspec with proxy env vars for all init containers and containers
+// upgradePodSpecWithProxy mutates the input podspec with proxy env vars for all init containers and containers
 // matching the container names.
-func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, httpProxy, httpsProxy, noProxy string) error {
+func upgradePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, httpProxy, httpsProxy, noProxy string) error {
 	hasProxy := len(httpsProxy) > 0 || len(httpProxy) > 0 || len(noProxy) > 0
 	if !hasProxy {
 		return nil

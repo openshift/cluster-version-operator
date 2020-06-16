@@ -3,9 +3,9 @@
 The `ClusterVersion` is a custom resource object which holds the current version of the cluster.
 This object is used by the administrator to declare their target cluster state, which the cluster-version operator (CVO) then works to transition the cluster to that target state.
 
-## Finding your current update image
+## Finding your current release image
 
-You can extract the current update image from the `ClusterVersion` object:
+You can extract the current release image from the `ClusterVersion` object:
 
 ```console
 $ oc get clusterversion -o jsonpath='{.status.current.image}{"\n"}' version
@@ -81,7 +81,7 @@ EOF
 $ oc patch clusterversion version --type json -p "$(cat version-patch.yaml)"
 ```
 
-You can verify the update with:
+You can verify the upgrade with:
 
 ```console
 $ oc get -o json clusterversion version | jq .spec.overrides

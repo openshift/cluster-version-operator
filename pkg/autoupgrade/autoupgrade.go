@@ -1,4 +1,4 @@
-package autoupdate
+package autoupgrade
 
 import (
 	"fmt"
@@ -34,7 +34,7 @@ const (
 	maxRetries = 15
 )
 
-// Controller defines autoupdate controller.
+// Controller defines autoupgrade controller.
 type Controller struct {
 	// namespace and name are used to find the ClusterVersion, ClusterOperator.
 	namespace, name string
@@ -49,11 +49,11 @@ type Controller struct {
 	coLister    configlistersv1.ClusterOperatorLister
 	cacheSynced []cache.InformerSynced
 
-	// queue tracks keeping the list of available updates on a cluster version
+	// queue tracks keeping the list of available upgrades on a cluster version
 	queue workqueue.RateLimitingInterface
 }
 
-// New returns a new autoupdate controller.
+// New returns a new autoupgrade controller.
 func New(
 	namespace, name string,
 	cvInformer configinformersv1.ClusterVersionInformer,
@@ -69,8 +69,8 @@ func New(
 		namespace:     namespace,
 		name:          name,
 		client:        client,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "autoupdater"}),
-		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
+		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "autoupgrader"}),
+		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupgrader"),
 	}
 
 	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
@@ -86,13 +86,13 @@ func New(
 	return ctrl
 }
 
-// Run runs the autoupdate controller.
+// Run runs the autoupgrade controller.
 func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
-	klog.Info("Starting AutoUpdateController")
-	defer klog.Info("Shutting down AutoUpdateController")
+	klog.Info("Starting AutoUpgradeController")
+	defer klog.Info("Shutting down AutoUpgradeController")
 
 	if !cache.WaitForCacheSync(stopCh, ctrl.cacheSynced...) {
 		klog.Info("Caches never synchronized")
@@ -110,7 +110,7 @@ func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {
 	key := fmt.Sprintf("%s/%s", ctrl.namespace, ctrl.name)
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(obj interface{}) { ctrl.queue.Add(key) },
-		UpdateFunc: func(old, new interface{}) { ctrl.queue.Add(key) },
+		UpgradeFunc: func(old, new interface{}) { ctrl.queue.Add(key) },
 		DeleteFunc: func(obj interface{}) { ctrl.queue.Add(key) },
 	}
 }
@@ -152,9 +152,9 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 
 func (ctrl *Controller) sync(key string) error {
 	startTime := time.Now()
-	klog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing auto-upgrades %q (%v)", key, startTime)
 	defer func() {
-		klog.V(4).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing auto-upgrades %q (%v)", key, time.Since(startTime))
 	}()
 
 	clusterversion, err := ctrl.cvLister.Get(ctrl.name)
@@ -170,24 +170,24 @@ func (ctrl *Controller) sync(key string) error {
 	// TODO: Deep-copy only when needed.
 	clusterversion = clusterversion.DeepCopy()
 
-	if !updateAvail(clusterversion.Status.AvailableUpdates) {
+	if !upgradeAvail(clusterversion.Status.AvailableUpdates) {
 		return nil
 	}
-	up := nextUpdate(clusterversion.Status.AvailableUpdates)
+	up := nextUpgrade(clusterversion.Status.AvailableUpdates)
 	clusterversion.Spec.DesiredUpdate = &up
 
-	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
-	if updated {
-		klog.Infof("Auto Update set to %v", up)
+	_, upgraded, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
+	if upgraded {
+		klog.Infof("Auto Upgrade set to %v", up)
 	}
 	return err
 }
 
-func updateAvail(ups []v1.Update) bool {
+func upgradeAvail(ups []v1.Upgrade) bool {
 	return len(ups) > 0
 }
 
-func nextUpdate(ups []v1.Update) v1.Update {
+func nextUpgrade(ups []v1.Upgrade) v1.Upgrade {
 	sorted := ups
 	sort.Slice(sorted, func(i, j int) bool {
 		vi := semver.MustParse(sorted[i].Version)

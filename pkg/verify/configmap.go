@@ -22,7 +22,7 @@ const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-co
 // first payload item in lexographic order will be considered - all others are ignored. The
 // verifier returned by this method
 //
-// The presence of one or more config maps instructs the CVO to verify updates before they are
+// The presence of one or more config maps instructs the CVO to verify upgrades before they are
 // downloaded.
 //
 // The keys within the config map in the data field define how verification is performed:

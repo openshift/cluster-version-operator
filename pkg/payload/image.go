@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// ImageForShortName returns the image using the updatepayload embedded in
+// ImageForShortName returns the image using the upgradepayload embedded in
 // the Operator.
 func ImageForShortName(name string) (string, error) {
 	if err := ValidateDirectory(DefaultPayloadDir); err != nil {
@@ -30,5 +30,5 @@ func ImageForShortName(name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("error: Unknown name requested, could not find %s in UpdatePayload", name)
+	return "", fmt.Errorf("error: Unknown name requested, could not find %s in UpgradePayload", name)
 }

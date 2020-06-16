@@ -28,7 +28,7 @@ func (e *Error) Cause() error {
 	return e.Nested
 }
 
-// ReleaseContext holds information about the update being considered
+// ReleaseContext holds information about the upgrade being considered
 type ReleaseContext struct {
 	// DesiredVersion is the version of the payload being considered.
 	// While this might be a semantic version, consumers should not
@@ -82,7 +82,7 @@ func Summarize(errs []error) error {
 	} else {
 		msg = fmt.Sprintf("Multiple precondition checks failed:\n* %s", strings.Join(msgs, "\n* "))
 	}
-	return &payload.UpdateError{
+	return &payload.UpgradeError{
 		Nested:  nil,
 		Reason:  "UpgradePreconditionCheckFailed",
 		Message: msg,

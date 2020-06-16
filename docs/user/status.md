@@ -5,13 +5,13 @@ This document describes those conditions and, where appropriate, suggests possib
 
 ## RetrievedUpdates
 
-When `RetrievedUpdates` is `True`, the CVO is succesfully retrieving updates, which is good.
+When `RetrievedUpdates` is `True`, the CVO is succesfully retrieving upgrades, which is good.
 When `RetrievedUpdates` is `False`, `reason` will be set to explain why, as discussed in the following subsections.
-In all cases, the impact is that the cluster will not be able to retrieve recommended updates, so cluster admins will need to monitor for available updates on their own or risk falling behind on security or other bugfixes.
+In all cases, the impact is that the cluster will not be able to retrieve recommended upgrades, so cluster admins will need to monitor for available upgrades on their own or risk falling behind on security or other bugfixes.
 
 ### NoUpstream
 
-No `upstream` server has been set to retrieve updates.
+No `upstream` server has been set to retrieve upgrades.
 
 Fix by setting `spec.upstream` in ClusterVersion to point to a [Cincinnati][] server, for example https://api.openshift.com/api/upgrades_info/v1/graph .
 
@@ -27,7 +27,7 @@ The configured `clusterID` is not a valid UUID.
 
 Fix by setting `spec.clusterID` to a valid UUID.
 The UUID should be unique to a given cluster, because it is the default value used for reporting Telemetry and Insights.
-It may also be used by the CVO when making Cincinnati requests, so that Cincinnati can return update recommentations tailored to the specific cluster.
+It may also be used by the CVO when making Cincinnati requests, so that Cincinnati can return upgrade recommendations tailored to the specific cluster.
 
 ### NoArchitecture
 
@@ -38,7 +38,7 @@ There is no mitigation short of updating to a new release image with a fixed CVO
 
 #### Impact
 
-The cluster will not be able to retrieve recommended updates, so cluster admins will need to monitor for available updates on their own or risk falling behind on security or other bugfixes.
+The cluster will not be able to retrieve recommended upgrades, so cluster admins will need to monitor for available upgrades on their own or risk falling behind on security or other bugfixes.
 
 If this happens it is a CVO coding error.
 There is no mitigation short of updating to a new release image with a fixed CVO.
@@ -52,7 +52,7 @@ There is no mitigation short of updating to a new release image with fixed metad
 
 ### NoChannel
 
-The update `channel` has not been configured.
+The upgrade `channel` has not been configured.
 
 Fix by setting `channel` to [a valid value][channels], e.g. `stable-4.3`.
 
@@ -100,7 +100,7 @@ The currently installed version was not found in the configured `channel`.
 This usually means that the configured `channel` is known to Cincinnati, but the cluster's current version is not found in that channel's graph.
 Fix by setting `channel` to [a valid value][channels], e.g. `stable-4.3`.
 
-If this error occurs because you forced an update to a release that is not in any channel, fix by updating back to a release that occurs in a channel, although you are on your own to determine a safe update path.
+If this error occurs because you forced an upgrade to a release that is not in any channel, fix by updating back to a release that occurs in a channel, although you are on your own to determine a safe upgrade path.
 
 ### Unknown
 

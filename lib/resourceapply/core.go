@@ -37,7 +37,7 @@ func ApplyNamespace(client coreclientv1.NamespacesGetter, required *corev1.Names
 }
 
 // ApplyService merges objectmeta and requires
-// TODO, since this cannot determine whether changes are due to legitimate actors (api server) or illegitimate ones (users), we cannot update
+// TODO, since this cannot determine whether changes are due to legitimate actors (api server) or illegitimate ones (users), we cannot upgrade
 // TODO I've special cased the selector for now
 func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) (*corev1.Service, bool, error) {
 	existing, err := client.Services(required.Namespace).Get(required.Name, metav1.GetOptions{})
@@ -63,7 +63,7 @@ func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) 
 		return nil, false, nil
 	}
 	existing.Spec.Selector = required.Spec.Selector
-	existing.Spec.Type = required.Spec.Type // if this is different, the update will fail.  Status will indicate it.
+	existing.Spec.Type = required.Spec.Type // if this is different, the upgrade will fail.  Status will indicate it.
 
 	actual, err := client.Services(required.Namespace).Update(existing)
 	return actual, true, err

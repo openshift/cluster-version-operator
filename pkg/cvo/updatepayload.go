@@ -43,17 +43,17 @@ func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
 		namespace:    optr.namespace,
 		nodeName:     optr.nodename,
 		payloadDir:   optr.defaultPayloadDir(),
-		workingDir:   targetUpdatePayloadsDir,
+		workingDir:   targetUpgradePayloadsDir,
 		verifier:     optr.verifier,
 	}
 }
 
 const (
-	targetUpdatePayloadsDir = "/etc/cvo/updatepayloads"
+	targetUpgradePayloadsDir = "/etc/cvo/upgradepayloads"
 )
 
 type payloadRetriever struct {
-	// releaseImage and payloadDir are the default payload identifiers - updates that point
+	// releaseImage and payloadDir are the default payload identifiers - upgrades that point
 	// to releaseImage will always use the contents of payloadDir
 	releaseImage string
 	payloadDir   string
@@ -69,15 +69,15 @@ type payloadRetriever struct {
 	verifier verify.Interface
 }
 
-func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (PayloadInfo, error) {
-	if r.releaseImage == update.Image {
+func (r *payloadRetriever) RetrievePayload(ctx context.Context, upgrade configv1.Update) (PayloadInfo, error) {
+	if r.releaseImage == upgrade.Image {
 		return PayloadInfo{
 			Directory: r.payloadDir,
 			Local:     true,
 		}, nil
 	}
 
-	if len(update.Image) == 0 {
+	if len(upgrade.Image) == 0 {
 		return PayloadInfo{}, fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
 	}
 
@@ -85,19 +85,19 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 	// verify the provided payload
 	var releaseDigest string
-	if index := strings.LastIndex(update.Image, "@"); index != -1 {
-		releaseDigest = update.Image[index+1:]
+	if index := strings.LastIndex(upgrade.Image, "@"); index != -1 {
+		releaseDigest = upgrade.Image[index+1:]
 	}
 	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
-		vErr := &payload.UpdateError{
+		vErr := &payload.UpgradeError{
 			Reason:  "ImageVerificationFailed",
-			Message: fmt.Sprintf("The update cannot be verified: %v", err),
+			Message: fmt.Sprintf("The upgrade cannot be verified: %v", err),
 			Nested:  err,
 		}
-		if !update.Force {
+		if !upgrade.Force {
 			return PayloadInfo{}, vErr
 		}
-		klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
+		klog.Warningf("An image was retrieved from %q that failed verification: %v", upgrade.Image, vErr)
 		info.VerificationError = vErr
 	} else {
 		info.Verified = true
@@ -105,26 +105,26 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 	// download the payload to the directory
 	var err error
-	info.Directory, err = r.targetUpdatePayloadDir(ctx, update)
+	info.Directory, err = r.targetUpgradePayloadDir(ctx, upgrade)
 	if err != nil {
-		return PayloadInfo{}, &payload.UpdateError{
-			Reason:  "UpdatePayloadRetrievalFailed",
-			Message: fmt.Sprintf("Unable to download and prepare the update: %v", err),
+		return PayloadInfo{}, &payload.UpgradeError{
+			Reason:  "UpgradePayloadRetrievalFailed",
+			Message: fmt.Sprintf("Unable to download and prepare the upgrade: %v", err),
 		}
 	}
 	return info, nil
 }
 
-func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update configv1.Update) (string, error) {
+func (r *payloadRetriever) targetUpgradePayloadDir(ctx context.Context, upgrade configv1.Update) (string, error) {
 	hash := md5.New()
-	hash.Write([]byte(update.Image))
+	hash.Write([]byte(upgrade.Image))
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
 	tdir := filepath.Join(r.workingDir, payloadHash)
 	err := payload.ValidateDirectory(tdir)
 	if os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
-		err = r.fetchUpdatePayloadToDir(ctx, tdir, update)
+		err = r.fetchUpgradePayloadToDir(ctx, tdir, upgrade)
 	}
 	if err != nil {
 		return "", err
@@ -137,10 +137,10 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	return tdir, nil
 }
 
-func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir string, update configv1.Update) error {
+func (r *payloadRetriever) fetchUpgradePayloadToDir(ctx context.Context, dir string, upgrade configv1.Update) error {
 	var (
-		version         = update.Version
-		payload         = update.Image
+		version         = upgrade.Version
+		payload         = upgrade.Image
 		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
 		namespace       = r.namespace
 		deadline        = pointer.Int64Ptr(2 * 60)
@@ -165,7 +165,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 						Command: cmd,
 						Args:    args,
 						VolumeMounts: []corev1.VolumeMount{{
-							MountPath: targetUpdatePayloadsDir,
+							MountPath: targetUpgradePayloadsDir,
 							Name:      "payloads",
 						}},
 						SecurityContext: &corev1.SecurityContext{
@@ -183,7 +183,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 						Name: "payloads",
 						VolumeSource: corev1.VolumeSource{
 							HostPath: &corev1.HostPathVolumeSource{
-								Path: targetUpdatePayloadsDir,
+								Path: targetUpgradePayloadsDir,
 							},
 						},
 					}},
@@ -288,24 +288,24 @@ func copyPayloadCmd(tdir string) string {
 	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
 }
 
-// findUpdateFromConfig identifies a desired update from user input or returns false. It will
-// resolve payload if the user specifies a version and a matching available update or previous
-// update is in the history.
-func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
-	update := config.Spec.DesiredUpdate
-	if update == nil {
+// findUpgradeFromConfig identifies a desired upgrade from user input or returns false. It will
+// resolve payload if the user specifies a version and a matching available upgrade or previous
+// upgrade is in the history.
+func findUpgradeFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
+	upgrade := config.Spec.DesiredUpdate
+	if upgrade == nil {
 		return configv1.Update{}, false
 	}
-	if len(update.Image) == 0 {
-		return findUpdateFromConfigVersion(config, update.Version, update.Force)
+	if len(upgrade.Image) == 0 {
+		return findUpgradeFromConfigVersion(config, upgrade.Version, upgrade.Force)
 	}
-	return *update, true
+	return *upgrade, true
 }
 
-func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
-	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version {
-			return update, len(update.Image) > 0
+func findUpgradeFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
+	for _, upgrade := range config.Status.AvailableUpdates {
+		if upgrade.Version == version {
+			return upgrade, len(upgrade.Image) > 0
 		}
 	}
 	for _, history := range config.Status.History {

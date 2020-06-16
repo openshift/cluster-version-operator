@@ -20,11 +20,11 @@ import (
 )
 
 // syncUpgradeable. The status is only checked if it has been more than
-// the minimumUpdateCheckInterval since the last check.
+// the minimumUpgradeCheckInterval since the last check.
 func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
-	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
+	// upgrades are only checked at most once per minimumUpgradeCheckInterval or if the generation changes
 	u := optr.getUpgradeable()
-	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
+	if u != nil && u.RecentlyChanged(optr.minimumUpgradeCheckInterval) {
 		klog.V(4).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
@@ -76,7 +76,7 @@ func (u *upgradeable) RecentlyChanged(interval time.Duration) bool {
 	return u.At.After(time.Now().Add(-interval))
 }
 
-func (u *upgradeable) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
+func (u *upgradeable) NeedsUpgrade(original *configv1.ClusterVersion) *configv1.ClusterVersion {
 	if u == nil {
 		return nil
 	}
@@ -109,7 +109,7 @@ func collectUpgradeableConditions(conditions []configv1.ClusterOperatorStatusCon
 	return ret
 }
 
-// setUpgradeable updates the currently calculated status of Upgradeable
+// setUpgradeable upgrades the currently calculated status of Upgradeable
 func (optr *Operator) setUpgradeable(u *upgradeable) {
 	if u != nil {
 		u.At = time.Now()

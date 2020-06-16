@@ -24,7 +24,7 @@ spec:
         args:
           - "start"
           - "--release-image={{.ReleaseImage}}"
-          - "--enable-auto-update=false"
+          - "--enable-auto-upgrade=false"
           - "--enable-default-cluster-version=true"
           - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
           - "--serving-key-file=/etc/tls/serving-cert/tls.key"
@@ -38,8 +38,8 @@ spec:
           - mountPath: /etc/ssl/certs
             name: etc-ssl-certs
             readOnly: true
-          - mountPath: /etc/cvo/updatepayloads
-            name: etc-cvo-updatepayloads
+          - mountPath: /etc/cvo/upgradepayloads
+            name: etc-cvo-upgradepayloads
             readOnly: true
           - mountPath: /etc/tls/serving-cert
             name: serving-cert
@@ -82,9 +82,9 @@ spec:
         - name: etc-ssl-certs
           hostPath:
             path: /etc/ssl/certs
-        - name: etc-cvo-updatepayloads
+        - name: etc-cvo-upgradepayloads
           hostPath:
-            path: /etc/cvo/updatepayloads
+            path: /etc/cvo/upgradepayloads
         - name: serving-cert
           secret:
             secretName: cluster-version-operator-serving-cert

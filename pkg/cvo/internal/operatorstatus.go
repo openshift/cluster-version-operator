@@ -100,7 +100,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		b.modifier(os)
 	}
 
-	// create the object, and if we successfully created, update the status
+	// create the object, and if we successfully created, upgrade the status
 	if b.mode == resourcebuilder.PrecreatingMode {
 		clusterOperator, err := b.createClient.Create(os)
 		if err != nil {
@@ -110,7 +110,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 			return err
 		}
 		clusterOperator.Status.RelatedObjects = os.Status.DeepCopy().RelatedObjects
-		if _, err := b.createClient.UpdateStatus(clusterOperator); err != nil {
+		if _, err := b.createClient.UpgradeStatus(clusterOperator); err != nil {
 			if kerrors.IsConflict(err) {
 				return nil
 			}
@@ -127,7 +127,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.Get(expected.Name)
 		if err != nil {
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  err,
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
@@ -159,7 +159,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			sort.Strings(keys)
 
 			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  errors.New(lowerFirst(message)),
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: message,
@@ -219,7 +219,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			if len(condition.Message) > 0 {
 				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, condition.Message)
 			}
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  errors.New(lowerFirst(message)),
 				Reason:  "ClusterOperatorDegraded",
 				Message: message,
@@ -228,7 +228,7 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			return false, nil
 		}
 
-		lastErr = &payload.UpdateError{
+		lastErr = &payload.UpgradeError{
 			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, degraded=%v",
 				actual.Name, available, progressing, degraded,
 			),

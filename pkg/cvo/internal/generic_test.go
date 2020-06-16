@@ -40,7 +40,7 @@ func TestCreateOnlyCreate(t *testing.T) {
 	}
 }
 
-func TestCreateOnlyUpdate(t *testing.T) {
+func TestCreateOnlyUpgrade(t *testing.T) {
 	feature := `{
   "kind": "FeatureGate",
   "apiVersion": "config.openshift.io/v1",
@@ -79,6 +79,6 @@ func TestCreateOnlyUpdate(t *testing.T) {
 		t.Fatal(err)
 	}
 	if modified {
-		t.Error("should not have updated")
+		t.Error("should not have upgraded")
 	}
 }

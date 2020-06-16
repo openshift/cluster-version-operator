@@ -45,7 +45,7 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 func (b *crdBuilder) Do(ctx context.Context) error {
 	crd := resourceread.ReadCustomResourceDefinitionOrDie(b.raw)
 
-	var updated bool
+	var upgraded bool
 	var err error
 	var name string
 
@@ -54,7 +54,7 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(crd)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, crd)
+		_, upgraded, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, crd)
 		if err != nil {
 			return err
 		}
@@ -63,14 +63,14 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(crd)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, crd)
+		_, upgraded, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, crd)
 		if err != nil {
 			return err
 		}
 		name = crd.Name
 	}
 
-	if updated {
+	if upgraded {
 		return waitForCustomResourceDefinitionCompletion(ctx, b.clientV1beta1, name)
 	}
 	return nil

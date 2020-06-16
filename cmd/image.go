@@ -12,7 +12,7 @@ import (
 var (
 	imageCmd = &cobra.Command{
 		Use:     "image",
-		Short:   "Returns image for requested short-name from UpdatePayload",
+		Short:   "Returns image for requested short-name from UpgradePayload",
 		Long:    "",
 		Example: "%[1] image <short-name>",
 		Run:     runImageCmd,

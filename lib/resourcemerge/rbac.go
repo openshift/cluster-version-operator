@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureClusterRoleBinding ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBinding, required rbacv1.ClusterRoleBinding) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
@@ -20,7 +20,7 @@ func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBindin
 }
 
 // EnsureClusterRole ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rbacv1.ClusterRole) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {
@@ -30,7 +30,7 @@ func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rb
 }
 
 // EnsureRoleBinding ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureRoleBinding(modified *bool, existing *rbacv1.RoleBinding, required rbacv1.RoleBinding) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
@@ -44,7 +44,7 @@ func EnsureRoleBinding(modified *bool, existing *rbacv1.RoleBinding, required rb
 }
 
 // EnsureRole ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureRole(modified *bool, existing *rbacv1.Role, required rbacv1.Role) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {

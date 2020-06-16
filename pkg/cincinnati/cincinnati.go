@@ -18,7 +18,7 @@ const (
 	GraphMediaType = "application/json"
 )
 
-// Client is a Cincinnati client which can be used to fetch update graphs from
+// Client is a Cincinnati client which can be used to fetch upgrade graphs from
 // an upstream Cincinnati stack.
 type Client struct {
 	id        uuid.UUID
@@ -31,10 +31,10 @@ func NewClient(id uuid.UUID, proxyURL *url.URL, tlsConfig *tls.Config) Client {
 	return Client{id: id, proxyURL: proxyURL, tlsConfig: tlsConfig}
 }
 
-// Update is a single node from the update graph.
-type Update node
+// Upgrade is a single node from the upgrade graph.
+type Upgrade node
 
-// Error is returned when are unable to get updates.
+// Error is returned when are unable to get upgrades.
 type Error struct {
 	// Reason is the reason suggested for the ClusterOperator status condition.
 	Reason string
@@ -51,14 +51,14 @@ func (err *Error) Error() string {
 	return fmt.Sprintf("%s: %s", err.Reason, err.Message)
 }
 
-// GetUpdates fetches the next-applicable update payloads from the specified
+// GetUpgrades fetches the next-applicable upgrade payloads from the specified
 // upstream Cincinnati stack given the current version and channel. The next-
-// applicable updates are determined by downloading the update graph, finding
+// applicable upgrades are determined by downloading the upgrade graph, finding
 // the current version within that graph (typically the root node), and then
-// finding all of the children. These children are the available updates for
-// the current version and their payloads indicate from where the actual update
+// finding all of the children. These children are the available upgrades for
+// the current version and their payloads indicate from where the actual upgrade
 // image can be downloaded.
-func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpgrades(uri *url.URL, arch string, channel string, version semver.Version) ([]Upgrade, error) {
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	queryParams := uri.Query()
@@ -68,7 +68,7 @@ func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version se
 	queryParams.Add("version", version.String())
 	uri.RawQuery = queryParams.Encode()
 
-	// Download the update graph.
+	// Download the upgrade graph.
 	req, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
 		return nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
@@ -129,12 +129,12 @@ func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version se
 		}
 	}
 
-	var updates []Update
+	var upgrades []Upgrade
 	for _, i := range nextIdxs {
-		updates = append(updates, Update(graph.Nodes[i]))
+		upgrades = append(upgrades, Upgrade(graph.Nodes[i]))
 	}
 
-	return updates, nil
+	return upgrades, nil
 }
 
 type graph struct {
@@ -152,7 +152,7 @@ type edge struct {
 	Destination int
 }
 
-// UnmarshalJSON unmarshals an edge in the update graph. The edge's JSON
+// UnmarshalJSON unmarshals an edge in the upgrade graph. The edge's JSON
 // representation is a two-element array of indices, but Go's representation is
 // a struct with two elements so this custom unmarshal method is required.
 func (e *edge) UnmarshalJSON(data []byte) error {

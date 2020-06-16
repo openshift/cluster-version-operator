@@ -50,7 +50,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 			obj.Generation = 1
 			cvs[obj.Name] = obj
 			return true, obj, nil
-		case clientgotesting.UpdateAction:
+		case clientgotesting.UpgradeAction:
 			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
 			existing := cvs[obj.Name].DeepCopyObject().(*configv1.ClusterVersion)
 			rv, _ := strconv.Atoi(existing.ResourceVersion)
@@ -149,7 +149,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -165,7 +165,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to upgrade cluster"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply <unknown>: an error occurred"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -190,7 +190,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -203,7 +203,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			ObservedGeneration: 1,
 			Desired:            desired,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -259,7 +259,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 	)
 
-	// Step 4: Now that sync is complete, verify status is updated to represent image contents
+	// Step 4: Now that sync is complete, verify status is upgraded to represent image contents
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -271,9 +271,9 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	// update the status to indicate we are synced, available, and report versions
+	// upgrade the status to indicate we are synced, available, and report versions
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -289,8 +289,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -361,9 +361,9 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.UpgradeError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: fmt.Sprintf("The upgrade cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -420,7 +420,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -436,7 +436,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to upgrade cluster"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply <unknown>: an error occurred"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -461,7 +461,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -474,7 +474,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -530,7 +530,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 	)
 
-	// Step 4: Now that sync is complete, verify status is updated to represent image contents
+	// Step 4: Now that sync is complete, verify status is upgraded to represent image contents
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -542,9 +542,9 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	// update the status to indicate we are synced, available, and report versions
+	// upgrade the status to indicate we are synced, available, and report versions
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -560,8 +560,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -681,7 +681,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -697,7 +697,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "No configured operator version, unable to upgrade cluster"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply <unknown>: an error occurred"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -722,7 +722,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -735,7 +735,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -791,7 +791,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		},
 	)
 
-	// Step 4: Now that sync is complete, verify status is updated to represent image contents
+	// Step 4: Now that sync is complete, verify status is upgraded to represent image contents
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -803,9 +803,9 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	// update the status to indicate we are synced, available, and report versions
+	// upgrade the status to indicate we are synced, available, and report versions
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -821,8 +821,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -909,7 +909,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -926,9 +926,9 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.UpgradeError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: fmt.Sprintf("The upgrade cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -975,7 +975,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -991,13 +991,13 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The upgrade cannot be verified: some random error"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -1080,7 +1080,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1096,8 +1096,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
@@ -1134,7 +1134,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -1151,9 +1151,9 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.UpgradeError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: fmt.Sprintf("The upgrade cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -1200,7 +1200,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1216,13 +1216,13 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The upgrade cannot be verified: some random error"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -1305,7 +1305,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1321,8 +1321,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
@@ -1396,7 +1396,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -1440,7 +1440,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Step:    "PreconditionChecks",
-			Failure: &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
+			Failure: &payload.UpgradeError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
 			Actual:  configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
 	)
@@ -1456,7 +1456,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1472,14 +1472,14 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Unable to apply 1.0.1-abc: it may not be safe to apply this update"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Unable to apply 1.0.1-abc: it may not be safe to apply this upgrade"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1566,7 +1566,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1582,8 +1582,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
@@ -1621,7 +1621,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -1638,9 +1638,9 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	defer shutdownFn()
 
 	// make the image report unverified
-	payloadErr := &payload.UpdateError{
+	payloadErr := &payload.UpgradeError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: fmt.Sprintf("The upgrade cannot be verified: some random error"),
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -1689,7 +1689,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1706,13 +1706,13 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The upgrade cannot be verified: some random error"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -1789,7 +1789,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1805,8 +1805,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Desired:            configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			VersionHash:        "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
@@ -1848,10 +1848,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -1862,7 +1862,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 	}
 
-	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	// Step 1: The sync loop starts and triggers a sync, but does not upgrade status
 	//
 	client.ClearActions()
 	err := o.sync(o.queueKey())
@@ -2014,7 +2014,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -2025,7 +2025,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		},
 	}
 
-	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	// Step 1: The sync loop starts and triggers a sync, but does not upgrade status
 	//
 	client.ClearActions()
 	err := o.sync(o.queueKey())
@@ -2067,7 +2067,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh())
 
 	// Step 3: Simulate a sync being triggered while we are partway through our first
-	//         reconcile sync and verify status is not updated
+	//         reconcile sync and verify status is not upgraded
 	//
 	client.ClearActions()
 	err = o.sync(o.queueKey())
@@ -2129,17 +2129,17 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	}()
 
 	//
-	// verify we see the update after the context times out
+	// verify we see the upgrade after the context times out
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
 			Fraction:    float32(2) / 3,
 			VersionHash: "6GC9TkkG9PA=",
-			Failure: &payload.UpdateError{
+			Failure: &payload.UpgradeError{
 				Nested:  fmt.Errorf("unable to proceed"),
-				Reason:  "UpdatePayloadFailed",
-				Message: "Could not update test \"file-yml\" (3 of 3)",
+				Reason:  "UpgradePayloadFailed",
+				Message: "Could not upgrade test \"file-yml\" (3 of 3)",
 				Task:    &payload.Task{Index: 3, Total: 3, Manifest: &worker.payload.Manifests[2]},
 			},
 			Actual:       configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -2156,7 +2156,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -2170,12 +2170,12 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpgradePayloadFailed", Message: "Could not upgrade test \"file-yml\" (3 of 3)"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpgradePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the upgrade could not be applied"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2191,12 +2191,12 @@ func TestCVO_ParallelError(t *testing.T) {
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 	b := &errorResourceBuilder{errors: map[string]error{
-		"0000_10_a_file.yaml": &payload.UpdateError{
+		"0000_10_a_file.yaml": &payload.UpgradeError{
 			Reason: "ClusterOperatorNotAvailable",
 			Name:   "operator-1",
 		},
 		"0000_20_a_file.yaml": nil,
-		"0000_20_b_file.yaml": &payload.UpdateError{
+		"0000_20_b_file.yaml": &payload.UpgradeError{
 			Reason: "ClusterOperatorNotAvailable",
 			Name:   "operator-2",
 		},
@@ -2290,7 +2290,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			continue
 		}
 		err := status.Failure
-		uErr, ok := err.(*payload.UpdateError)
+		uErr, ok := err.(*payload.UpgradeError)
 		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" || uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -2322,7 +2322,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpgradeStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			Generation:      1,
@@ -2337,7 +2337,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Desired:     configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash: "7m-gGRrpkDU=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -2379,7 +2379,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -2390,7 +2390,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 		},
 	}
 
-	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	// Step 1: The sync loop starts and triggers a sync, but does not upgrade status
 	//
 	client.ClearActions()
 	err := o.sync(o.queueKey())
@@ -2437,8 +2437,8 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.PartialUpgrade, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpgrade, Image: "image/image:0", Version: "1.0.0-abc.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -2449,7 +2449,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 		},
 	}
 
-	// Step 1: The sync loop starts and triggers a sync, but does not update status
+	// Step 1: The sync loop starts and triggers a sync, but does not upgrade status
 	//
 	client.ClearActions()
 	err := o.sync(o.queueKey())

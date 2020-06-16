@@ -57,7 +57,7 @@ func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.
 		existing.Object[k] = v
 	}
 
-	actual, err := client.Update(existing, metav1.UpdateOptions{})
+	actual, err := client.Upgrade(existing, metav1.UpgradeOptions{})
 	if err != nil {
 		return nil, false, err
 	}

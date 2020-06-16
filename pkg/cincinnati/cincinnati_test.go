@@ -15,7 +15,7 @@ import (
 	_ "k8s.io/klog" // integration tests set glog flags.
 )
 
-func TestGetUpdates(t *testing.T) {
+func TestGetUpgrades(t *testing.T) {
 	clientID := uuid.Must(uuid.Parse("01234567-0123-0123-0123-0123456789ab"))
 	arch := "test-arch"
 	channelName := "test-channel"
@@ -24,25 +24,25 @@ func TestGetUpdates(t *testing.T) {
 		version string
 
 		expectedQuery string
-		available     []Update
+		available     []Upgrade
 		err           string
 	}{{
-		name:          "one update available",
+		name:          "one upgrade available",
 		version:       "4.0.0-4",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-4",
-		available: []Update{
+		available: []Upgrade{
 			{semver.MustParse("4.0.0-5"), "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
 		},
 	}, {
-		name:          "two updates available",
+		name:          "two upgrades available",
 		version:       "4.0.0-5",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-5",
-		available: []Update{
+		available: []Upgrade{
 			{semver.MustParse("4.0.0-6"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6"},
 			{semver.MustParse("4.0.0-6+2"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"},
 		},
 	}, {
-		name:          "no updates available",
+		name:          "no upgrades available",
 		version:       "4.0.0-0.okd-0",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-0.okd-0",
 	}, {
@@ -132,13 +132,13 @@ func TestGetUpdates(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			updates, err := c.GetUpdates(uri, arch, channelName, semver.MustParse(test.version))
+			upgrades, err := c.GetUpgrades(uri, arch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)
 				}
-				if !reflect.DeepEqual(updates, test.available) {
-					t.Fatalf("expected %v, got: %v", test.available, updates)
+				if !reflect.DeepEqual(upgrades, test.available) {
+					t.Fatalf("expected %v, got: %v", test.available, upgrades)
 				}
 			} else {
 				if err == nil || err.Error() != test.err {

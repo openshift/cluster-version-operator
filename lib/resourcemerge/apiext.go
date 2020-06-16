@@ -11,7 +11,7 @@ import (
 )
 
 // EnsureCustomResourceDefinitionV1beta1 ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureCustomResourceDefinitionV1beta1(modified *bool, existing *apiextv1beta1.CustomResourceDefinition, required apiextv1beta1.CustomResourceDefinition) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
@@ -46,7 +46,7 @@ func EnsureCustomResourceDefinitionV1beta1(modified *bool, existing *apiextv1bet
 }
 
 // EnsureCustomResourceDefinitionV1 ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureCustomResourceDefinitionV1(modified *bool, existing *apiextv1.CustomResourceDefinition, required apiextv1.CustomResourceDefinition) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 

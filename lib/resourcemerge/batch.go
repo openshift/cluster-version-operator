@@ -5,7 +5,7 @@ import (
 )
 
 // EnsureJob ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureJob(modified *bool, existing *batchv1.Job, required batchv1.Job) {
 
 	if required.Spec.Selector != nil {

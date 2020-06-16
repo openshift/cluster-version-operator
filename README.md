@@ -55,3 +55,9 @@ go test ./...
 export KUBECONFIG=<admin kubeconfig>
 TEST_INTEGRATION=1 go test ./... -test.run=^TestIntegration
 ```
+
+## Terminology
+
+The CVO manages release upgrades.
+While some folks try to distinguish between bugfix "updates" and new-feature "upgrades", the CVO does not make that distinction.
+When we are not constrained by existing APIs, we prefer to use the more generic "upgrades" terminology.

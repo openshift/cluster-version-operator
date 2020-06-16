@@ -58,7 +58,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		err = updatePodSpecWithProxy(
+		err = upgradePodSpecWithProxy(
 			&deployment.Spec.Template.Spec,
 			strings.Split(containerNamesString, ","),
 			proxyConfig.Status.HTTPProxy,
@@ -70,11 +70,11 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	actual, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
+	actual, upgraded, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
 		return err
 	}
-	if updated && actual.Generation > 1 {
+	if upgraded && actual.Generation > 1 {
 		return waitForDeploymentCompletion(ctx, b.client, deployment)
 	}
 	return nil
@@ -91,7 +91,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  err,
 				Reason:  "WorkloadNotAvailable",
 				Message: fmt.Sprintf("could not find the deployment %s during rollout", iden),
@@ -123,7 +123,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		}
 
 		if replicafailureCondition != nil && replicafailureCondition.Status == corev1.ConditionTrue {
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  fmt.Errorf("deployment %s has some pods failing; unavailable replicas=%d", iden, d.Status.UnavailableReplicas),
 				Reason:  "WorkloadNotProgressing",
 				Message: fmt.Sprintf("deployment %s has a replica failure %s: %s", iden, replicafailureCondition.Reason, replicafailureCondition.Message),
@@ -133,7 +133,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		}
 
 		if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse {
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  fmt.Errorf("deployment %s is not available; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
 				Reason:  "WorkloadNotAvailable",
 				Message: fmt.Sprintf("deployment %s is not available %s: %s", iden, availableCondition.Reason, availableCondition.Message),
@@ -143,7 +143,7 @@ func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.Deploy
 		}
 
 		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse && progressingCondition.Reason == "ProgressDeadlineExceeded" {
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  fmt.Errorf("deployment %s is not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
 				Reason:  "WorkloadNotAvailable",
 				Message: fmt.Sprintf("deployment %s is not progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
@@ -206,7 +206,7 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		err = updatePodSpecWithProxy(
+		err = upgradePodSpecWithProxy(
 			&daemonset.Spec.Template.Spec,
 			strings.Split(containerNamesString, ","),
 			proxyConfig.Status.HTTPProxy,
@@ -218,11 +218,11 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	actual, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
+	actual, upgraded, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
 	if err != nil {
 		return err
 	}
-	if updated && actual.Generation > 1 {
+	if upgraded && actual.Generation > 1 {
 		return waitForDaemonsetRollout(ctx, b.client, daemonset)
 	}
 	return nil
@@ -240,7 +240,7 @@ func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSets
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			lastErr = &payload.UpdateError{
+			lastErr = &payload.UpgradeError{
 				Nested:  err,
 				Reason:  "WorkloadNotAvailable",
 				Message: fmt.Sprintf("could not find the daemonset %s during rollout", iden),

@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureAPIService ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureAPIService(modified *bool, existing *apiregv1.APIService, required apiregv1.APIService) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 

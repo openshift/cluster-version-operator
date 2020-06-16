@@ -65,11 +65,11 @@ func Test_pruneStatusHistory(t *testing.T) {
 	obj := &configv1.ClusterVersion{
 		Status: configv1.ClusterVersionStatus{
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.PartialUpdate, Version: "0.0.9"},
-				{State: configv1.PartialUpdate, Version: "0.0.8"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
-				{State: configv1.PartialUpdate, Version: "0.0.6"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.PartialUpgrade, Version: "0.0.9"},
+				{State: configv1.PartialUpgrade, Version: "0.0.8"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.6"},
 			},
 		},
 	}
@@ -83,49 +83,49 @@ func Test_pruneStatusHistory(t *testing.T) {
 			config:     obj.DeepCopy(),
 			maxHistory: 2,
 			want: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
 			},
 		},
 		{
 			config:     obj.DeepCopy(),
 			maxHistory: 3,
 			want: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.PartialUpdate, Version: "0.0.9"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.PartialUpgrade, Version: "0.0.9"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
 			},
 		},
 		{
 			config:     obj.DeepCopy(),
 			maxHistory: 4,
 			want: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.PartialUpdate, Version: "0.0.9"},
-				{State: configv1.PartialUpdate, Version: "0.0.8"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.PartialUpgrade, Version: "0.0.9"},
+				{State: configv1.PartialUpgrade, Version: "0.0.8"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
 			},
 		},
 		{
 			config:     obj.DeepCopy(),
 			maxHistory: 5,
 			want: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.PartialUpdate, Version: "0.0.9"},
-				{State: configv1.PartialUpdate, Version: "0.0.8"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
-				{State: configv1.PartialUpdate, Version: "0.0.6"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.PartialUpgrade, Version: "0.0.9"},
+				{State: configv1.PartialUpgrade, Version: "0.0.8"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.6"},
 			},
 		},
 		{
 			config:     obj.DeepCopy(),
 			maxHistory: 6,
 			want: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Version: "0.0.10"},
-				{State: configv1.PartialUpdate, Version: "0.0.9"},
-				{State: configv1.PartialUpdate, Version: "0.0.8"},
-				{State: configv1.CompletedUpdate, Version: "0.0.7"},
-				{State: configv1.PartialUpdate, Version: "0.0.6"},
+				{State: configv1.PartialUpgrade, Version: "0.0.10"},
+				{State: configv1.PartialUpgrade, Version: "0.0.9"},
+				{State: configv1.PartialUpgrade, Version: "0.0.8"},
+				{State: configv1.CompletedUpgrade, Version: "0.0.7"},
+				{State: configv1.PartialUpgrade, Version: "0.0.6"},
 			},
 		},
 	}
@@ -161,7 +161,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 				releaseImage:   "image/image:v4.0.1",
 				namespace:      "test",
 				name:           "default",
-				client: fakeClientsetWithUpdates(
+				client: fakeClientsetWithUpgrades(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -197,7 +197,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 					t.Fatalf("unknown actions: %d %#v", len(act), act)
 				}
 				expectGet(t, act[0], "clusterversions", "", "default")
-				expectUpdateStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
+				expectUpgradeStatus(t, act[1], "clusterversions", "", &configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "default",
 					},
@@ -206,7 +206,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
-							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
+							{State: configv1.PartialUpgrade, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 						},
 						Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
 						VersionHash: "",

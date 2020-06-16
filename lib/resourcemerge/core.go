@@ -8,7 +8,7 @@ import (
 )
 
 // EnsureConfigMap ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1.ConfigMap) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
@@ -16,7 +16,7 @@ func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1
 }
 
 // ensurePodTemplateSpec ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, required corev1.PodTemplateSpec) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 

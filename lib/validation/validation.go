@@ -39,7 +39,7 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 		case len(u.Version) > 0 && len(u.Image) == 0:
 			switch countPayloadsForVersion(config, u.Version) {
 			case 0:
-				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when image is empty the update must be a previous version or an available update"))
+				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when image is empty the upgrade must be a previous version or an available upgrade"))
 			case 1:
 			default:
 				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "there are multiple possible payloads for this version, specify the exact image"))
@@ -51,8 +51,8 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 
 func countPayloadsForVersion(config *configv1.ClusterVersion, version string) int {
 	count := 0
-	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version && len(update.Image) > 0 {
+	for _, upgrade := range config.Status.AvailableUpdates {
+		if upgrade.Version == version && len(upgrade.Image) > 0 {
 			count++
 		}
 	}
@@ -70,9 +70,9 @@ func countPayloadsForVersion(config *configv1.ClusterVersion, version string) in
 }
 
 func hasAmbiguousPayloadForVersion(config *configv1.ClusterVersion, version string) bool {
-	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version {
-			return len(update.Image) > 0
+	for _, upgrade := range config.Status.AvailableUpdates {
+		if upgrade.Version == version {
+			return len(upgrade.Image) > 0
 		}
 	}
 	for _, history := range config.Status.History {
@@ -93,7 +93,7 @@ func ClearInvalidFields(config *configv1.ClusterVersion, errs field.ErrorList) *
 		case strings.HasPrefix(err.Field, "spec.desiredUpdate."):
 			copied.Spec.DesiredUpdate = nil
 		case err.Field == "spec.upstream":
-			// TODO: invalid means, don't fetch updates
+			// TODO: invalid means, don't fetch upgrades
 			copied.Spec.Upstream = ""
 		case err.Field == "spec.clusterID":
 			copied.Spec.ClusterID = ""

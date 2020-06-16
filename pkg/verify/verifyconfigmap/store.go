@@ -166,9 +166,9 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			existing.Labels = cm.Labels
 			existing.BinaryData = cm.BinaryData
 			existing.Data = cm.Data
-			_, err = s.client.ConfigMaps(s.ns).Update(existing)
+			_, err = s.client.ConfigMaps(s.ns).Upgrade(existing)
 			if err != nil {
-				klog.V(4).Infof("update signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
+				klog.V(4).Infof("upgrade signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
 			}
 			return err
 		},

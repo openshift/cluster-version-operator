@@ -67,8 +67,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
-									{State: configv1.PartialUpdate, Version: "0.0.2", Image: "test/image:1", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
-									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.PartialUpgrade, Version: "0.0.2", Image: "test/image:1", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
+									{State: configv1.CompletedUpgrade, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
 								},
 							},
 						},
@@ -103,9 +103,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
-									{State: configv1.PartialUpdate, Version: "0.0.3", Image: "test/image:2", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
-									{State: configv1.CompletedUpdate, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
-									{State: configv1.CompletedUpdate, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.PartialUpgrade, Version: "0.0.3", Image: "test/image:2", StartedTime: metav1.Time{Time: time.Unix(2, 0)}},
+									{State: configv1.CompletedUpgrade, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
+									{State: configv1.CompletedUpgrade, Version: "0.0.1", Image: "test/image:0", CompletionTime: &([]metav1.Time{{Time: time.Unix(4, 0)}}[0])},
 								},
 							},
 						},
@@ -140,7 +140,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
-									{State: configv1.PartialUpdate, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
+									{State: configv1.PartialUpgrade, CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
 								},
 							},
 						},
@@ -225,7 +225,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects available updates",
+			name: "collects available upgrades",
 			optr: &Operator{
 				name: "test",
 				cvLister: &cvLister{
@@ -257,7 +257,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects available updates and reports 0 when updates fetched",
+			name: "collects available upgrades and reports 0 when upgrades fetched",
 			optr: &Operator{
 				name: "test",
 				cvLister: &cvLister{
@@ -290,7 +290,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects update",
+			name: "collects upgrade",
 			optr: &Operator{
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
@@ -327,7 +327,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects failing update",
+			name: "collects failing upgrade",
 			optr: &Operator{
 				releaseVersion: "0.0.2",
 				releaseImage:   "test/image:1",
@@ -345,7 +345,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								History: []configv1.UpdateHistory{
-									{State: configv1.CompletedUpdate, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
+									{State: configv1.CompletedUpgrade, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
 								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}, Reason: "Because stuff"},

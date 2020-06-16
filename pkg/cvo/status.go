@@ -48,7 +48,7 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update
 }
 
 func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Update, verified bool, now metav1.Time, completed bool) {
-	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
+	// if we have no image, we cannot reproduce the upgrade later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
 		if config.Status.History == nil {
@@ -63,7 +63,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 			Version: desired.Version,
 			Image:   desired.Image,
 
-			State:       configv1.PartialUpdate,
+			State:       configv1.PartialUpgrade,
 			StartedTime: now,
 		})
 	}
@@ -71,13 +71,13 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	last := &config.Status.History[0]
 
 	if len(last.State) == 0 {
-		last.State = configv1.PartialUpdate
+		last.State = configv1.PartialUpgrade
 	}
 
 	if mergeEqualVersions(last, desired) {
 		klog.V(5).Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
 		if completed {
-			last.State = configv1.CompletedUpdate
+			last.State = configv1.CompletedUpgrade
 			if last.CompletionTime == nil {
 				last.CompletionTime = &now
 			}
@@ -93,7 +93,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 					Version: desired.Version,
 					Image:   desired.Image,
 
-					State:          configv1.CompletedUpdate,
+					State:          configv1.CompletedUpgrade,
 					StartedTime:    now,
 					CompletionTime: &now,
 				},
@@ -104,7 +104,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 					Version: desired.Version,
 					Image:   desired.Image,
 
-					State:       configv1.PartialUpdate,
+					State:       configv1.PartialUpgrade,
 					StartedTime: now,
 				},
 			}, config.Status.History...)
@@ -115,7 +115,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	if klog.V(5) && len(config.Status.History) > 1 {
 		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
 			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
-			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
+			panic(fmt.Errorf("tried to upgrade cluster version history to contain duplicate image entries: %s", string(data)))
 		}
 	}
 
@@ -135,7 +135,7 @@ func pruneStatusHistory(config *configv1.ClusterVersion, maxHistory int) {
 		return
 	}
 	for i, item := range config.Status.History {
-		if item.State != configv1.CompletedUpdate {
+		if item.State != configv1.CompletedUpgrade {
 			continue
 		}
 		// guarantee the last position in the history is always a completed item
@@ -157,18 +157,18 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
-	cvUpdated := false
-	// update the config with the latest available updates
-	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
-		cvUpdated = true
-		config = updated
+	cvUpgraded := false
+	// upgrade the config with the latest available upgrades
+	if upgraded := optr.getAvailableUpgrades().NeedsUpgrade(config); upgraded != nil {
+		cvUpgraded = true
+		config = upgraded
 	}
-	// update the config with upgradeable
-	if updated := optr.getUpgradeable().NeedsUpdate(config); updated != nil {
-		cvUpdated = true
-		config = updated
+	// upgrade the config with upgradeable
+	if upgraded := optr.getUpgradeable().NeedsUpgrade(config); upgraded != nil {
+		cvUpgraded = true
+		config = upgraded
 	}
-	if !cvUpdated && (original == nil || original == config) {
+	if !cvUpgraded && (original == nil || original == config) {
 		original = config.DeepCopy()
 	}
 
@@ -182,7 +182,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 	mergeOperatorHistory(config, status.Actual, status.Verified, now, status.Completed > 0)
 
-	// update validation errors
+	// upgrade validation errors
 	var reason string
 	if len(validationErrs) > 0 {
 		buf := &bytes.Buffer{}
@@ -231,7 +231,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
 		msg := "an error occurred"
-		if uErr, ok := err.(*payload.UpdateError); ok {
+		if uErr, ok := err.(*payload.UpgradeError); ok {
 			reason = uErr.Reason
 			msg = payload.SummaryForReason(reason, uErr.Name)
 		}
@@ -245,7 +245,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 			LastTransitionTime: now,
 		})
 
-		// update progressing
+		// upgrade progressing
 		if status.Reconciling {
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
@@ -268,7 +268,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		// clear the failure condition
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
 
-		// update progressing
+		// upgrade progressing
 		if status.Reconciling {
 			message := fmt.Sprintf("Cluster version is %s", version)
 			if len(validationErrs) > 0 {
@@ -293,9 +293,9 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
 			case status.Step == "RetrievePayload":
 				if len(reason) == 0 {
-					reason = "DownloadingUpdate"
+					reason = "DownloadingUpgrade"
 				}
-				message = fmt.Sprintf("Working towards %s: downloading update", version)
+				message = fmt.Sprintf("Working towards %s: downloading upgrade", version)
 			case skipFailure:
 				reason = progressReason
 				message = fmt.Sprintf("Working towards %s: %s", version, progressShortMessage)
@@ -312,7 +312,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 		}
 	}
 
-	// default retrieved updates if it is not set
+	// default retrieved upgrades if it is not set
 	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.RetrievedUpdates) == nil {
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.RetrievedUpdates,
@@ -324,15 +324,15 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if klog.V(6) {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
+	upgraded, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
+	optr.rememberLastUpgrade(upgraded)
 	return err
 }
 
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
 // unavailable AND the general payload task making progress towards its goal. An operator is given 10 minutes since
-// its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
+// its last upgrade to go ready, or an hour has elapsed since the upgrade began, before the condition is ignored.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
 	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
 		return "", "", false
@@ -340,7 +340,7 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 	if now.Sub(status.LastProgress) > 10*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
 		return "", "", false
 	}
-	uErr, ok := status.Failure.(*payload.UpdateError)
+	uErr, ok := status.Failure.(*payload.UpgradeError)
 	if !ok {
 		return "", "", false
 	}
@@ -354,7 +354,7 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 // all status fields that it can by using the provided config or loading the latest version
 // from the cache (instead of clearing the status).
 // if ierr is nil, return nil
-// if ierr is not nil, update OperatorStatus as Failing and return ierr
+// if ierr is not nil, upgrade OperatorStatus as Failing and return ierr
 func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr error) error {
 	if ierr == nil {
 		return nil
@@ -402,8 +402,8 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 
 	mergeOperatorHistory(config, optr.currentVersion(), false, now, false)
 
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
+	upgraded, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
+	optr.rememberLastUpgrade(upgraded)
 	if err != nil {
 		return err
 	}
@@ -411,7 +411,7 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 }
 
 // applyClusterVersionStatus attempts to overwrite the status subresource of required. If
-// original is provided it is compared to required and no update will be made if the
+// original is provided it is compared to required and no upgrade will be made if the
 // object does not change. The method will retry a conflict by retrieving the latest live
 // version and updating the metadata of required. required is modified if the object on
 // the server is newer.
@@ -419,20 +419,20 @@ func applyClusterVersionStatus(client configclientv1.ClusterVersionsGetter, requ
 	if original != nil && equality.Semantic.DeepEqual(&original.Status, &required.Status) {
 		return required, nil
 	}
-	actual, err := client.ClusterVersions().UpdateStatus(required)
+	actual, err := client.ClusterVersions().UpgradeStatus(required)
 	if apierrors.IsConflict(err) {
 		existing, cErr := client.ClusterVersions().Get(required.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, cErr
 		}
 		if existing.UID != required.UID {
-			return nil, fmt.Errorf("cluster version was deleted and recreated, cannot update status")
+			return nil, fmt.Errorf("cluster version was deleted and recreated, cannot upgrade status")
 		}
 		if equality.Semantic.DeepEqual(&existing.Status, &required.Status) {
 			return existing, nil
 		}
 		required.ObjectMeta = existing.ObjectMeta
-		actual, err = client.ClusterVersions().UpdateStatus(required)
+		actual, err = client.ClusterVersions().UpgradeStatus(required)
 	}
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-package autoupdate
+package autoupgrade
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	v1 "github.com/openshift/api/config/v1"
 )
 
-func TestNextUpdate(t *testing.T) {
+func TestNextUpgrade(t *testing.T) {
 	tests := []struct {
 		avail []string
 		want  string
@@ -29,12 +29,12 @@ func TestNextUpdate(t *testing.T) {
 	}}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test: #%d", idx), func(t *testing.T) {
-			ups := []v1.Update{}
+			ups := []v1.Upgrade{}
 			for _, v := range test.avail {
-				ups = append(ups, v1.Update{Version: v})
+				ups = append(ups, v1.Upgrade{Version: v})
 			}
 
-			got := nextUpdate(ups)
+			got := nextUpgrade(ups)
 			if got.Version != test.want {
 				t.Fatalf("mismatch: got %v want: %v", got, test.want)
 			}

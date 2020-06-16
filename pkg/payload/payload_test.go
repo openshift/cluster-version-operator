@@ -16,7 +16,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 )
 
-func Test_loadUpdatePayload(t *testing.T) {
+func Test_loadUpgradePayload(t *testing.T) {
 	type args struct {
 		dir          string
 		releaseImage string
@@ -24,7 +24,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *Update
+		want    *Upgrade
 		wantErr bool
 	}{
 		{
@@ -33,7 +33,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 				dir:          filepath.Join("..", "cvo", "testdata", "payloadtest"),
 				releaseImage: "image:1",
 			},
-			want: &Update{
+			want: &Upgrade{
 				ReleaseImage:   "image:1",
 				ReleaseVersion: "1.0.0-abc",
 				ImageRef: &imagev1.ImageStream{
@@ -104,13 +104,13 @@ func Test_loadUpdatePayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test")
+			got, err := LoadUpgrade(tt.args.dir, tt.args.releaseImage, "exclude-test")
 			if (err != nil) != tt.wantErr {
-				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("loadUpgradePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("loadUpdatePayload() = %s", diff.ObjectReflectDiff(tt.want, got))
+				t.Errorf("loadUpgradePayload() = %s", diff.ObjectReflectDiff(tt.want, got))
 			}
 		})
 	}

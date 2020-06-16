@@ -30,7 +30,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int)
-	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
+	Upgrade(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -106,19 +106,19 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 }
 
 // SyncWorker retrieves and applies the desired image, tracking the status for the parent to
-// monitor. The worker accepts a desired state via Update() and works to keep that state in
-// sync. Once a particular image version is synced, it will be updated no more often than
+// monitor. The worker accepts a desired state via Upgrade() and works to keep that state in
+// sync. Once a particular image version is synced, it will be upgraded no more often than
 // minimumReconcileInterval.
 //
 // State transitions:
 //
-//   Initial: wait for valid Update(), report empty status
-//     Update() -> Sync
+//   Initial: wait for valid Upgrade(), report empty status
+//     Upgrade() -> Sync
 //   Sync: attempt to invoke the syncOnce() method
 //     syncOnce() returns an error -> Error
 //     syncOnce() returns nil -> Reconciling
 //   Reconciling: invoke syncOnce() no more often than reconcileInterval
-//     Update() with different values -> Sync
+//     Upgrade() with different values -> Sync
 //     syncOnce() returns an error -> Error
 //     syncOnce() returns nil -> Reconciling
 //   Error: backoff until we are attempting every reconcileInterval
@@ -145,8 +145,8 @@ type SyncWorker struct {
 	cancelFn func()
 	status   SyncWorkerStatus
 
-	// updated by the run method only
-	payload *payload.Update
+	// upgraded by the run method only
+	payload *payload.Upgrade
 
 	// exclude is an identifier used to determine which
 	// manifests should be excluded based on an annotation
@@ -166,7 +166,7 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 
 		notify: make(chan struct{}, 1),
 		// report is a large buffered channel to improve local testing - most consumers should invoke
-		// Status() or use the result of calling Update() instead because the channel can be out of date
+		// Status() or use the result of calling Upgrade() instead because the channel can be out of date
 		// if the reader is not fast enough.
 		report: make(chan SyncWorkerStatus, 500),
 
@@ -189,12 +189,12 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
-// Update instructs the sync worker to start synchronizing the desired update. The reconciling boolean is
-// ignored unless this is the first time that Update has been called. The returned status represents either
+// Upgrade instructs the sync worker to start synchronizing the desired upgrade. The reconciling boolean is
+// ignored unless this is the first time that Upgrade has been called. The returned status represents either
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+func (w *SyncWorker) Upgrade(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -214,7 +214,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	}
 
 	// initialize the reconciliation flag and the status the first time
-	// update is invoked
+	// upgrade is invoked
 	if w.work == nil {
 		work.State = state
 		w.status = SyncWorkerStatus{
@@ -239,7 +239,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 }
 
 // Start periodically invokes run, detecting whether content has changed.
-// It is edge-triggered when Update() is invoked and level-driven after the
+// It is edge-triggered when Upgrade() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
 func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	klog.V(5).Infof("Starting sync worker")
@@ -261,7 +261,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				waitingToReconcile = false
 				klog.V(5).Infof("Wait finished")
 			case <-w.notify:
-				klog.V(5).Infof("Work updated")
+				klog.V(5).Infof("Work upgraded")
 			}
 
 			// determine whether we need to do work
@@ -271,7 +271,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				continue
 			}
 
-			// until Update() has been called at least once, we do nothing
+			// until Upgrade() has been called at least once, we do nothing
 			if work.Empty() {
 				next = time.After(w.minimumReconcileInterval)
 				klog.V(5).Infof("No work, waiting")
@@ -289,7 +289,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 					// TODO: allow status outside of sync
 					syncTimeout = w.minimumReconcileInterval
 				case payload.UpdatingPayload:
-					// during updates we want to flag failures on any resources that -
+					// during upgrades we want to flag failures on any resources that -
 					// for cluster operators that are not reporting failing the error
 					// message will point users to which operator is upgrading
 					syncTimeout = w.minimumReconcileInterval * 2
@@ -306,7 +306,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				w.lock.Unlock()
 				defer cancelFn()
 
-				// reporter hides status updates that occur earlier than the previous failure,
+				// reporter hides status upgrades that occur earlier than the previous failure,
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
 				klog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
@@ -341,7 +341,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	klog.V(5).Infof("Worker shut down")
 }
 
-// statusWrapper prevents a newer status update from overwriting a previous
+// statusWrapper prevents a newer status upgrade from overwriting a previous
 // failure from later in the sync process.
 type statusWrapper struct {
 	w              *SyncWorker
@@ -366,13 +366,13 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	} else if status.Generation < p.Generation {
 		klog.Warningf("Received a Generation(%d) lower than previously known Generation(%d), this is most probably an internal error", status.Generation, p.Generation)
 	}
-	w.w.updateStatus(status)
+	w.w.upgradeStatus(status)
 }
 
-// calculateNext updates the passed work object with the desired next state and
+// calculateNext upgrades the passed work object with the desired next state and
 // returns true if any changes were made. The reconciling flag is set the first
 // time work transitions from empty to not empty (as a result of someone invoking
-// Update).
+// Upgrade).
 func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
@@ -380,7 +380,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	changed := !equalSyncWork(w.work, work)
 
 	// if this is the first time through the loop, initialize reconciling to
-	// the state Update() calculated (to allow us to start in reconciling)
+	// the state Upgrade() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
 	} else if changed {
@@ -409,8 +409,8 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	return changed
 }
 
-// equalUpdate returns true if two updates have the same image.
-func equalUpdate(a, b configv1.Update) bool {
+// equalUpgrade returns true if two upgrades have the same image.
+func equalUpgrade(a, b configv1.Update) bool {
 	if a.Force != b.Force {
 		return false
 	}
@@ -425,23 +425,23 @@ func equalSyncWork(a, b *SyncWork) bool {
 	if (a == nil && b != nil) || (a != nil && b == nil) {
 		return false
 	}
-	return equalUpdate(a.Desired, b.Desired) && reflect.DeepEqual(a.Overrides, b.Overrides)
+	return equalUpgrade(a.Desired, b.Desired) && reflect.DeepEqual(a.Overrides, b.Overrides)
 }
 
-// updateStatus records the current status of the sync action for observation
-// by others. It sends a copy of the update to the report channel for improved
+// upgradeStatus records the current status of the sync action for observation
+// by others. It sends a copy of the upgrade to the report channel for improved
 // testability.
-func (w *SyncWorker) updateStatus(update SyncWorkerStatus) {
+func (w *SyncWorker) upgradeStatus(upgrade SyncWorkerStatus) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	klog.V(5).Infof("Status change %#v", update)
-	w.status = update
+	klog.V(5).Infof("Status change %#v", upgrade)
+	w.status = upgrade
 	select {
-	case w.report <- update:
+	case w.report <- upgrade:
 	default:
 		if klog.V(5) {
-			klog.Infof("Status report channel was full %#v", update)
+			klog.Infof("Status report channel was full %#v", upgrade)
 		}
 	}
 }
@@ -464,24 +464,24 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 }
 
 // sync retrieves the image and applies it to the server, returning an error if
-// the update could not be completely applied. The status is updated as we progress.
+// the upgrade could not be completely applied. The status is upgraded as we progress.
 // Cancelling the context will abort the execution of the sync.
 func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(work.Desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
-	update := work.Desired
+	upgrade := work.Desired
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
-	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, configv1.Update{Image: update.Image}) {
+	if validPayload == nil || !equalUpgrade(configv1.Update{Image: validPayload.ReleaseImage}, configv1.Update{Image: upgrade.Image}) {
 		klog.V(4).Infof("Loading payload")
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
 			Step:        "RetrievePayload",
 			Initial:     work.State.Initializing(),
 			Reconciling: work.State.Reconciling(),
-			Actual:      update,
+			Actual:      upgrade,
 		})
-		info, err := w.retriever.RetrievePayload(ctx, update)
+		info, err := w.retriever.RetrievePayload(ctx, upgrade)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -489,12 +489,12 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Step:        "RetrievePayload",
 				Initial:     work.State.Initializing(),
 				Reconciling: work.State.Reconciling(),
-				Actual:      update,
+				Actual:      upgrade,
 			})
 			return err
 		}
 
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image, w.exclude)
+		payloadUpgrade, err := payload.LoadUpgrade(info.Directory, upgrade.Image, w.exclude)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -502,13 +502,13 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Step:        "VerifyPayload",
 				Initial:     work.State.Initializing(),
 				Reconciling: work.State.Reconciling(),
-				Actual:      update,
+				Actual:      upgrade,
 				Verified:    info.Verified,
 			})
 			return err
 		}
-		payloadUpdate.VerifiedImage = info.Verified
-		payloadUpdate.LoadedAt = time.Now()
+		payloadUpgrade.VerifiedImage = info.Verified
+		payloadUpgrade.LoadedAt = time.Now()
 
 		// need to make sure the payload is only set when the preconditions have been successful
 		if len(w.preconditions) == 0 {
@@ -521,11 +521,11 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Step:        "PreconditionChecks",
 				Initial:     work.State.Initializing(),
 				Reconciling: work.State.Reconciling(),
-				Actual:      update,
+				Actual:      upgrade,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion})); err != nil {
-				if update.Force {
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpgrade.ReleaseVersion})); err != nil {
+				if upgrade.Force {
 					klog.V(4).Infof("Forcing past precondition failures: %s", err)
 				} else {
 					reporter.Report(SyncWorkerStatus{
@@ -534,7 +534,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 						Step:        "PreconditionChecks",
 						Initial:     work.State.Initializing(),
 						Reconciling: work.State.Reconciling(),
-						Actual:      update,
+						Actual:      upgrade,
 						Verified:    info.Verified,
 					})
 					return err
@@ -542,34 +542,34 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			}
 		}
 
-		w.payload = payloadUpdate
-		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
+		w.payload = payloadUpgrade
+		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpgrade.ReleaseImage, payloadUpgrade.ManifestHash)
 	}
 
 	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
 }
 
-// apply updates the server with the contents of the provided image or returns an error.
+// apply upgrades the server with the contents of the provided image or returns an error.
 // Cancelling the context will abort the execution of the sync. Will be executed in parallel if
 // maxWorkers is set greater than 1.
-func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
-	update := configv1.Update{
-		Version: payloadUpdate.ReleaseVersion,
-		Image:   payloadUpdate.ReleaseImage,
+func (w *SyncWorker) apply(ctx context.Context, payloadUpgrade *payload.Upgrade, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+	upgrade := configv1.Update{
+		Version: payloadUpgrade.ReleaseVersion,
+		Image:   payloadUpgrade.ReleaseImage,
 		Force:   work.Desired.Force,
 	}
 
-	// encapsulate status reporting in a threadsafe updater
-	version := payloadUpdate.ReleaseVersion
-	total := len(payloadUpdate.Manifests)
+	// encapsulate status reporting in a threadsafe upgrader
+	version := payloadUpgrade.ReleaseVersion
+	total := len(payloadUpgrade.Manifests)
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
 			Generation:  work.Generation,
 			Initial:     work.State.Initializing(),
 			Reconciling: work.State.Reconciling(),
-			VersionHash: payloadUpdate.ManifestHash,
-			Actual:      update,
-			Verified:    payloadUpdate.VerifiedImage,
+			VersionHash: payloadUpgrade.ManifestHash,
+			Actual:      upgrade,
+			Verified:    payloadUpgrade.VerifiedImage,
 		},
 		completed: work.Completed,
 		version:   version,
@@ -582,11 +582,11 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	if backoff.Steps > 1 && work.State == payload.InitializingPayload {
 		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second}
 	}
-	for i := range payloadUpdate.Manifests {
+	for i := range payloadUpgrade.Manifests {
 		tasks = append(tasks, &payload.Task{
 			Index:    i + 1,
 			Total:    total,
-			Manifest: &payloadUpdate.Manifests[i],
+			Manifest: &payloadUpgrade.Manifests[i],
 			Backoff:  backoff,
 		})
 	}
@@ -641,13 +641,13 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		})
 	}
 
-	// update each object
+	// upgrade each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		for _, task := range tasks {
 			if err := ctx.Err(); err != nil {
 				return cr.ContextError(err)
 			}
-			cr.Update()
+			cr.Upgrade()
 
 			klog.V(4).Infof("Running sync for %s", task)
 			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
@@ -673,7 +673,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		return errs[0]
 	}
 
-	// update the status
+	// upgrade the status
 	cr.Complete()
 	return nil
 }
@@ -715,7 +715,7 @@ func (r *consistentReporter) Inc() {
 	r.done++
 }
 
-func (r *consistentReporter) Update() {
+func (r *consistentReporter) Upgrade() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
@@ -756,7 +756,7 @@ func (r *consistentReporter) Errors(errs []error) error {
 func (r *consistentReporter) ContextError(err error) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	return errContext{fmt.Errorf("update %s at %d of %d", err, r.done, r.total)}
+	return errContext{fmt.Errorf("upgrade %s at %d of %d", err, r.done, r.total)}
 }
 
 func (r *consistentReporter) Complete() {
@@ -784,15 +784,15 @@ func isImageVerificationError(err error) bool {
 	if err == nil {
 		return false
 	}
-	updateErr, ok := err.(*payload.UpdateError)
+	upgradeErr, ok := err.(*payload.UpgradeError)
 	if !ok {
 		return false
 	}
-	return updateErr.Reason == "ImageVerificationFailed"
+	return upgradeErr.Reason == "ImageVerificationFailed"
 }
 
 // summarizeTaskGraphErrors takes a set of errors returned by the execution of a graph and attempts
-// to reduce them to a single cause or message. This is domain specific to the payload and our update
+// to reduce them to a single cause or message. This is domain specific to the payload and our upgrade
 // algorithms. The return value is the summarized error which may be nil if provided conditions are
 // not truly an error (cancellation).
 // TODO: take into account install vs upgrade
@@ -816,14 +816,14 @@ func summarizeTaskGraphErrors(errs []error) error {
 	if klog.V(4) {
 		klog.Infof("Summarizing %d errors", len(errs))
 		for _, err := range errs {
-			if uErr, ok := err.(*payload.UpdateError); ok {
+			if uErr, ok := err.(*payload.UpgradeError); ok {
 				if uErr.Task != nil {
-					klog.Infof("Update error %d of %d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Upgrade error %d of %d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				} else {
-					klog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof("Upgrade error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				}
 			} else {
-				klog.Infof("Update error: %T: %v", err, err)
+				klog.Infof("Upgrade error: %T: %v", err, err)
 			}
 		}
 	}
@@ -866,7 +866,7 @@ func errorMatches(err error, fns ...func(err error) bool) bool {
 
 // isClusterOperatorNotAvailable returns true if this is a ClusterOperatorNotAvailable error
 func isClusterOperatorNotAvailable(err error) bool {
-	uErr, ok := err.(*payload.UpdateError)
+	uErr, ok := err.(*payload.UpgradeError)
 	return ok && uErr != nil && uErr.Reason == "ClusterOperatorNotAvailable"
 }
 
@@ -875,7 +875,7 @@ func isClusterOperatorNotAvailable(err error) bool {
 func newClusterOperatorsNotAvailable(errs []error) error {
 	names := make([]string, 0, len(errs))
 	for _, err := range errs {
-		uErr, ok := err.(*payload.UpdateError)
+		uErr, ok := err.(*payload.UpgradeError)
 		if !ok || uErr.Reason != "ClusterOperatorNotAvailable" {
 			return nil
 		}
@@ -893,7 +893,7 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 	}
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
-	return &payload.UpdateError{
+	return &payload.UpgradeError{
 		Nested:  errors.NewAggregate(errs),
 		Reason:  "ClusterOperatorsNotAvailable",
 		Message: fmt.Sprintf("Some cluster operators are still updating: %s", name),
@@ -939,7 +939,7 @@ func newMultipleError(errs []error) error {
 	if len(messages) == 0 {
 		return errs[0]
 	}
-	return &payload.UpdateError{
+	return &payload.UpgradeError{
 		Nested:  errors.NewAggregate(errs),
 		Reason:  "MultipleErrors",
 		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
@@ -969,7 +969,7 @@ func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1Obj
 	}
 }
 
-// runThrottledStatusNotifier invokes fn every time ch is updated, but no more often than once
+// runThrottledStatusNotifier invokes fn every time ch is upgraded, but no more often than once
 // every interval. If bucket is non-zero then the channel is throttled like a rate limiter bucket.
 func runThrottledStatusNotifier(stopCh <-chan struct{}, interval time.Duration, bucket int, ch <-chan SyncWorkerStatus, fn func()) {
 	// notify the status change function fairly infrequently to avoid updating

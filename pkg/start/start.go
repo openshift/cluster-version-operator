@@ -36,7 +36,7 @@ import (
 
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	externalversions "github.com/openshift/client-go/config/informers/externalversions"
-	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
+	"github.com/openshift/cluster-version-operator/pkg/autoupgrade"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/library-go/pkg/crypto"
@@ -63,7 +63,7 @@ type Options struct {
 	NodeName   string
 	ListenAddr string
 
-	EnableAutoUpdate            bool
+	EnableAutoUpgrade            bool
 	EnableDefaultClusterVersion bool
 
 	// Exclude is used to determine whether to exclude
@@ -384,7 +384,7 @@ func useProtobuf(config *rest.Config) {
 // Context holds the controllers for this operator and exposes a unified start command.
 type Context struct {
 	CVO        *cvo.Operator
-	AutoUpdate *autoupdate.Controller
+	AutoUpgrade *autoupgrade.Controller
 
 	CVInformerFactory              externalversions.SharedInformerFactory
 	OpenshiftConfigInformerFactory informers.SharedInformerFactory
@@ -426,8 +426,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			o.Exclude,
 		),
 	}
-	if o.EnableAutoUpdate {
-		ctx.AutoUpdate = autoupdate.New(
+	if o.EnableAutoUpgrade {
+		ctx.AutoUpgrade = autoupgrade.New(
 			o.Namespace, o.Name,
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
@@ -443,8 +443,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 func (c *Context) Start(ctx context.Context) {
 	ch := ctx.Done()
 	go c.CVO.Run(ctx, 2)
-	if c.AutoUpdate != nil {
-		go c.AutoUpdate.Run(2, ch)
+	if c.AutoUpgrade != nil {
+		go c.AutoUpgrade.Run(2, ch)
 	}
 	c.CVInformerFactory.Start(ch)
 	c.OpenshiftConfigInformerFactory.Start(ch)

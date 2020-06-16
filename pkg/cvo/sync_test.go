@@ -117,7 +117,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 				manifests = append(manifests, m)
 			}
 
-			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Upgrade{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
 			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))
@@ -309,7 +309,7 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
 			dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
-			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Upgrade{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
 			worker := &SyncWorker{}
 			worker.backoff.Steps = 1
 			worker.builder = &testResourceBuilder{
@@ -378,7 +378,7 @@ func newAction(gvk schema.GroupVersionKind, namespace, name string) action {
 
 type fakeSyncRecorder struct {
 	Returns *SyncWorkerStatus
-	Updates []configv1.Update
+	Upgrades []configv1.Update
 }
 
 func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
@@ -389,8 +389,8 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {}
 
-func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
-	r.Updates = append(r.Updates, desired)
+func (r *fakeSyncRecorder) Upgrade(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+	r.Upgrades = append(r.Upgrades, desired)
 	return r.Returns
 }
 
@@ -418,7 +418,7 @@ func (r *fakeDirectoryRetriever) Set(info PayloadInfo, err error) {
 	r.Err = err
 }
 
-func (r *fakeDirectoryRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (PayloadInfo, error) {
+func (r *fakeDirectoryRetriever) RetrievePayload(ctx context.Context, upgrade configv1.Update) (PayloadInfo, error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	return r.Info, r.Err

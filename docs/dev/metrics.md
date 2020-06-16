@@ -11,7 +11,7 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 * `failure` - if the failure condition is set, reports the last transition time for the condition.
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
 * `completed` - the time the most recent version was completely applied, or absent if not reached
-* `updating` - if the operator is moving to a new version, the time the update started
+* `updating` - if the operator is moving to a new version, the time the upgrade started
 
 The `from_version` label is set where appropriate and is the previous completed version for the provided `type`. Empty for
 `initial`, and otherwise empty if there was no previous completed version (still installing).

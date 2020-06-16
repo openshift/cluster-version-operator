@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-func TestUpdatePodSpecWithProxy(t *testing.T) {
+func TestUpgradePodSpecWithProxy(t *testing.T) {
 	tests := []struct {
 		name string
 
@@ -93,7 +93,7 @@ func TestUpdatePodSpecWithProxy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := updatePodSpecWithProxy(test.input, test.containerNames, test.httpProxy, test.httpsProxy, test.noProxy)
+			err := upgradePodSpecWithProxy(test.input, test.containerNames, test.httpProxy, test.httpsProxy, test.noProxy)
 			switch {
 			case err == nil && len(test.expectedErr) == 0:
 			case err != nil && len(test.expectedErr) == 0:

@@ -20,10 +20,10 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
-// syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
-// object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
-// the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) error {
+// syncAvailableUpgrades attempts to retrieve the latest upgrades and upgrade the status of the ClusterVersion
+// object. It will set the RetrievedUpdates condition. Upgrades are only checked if it has been more than
+// the minimumUpgradeCheckInterval since the last check.
+func (optr *Operator) syncAvailableUpgrades(config *configv1.ClusterVersion) error {
 	usedDefaultUpstream := false
 	upstream := string(config.Spec.Upstream)
 	if len(upstream) == 0 {
@@ -33,10 +33,10 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 	arch := runtime.GOARCH
 	channel := config.Spec.Channel
 
-	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
-	u := optr.getAvailableUpdates()
-	if u != nil && u.Upstream == upstream && u.Channel == channel && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		klog.V(4).Infof("Available updates were recently retrieved, will try later.")
+	// upgrades are only checked at most once per minimumUpgradeCheckInterval or if the generation changes
+	u := optr.getAvailableUpgrades()
+	if u != nil && u.Upstream == upstream && u.Channel == channel && u.RecentlyChanged(optr.minimumUpgradeCheckInterval) {
+		klog.V(4).Infof("Available upgrades were recently retrieved, will try later.")
 		return nil
 	}
 
@@ -45,15 +45,15 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 		return err
 	}
 
-	updates, condition := calculateAvailableUpdatesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
+	upgrades, condition := calculateAvailableUpgradesStatus(string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.releaseVersion)
 
 	if usedDefaultUpstream {
 		upstream = ""
 	}
-	optr.setAvailableUpdates(&availableUpdates{
+	optr.setAvailableUpgrades(&availableUpgrades{
 		Upstream:  upstream,
 		Channel:   config.Spec.Channel,
-		Updates:   updates,
+		Upgrades:   upgrades,
 		Condition: condition,
 	})
 	// requeue
@@ -61,11 +61,11 @@ func (optr *Operator) syncAvailableUpdates(config *configv1.ClusterVersion) erro
 	return nil
 }
 
-type availableUpdates struct {
+type availableUpgrades struct {
 	Upstream string
 	Channel  string
 
-	// LastAttempt records the time of the most recent attempt at update
+	// LastAttempt records the time of the most recent attempt at upgrade
 	// retrieval, regardless of whether it was successful.
 	LastAttempt time.Time
 
@@ -76,74 +76,74 @@ type availableUpdates struct {
 	//   any information retrieved from (or failures // retrieving from) the
 	//   previous authority.
 	// * Channel changes.  Same reasoning as for Upstream.
-	// * A slice of Updates was successfully retrieved, even if that
+	// * A slice of Upgrades was successfully retrieved, even if that
 	//   slice was empty.
 	LastSyncOrConfigChange time.Time
 
-	Updates   []configv1.Update
+	Upgrades   []configv1.Update
 	Condition configv1.ClusterOperatorStatusCondition
 }
 
-func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
+func (u *availableUpgrades) RecentlyChanged(interval time.Duration) bool {
 	return u.LastAttempt.After(time.Now().Add(-interval))
 }
 
-func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
+func (u *availableUpgrades) NeedsUpgrade(original *configv1.ClusterVersion) *configv1.ClusterVersion {
 	if u == nil {
 		return nil
 	}
 	if u.Upstream != string(original.Spec.Upstream) || u.Channel != original.Spec.Channel {
 		return nil
 	}
-	if equality.Semantic.DeepEqual(u.Updates, original.Status.AvailableUpdates) &&
+	if equality.Semantic.DeepEqual(u.Upgrades, original.Status.AvailableUpdates) &&
 		equality.Semantic.DeepEqual(u.Condition, resourcemerge.FindOperatorStatusCondition(original.Status.Conditions, u.Condition.Type)) {
 		return nil
 	}
 
 	config := original.DeepCopy()
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, u.Condition)
-	config.Status.AvailableUpdates = u.Updates
+	config.Status.AvailableUpdates = u.Upgrades
 	return config
 }
 
-// setAvailableUpdates updates the currently calculated version of updates.
-func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
+// setAvailableUpgrades upgrades the currently calculated version of upgrades.
+func (optr *Operator) setAvailableUpgrades(u *availableUpgrades) {
 	success := false
 	if u != nil {
 		u.LastAttempt = time.Now()
 		if u.Condition.Type == configv1.RetrievedUpdates {
 			success = u.Condition.Status == configv1.ConditionTrue
 		} else {
-			klog.Warningf("Unrecognized condition %s=%s (%s: %s): cannot judge update retrieval success", u.Condition.Type, u.Condition.Status, u.Condition.Reason, u.Condition.Message)
+			klog.Warningf("Unrecognized condition %s=%s (%s: %s): cannot judge upgrade retrieval success", u.Condition.Type, u.Condition.Status, u.Condition.Reason, u.Condition.Message)
 		}
 	}
 
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
-	if u != nil && (optr.availableUpdates == nil ||
-		optr.availableUpdates.Upstream != u.Upstream ||
-		optr.availableUpdates.Channel != u.Channel ||
+	if u != nil && (optr.availableUpgrades == nil ||
+		optr.availableUpgrades.Upstream != u.Upstream ||
+		optr.availableUpgrades.Channel != u.Channel ||
 		success) {
 		u.LastSyncOrConfigChange = u.LastAttempt
-	} else if optr.availableUpdates != nil {
-		u.LastSyncOrConfigChange = optr.availableUpdates.LastSyncOrConfigChange
+	} else if optr.availableUpgrades != nil {
+		u.LastSyncOrConfigChange = optr.availableUpgrades.LastSyncOrConfigChange
 	}
-	optr.availableUpdates = u
+	optr.availableUpgrades = u
 }
 
-// getAvailableUpdates returns the current calculated version of updates. It
+// getAvailableUpgrades returns the current calculated version of upgrades. It
 // may be nil.
-func (optr *Operator) getAvailableUpdates() *availableUpdates {
+func (optr *Operator) getAvailableUpgrades() *availableUpgrades {
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
-	return optr.availableUpdates
+	return optr.availableUpgrades
 }
 
-func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpgradesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
-			Message: "No upstream server has been set to retrieve updates.",
+			Message: "No upstream server has been set to retrieve upgrades.",
 		}
 	}
 
@@ -180,7 +180,7 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 	if len(channel) == 0 {
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoChannel",
-			Message: "The update channel has not been configured.",
+			Message: "The upgrade channel has not been configured.",
 		}
 	}
 
@@ -193,31 +193,31 @@ func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsCon
 		}
 	}
 
-	updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(upstreamURI, arch, channel, currentVersion)
+	upgrades, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpgrades(upstreamURI, arch, channel, currentVersion)
 	if err != nil {
-		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
-		if updateError, ok := err.(*cincinnati.Error); ok {
+		klog.V(2).Infof("Upstream server %s could not return available upgrades: %v", upstream, err)
+		if upgradeError, ok := err.(*cincinnati.Error); ok {
 			return nil, configv1.ClusterOperatorStatusCondition{
-				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: updateError.Reason,
-				Message: fmt.Sprintf("Unable to retrieve available updates: %s", updateError.Message),
+				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: upgradeError.Reason,
+				Message: fmt.Sprintf("Unable to retrieve available upgrades: %s", upgradeError.Message),
 			}
 		}
 		// this should never happen
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "Unknown",
-			Message: fmt.Sprintf("Unable to retrieve available updates: %s", err),
+			Message: fmt.Sprintf("Unable to retrieve available upgrades: %s", err),
 		}
 	}
 
-	var cvoUpdates []configv1.Update
-	for _, update := range updates {
-		cvoUpdates = append(cvoUpdates, configv1.Update{
-			Version: update.Version.String(),
-			Image:   update.Image,
+	var cvoUpgrades []configv1.Update
+	for _, upgrade := range upgrades {
+		cvoUpgrades = append(cvoUpgrades, configv1.Update{
+			Version: upgrade.Version.String(),
+			Image:   upgrade.Image,
 		})
 	}
 
-	return cvoUpdates, configv1.ClusterOperatorStatusCondition{
+	return cvoUpgrades, configv1.ClusterOperatorStatusCondition{
 		Type:   configv1.RetrievedUpdates,
 		Status: configv1.ConditionTrue,
 

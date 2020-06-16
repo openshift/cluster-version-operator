@@ -249,7 +249,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpgradeAvailable(t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -264,8 +264,8 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	t.Logf("wait for the next resync and verify that status didn't change")
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-		updated := worker.Status()
-		if updated.Completed > status.Completed {
+		upgraded := worker.Status()
+		if upgraded.Completed > status.Completed {
 			return true, nil
 		}
 		return false, nil
@@ -282,7 +282,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
-	t.Logf("trigger an update to a new version")
+	t.Logf("trigger an upgrade to a new version")
 	cv, err = client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
@@ -292,7 +292,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	t.Logf("wait for the new version to be available")
-	lastCV, err = waitForUpdateAvailable(t, client, ns, false, "0.0.1", "0.0.2")
+	lastCV, err = waitForUpgradeAvailable(t, client, ns, false, "0.0.1", "0.0.2")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reached available at 0.0.2: %v", err)
@@ -310,8 +310,8 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	t.Logf("wait for the next resync and verify that status didn't change")
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
-		updated := worker.Status()
-		if updated.Completed > status.Completed {
+		upgraded := worker.Status()
+		if upgraded.Completed > status.Completed {
 			return true, nil
 		}
 		return false, nil
@@ -402,7 +402,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpgradeAvailable(t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -413,7 +413,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
 	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
 
-	t.Logf("trigger an update to a new version that should fail")
+	t.Logf("trigger an upgrade to a new version that should fail")
 	cv, err := client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
 	if err != nil {
 		t.Fatal(err)
@@ -425,9 +425,9 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	t.Logf("wait for operator to report failure")
 	lastCV, err = waitUntilUpgradeFails(
 		t, client, ns,
-		"UpdatePayloadResourceInvalid",
+		"UpgradePayloadResourceInvalid",
 		fmt.Sprintf(
-			`Could not update configmap "%s/config2" (2 of 2): the object is invalid, possibly due to local cluster configuration`,
+			`Could not upgrade configmap "%s/config2" (2 of 2): the object is invalid, possibly due to local cluster configuration`,
 			ns,
 		),
 		"Unable to apply 0.0.2: some cluster configuration is invalid",
@@ -438,7 +438,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 		t.Fatalf("cluster version didn't report failure: %v", err)
 	}
 
-	t.Logf("ensure that one config map was updated and the other was not")
+	t.Logf("ensure that one config map was upgraded and the other was not")
 	verifyReleasePayloadConfigMap1(t, kc, ns, "0.0.2", payloadImage2)
 	verifyReleasePayloadConfigMap2(t, kc, ns, "0.0.1", payloadImage1)
 
@@ -450,7 +450,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	if cv.Spec.DesiredUpdate == nil {
 		t.Fatalf("cluster desired version was not preserved: %s", printCV(cv))
 	}
-	lastCV, err = waitForUpdateAvailable(t, client, ns, true, "0.0.2", "0.0.1")
+	lastCV, err = waitForUpgradeAvailable(t, client, ns, true, "0.0.2", "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reverted to 0.0.1: %v", err)
@@ -681,7 +681,7 @@ metadata:
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpgradeAvailable(t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -709,9 +709,9 @@ metadata:
 	}
 }
 
-// waitForAvailableUpdate checks invariants during an upgrade process. versions is a list of the expected versions that
-// should be seen during update, with the last version being the one we wait to see.
-func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
+// waitForAvailableUpgrade checks invariants during an upgrade process. versions is a list of the expected versions that
+// should be seen during upgrade, with the last version being the one we wait to see.
+func waitForUpgradeAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
 		cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
@@ -763,7 +763,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 			if cv.Status.History[0].Version != versions[len(versions)-1] {
 				return false, fmt.Errorf("initializing operator should report the target version in history once available")
 			}
-			if cv.Status.History[0].State != configv1.CompletedUpdate {
+			if cv.Status.History[0].State != configv1.CompletedUpgrade {
 				return false, fmt.Errorf("initializing operator should report history completed %#v", cv.Status.History[0])
 			}
 			if progressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); progressing == nil || progressing.Status == configv1.ConditionTrue {
@@ -806,7 +806,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 		}
 
 		progressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
-		if cv.Status.History[0].State != configv1.CompletedUpdate {
+		if cv.Status.History[0].State != configv1.CompletedUpgrade {
 			if progressing == nil || progressing.Status != configv1.ConditionTrue {
 				return false, fmt.Errorf("upgrading operator should have progressing true: %#v", progressing)
 			}
@@ -821,7 +821,7 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 }
 
 // waitUntilUpgradeFails checks invariants during an upgrade process. versions is a list of the expected versions that
-// should be seen during update, with the last version being the one we wait to see.
+// should be seen during upgrade, with the last version being the one we wait to see.
 func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, failingReason, failingMessage, progressingMessage string, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
@@ -864,7 +864,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		// 	if cv.Status.History[0].Version != versions[len(versions)-1] {
 		// 		return false, fmt.Errorf("initializing operator should report the target version in history once available")
 		// 	}
-		// 	if cv.Status.History[0].State != configv1.CompletedUpdate {
+		// 	if cv.Status.History[0].State != configv1.CompletedUpgrade {
 		// 		return false, fmt.Errorf("initializing operator should report history completed %#v", cv.Status.History[0])
 		// 	}
 		// 	if progressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); progressing == nil || progressing.Status == configv1.ConditionTrue {
@@ -892,9 +892,9 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 			return false, fmt.Errorf("upgrading operator should have at least once history entry")
 		}
 		if len(cv.Status.Desired.Version) == 0 {
-			// if we are downloading the next update, we're allowed to have an empty desired version because we
+			// if we are downloading the next upgrade, we're allowed to have an empty desired version because we
 			// haven't been able to load the payload
-			if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); c != nil && c.Status == configv1.ConditionTrue && strings.Contains(c.Message, "downloading update") && c.Reason == "DownloadingUpdate" {
+			if c := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); c != nil && c.Status == configv1.ConditionTrue && strings.Contains(c.Message, "downloading upgrade") && c.Reason == "DownloadingUpgrade" {
 				return false, nil
 			}
 		}
@@ -908,7 +908,7 @@ func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, 
 		if cv.Status.History[0].Version != versions[len(versions)-1] {
 			return false, nil
 		}
-		if cv.Status.History[0].State == configv1.CompletedUpdate {
+		if cv.Status.History[0].State == configv1.CompletedUpgrade {
 			return false, fmt.Errorf("upgrading operator to failed image should remain partial: %#v", cv.Status.History)
 		}
 
@@ -964,17 +964,17 @@ func verifyClusterVersionHistory(t *testing.T, cv *configv1.ClusterVersion) {
 			t.Fatalf("Invalid history, entry %d had no completion time: %#v", i, history)
 		}
 		if history.Image == previous.Image && history.Version == previous.Version {
-			t.Fatalf("Invalid history, entry %d and %d have identical updates, should be one entry: %s", i-1, i, diff.ObjectReflectDiff(previous, &history))
+			t.Fatalf("Invalid history, entry %d and %d have identical upgrades, should be one entry: %s", i-1, i, diff.ObjectReflectDiff(previous, &history))
 		}
 	}
 }
 
-func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expectedUpdate configv1.Update, expectHistory int) {
+func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expectedUpgrade configv1.Update, expectHistory int) {
 	t.Helper()
 	if cv.Status.ObservedGeneration != cv.Generation {
 		t.Fatalf("unexpected: %d instead of %d", cv.Status.ObservedGeneration, cv.Generation)
 	}
-	if cv.Status.Desired != expectedUpdate {
+	if cv.Status.Desired != expectedUpgrade {
 		t.Fatalf("unexpected: %#v", cv.Status.Desired)
 	}
 	if len(cv.Status.History) != expectHistory {
@@ -985,9 +985,9 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 		t.Fatalf("unexpected: %s -> %s", actual.StartedTime, actual.CompletionTime)
 	}
 	expect := configv1.UpdateHistory{
-		State:          configv1.CompletedUpdate,
-		Version:        expectedUpdate.Version,
-		Image:          expectedUpdate.Image,
+		State:          configv1.CompletedUpgrade,
+		Version:        expectedUpgrade.Version,
+		Image:          expectedUpgrade.Image,
 		StartedTime:    actual.StartedTime,
 		CompletionTime: actual.CompletionTime,
 	}
@@ -1110,10 +1110,10 @@ type mapPayloadRetriever struct {
 	Paths map[string]string
 }
 
-func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (cvo.PayloadInfo, error) {
-	path, ok := r.Paths[update.Image]
+func (r *mapPayloadRetriever) RetrievePayload(ctx context.Context, upgrade configv1.Update) (cvo.PayloadInfo, error) {
+	path, ok := r.Paths[upgrade.Image]
 	if !ok {
-		return cvo.PayloadInfo{}, fmt.Errorf("no image found for %q", update.Image)
+		return cvo.PayloadInfo{}, fmt.Errorf("no image found for %q", upgrade.Image)
 	}
 	return cvo.PayloadInfo{
 		Directory: path,

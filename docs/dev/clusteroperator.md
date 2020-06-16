@@ -66,17 +66,17 @@ expectations around the outcome and have specific guarantees that apply.
 Of note, in the docs below we use the word `operand` to describe the "thing the operator manages", which might be:
 
 * A deployment or daemonset, like a cluster networking provider
-* An API exposed via a CRD and the operator updates other API objects, like a secret generator
+* An API exposed via a CRD and the operator upgrades other API objects, like a secret generator
 * Just some controller loop invariant that the operator manages, like "all certificate signing requests coming from valid machines are approved"
 
-An operand doesn't have to be code running on cluster - that might be the operator. When we say "is the operand available" that might mean "the new code is rolled out" or "all old API objects have been updated" or "we're able to sign certificate requests"
+An operand doesn't have to be code running on cluster - that might be the operator. When we say "is the operand available" that might mean "the new code is rolled out" or "all old API objects have been upgraded" or "we're able to sign certificate requests"
 
 Here are the guarantees components can get when they follow the rules we define:
 
 1. Cause an installation to fail because a component is not able to become available for use
 2. Cause an upgrade to hang because a component is not able to successfully reach the new upgrade
 3. Prevent a user from clicking the upgrade button because components have one or more preflight criteria that are not met (e.g. nodes are at version 4.0 so the control plane can't be upgraded to 4.2 and break N-1 compat)
-4. Ensure other components are upgraded *after* your component (guarantee "happens before" in upgrades, such as kube-apiserver being updated before kube-controller-manager)
+4. Ensure other components are upgraded *after* your component (guarantee "happens before" in upgrades, such as kube-apiserver being upgraded before kube-controller-manager)
 
 There are a set of guarantees components are expected to honor in return:
 
@@ -139,7 +139,7 @@ status:
 
 #### Version reporting during an upgrade
 
-When your operator begins rolling out a new version it must continue to report the previous operator version in its ClusterOperator status. While any of your operands are still running software from the previous version then you are in a mixed version state, and you should continue to report the previous version. As soon as you can guarantee you are not and will not run any old versions of your operands, you can update the operator version on your ClusterOperator status.
+When your operator begins rolling out a new version it must continue to report the previous operator version in its ClusterOperator status. While any of your operands are still running software from the previous version then you are in a mixed version state, and you should continue to report the previous version. As soon as you can guarantee you are not and will not run any old versions of your operands, you can upgrade the operator version on your ClusterOperator status.
 
 ### Conditions
 
@@ -148,7 +148,7 @@ Refer [the godocs](https://godoc.org/github.com/openshift/api/config/v1#ClusterS
 In general, ClusterOperators should contain at least three core conditions:
 
 * `Progressing` must be true if the operator is actually making change to the operand.
-The change may be anything: desired user state, desired user configuration, observed configuration, version update, etc.
+The change may be anything: desired user state, desired user configuration, observed configuration, version upgrade, etc.
 If this is false, it means the operator is not trying to apply any new state.
 If it remains true for an extended period of time, it suggests something is wrong in the cluster.  It can probably wait until Monday.
 * `Available` must be true if the operand is functional and available in the cluster at the level in status.
@@ -173,7 +173,7 @@ If the controller reaches 4.0.1, the conditions might be:
 
 If an error blocks reaching 4.0.1, the conditions might be:
 
-* `Degraded` is true with a detailed message `Unable to apply 4.0.1: could not update 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
+* `Degraded` is true with a detailed message `Unable to apply 4.0.1: could not upgrade 0000_70_network_deployment.yaml because the resource type NetworkConfig has not been installed on the server.`
 * `Available` is true with message `Cluster has deployed 4.0.0`
 * `Progressing` is true with message `Unable to apply 4.0.1: a required object is missing`
 

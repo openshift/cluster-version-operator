@@ -17,7 +17,7 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 		wantProgress bool
 	}{
 		{
-			name:     "skip updates that clear an error and are at an earlier fraction",
+			name:     "skip upgrades that clear an error and are at an earlier fraction",
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
 			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
 			want:     false,

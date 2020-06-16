@@ -60,20 +60,20 @@ const (
 
 // Operator defines cluster version operator. The CVO attempts to reconcile the appropriate image
 // onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
-// periodically checks for new updates from a server described by spec.upstream and spec.channel.
+// periodically checks for new upgrades from a server described by spec.upstream and spec.channel.
 // The main CVO sync loop is the single writer of ClusterVersion status.
 //
-// The CVO updates multiple conditions, but synthesizes them into a summary message on the
+// The CVO upgrades multiple conditions, but synthesizes them into a summary message on the
 // Progressing condition to answer the question of "what version is available on the cluster".
-// When errors occur, the Failing condition of the status is updated with a detailed message and
+// When errors occur, the Failing condition of the status is upgraded with a detailed message and
 // reason, and then the reason is used to summarize the error onto the Progressing condition's
 // message for a simple overview.
 //
 // The CVO periodically syncs the whole image to the cluster even if no version transition is
 // detected in order to undo accidental actions.
 //
-// A release image is expected to contain a CVO binary, the manifests necessary to update the
-// CVO, and the manifests of the other operators on the cluster. During an update the operator
+// A release image is expected to contain a CVO binary, the manifests necessary to upgrade the
+// CVO, and the manifests of the other operators on the cluster. During an upgrade the operator
 // attempts to copy the contents of the image manifests into a temporary directory using a
 // batch job and a shared host-path, then applies the CVO manifests using the image image
 // for the CVO deployment. The deployment is then expected to launch the new process, and the
@@ -89,9 +89,9 @@ type Operator struct {
 	releaseImage string
 	// releaseVersion is a string identifier for the current version, read
 	// from the image of the operator. It may be empty if no version exists, in
-	// which case no available updates will be returned.
+	// which case no available upgrades will be returned.
 	releaseVersion string
-	// releaseCreated, if set, is the timestamp of the current update.
+	// releaseCreated, if set, is the timestamp of the current upgrade.
 	releaseCreated time.Time
 
 	// enableDefaultClusterVersion allows the operator to create a
@@ -102,9 +102,9 @@ type Operator struct {
 	kubeClient    kubernetes.Interface
 	eventRecorder record.EventRecorder
 
-	// minimumUpdateCheckInterval is the minimum duration to check for updates from
+	// minimumUpgradeCheckInterval is the minimum duration to check for upgrades from
 	// the upstream.
-	minimumUpdateCheckInterval time.Duration
+	minimumUpgradeCheckInterval time.Duration
 	// payloadDir is intended for testing. If unset it will default to '/'
 	payloadDir string
 	// defaultUpstreamServer is intended for testing.
@@ -118,24 +118,24 @@ type Operator struct {
 	proxyLister    configlistersv1.ProxyLister
 	cacheSynced    []cache.InformerSynced
 
-	// queue tracks applying updates to a cluster.
+	// queue tracks applying upgrades to a cluster.
 	queue workqueue.RateLimitingInterface
-	// availableUpdatesQueue tracks checking for updates from the update server.
-	availableUpdatesQueue workqueue.RateLimitingInterface
+	// availableUpgradesQueue tracks checking for upgrades from the upgrade server.
+	availableUpgradesQueue workqueue.RateLimitingInterface
 	// upgradeableQueue tracks checking for upgradeable.
 	upgradeableQueue workqueue.RateLimitingInterface
 
-	// statusLock guards access to modifying available updates
+	// statusLock guards access to modifying available upgrades
 	statusLock       sync.Mutex
-	availableUpdates *availableUpdates
+	availableUpgrades *availableUpgrades
 
 	// upgradeableStatusLock guards access to modifying Upgradeable conditions
 	upgradeableStatusLock sync.Mutex
 	upgradeable           *upgradeable
 	upgradeableChecks     []upgradeableCheck
 
-	// verifier, if provided, will be used to check an update before it is executed.
-	// Any error will prevent an update payload from being accessed.
+	// verifier, if provided, will be used to check an upgrade before it is executed.
+	// Any error will prevent an upgrade payload from being accessed.
 	verifier verify.Interface
 	// signatureStore, if set, will be used to periodically persist signatures to
 	// the cluster as a config map
@@ -185,7 +185,7 @@ func New(
 		enableDefaultClusterVersion: enableDefaultClusterVersion,
 
 		statusInterval:             15 * time.Second,
-		minimumUpdateCheckInterval: minimumInterval,
+		minimumUpgradeCheckInterval: minimumInterval,
 		payloadDir:                 overridePayloadDir,
 		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
 
@@ -194,7 +194,7 @@ func New(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
-		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
+		availableUpgradesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupgrades"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
 		exclude: exclude,
@@ -236,17 +236,17 @@ func (vcb *verifyClientBuilder) HTTPClient() (*http.Client, error) {
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage, optr.exclude)
+	upgrade, err := payload.LoadUpgrade(optr.defaultPayloadDir(), optr.releaseImage, optr.exclude)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
 	// XXX: set this to the cincinnati version in preference
-	if _, err := semver.Parse(update.ImageRef.Name); err != nil {
-		return fmt.Errorf("the local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
+	if _, err := semver.Parse(upgrade.ImageRef.Name); err != nil {
+		return fmt.Errorf("the local release contents name %q is not a valid semantic version - no current version will be reported: %v", upgrade.ImageRef.Name, err)
 	}
 
-	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
-	optr.releaseVersion = update.ImageRef.Name
+	optr.releaseCreated = upgrade.ImageRef.CreationTimestamp.Time
+	optr.releaseVersion = upgrade.ImageRef.Name
 
 	// Wraps operator's HTTPClient method to allow releaseVerifier to create http client with up-to-date config.
 	clientBuilder := &verifyClientBuilder{builder: optr.HTTPClient}
@@ -256,7 +256,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder, configClient)
+	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpgrade(upgrade, clientBuilder, configClient)
 	if err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 		optr.defaultPayloadRetriever(),
 		NewResourceBuilder(restConfig, burstRestConfig, optr.coLister),
 		optr.defaultPreconditionChecks(),
-		optr.minimumUpdateCheckInterval,
+		optr.minimumUpgradeCheckInterval,
 		wait.Backoff{
 			Duration: time.Second * 10,
 			Factor:   1.3,
@@ -287,13 +287,13 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	return nil
 }
 
-// loadConfigMapVerifierDataFromUpdate fetches the first config map in the payload with the correct annotation.
+// loadConfigMapVerifierDataFromUpgrade fetches the first config map in the payload with the correct annotation.
 // It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
 // package for more details on the algorithm for verification. If the annotation is set, a verifier or error
 // is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
+func loadConfigMapVerifierDataFromUpgrade(upgrade *payload.Upgrade, clientBuilder verify.ClientBuilder, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
 	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
-	for _, manifest := range update.Manifests {
+	for _, manifest := range upgrade.Manifests {
 		if manifest.GVK != configMapGVK {
 			continue
 		}
@@ -327,7 +327,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	stopCh := ctx.Done()
 	workerStopCh := make(chan struct{})
 
-	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
+	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpgradeCheckInterval)
 	defer klog.Info("Shutting down ClusterVersionOperator")
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
@@ -341,7 +341,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
 	go optr.configSync.Start(ctx, 16)
-	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(optr.availableUpgradesQueue, optr.availableUpgradesSync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
 	go wait.Until(func() {
 		defer close(workerStopCh)
@@ -353,7 +353,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 		}
 	}, time.Second, stopCh)
 	if optr.signatureStore != nil {
-		go optr.signatureStore.Run(ctx, optr.minimumUpdateCheckInterval*2)
+		go optr.signatureStore.Run(ctx, optr.minimumUpgradeCheckInterval*2)
 	}
 
 	<-stopCh
@@ -367,19 +367,19 @@ func (optr *Operator) queueKey() string {
 	return fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 }
 
-// eventHandler queues an update for the cluster version on any change to the given object.
+// eventHandler queues an upgrade for the cluster version on any change to the given object.
 // Callers should use this with a scoped informer.
 func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	workQueueKey := optr.queueKey()
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			optr.queue.Add(workQueueKey)
-			optr.availableUpdatesQueue.Add(workQueueKey)
+			optr.availableUpgradesQueue.Add(workQueueKey)
 			optr.upgradeableQueue.Add(workQueueKey)
 		},
-		UpdateFunc: func(old, new interface{}) {
+		UpgradeFunc: func(old, new interface{}) {
 			optr.queue.Add(workQueueKey)
-			optr.availableUpdatesQueue.Add(workQueueKey)
+			optr.availableUpgradesQueue.Add(workQueueKey)
 			optr.upgradeableQueue.Add(workQueueKey)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -431,7 +431,7 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 // 2. The ClusterVersion object has the appropriate status for the state of the cluster
 // 3. The configSync object is kept up to date maintaining the user's desired version
 //
-// It returns an error if it could not update the cluster version object.
+// It returns an error if it could not upgrade the cluster version object.
 func (optr *Operator) sync(key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
@@ -461,7 +461,7 @@ func (optr *Operator) sync(key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, ok := findUpdateFromConfig(config)
+	desired, ok := findUpgradeFromConfig(config)
 	if ok {
 		klog.V(4).Infof("Desired version from spec is %#v", desired)
 	} else {
@@ -472,7 +472,7 @@ func (optr *Operator) sync(key string) error {
 	// handle the case of a misconfigured CVO by doing nothing
 	if len(desired.Image) == 0 {
 		return optr.syncStatus(original, config, &SyncWorkerStatus{
-			Failure: fmt.Errorf("No configured operator version, unable to update cluster"),
+			Failure: fmt.Errorf("No configured operator version, unable to upgrade cluster"),
 		}, errs)
 	}
 
@@ -488,19 +488,19 @@ func (optr *Operator) sync(key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
+	status := optr.configSync.Upgrade(config.Generation, desired, config.Spec.Overrides, state)
 
 	// write cluster version status
 	return optr.syncStatus(original, config, status, errs)
 }
 
-// availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
-// sync available updates. It only modifies cluster version.
-func (optr *Operator) availableUpdatesSync(key string) error {
+// availableUpgradesSync is triggered on cluster version change (and periodic requeues) to
+// sync available upgrades. It only modifies cluster version.
+func (optr *Operator) availableUpgradesSync(key string) error {
 	startTime := time.Now()
-	klog.V(4).Infof("Started syncing available updates %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing available upgrades %q (%v)", key, startTime)
 	defer func() {
-		klog.V(4).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing available upgrades %q (%v)", key, time.Since(startTime))
 	}()
 
 	config, err := optr.cvLister.Get(optr.name)
@@ -514,7 +514,7 @@ func (optr *Operator) availableUpdatesSync(key string) error {
 		return nil
 	}
 
-	return optr.syncAvailableUpdates(config)
+	return optr.syncAvailableUpgrades(config)
 }
 
 // upgradeableSync is triggered on cluster version change (and periodic requeues) to
@@ -540,9 +540,9 @@ func (optr *Operator) upgradeableSync(key string) error {
 	return optr.syncUpgradeable(config)
 }
 
-// isOlderThanLastUpdate returns true if the cluster version is older than
-// the last update we saw.
-func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) bool {
+// isOlderThanLastUpgrade returns true if the cluster version is older than
+// the last upgrade we saw.
+func (optr *Operator) isOlderThanLastUpgrade(config *configv1.ClusterVersion) bool {
 	i, err := strconv.ParseInt(config.ResourceVersion, 10, 64)
 	if err != nil {
 		return false
@@ -552,9 +552,9 @@ func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) boo
 	return i < optr.lastResourceVersion
 }
 
-// rememberLastUpdate records the most recent resource version we
+// rememberLastUpgrade records the most recent resource version we
 // have seen from the server for cluster versions.
-func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
+func (optr *Operator) rememberLastUpgrade(config *configv1.ClusterVersion) {
 	if config == nil {
 		return
 	}
@@ -571,7 +571,7 @@ func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.C
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
-		if optr.isOlderThanLastUpdate(obj) {
+		if optr.isOlderThanLastUpgrade(obj) {
 			return nil, true, nil
 		}
 		return obj, false, nil
@@ -612,17 +612,17 @@ func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.C
 }
 
 // versionString returns a string describing the desired version.
-func versionString(update configv1.Update) string {
-	if len(update.Version) > 0 {
-		return update.Version
+func versionString(upgrade configv1.Update) string {
+	if len(upgrade.Version) > 0 {
+		return upgrade.Version
 	}
-	if len(update.Image) > 0 {
-		return update.Image
+	if len(upgrade.Image) > 0 {
+		return upgrade.Image
 	}
 	return "<unknown>"
 }
 
-// currentVersion returns an update object describing the current known cluster version.
+// currentVersion returns an upgrade object describing the current known cluster version.
 func (optr *Operator) currentVersion() configv1.Update {
 	return configv1.Update{
 		Version: optr.releaseVersion,
@@ -630,7 +630,7 @@ func (optr *Operator) currentVersion() configv1.Update {
 	}
 }
 
-// SetSyncWorkerForTesting updates the sync worker for whitebox testing.
+// SetSyncWorkerForTesting upgrades the sync worker for whitebox testing.
 func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
 	optr.configSync = worker
 }
@@ -705,7 +705,7 @@ func stateToMode(state payload.State) resourcebuilder.Mode {
 
 func hasNeverReachedLevel(cv *configv1.ClusterVersion) bool {
 	for _, version := range cv.Status.History {
-		if version.State == configv1.CompletedUpdate {
+		if version.State == configv1.CompletedUpgrade {
 			return false
 		}
 	}
@@ -717,7 +717,7 @@ func hasReachedLevel(cv *configv1.ClusterVersion, desired configv1.Update) bool 
 	if len(cv.Status.History) == 0 {
 		return false
 	}
-	if cv.Status.History[0].State != configv1.CompletedUpdate {
+	if cv.Status.History[0].State != configv1.CompletedUpgrade {
 		return false
 	}
 	return desired.Image == cv.Status.History[0].Image

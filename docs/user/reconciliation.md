@@ -145,7 +145,7 @@ After pushing the merged CustomResourceDefinition into the cluster, the builder 
 
 The builder does not block after an initial DaemonSet push (when the in-cluster object has generation 1).
 
-For subsequent updates, the builder blocks until:
+For subsequent upgrades, the builder blocks until:
 
 * The in-cluster object's observed generation catches up with the specified generation.
 * Pods with the release-image-specified configuration are scheduled on each node.
@@ -155,7 +155,7 @@ For subsequent updates, the builder blocks until:
 
 The builder does not block after an initial Deployment push (when the in-cluster object has generation 1).
 
-For subsequent updates, the builder blocks until:
+For subsequent upgrades, the builder blocks until:
 
 * The in-cluster object's observed generation catches up with the specified generation.
 * Sufficient pods with the release-image-specified configuration are scheduled to fulfill the requested `replicas`.
@@ -167,7 +167,7 @@ After pushing the merged Job into the cluster, the builder blocks until the Job 
 
 The cluster-version operator will panic if spec.selector is set because there are no clear use-cases for setting it in release manifests.
 
-Subsequent updates:
+Subsequent upgrades:
 
 * The cluster-version operator is currently unable to delete and recreate a Job to track changes in release manifests. Please avoid making changes to Job manifests until the cluster-version operator supports Job delete/recreate.
-* A Job's spec.selector will never be updated because spec.selector is immutable.
+* A Job's spec.selector will never be upgraded because spec.selector is immutable.

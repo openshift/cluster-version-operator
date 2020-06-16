@@ -12,7 +12,7 @@ import (
 var (
 	renderCmd = &cobra.Command{
 		Use:   "render",
-		Short: "Renders the UpdatePayload to disk.",
+		Short: "Renders the UpgradePayload to disk.",
 		Long:  "",
 		Run:   runRenderCmd,
 	}

@@ -42,7 +42,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  apierrors.NewNotFound(schema.GroupResource{"", "clusteroperator"}, "test-co"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
@@ -61,7 +61,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -82,7 +82,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -108,7 +108,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -136,7 +136,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -164,7 +164,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -196,7 +196,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -228,7 +228,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is still updating"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co is still updating",
@@ -256,7 +256,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
@@ -285,7 +285,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
@@ -314,7 +314,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
 			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
@@ -343,7 +343,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
@@ -372,7 +372,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
 			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
@@ -401,7 +401,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is reporting a failure: random error"),
 			Reason:  "ClusterOperatorDegraded",
 			Message: "Cluster operator test-co is reporting a failure: random error",
@@ -430,7 +430,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
+		expErr: &payload.UpgradeError{
 			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",

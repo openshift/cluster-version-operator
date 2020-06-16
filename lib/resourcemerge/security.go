@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureSecurityContextConstraints ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureSecurityContextConstraints(modified *bool, existing *securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	setInt32Ptr(modified, &existing.Priority, required.Priority)

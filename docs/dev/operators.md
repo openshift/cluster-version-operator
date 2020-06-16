@@ -2,9 +2,9 @@
 
 The CVO installs other operators onto a cluster. It is responsible for applying the manifests each
 operator uses (without any parameterization) and for ensuring an order that installation and
-updates follow.
+upgrades follow.
 
-## What is the order that resources get created/updated in?
+## What is the order that resources get created/upgraded in?
 
 The CVO will load a release image and look at the contents of two directories: `/manifests` and
 `/release-manifests` within that image. The `/manifests` directory is part of the CVO image and
@@ -31,8 +31,8 @@ components that have the same run level - for instance, `0000_70_cluster-monitor
 preserving the order of tasks within the component.
 
 Ordering is only applied during upgrades, where some components rely on another component
-being updated first. As a convenience, the CVO guarantees that components at an earlier
-run level will be created or updated before your component is invoked. Note however that
+being upgraded first. As a convenience, the CVO guarantees that components at an earlier
+run level will be created or upgraded before your component is invoked. Note however that
 components without `ClusterOperator` objects defined may not be fully deployed when your
 component is executed, so always ensure your prerequisites know that they must correctly
 obey the `ClusterOperator` protocol to be available. More sophisticated components should
@@ -98,7 +98,7 @@ When your manifests are added to the release image, they’ll be given a prefix 
 
 Only manifests with the extensions `.yaml`, `.yml`, or `.json` will be applied, like `kubectl create -f DIR`.
 
-### What if I only want the CVO to create my resource, but never update it?
+### What if I only want the CVO to create my resource, but never upgrade it?
 
 This is only applicable to cases where the contents of a resource are not managed, but the presence is required for
 usability.  Today the only known use-case is config.openshift.io, so that `oc edit foo.config.openshift.io` "just works".

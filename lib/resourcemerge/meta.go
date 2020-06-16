@@ -6,7 +6,7 @@ import (
 )
 
 // EnsureObjectMeta ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
+// modified is set to true when existing had to be upgraded with required.
 func EnsureObjectMeta(modified *bool, existing *metav1.ObjectMeta, required metav1.ObjectMeta) {
 	setStringIfSet(modified, &existing.Namespace, required.Namespace)
 	setStringIfSet(modified, &existing.Name, required.Name)

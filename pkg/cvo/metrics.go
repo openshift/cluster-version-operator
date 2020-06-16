@@ -18,7 +18,7 @@ import (
 func (optr *Operator) registerMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
 	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		UpdateFunc: m.clusterOperatorChanged,
+		UpgradeFunc: m.clusterOperatorChanged,
 	})
 	return prometheus.Register(m)
 }
@@ -29,7 +29,7 @@ type operatorMetrics struct {
 	conditionTransitions map[conditionKey]int
 
 	version                             *prometheus.GaugeVec
-	availableUpdates                    *prometheus.GaugeVec
+	availableUpgrades                    *prometheus.GaugeVec
 	clusterOperatorUp                   *prometheus.GaugeVec
 	clusterOperatorConditions           *prometheus.GaugeVec
 	clusterOperatorConditionTransitions *prometheus.GaugeVec
@@ -48,7 +48,7 @@ func newOperatorMetrics(optr *Operator) *operatorMetrics {
 the epoch. Type 'current' is the version being applied and
 the value is the creation date of the payload. The type
 'desired' is returned if spec.desiredUpdate is set but the
-operator has not yet updated and the value is the most 
+operator has not yet upgraded and the value is the most 
 recent status transition time. The type 'failure' is set 
 if an error is preventing sync or upgrade with the last 
 transition timestamp of the condition. The type 'completed' 
@@ -57,13 +57,13 @@ applied. The type 'cluster' is the creation date of the
 cluster version object and the current version. The type
 'updating' is set when the cluster is transitioning to a
 new version but has not reached the completed state and
-is the time the update was started. The type 'initial' is
+is the time the upgrade was started. The type 'initial' is
 set to the oldest entry in the history. The from_version label
 will be set to the last completed version, the initial
 version for 'cluster', or empty for 'initial'.
 .`,
 		}, []string{"type", "version", "image", "from_version"}),
-		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		availableUpgrades: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
 		}, []string{"upstream", "channel"}),
@@ -128,7 +128,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.version.WithLabelValues("", "", "", "").Desc()
-	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
+	ch <- m.availableUpgrades.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
@@ -147,14 +147,14 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			initial = cv.Status.History[last-1]
 		}
 
-		// if an update ran to completion, report the timestamp of that update and store the completed
+		// if an upgrade ran to completion, report the timestamp of that upgrade and store the completed
 		// version for use in other metrics
 		for i, history := range cv.Status.History {
-			if history.State == configv1.CompletedUpdate {
+			if history.State == configv1.CompletedUpgrade {
 				completed = history
 				var previous configv1.UpdateHistory
 				for _, history := range cv.Status.History[i+1:] {
-					if history.State == configv1.CompletedUpdate {
+					if history.State == configv1.CompletedUpgrade {
 						previous = history
 						break
 					}
@@ -182,9 +182,9 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
-		// answers "is there a desired update we have not yet satisfied"
-		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-			g = m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version)
+		// answers "is there a desired upgrade we have not yet satisfied"
+		if upgrade := cv.Spec.DesiredUpdate; upgrade != nil && upgrade.Image != current.Image {
+			g = m.version.WithLabelValues("desired", upgrade.Version, upgrade.Image, completed.Version)
 			g.Set(float64(mostRecentTimestamp(cv)))
 			ch <- g
 		}
@@ -192,8 +192,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		// answers "if we are failing, are we updating or reconciling"
 		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
 		if failing != nil && failing.Status == configv1.ConditionTrue {
-			if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)
+			if upgrade := cv.Spec.DesiredUpdate; upgrade != nil && upgrade.Image != current.Image {
+				g = m.version.WithLabelValues("failure", upgrade.Version, upgrade.Image, completed.Version)
 			} else {
 				g = m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version)
 			}
@@ -206,7 +206,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// when the CVO is transitioning towards a new version report a unique series describing it
-		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpdate {
+		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpgrade {
 			updating := cv.Status.History[0]
 			g := m.version.WithLabelValues("updating", updating.Version, updating.Image, completed.Version)
 			if updating.StartedTime.IsZero() {
@@ -222,8 +222,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			if len(cv.Spec.Upstream) > 0 {
 				upstream = string(cv.Spec.Upstream)
 			}
-			g := m.availableUpdates.WithLabelValues(upstream, cv.Spec.Channel)
-			g.Set(float64(len(cv.Status.AvailableUpdates)))
+			g := m.availableUpgrades.WithLabelValues(upstream, cv.Spec.Channel)
+			g.Set(float64(len(cv.Status.AvailableUpgrades)))
 			ch <- g
 		}
 

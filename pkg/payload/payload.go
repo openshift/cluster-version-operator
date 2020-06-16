@@ -34,7 +34,7 @@ const (
 	// be as conservative as possible about ordering of the payload
 	// and the errors we might encounter. An error in one operator
 	// should prevent dependent operators from changing. We are
-	// willing to take longer to roll out an update if it reduces
+	// willing to take longer to roll out an upgrade if it reduces
 	// the possibility of error.
 	UpdatingPayload State = iota
 	// ReconcilingPayload indicates we are attempting to maintain
@@ -92,7 +92,7 @@ const (
 	imageReferencesFile = "image-references"
 )
 
-type Update struct {
+type Upgrade struct {
 	ReleaseImage   string
 	ReleaseVersion string
 	// XXX: cincinatti.json struct
@@ -107,8 +107,8 @@ type Update struct {
 	Manifests    []lib.Manifest
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+func LoadUpgrade(dir, releaseImage, excludeIdentifier string) (*Upgrade, error) {
+	payload, tasks, err := loadUpgradePayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +172,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 
 	agg := utilerrors.NewAggregate(errs)
 	if agg != nil {
-		return nil, &UpdateError{
+		return nil, &UpgradeError{
 			Reason:  "UpdatePayloadIntegrity",
 			Message: fmt.Sprintf("Error loading manifests from %s: %v", dir, agg.Error()),
 		}
@@ -194,9 +194,9 @@ func shouldExclude(excludeIdentifier string, manifest *lib.Manifest) bool {
 	return annotations != nil && annotations[excludeAnnotation] == "true"
 }
 
-// ValidateDirectory checks if a directory can be a candidate update by
+// ValidateDirectory checks if a directory can be a candidate upgrade by
 // looking for known files. It returns an error if the directory cannot
-// be an update.
+// be an upgrade.
 func ValidateDirectory(dir string) error {
 	// XXX: validate that cincinnati.json is correct
 	// 		validate image-references files is correct.
@@ -226,8 +226,8 @@ type payloadTasks struct {
 	skipFiles  sets.String
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
-	klog.V(4).Infof("Loading updatepayload from %q", dir)
+func loadUpgradePayloadMetadata(dir, releaseImage string) (*Upgrade, []payloadTasks, error) {
+	klog.V(4).Infof("Loading upgradepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
 	}
@@ -243,7 +243,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 
 	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
 
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+	return &Upgrade{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
 }
 
 func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
