@@ -27,8 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/rest"
 	kfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -2581,7 +2581,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			optr: Operator{
 				defaultUpstreamServer:      "http://localhost:8080/graph",
 				minimumUpdateCheckInterval: 1 * time.Minute,
-				availableUpdates:    &availableUpdates{
+				availableUpdates: &availableUpdates{
 					Upstream:    "http://localhost:8080/graph",
 					Channel:     "fast",
 					LastAttempt: time.Now(),

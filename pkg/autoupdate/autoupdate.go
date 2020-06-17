@@ -7,7 +7,6 @@ import (
 
 	"github.com/blang/semver"
 
-	"k8s.io/klog"
 	v1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
@@ -23,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 )
 
 const (

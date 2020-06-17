@@ -55,3 +55,8 @@ go test ./...
 export KUBECONFIG=<admin kubeconfig>
 TEST_INTEGRATION=1 go test ./... -test.run=^TestIntegration
 ```
+
+## Contributing
+
+[Contributions welcome](CONTRIBUTING.md)!
+

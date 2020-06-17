@@ -13,7 +13,7 @@ func TestReadCustomResourceDefinitionOrDie(t *testing.T) {
 		args args
 	}{
 		{
-			name:"v1",
+			name: "v1",
 			args: args{
 				objBytes: []byte(`
 apiVersion: apiextensions.k8s.io/v1
@@ -42,7 +42,7 @@ spec:
 			},
 		},
 		{
-			name:"v1beta1",
+			name: "v1beta1",
 			args: args{
 				objBytes: []byte(`
 apiVersion: apiextensions.k8s.io/v1beta1
