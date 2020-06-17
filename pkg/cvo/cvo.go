@@ -472,7 +472,10 @@ func (optr *Operator) sync(key string) error {
 	// handle the case of a misconfigured CVO by doing nothing
 	if len(desired.Image) == 0 {
 		return optr.syncStatus(original, config, &SyncWorkerStatus{
-			Failure: fmt.Errorf("No configured operator version, unable to update cluster"),
+			Failure: &payload.UpdateError{
+				Reason:  "NoDesiredImage",
+				Message: "No configured operator version, unable to update cluster",
+			},
 		}, errs)
 	}
 
