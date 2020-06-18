@@ -29,6 +29,7 @@ Under some conditions during installs and updates, the CVO will treat this condi
 When `RetrievedUpdates` is `True`, the CVO is succesfully retrieving updates, which is good.
 When `RetrievedUpdates` is `False`, `reason` will be set to explain why, as discussed in the following subsections.
 In all cases, the impact is that the cluster will not be able to retrieve recommended updates, so cluster admins will need to monitor for available updates on their own or risk falling behind on security or other bugfixes.
+When CVO is unable to retrieve recommended updates the CannotRetrieveUpdates alert will fire containing the reason. This alert will not fire when the reason updates cannot be retrieved is NoChannel.
 
 ### NoUpstream
 

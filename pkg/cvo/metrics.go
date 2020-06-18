@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -28,12 +29,13 @@ type operatorMetrics struct {
 
 	conditionTransitions map[conditionKey]int
 
-	version                             *prometheus.GaugeVec
-	availableUpdates                    *prometheus.GaugeVec
-	clusterOperatorUp                   *prometheus.GaugeVec
-	clusterOperatorConditions           *prometheus.GaugeVec
-	clusterOperatorConditionTransitions *prometheus.GaugeVec
-	clusterInstaller                    *prometheus.GaugeVec
+	version                                               *prometheus.GaugeVec
+	availableUpdates                                      *prometheus.GaugeVec
+	clusterOperatorUp                                     *prometheus.GaugeVec
+	clusterOperatorConditions                             *prometheus.GaugeVec
+	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
+	clusterInstaller                                      *prometheus.GaugeVec
+	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
@@ -83,6 +85,10 @@ version for 'cluster', or empty for 'initial'.
 			Name: "cluster_installer",
 			Help: "Reports info about the installation process and, if applicable, the install tool.",
 		}, []string{"type", "version", "invoker"}),
+		clusterVersionOperatorUpdateRetrievalTimestampSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
+			Help: "Reports when updates were last succesfully retrieved.",
+		}, []string{"name"}),
 	}
 }
 
@@ -133,6 +139,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
+	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
@@ -296,6 +303,15 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		g := m.clusterInstaller.WithLabelValues("", "", "")
 		g.Set(1.0)
 		ch <- g
+	}
+
+	// check ability to retrieve recommended updates
+	if availableUpdates := m.optr.getAvailableUpdates(); availableUpdates != nil {
+		g := m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("")
+		g.Set(float64(availableUpdates.LastSyncOrConfigChange.Unix()))
+		ch <- g
+	} else {
+		klog.Warningf("availableUpdates is nil")
 	}
 }
 

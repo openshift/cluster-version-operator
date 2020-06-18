@@ -2375,7 +2375,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
-					Reason:  "NoChannel",
+					Reason:  noChannel,
 					Message: "The update channel has not been configured.",
 				},
 			},
