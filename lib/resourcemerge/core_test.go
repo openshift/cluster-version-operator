@@ -359,6 +359,98 @@ func TestEnsurePodSpec(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "modify container readiness probe",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						ReadinessProbe: &corev1.Probe{
+							InitialDelaySeconds: 1,
+							TimeoutSeconds:      2,
+							PeriodSeconds:       3,
+							SuccessThreshold:    4,
+							FailureThreshold:    5,
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						ReadinessProbe: &corev1.Probe{
+							InitialDelaySeconds: 7,
+							TimeoutSeconds:      8,
+							PeriodSeconds:       9,
+							SuccessThreshold:    10,
+							FailureThreshold:    11,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						ReadinessProbe: &corev1.Probe{
+							InitialDelaySeconds: 7,
+							TimeoutSeconds:      8,
+							PeriodSeconds:       9,
+							SuccessThreshold:    10,
+							FailureThreshold:    11,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "modify container liveness probe",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						LivenessProbe: &corev1.Probe{
+							InitialDelaySeconds: 1,
+							TimeoutSeconds:      2,
+							PeriodSeconds:       3,
+							SuccessThreshold:    4,
+							FailureThreshold:    5,
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						LivenessProbe: &corev1.Probe{
+							InitialDelaySeconds: 7,
+							TimeoutSeconds:      8,
+							PeriodSeconds:       9,
+							SuccessThreshold:    10,
+							FailureThreshold:    11,
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						LivenessProbe: &corev1.Probe{
+							InitialDelaySeconds: 7,
+							TimeoutSeconds:      8,
+							PeriodSeconds:       9,
+							SuccessThreshold:    10,
+							FailureThreshold:    11,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {
