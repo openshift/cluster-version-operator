@@ -295,7 +295,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 				if len(reason) == 0 {
 					reason = "DownloadingUpdate"
 				}
-				message = fmt.Sprintf("Working towards %s: downloading update", version)
+				message = fmt.Sprintf("Working towards %s: downloading release image", version)
 			case skipFailure:
 				reason = progressReason
 				message = fmt.Sprintf("Working towards %s: %s", version, progressShortMessage)
