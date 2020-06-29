@@ -49,6 +49,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/configmap"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/serial"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
 )
 
 const (
@@ -224,16 +225,6 @@ func New(
 	return optr
 }
 
-// verifyClientBuilder is a wrapper around the operator's HTTPClient method.
-// It is used by the releaseVerifier to get an up-to-date http client.
-type verifyClientBuilder struct {
-	builder func() (*http.Client, error)
-}
-
-func (vcb *verifyClientBuilder) HTTPClient() (*http.Client, error) {
-	return vcb.builder()
-}
-
 // InitializeFromPayload retrieves the payload contents and verifies the initial state, then configures the
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
@@ -250,15 +241,14 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 	optr.releaseVersion = update.ImageRef.Name
 
-	// Wraps operator's HTTPClient method to allow releaseVerifier to create http client with up-to-date config.
-	clientBuilder := &verifyClientBuilder{builder: optr.HTTPClient}
+	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(optr.HTTPClient, nil)
 	configClient, err := coreclientsetv1.NewForConfig(restConfig)
 	if err != nil {
 		return fmt.Errorf("unable to create a configuration client: %v", err)
 	}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, clientBuilder, configClient)
+	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, httpClientConstructor.HTTPClient, configClient)
 	if err != nil {
 		return err
 	}
@@ -293,7 +283,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 // It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
 // package for more details on the algorithm for verification. If the annotation is set, a verifier or error
 // is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder verify.ClientBuilder, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
+func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder sigstore.HTTPClient, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
 	configMapGVK := corev1.SchemeGroupVersion.WithKind("ConfigMap")
 	for _, manifest := range update.Manifests {
 		if manifest.GVK != configMapGVK {

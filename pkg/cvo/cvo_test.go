@@ -40,6 +40,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
 )
 
 var (
@@ -3420,7 +3421,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f := kfake.NewSimpleClientset()
-			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, verify.DefaultClient, f.CoreV1())
+			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, sigstore.DefaultClient, f.CoreV1())
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("loadReleaseVerifierFromPayload() error = %v, wantErr %v", err, tt.wantErr)
 			}
