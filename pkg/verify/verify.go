@@ -21,6 +21,8 @@ import (
 
 	"golang.org/x/crypto/openpgp"
 	"k8s.io/klog"
+
+	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 )
 
 // Interface performs verification of the provided content. The default implementation
@@ -32,17 +34,6 @@ type Interface interface {
 	Verify(ctx context.Context, releaseDigest string) error
 }
 
-// SignatureStore retrieves signatures for a digest or returns an error. It requires String()
-// for describing the store.
-type SignatureStore interface {
-	// DigestSignatures returns zero or more signatures for the provided digest, or returns an
-	// error if no signatures could be retrieved.
-	DigestSignatures(ctx context.Context, digest string) ([][]byte, error)
-	// String should return a description of where this store finds signatures in a short
-	// clause intended for display in a description of the verifier.
-	String() string
-}
-
 type rejectVerifier struct{}
 
 func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
@@ -51,6 +42,10 @@ func (rejectVerifier) Verify(ctx context.Context, releaseDigest string) error {
 
 // Reject fails always fails verification.
 var Reject Interface = rejectVerifier{}
+
+// HTTPClient returns a client suitable for retrieving signatures. It is not
+// required to be unique per call, but may be called concurrently.
+type HTTPClient func() (*http.Client, error)
 
 // ClientBuilder provides a method for generating an HTTP Client configured
 // with cluster proxy settings, if they exist.
@@ -84,34 +79,20 @@ var validReleaseDigest = regexp.MustCompile(`^[a-zA-Z0-9:]+$`)
 type ReleaseVerifier struct {
 	verifiers map[string]openpgp.EntityList
 
-	locations     []*url.URL
-	clientBuilder ClientBuilder
-	stores        []SignatureStore
+	// Store is the store from which release signatures are retrieved.
+	Store store.Store
 
 	lock           sync.Mutex
 	signatureCache map[string][][]byte
 }
 
 // NewReleaseVerifier creates a release verifier for the provided inputs.
-func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, locations []*url.URL, clientBuilder ClientBuilder) *ReleaseVerifier {
+func NewReleaseVerifier(verifiers map[string]openpgp.EntityList, store store.Store) *ReleaseVerifier {
 	return &ReleaseVerifier{
-		verifiers:     verifiers,
-		locations:     locations,
-		clientBuilder: clientBuilder,
+		verifiers: verifiers,
+		Store:     store,
 
 		signatureCache: make(map[string][][]byte),
-	}
-}
-
-// WithStores copies the provided verifier and adds any provided stores to the list.
-func (v *ReleaseVerifier) WithStores(stores ...SignatureStore) *ReleaseVerifier {
-	return &ReleaseVerifier{
-		verifiers:     v.verifiers,
-		locations:     v.locations,
-		clientBuilder: v.clientBuilder,
-
-		stores:         append(append(make([]SignatureStore, 0, len(v.stores)+len(stores)), v.stores...), stores...),
-		signatureCache: v.Signatures(),
 	}
 }
 
@@ -160,35 +141,11 @@ func (v *ReleaseVerifier) String() string {
 		}
 		fmt.Fprint(&builder, ")")
 	}
-
-	hasLocations := len(v.locations) > 0
-	hasStores := len(v.stores) > 0
-	if hasLocations || hasStores {
-		fmt.Fprintf(&builder, " - will check for signatures in containers/image format")
-		if hasLocations {
-			fmt.Fprintf(&builder, " at")
-			for i, location := range v.locations {
-				if i != 0 {
-					fmt.Fprint(&builder, ",")
-				}
-				fmt.Fprintf(&builder, " %s", location.String())
-			}
-		}
-		if hasStores {
-			if hasLocations {
-				fmt.Fprintf(&builder, " and from")
-			} else {
-				fmt.Fprintf(&builder, " from")
-			}
-			for i, store := range v.stores {
-				if i != 0 {
-					fmt.Fprint(&builder, ",")
-				}
-				fmt.Fprintf(&builder, " %s", store.String())
-			}
-		}
+	fmt.Fprintf(&builder, " - will check for signatures in containers/image format at")
+	if v.Store == nil {
+		fmt.Fprint(&builder, " <ERROR: no store>")
 	} else {
-		fmt.Fprintf(&builder, " - <ERROR: no locations or stores>")
+		fmt.Fprintf(&builder, " %s", v.Store)
 	}
 	return builder.String()
 }
@@ -197,7 +154,7 @@ func (v *ReleaseVerifier) String() string {
 // matching release digest in any of the provided locations for all verifiers, or returns
 // an error.
 func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) error {
-	if len(v.verifiers) == 0 || (len(v.locations) == 0 && len(v.stores) == 0) {
+	if len(v.verifiers) == 0 || v.Store == nil {
 		return fmt.Errorf("the release verifier is incorrectly configured, unable to verify digests")
 	}
 	if len(releaseDigest) == 0 {
@@ -211,85 +168,35 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		return nil
 	}
 
-	parts := strings.SplitN(releaseDigest, ":", 3)
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
-	}
-	algo, hash := parts[0], parts[1]
-	name := fmt.Sprintf("%s=%s", algo, hash)
-
 	remaining := make(map[string]openpgp.EntityList, len(v.verifiers))
 	for k, v := range v.verifiers {
 		remaining[k] = v
 	}
 
 	var signedWith [][]byte
-	verifier := func(path string, signature []byte) (bool, error) {
+	err := v.Store.Signatures(ctx, "", releaseDigest, func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
+		if errIn != nil {
+			klog.V(4).Infof("error retrieving signature for %s: %v", releaseDigest, errIn)
+			return false, nil
+		}
 		for k, keyring := range remaining {
 			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
 			if err != nil {
-				klog.V(4).Infof("keyring %q could not verify signature: %v", k, err)
+				klog.V(4).Infof("keyring %q could not verify signature for %s: %v", k, releaseDigest, err)
 				continue
 			}
 			if err := verifyAtomicContainerSignature(content, releaseDigest); err != nil {
-				klog.V(4).Infof("signature %q is not valid: %v", path, err)
+				klog.V(4).Infof("signature for %s is not valid: %v", releaseDigest, err)
 				continue
 			}
 			delete(remaining, k)
 			signedWith = append(signedWith, signature)
 		}
-		return len(remaining) > 0, nil
-	}
-
-	// check the stores to see if they match any signatures
-	for i, store := range v.stores {
-		if len(remaining) == 0 {
-			break
-		}
-		signatures, err := store.DigestSignatures(ctx, releaseDigest)
-		if err != nil {
-			klog.V(4).Infof("store %s could not load signatures: %v", store, err)
-			continue
-		}
-		for _, signature := range signatures {
-			hasUnsigned, err := verifier(fmt.Sprintf("store %d", i), signature)
-			if err != nil {
-				return err
-			}
-			if !hasUnsigned {
-				break
-			}
-		}
-	}
-
-	var client *http.Client
-	for _, location := range v.locations {
-		if len(remaining) == 0 {
-			break
-		}
-		switch location.Scheme {
-		case "file":
-			dir := filepath.Join(location.Path, name)
-			if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
-				return err
-			}
-		case "http", "https":
-			if client == nil {
-				var err error
-				client, err = v.clientBuilder.HTTPClient()
-				if err != nil {
-					return err
-				}
-			}
-
-			copied := *location
-			copied.Path = path.Join(location.Path, name)
-			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
-		}
+		return len(remaining) == 0, nil
+	})
+	if err != nil {
+		klog.V(4).Infof("Failed to retrieve signatures for %s (should never happen)", releaseDigest)
+		return err
 	}
 
 	if len(remaining) > 0 {
@@ -348,11 +255,20 @@ func (v *ReleaseVerifier) cacheVerification(releaseDigest string, signedWith [][
 	v.signatureCache[releaseDigest] = signedWith
 }
 
-// checkFileSignatures reads signatures as "signature-1", "signature-2", etc out of a directory until
-// either the provided fn returns an error, false, or no such file exists. No more than maxSignaturesToCheck
-// will be read.
-func checkFileSignatures(ctx context.Context, dir string, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
-	base := filepath.Join(dir, "signature-")
+type fileStore struct {
+	directory string
+}
+
+// Signatures reads signatures as "signature-1", "signature-2", etc. out of a digest-based subdirectory.
+func (s *fileStore) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
+	parts := strings.SplitN(digest, ":", 3)
+	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
+		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
+	}
+	algo, hash := parts[0], parts[1]
+	digestPathSegment := fmt.Sprintf("%s=%s", algo, hash)
+
+	base := filepath.Join(s.directory, digestPathSegment, "signature-")
 	for i := 1; i < maxSignatureSearch; i++ {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -365,26 +281,67 @@ func checkFileSignatures(ctx context.Context, dir string, maxSignaturesToCheck i
 		}
 		if err != nil {
 			klog.V(4).Infof("unable to load signature: %v", err)
+			done, err := fn(ctx, nil, err)
+			if done || err != nil {
+				return err
+			}
 			continue
 		}
-		ok, err := fn(path, data)
-		if err != nil {
+		done, err := fn(ctx, data, nil)
+		if done || err != nil {
 			return err
-		}
-		if !ok {
-			break
 		}
 	}
 	return nil
 }
 
+func (s *fileStore) String() string {
+	return fmt.Sprintf("file://%s", s.directory)
+}
+
 var errNotFound = fmt.Errorf("no more signatures to check")
 
-// checkHTTPSignatures reads signatures as "signature-1", "signature-2", etc as children of the provided URL
+type httpStore struct {
+	uri        *url.URL
+	httpClient HTTPClient
+}
+
+// Signatures reads signatures as "signature-1", "signature-2", etc. as children of a digest URI
 // over HTTP or HTTPS until either the provided fn returns an error, false, or the server returns 404. No
 // more than maxSignaturesToCheck will be read. If the provided context is cancelled search will be terminated.
-func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
-	base := filepath.Join(u.Path, "signature-")
+func (s *httpStore) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
+	parts := strings.SplitN(digest, ":", 3)
+	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
+		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
+	}
+	algo, hash := parts[0], parts[1]
+	digestPathSegment := fmt.Sprintf("%s=%s", algo, hash)
+
+	switch s.uri.Scheme {
+	case "http", "https":
+		client, err := s.httpClient()
+		if err != nil {
+			_, err = fn(ctx, nil, err)
+			return err
+		}
+
+		copied := *s.uri
+		copied.Path = path.Join(copied.Path, digestPathSegment)
+		if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, fn); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("the store %s scheme is unrecognized", s.uri)
+	}
+
+	return nil
+}
+
+// checkHTTPSignatures reads signatures as "signature-1", "signature-2", etc. as children of the provided URL
+// over HTTP or HTTPS.  No more than maxSignatureSearch will be read. If the provided context is cancelled
+// search will be terminated.
+func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn store.Callback) error {
+	base := path.Join(u.Path, "signature-")
 	sigURL := u
 	for i := 1; i < maxSignatureSearch; i++ {
 		if err := ctx.Err(); err != nil {
@@ -395,13 +352,18 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 
 		req, err := http.NewRequest("GET", sigURL.String(), nil)
 		if err != nil {
-			return fmt.Errorf("could not build request to check signature: %v", err)
+			_, err = fn(ctx, nil, fmt.Errorf("could not build request to check signature: %v", err))
+			return err // even if the callback ate the error, no sense in checking later indexes which will fail the same way
 		}
 		req = req.WithContext(ctx)
 		// load the body, being careful not to allow unbounded reads
 		resp, err := client.Do(req)
 		if err != nil {
 			klog.V(4).Infof("unable to load signature: %v", err)
+			done, err := fn(ctx, nil, err)
+			if done || err != nil {
+				return err
+			}
 			continue
 		}
 		data, err := func() ([]byte, error) {
@@ -414,7 +376,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 				body.Close()
 			}()
 
-			if resp.StatusCode == 404 {
+			if resp.StatusCode == http.StatusNotFound {
 				return nil, errNotFound
 			}
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -431,21 +393,28 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 		}
 		if err != nil {
 			klog.V(4).Info(err)
+			done, err := fn(ctx, nil, err)
+			if done || err != nil {
+				return err
+			}
 			continue
 		}
 		if len(data) == 0 {
 			continue
 		}
 
-		ok, err := fn(sigURL.String(), data)
-		if err != nil {
+		done, err := fn(ctx, data, nil)
+		if done || err != nil {
 			return err
-		}
-		if !ok {
-			break
 		}
 	}
 	return nil
+}
+
+// String returns a description of where this store finds
+// signatures.
+func (s *httpStore) String() string {
+	return s.uri.String()
 }
 
 // verifySignatureWithKeyring performs a containers/image verification of the provided signature
