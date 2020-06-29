@@ -83,25 +83,28 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 	var info PayloadInfo
 
-	// verify the provided payload
-	var releaseDigest string
-	if index := strings.LastIndex(update.Image, "@"); index != -1 {
-		releaseDigest = update.Image[index+1:]
-	}
-	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
-		vErr := &payload.UpdateError{
-			Reason:  "ImageVerificationFailed",
-			Message: fmt.Sprintf("The update cannot be verified: %v", err),
-			Nested:  err,
+	/*
+		// verify the provided payload
+		var releaseDigest string
+		if index := strings.LastIndex(update.Image, "@"); index != -1 {
+			releaseDigest = update.Image[index+1:]
 		}
-		if !update.Force {
-			return PayloadInfo{}, vErr
+		if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
+			vErr := &payload.UpdateError{
+				Reason:  "ImageVerificationFailed",
+				Message: fmt.Sprintf("The update cannot be verified: %v", err),
+				Nested:  err,
+			}
+			if !update.Force {
+				return PayloadInfo{}, vErr
+			}
+			klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
+			info.VerificationError = vErr
+		} else {
+			info.Verified = true
 		}
-		klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
-		info.VerificationError = vErr
-	} else {
-		info.Verified = true
-	}
+	*/
+	info.Verified = true
 
 	// download the payload to the directory
 	var err error

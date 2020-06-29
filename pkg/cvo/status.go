@@ -30,26 +30,59 @@ const (
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
 	if len(desired.Image) > 0 && desired.Image == current.Image {
+		klog.Infof("1")
 		if len(desired.Version) == 0 {
+			klog.Infof("2")
 			return true
 		}
 		if len(current.Version) == 0 || desired.Version == current.Version {
+			klog.Infof("3")
 			current.Version = desired.Version
 			return true
 		}
 	}
 	if len(desired.Version) > 0 && desired.Version == current.Version {
+		klog.Infof("4")
 		if len(current.Image) == 0 || desired.Image == current.Image {
+			klog.Infof("5")
 			current.Image = desired.Image
 			return true
 		}
 	}
+	klog.Infof("6")
 	return false
+}
+
+func mergePartialUpdateVersion(config *configv1.ClusterVersion, desired configv1.Update, startedTime metav1.Time) {
+	if len(config.Status.History) <= 1 {
+		klog.Infof("adding second!!!!!")
+		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
+			Version:     desired.Version,
+			Image:       desired.Image,
+			State:       configv1.PartialUpdate,
+			StartedTime: startedTime,
+		})
+	} else {
+		nextToLast := &config.Status.History[1]
+		if !mergeEqualVersions(nextToLast, desired) {
+			klog.Infof("adding new second!!!!!")
+			var history = configv1.UpdateHistory{
+				Version:     desired.Version,
+				Image:       desired.Image,
+				State:       configv1.PartialUpdate,
+				StartedTime: startedTime,
+			}
+			config.Status.History = append(config.Status.History, history)
+			copy(config.Status.History[2:], config.Status.History[1:])
+			config.Status.History[1] = history
+		}
+	}
 }
 
 func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Update, verified bool, now metav1.Time, completed bool) {
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
+		klog.Infof("len(desired.Image) == 0")
 		// make the array empty
 		if config.Status.History == nil {
 			config.Status.History = []configv1.UpdateHistory{}
@@ -58,7 +91,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	}
 
 	if len(config.Status.History) == 0 {
-		klog.V(5).Infof("initialize new history completed=%t desired=%#v", completed, desired)
+		klog.Infof("initialize new history completed=%t desired=%#v", completed, desired)
 		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
 			Version: desired.Version,
 			Image:   desired.Image,
@@ -75,7 +108,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 	}
 
 	if mergeEqualVersions(last, desired) {
-		klog.V(5).Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
+		klog.Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
 		if completed {
 			last.State = configv1.CompletedUpdate
 			if last.CompletionTime == nil {
@@ -83,7 +116,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 			}
 		}
 	} else {
-		klog.V(5).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
+		klog.Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
 		if last.CompletionTime == nil {
 			last.CompletionTime = &now
 		}
@@ -99,6 +132,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 				},
 			}, config.Status.History...)
 		} else {
+			//mergePartialUpdateVersion(config, desired, now)
 			config.Status.History = append([]configv1.UpdateHistory{
 				{
 					Version: desired.Version,
@@ -109,6 +143,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 				},
 			}, config.Status.History...)
 		}
+		klog.Infof("history=%#v", config.Status.History)
 	}
 
 	// leave this here in case we find other future history bugs and need to debug it
@@ -155,6 +190,7 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
+	//klog.Infof("original=%#v\nconfig=%#v\nstatus=%#v", original, config, status)
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
@@ -162,14 +198,17 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
 		cvUpdated = true
 		config = updated
+		//klog.Infof("getAvailableUpdates():\nconfig=%#v\n", config)
 	}
 	// update the config with upgradeable
 	if updated := optr.getUpgradeable().NeedsUpdate(config); updated != nil {
 		cvUpdated = true
 		config = updated
+		//klog.Infof("getUpgradeable():\nconfig=%#v\n", config)
 	}
 	if !cvUpdated && (original == nil || original == config) {
 		original = config.DeepCopy()
+		//klog.Infof("!cvUpdated && (original == nil || original == config):\nconfig=%#v\n", config)
 	}
 
 	config.Status.ObservedGeneration = status.Generation
@@ -179,6 +218,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 
 	now := metav1.Now()
 	version := versionString(status.Actual)
+	klog.Infof("version=%s", version)
 
 	mergeOperatorHistory(config, status.Actual, status.Verified, now, status.Completed > 0)
 

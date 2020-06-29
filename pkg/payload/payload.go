@@ -171,6 +171,7 @@ func LoadUpdate(dir, releaseImage string) (*Update, error) {
 
 	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	payload.Manifests = manifests
+	klog.Infof("exiting LoadUpdate")
 	return payload, nil
 }
 
@@ -220,6 +221,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 	if err != nil {
 		return nil, nil, err
 	}
+	klog.Infof("imageRef.Name %s", imageRef.Name)
 
 	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
 

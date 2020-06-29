@@ -510,9 +510,14 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		}
 		payloadUpdate.VerifiedImage = info.Verified
 		payloadUpdate.LoadedAt = time.Now()
+		klog.Infof("payloadUpdate.ReleaseVersion=%s", payloadUpdate.ReleaseVersion)
 
 		// need to make sure the payload is only set when the preconditions have been successfull
-		if !info.Local && len(w.preconditions) > 0 {
+		if len(w.preconditions) == 0 {
+			klog.V(4).Info("No preconditions configured.")
+		} else if info.Local {
+			klog.V(4).Info("Skipping preconditions for a local operator image payload.")
+		} else {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
 				Step:        "PreconditionChecks",
