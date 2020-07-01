@@ -119,8 +119,10 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Upda
 		}
 	}
 
-	// payloads can be verified during sync
-	if verified {
+	// Payloads can be verified during sync. Verify should be false if the update is being forced.
+	if desired.Force {
+		config.Status.History[0].Verified = false
+	} else if verified {
 		config.Status.History[0].Verified = true
 	}
 
