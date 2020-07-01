@@ -476,7 +476,7 @@ func (optr *Operator) sync(key string) error {
 		return optr.syncStatus(original, config, &SyncWorkerStatus{
 			Failure: &payload.UpdateError{
 				Reason:  "NoDesiredImage",
-				Message: "No configured operator version, unable to update cluster",
+				Message: "No configured operator version, unable to update cluster.  If this happens it is a cluster-version operator coding error, because clearing desiredUpdate should return you to the current operator's release image.",
 			},
 		}, errs)
 	}

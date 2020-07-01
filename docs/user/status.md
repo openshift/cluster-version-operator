@@ -11,12 +11,6 @@ Note that the graph [may be flattened](reconciliation.md#manifest-graph), in whi
 
 Most reconciliation errors will result in `Failing=True`, although [`ClusterOperatorNotAvailable`](#clusteroperatornotavailable) has special handling.
 
-### NoDesiredImage
-
-The CVO has not been given a release image to reconcile.
-
-If this happens it is a CVO coding error, because clearing [`desiredUpdate`][api-desired-update] should return you to the current CVO's release image.
-
 ### ClusterOperatorNotAvailable
 
 `ClusterOperatorNotAvailable` (or the consolidated `ClusterOperatorsNotAvailable`) is set when the CVO fails to retrieve the ClusterOperator from the cluster or when the retrieved ClusterOperator does not satisfy [the reconciliation conditions](reconciliation.md#clusteroperator).
@@ -30,12 +24,6 @@ When `RetrievedUpdates` is `True`, the CVO is succesfully retrieving updates, wh
 When `RetrievedUpdates` is `False`, `reason` will be set to explain why, as discussed in the following subsections.
 In all cases, the impact is that the cluster will not be able to retrieve recommended updates, so cluster admins will need to monitor for available updates on their own or risk falling behind on security or other bugfixes.
 When CVO is unable to retrieve recommended updates the CannotRetrieveUpdates alert will fire containing the reason. This alert will not fire when the reason updates cannot be retrieved is NoChannel.
-
-### NoUpstream
-
-No `upstream` server has been set to retrieve updates.
-
-Fix by setting `spec.upstream` in ClusterVersion to point to a [Cincinnati][] server, for example https://api.openshift.com/api/upgrades_info/v1/graph .
 
 ### InvalidURI
 

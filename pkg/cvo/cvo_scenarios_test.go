@@ -165,7 +165,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster.  If this happens it is a cluster-version operator coding error, because clearing desiredUpdate should return you to the current operator's release image."},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -436,7 +436,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster.  If this happens it is a cluster-version operator coding error, because clearing desiredUpdate should return you to the current operator's release image."},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -697,7 +697,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster.  If this happens it is a cluster-version operator coding error, because clearing desiredUpdate should return you to the current operator's release image."},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},

@@ -20,7 +20,11 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
-const noChannel string = "NoChannel"
+const (
+	noChannel string = "NoChannel"
+
+	failedToRetrieveUpdatesImpact string = `Because the cluster cannot retrieve recommended updates, cluster administrators will need to monitor for available updates on their own or risk falling behind on security or other bugfixes (clear the channel if you want to monitor for updates yourself).`
+)
 
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
@@ -143,9 +147,10 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 
 func calculateAvailableUpdatesStatus(clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) ([]configv1.Update, configv1.ClusterOperatorStatusCondition) {
 	if len(upstream) == 0 {
+		baseConsoleURI := FIXME()
 		return nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoUpstream",
-			Message: "No upstream server has been set to retrieve updates.",
+			Message: fmt.Sprintf("No upstream server has been set to retrieve updates.%s  Fix by setting spec.upstream in ClusterVersion to point to an update recommendation service, for example https://api.openshift.com/api/upgrades_info/v1/graph , %s/settings/cluster/", failedToRetrieveUpdatesImpact, baseConsoleURI),
 		}
 	}
 

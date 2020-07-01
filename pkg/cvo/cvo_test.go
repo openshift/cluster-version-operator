@@ -2337,7 +2337,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
 					Reason:  "NoUpstream",
-					Message: "No upstream server has been set to retrieve updates.",
+					Message: "No upstream server has been set to retrieve updates.  Because the cluster cannot retrieve recommended updates, cluster administrators will need to monitor for available updates on their own or risk falling behind on security or other bugfixes (clear the channel if you want to monitor for updates yourself).  Fix by setting spec.upstream in ClusterVersion to point to an update recommendation service, for example https://api.openshift.com/api/upgrades_info/v1/graph , FIXME:console-URI/settings/cluster/",
 				},
 			},
 		},
