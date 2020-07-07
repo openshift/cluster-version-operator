@@ -238,7 +238,6 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
@@ -390,7 +389,6 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
-	options.EnableMetrics = false
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
@@ -497,7 +495,6 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.Name = ns
 	options.ListenAddr = ""
 	options.NodeName = "test-node"
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
 	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
@@ -667,7 +664,6 @@ metadata:
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = payloadDir
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		t.Fatal(err)
