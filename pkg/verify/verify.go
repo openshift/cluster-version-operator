@@ -269,9 +269,13 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 		}
 		switch location.Scheme {
 		case "file":
-			dir := filepath.Join(location.Path, name)
-			if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
-				return err
+			for _, dir := range []string{
+				filepath.Join(location.Path, name),
+				fmt.Sprintf("%s@%s", strings.TrimSuffix(location.Path, string(filepath.Separator)), name),
+			} {
+				if err := checkFileSignatures(ctx, dir, maxSignatureSearch, verifier); err != nil {
+					return err
+				}
 			}
 		case "http", "https":
 			if client == nil {
@@ -282,10 +286,15 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 				}
 			}
 
-			copied := *location
-			copied.Path = path.Join(location.Path, name)
-			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
-				return err
+			for _, path := range []string{
+				path.Join(location.Path, name),
+				fmt.Sprintf("%s@%s", strings.TrimSuffix(location.Path, "/"), name),
+			} {
+				copied := *location
+				copied.Path = path
+				if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
+					return err
+				}
 			}
 		default:
 			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
@@ -352,6 +361,7 @@ func (v *ReleaseVerifier) cacheVerification(releaseDigest string, signedWith [][
 // either the provided fn returns an error, false, or no such file exists. No more than maxSignaturesToCheck
 // will be read.
 func checkFileSignatures(ctx context.Context, dir string, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
+	fmt.Fprintf(os.Stderr, "checking file %s\n", dir)
 	base := filepath.Join(dir, "signature-")
 	for i := 1; i < maxSignatureSearch; i++ {
 		if err := ctx.Err(); err != nil {
@@ -384,6 +394,7 @@ var errNotFound = fmt.Errorf("no more signatures to check")
 // over HTTP or HTTPS until either the provided fn returns an error, false, or the server returns 404. No
 // more than maxSignaturesToCheck will be read. If the provided context is cancelled search will be terminated.
 func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
+	fmt.Fprintf(os.Stderr, "checking HTTPS %s\n", u.String())
 	base := filepath.Join(u.Path, "signature-")
 	sigURL := u
 	for i := 1; i < maxSignatureSearch; i++ {

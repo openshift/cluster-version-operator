@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"golang.org/x/crypto/openpgp"
@@ -65,6 +66,19 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 	defer sigServer.Close()
 	sigServerURL, _ := url.Parse(sigServer.URL)
 
+	serveSignaturesWithAt := http.FileServer(http.Dir(filepath.Join("testdata", "signatures")))
+	sigServerWithAt := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if !strings.HasPrefix(req.URL.Path, "/signatures@") {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		req.URL.Path = "/" + strings.TrimPrefix(req.URL.Path, "/signatures@")
+		serveSignaturesWithAt.ServeHTTP(w, req)
+	}))
+	defer sigServerWithAt.Close()
+	sigServerURLWithAt, _ := url.Parse(sigServerWithAt.URL)
+	sigServerURLWithAt.Path = "/signatures"
+
 	serveEmpty := http.FileServer(http.Dir(filepath.Join("testdata", "signatures-2")))
 	emptyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		serveEmpty.ServeHTTP(w, req)
@@ -97,10 +111,29 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
 		},
 		{
+			name:          "valid signature for sha over file when using a prefix and @ separator",
+			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
+			locations: []*url.URL{
+				{Scheme: "file", Path: "testdata/signatures-prefix/prefix"},
+			},
+			stores: []SignatureStore{
+				&fakeSigStore{err: fmt.Errorf("logged only")},
+			},
+			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
+		},
+		{
 			name:          "valid signature for sha over http",
 			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
 			locations: []*url.URL{
 				sigServerURL,
+			},
+			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
+		},
+		{
+			name:          "valid signature for sha over http when accessing it via /signatures@",
+			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
+			locations: []*url.URL{
+				sigServerURLWithAt,
 			},
 			verifiers: map[string]openpgp.EntityList{"redhat": redhatPublic},
 		},
