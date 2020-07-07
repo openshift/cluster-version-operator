@@ -12,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/klog"
@@ -113,103 +112,72 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	_, updated, err := resourceapply.ApplyDeployment(ctx, b.client, deployment)
-	if err != nil {
+	if _, _, err := resourceapply.ApplyDeployment(ctx, b.client, deployment); err != nil {
 		return err
 	}
-	if updated && b.mode != InitializingMode {
-		return waitForDeploymentCompletion(ctx, b.client, deployment)
+
+	if b.mode != InitializingMode {
+		return checkDeploymentHealth(ctx, b.client, deployment)
 	}
 	return nil
 }
 
-func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
+func checkDeploymentHealth(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
 	iden := fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
-	var lastErr error
-	err := wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		d, err := client.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			// exit early to recreate the deployment.
-			return false, err
-		}
-		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
-			lastErr = &payload.UpdateError{
-				Nested:  err,
-				Reason:  "WorkloadNotAvailable",
-				Message: fmt.Sprintf("could not find the deployment %s during rollout", iden),
-				Name:    iden,
-			}
-			return false, nil
-		}
-
-		if d.DeletionTimestamp != nil {
-			return false, fmt.Errorf("Deployment %s is being deleted", iden)
-		}
-
-		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
-			return true, nil
-		}
-
-		var availableCondition *appsv1.DeploymentCondition
-		var progressingCondition *appsv1.DeploymentCondition
-		var replicafailureCondition *appsv1.DeploymentCondition
-		for idx, dc := range d.Status.Conditions {
-			switch dc.Type {
-			case appsv1.DeploymentProgressing:
-				progressingCondition = &d.Status.Conditions[idx]
-			case appsv1.DeploymentAvailable:
-				availableCondition = &d.Status.Conditions[idx]
-			case appsv1.DeploymentReplicaFailure:
-				replicafailureCondition = &d.Status.Conditions[idx]
-			}
-		}
-
-		if replicafailureCondition != nil && replicafailureCondition.Status == corev1.ConditionTrue {
-			lastErr = &payload.UpdateError{
-				Nested:  fmt.Errorf("deployment %s has some pods failing; unavailable replicas=%d", iden, d.Status.UnavailableReplicas),
-				Reason:  "WorkloadNotProgressing",
-				Message: fmt.Sprintf("deployment %s has a replica failure %s: %s", iden, replicafailureCondition.Reason, replicafailureCondition.Message),
-				Name:    iden,
-			}
-			return false, nil
-		}
-
-		if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse {
-			lastErr = &payload.UpdateError{
-				Nested:  fmt.Errorf("deployment %s is not available; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
-				Reason:  "WorkloadNotAvailable",
-				Message: fmt.Sprintf("deployment %s is not available %s: %s", iden, availableCondition.Reason, availableCondition.Message),
-				Name:    iden,
-			}
-			return false, nil
-		}
-
-		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse && progressingCondition.Reason == "ProgressDeadlineExceeded" {
-			lastErr = &payload.UpdateError{
-				Nested:  fmt.Errorf("deployment %s is not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
-				Reason:  "WorkloadNotAvailable",
-				Message: fmt.Sprintf("deployment %s is not progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
-				Name:    iden,
-			}
-			return false, nil
-		}
-
-		if progressingCondition != nil && progressingCondition.Status == corev1.ConditionTrue {
-			klog.V(4).Infof("deployment %s is progressing", iden)
-			return false, nil
-		}
-
-		klog.Errorf("deployment %s is in unknown state", iden)
-		return false, nil
-	}, ctx.Done())
+	d, err := client.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
 	if err != nil {
-		if err == wait.ErrWaitTimeout && lastErr != nil {
-			return lastErr
-		}
 		return err
 	}
+
+	if d.DeletionTimestamp != nil {
+		return fmt.Errorf("deployment %s is being deleted", iden)
+	}
+
+	var availableCondition *appsv1.DeploymentCondition
+	var progressingCondition *appsv1.DeploymentCondition
+	var replicaFailureCondition *appsv1.DeploymentCondition
+	for idx, dc := range d.Status.Conditions {
+		switch dc.Type {
+		case appsv1.DeploymentProgressing:
+			progressingCondition = &d.Status.Conditions[idx]
+		case appsv1.DeploymentAvailable:
+			availableCondition = &d.Status.Conditions[idx]
+		case appsv1.DeploymentReplicaFailure:
+			replicaFailureCondition = &d.Status.Conditions[idx]
+		}
+	}
+
+	if replicaFailureCondition != nil && replicaFailureCondition.Status == corev1.ConditionTrue {
+		return &payload.UpdateError{
+			Nested:  fmt.Errorf("deployment %s has some pods failing; unavailable replicas=%d", iden, d.Status.UnavailableReplicas),
+			Reason:  "WorkloadNotProgressing",
+			Message: fmt.Sprintf("deployment %s has a replica failure %s: %s", iden, replicaFailureCondition.Reason, replicaFailureCondition.Message),
+			Name:    iden,
+		}
+	}
+
+	if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse {
+		return &payload.UpdateError{
+			Nested:  fmt.Errorf("deployment %s is not available; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
+			Reason:  "WorkloadNotAvailable",
+			Message: fmt.Sprintf("deployment %s is not available %s: %s", iden, availableCondition.Reason, availableCondition.Message),
+			Name:    iden,
+		}
+	}
+
+	if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse {
+		return &payload.UpdateError{
+			Nested:  fmt.Errorf("deployment %s is not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
+			Reason:  "WorkloadNotAvailable",
+			Message: fmt.Sprintf("deployment %s is not progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
+			Name:    iden,
+		}
+	}
+
+	if availableCondition == nil && progressingCondition == nil && replicaFailureCondition == nil {
+		klog.Warningf("deployment %s is not setting any expected conditions, and is therefore in an unknown state", iden)
+	}
+
 	return nil
 }
 
@@ -264,52 +232,28 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	_, updated, err := resourceapply.ApplyDaemonSet(ctx, b.client, daemonset)
-	if err != nil {
+	if _, _, err := resourceapply.ApplyDaemonSet(ctx, b.client, daemonset); err != nil {
 		return err
 	}
-	if updated && b.mode != InitializingMode {
-		return waitForDaemonsetRollout(ctx, b.client, daemonset)
+
+	if b.mode != InitializingMode {
+		return checkDaemonSetHealth(ctx, b.client, daemonset)
 	}
+
 	return nil
 }
 
-func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
+func checkDaemonSetHealth(ctx context.Context, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
 	iden := fmt.Sprintf("%s/%s", daemonset.Namespace, daemonset.Name)
-	var lastErr error
-	err := wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		d, err := client.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			// exit early to recreate the daemonset.
-			return false, err
-		}
-		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
-			lastErr = &payload.UpdateError{
-				Nested:  err,
-				Reason:  "WorkloadNotAvailable",
-				Message: fmt.Sprintf("could not find the daemonset %s during rollout", iden),
-				Name:    iden,
-			}
-			return false, nil
-		}
-
-		if d.DeletionTimestamp != nil {
-			return false, fmt.Errorf("Daemonset %s is being deleted", daemonset.Name)
-		}
-
-		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
-			return true, nil
-		}
-		klog.V(4).Infof("daemonset %s is progressing", iden)
-		return false, nil
-	}, ctx.Done())
+	d, err := client.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
 	if err != nil {
-		if err == wait.ErrWaitTimeout && lastErr != nil {
-			return lastErr
-		}
 		return err
 	}
+
+	if d.DeletionTimestamp != nil {
+		return fmt.Errorf("daemonset %s is being deleted", iden)
+	}
+
+	// Kubernetes DaemonSet controller doesn't set status conditions yet (v1.18.0), so nothing more to check.
 	return nil
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/klog"
-
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
 )
 
 type jobBuilder struct {
@@ -45,12 +44,12 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(job)
 	}
-	_, updated, err := resourceapply.ApplyJob(ctx, b.client, job)
-	if err != nil {
+	if _, _, err := resourceapply.ApplyJob(ctx, b.client, job); err != nil {
 		return err
 	}
-	if updated && b.mode != InitializingMode {
-		return WaitForJobCompletion(ctx, b.client, job)
+	if b.mode != InitializingMode {
+		_, err := checkJobHealth(ctx, b.client, job)
+		return err
 	}
 	return nil
 }
@@ -58,27 +57,38 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
-		if err != nil {
-			klog.Errorf("error getting Job %s: %v", job.Name, err)
+		if done, err := checkJobHealth(ctx, client, job); err != nil {
+			klog.Error(err)
+			return false, nil
+		} else if !done {
+			klog.V(4).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Namespace, job.ObjectMeta.Name)
 			return false, nil
 		}
-
-		if j.Status.Succeeded > 0 {
-			return true, nil
-		}
-
-		// Since we have filled in "activeDeadlineSeconds",
-		// the Job will 'Active == 0' iff it exceeds the deadline.
-		// Failed jobs will be recreated in the next run.
-		if j.Status.Active == 0 && j.Status.Failed > 0 {
-			reason := "DeadlineExceeded"
-			message := "Job was active longer than specified deadline"
-			if len(j.Status.Conditions) > 0 {
-				reason, message = j.Status.Conditions[0].Reason, j.Status.Conditions[0].Message
-			}
-			return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
-		}
-		return false, nil
+		return true, nil
 	}, ctx.Done())
+}
+
+// checkJobHealth returns an error if the job status is bad enough to block further manifest application.
+func checkJobHealth(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) (bool, error) {
+	j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
+	if err != nil {
+		return false, fmt.Errorf("error getting Job %s: %v", job.Name, err)
+	}
+
+	if j.Status.Succeeded > 0 {
+		return true, nil
+	}
+
+	// Since we have filled in "activeDeadlineSeconds",
+	// the Job will 'Active == 0' if and only if it exceeds the deadline.
+	// Failed jobs will be recreated in the next run.
+	if j.Status.Active == 0 && j.Status.Failed > 0 {
+		reason := "DeadlineExceeded"
+		message := "Job was active longer than specified deadline"
+		if len(j.Status.Conditions) > 0 {
+			reason, message = j.Status.Conditions[0].Reason, j.Status.Conditions[0].Message
+		}
+		return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
+	}
+	return false, nil
 }
