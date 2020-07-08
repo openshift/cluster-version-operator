@@ -26,6 +26,7 @@ type deploymentBuilder struct {
 	proxyGetter configv1.ProxiesGetter
 	raw         []byte
 	modifier    MetaV1ObjectModifierFunc
+	mode        Mode
 }
 
 func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
@@ -37,6 +38,7 @@ func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 }
 
 func (b *deploymentBuilder) WithMode(m Mode) Interface {
+	b.mode = m
 	return b
 }
 
@@ -70,11 +72,11 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	actual, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
+	_, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
 	if err != nil {
 		return err
 	}
-	if updated && actual.Generation > 1 {
+	if updated && b.mode != InitializingMode {
 		return waitForDeploymentCompletion(ctx, b.client, deployment)
 	}
 	return nil
@@ -174,6 +176,7 @@ type daemonsetBuilder struct {
 	proxyGetter configv1.ProxiesGetter
 	raw         []byte
 	modifier    MetaV1ObjectModifierFunc
+	mode        Mode
 }
 
 func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
@@ -185,6 +188,7 @@ func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
 }
 
 func (b *daemonsetBuilder) WithMode(m Mode) Interface {
+	b.mode = m
 	return b
 }
 
@@ -218,11 +222,11 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	actual, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
+	_, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
 	if err != nil {
 		return err
 	}
-	if updated && actual.Generation > 1 {
+	if updated && b.mode != InitializingMode {
 		return waitForDaemonsetRollout(ctx, b.client, daemonset)
 	}
 	return nil
