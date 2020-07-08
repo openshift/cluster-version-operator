@@ -45,24 +45,22 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 func (b *crdBuilder) Do(ctx context.Context) error {
 	crd := resourceread.ReadCustomResourceDefinitionOrDie(b.raw)
 
+	if b.modifier != nil {
+		b.modifier(crd)
+	}
+
 	var updated bool
 	var err error
 	var name string
 
 	switch crd := crd.(type) {
 	case *apiextv1beta1.CustomResourceDefinition:
-		if b.modifier != nil {
-			b.modifier(crd)
-		}
 		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, crd)
 		if err != nil {
 			return err
 		}
 		name = crd.Name
 	case *apiextv1.CustomResourceDefinition:
-		if b.modifier != nil {
-			b.modifier(crd)
-		}
 		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, crd)
 		if err != nil {
 			return err
