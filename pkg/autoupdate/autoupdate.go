@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 
 	v1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"

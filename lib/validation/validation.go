@@ -4,7 +4,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"

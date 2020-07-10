@@ -1,7 +1,7 @@
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
-# github.com/blang/semver v3.5.0+incompatible
-github.com/blang/semver
+# github.com/blang/semver/v4 v4.0.0
+github.com/blang/semver/v4
 # github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
 github.com/cockroachdb/cmux
 # github.com/davecgh/go-spew v1.1.1

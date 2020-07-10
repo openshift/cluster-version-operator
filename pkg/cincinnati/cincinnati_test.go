@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/blang/semver"
+	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 	_ "k8s.io/klog" // integration tests set glog flags.
 )
