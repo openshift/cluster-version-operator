@@ -18,6 +18,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/memory"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/serial"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
 )
 
 func Test_ReleaseVerifier_Verify(t *testing.T) {
@@ -92,7 +93,7 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 		{
 			name:          "valid signature for sha over http",
 			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
-			store:         &httpStore{uri: sigServerURL, httpClient: DefaultClient.HTTPClient},
+			store:         &sigstore.Store{URI: sigServerURL, HTTPClient: sigstore.DefaultClient},
 			verifiers:     map[string]openpgp.EntityList{"redhat": redhatPublic},
 		},
 		{
@@ -104,13 +105,13 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 		{
 			name:          "valid signature for sha over http with custom gpg key",
 			releaseDigest: "sha256:edd9824f0404f1a139688017e7001370e2f3fbc088b94da84506653b473fe140",
-			store:         &httpStore{uri: sigServerURL, httpClient: DefaultClient.HTTPClient},
+			store:         &sigstore.Store{URI: sigServerURL, HTTPClient: sigstore.DefaultClient},
 			verifiers:     map[string]openpgp.EntityList{"simple": simple},
 		},
 		{
 			name:          "valid signature for sha over http with multi-key keyring",
 			releaseDigest: "sha256:edd9824f0404f1a139688017e7001370e2f3fbc088b94da84506653b473fe140",
-			store:         &httpStore{uri: sigServerURL, httpClient: DefaultClient.HTTPClient},
+			store:         &sigstore.Store{URI: sigServerURL, HTTPClient: sigstore.DefaultClient},
 			verifiers:     map[string]openpgp.EntityList{"combined": combined},
 		},
 
@@ -131,7 +132,7 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 		{
 			name:          "http location rejects if digest is not found",
 			releaseDigest: "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-			store:         &httpStore{uri: sigServerURL, httpClient: DefaultClient.HTTPClient},
+			store:         &sigstore.Store{URI: sigServerURL, HTTPClient: sigstore.DefaultClient},
 			verifiers:     map[string]openpgp.EntityList{"redhat": redhatPublic},
 			wantErr:       true,
 		},
@@ -161,7 +162,7 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 		{
 			name:          "could not find signature in http location",
 			releaseDigest: "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
-			store:         &httpStore{uri: emptyServerURL, httpClient: DefaultClient.HTTPClient},
+			store:         &sigstore.Store{URI: emptyServerURL, HTTPClient: sigstore.DefaultClient},
 			verifiers:     map[string]openpgp.EntityList{"redhat": redhatPublic},
 			wantErr:       true,
 		},
@@ -198,8 +199,8 @@ func Test_ReleaseVerifier_String(t *testing.T) {
 		},
 		{
 			name:  "HTTP store",
-			store: &httpStore{uri: &url.URL{Scheme: "http", Host: "localhost", Path: "test"}},
-			want:  `All release image digests must have GPG signatures from <ERROR: no verifiers> - will check for signatures in containers/image format at http://localhost/test`,
+			store: &sigstore.Store{URI: &url.URL{Scheme: "http", Host: "localhost", Path: "test"}},
+			want:  `All release image digests must have GPG signatures from <ERROR: no verifiers> - will check for signatures in containers/image format at containers/image signature store under http://localhost/test`,
 		},
 		{
 			name:  "file store",

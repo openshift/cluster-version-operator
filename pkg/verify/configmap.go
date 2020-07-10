@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/parallel"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
 )
 
 // ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
@@ -49,7 +50,7 @@ const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-co
 // The returned verifier will require that any new release image will only be considered verified
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
-func NewFromConfigMapData(src string, data map[string]string, clientBuilder ClientBuilder) (*ReleaseVerifier, error) {
+func NewFromConfigMapData(src string, data map[string]string, clientBuilder sigstore.HTTPClient) (*ReleaseVerifier, error) {
 	verifiers := make(map[string]openpgp.EntityList)
 	var stores []store.Store
 	for k, v := range data {
@@ -71,9 +72,9 @@ func NewFromConfigMapData(src string, data map[string]string, clientBuilder Clie
 					directory: u.Path,
 				})
 			} else {
-				stores = append(stores, &httpStore{
-					uri:        u,
-					httpClient: clientBuilder.HTTPClient,
+				stores = append(stores, &sigstore.Store{
+					URI:        u,
+					HTTPClient: clientBuilder,
 				})
 			}
 		default:
