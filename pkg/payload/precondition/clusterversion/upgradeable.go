@@ -62,8 +62,10 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		return nil
 	}
 
-	currentMinor := getEffectiveMinor(cv.Status.History[0].Version)
+	currentVersion := getCurrentVersion(cv.Status.History)
+	currentMinor := getEffectiveMinor(currentVersion)
 	desiredMinor := getEffectiveMinor(releaseContext.DesiredVersion)
+	klog.V(5).Infof("currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s", currentMinor, releaseContext.DesiredVersion, desiredMinor)
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	if currentMinor == desiredMinor {
@@ -81,6 +83,20 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 // Name returns Name for the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }
+
+// getCurrentVersion determines and returns the cluster's current version by iterating through the
+// provided update history until it finds the first version with update State of Completed. If a
+// Completed version is not found the version of the oldest history entry, which is the originally
+// installed version, is returned.
+func getCurrentVersion(history []configv1.UpdateHistory) string {
+	for _, h := range history {
+		if h.State == configv1.CompletedUpdate {
+			klog.V(5).Infof("Cluster current version=%s", h.Version)
+			return h.Version
+		}
+	}
+	return history[len(history)-1].Version
+}
 
 // getEffectiveMinor attempts to do a simple parse of the version provided.  If it does not parse, the value is considered
 // empty string, which works for the comparison done here for equivalence.
