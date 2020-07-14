@@ -2,6 +2,8 @@ module github.com/openshift/cluster-version-operator
 
 go 1.13
 
+replace golang.org/x/text => golang.org/x/text v0.3.3
+
 require (
 	github.com/blang/semver v3.5.0+incompatible
 	github.com/davecgh/go-spew v1.1.1
