@@ -6,7 +6,7 @@ This document describes the cluster-version operator's reconciliation logic and 
 
 ```console
 $ mkdir /tmp/release
-$ oc image extract quay.io/openshift-release-dev/ocp-release:4.1.0[-1] --path /:/tmp/release
+$ oc image extract quay.io/openshift-release-dev/ocp-release:4.5.1-x86_64 --path /:/tmp/release
 $ ls /tmp/release/release-manifests
 0000_03_authorization-openshift_01_rolebindingrestriction.crd.yaml
 0000_03_quota-openshift_01_clusterresourcequota.crd.yaml
