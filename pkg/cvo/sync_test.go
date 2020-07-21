@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"k8s.io/client-go/tools/record"
+
 	"github.com/davecgh/go-spew/spew"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -125,7 +127,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, newTestBuilder(r, test.reactors))
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
-			worker := &SyncWorker{}
+			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
 			worker.builder = NewResourceBuilder(nil, nil, nil)
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -311,7 +313,7 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
 			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
-			worker := &SyncWorker{}
+			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
 			worker.backoff.Steps = 1
 			worker.builder = &testResourceBuilder{
 				client:    dynamicClient,

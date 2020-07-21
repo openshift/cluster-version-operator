@@ -12,6 +12,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -512,6 +513,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.optr.eventRecorder = record.NewFakeRecorder(100)
 			if tt.optr.cvLister == nil {
 				tt.optr.cvLister = &cvLister{}
 			}
@@ -588,7 +590,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 				},
 			},
 			optr: &Operator{
-				coLister: &coLister{},
+				coLister:      &coLister{},
+				eventRecorder: record.NewFakeRecorder(100),
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
 				if len(metrics) != 5 {

@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/client-go/tools/record"
+
 	configv1 "github.com/openshift/api/config/v1"
 )
 
@@ -77,7 +79,7 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 			w := &statusWrapper{
 				previousStatus: &tt.previous,
 			}
-			w.w = &SyncWorker{report: make(chan SyncWorkerStatus, 1)}
+			w.w = &SyncWorker{report: make(chan SyncWorkerStatus, 1), eventRecorder: record.NewFakeRecorder(100)}
 			w.Report(tt.next)
 			close(w.w.report)
 			if tt.want {
@@ -130,7 +132,7 @@ func Test_statusWrapper_ReportGeneration(t *testing.T) {
 			w := &statusWrapper{
 				previousStatus: &tt.previous,
 			}
-			w.w = &SyncWorker{report: make(chan SyncWorkerStatus, 1)}
+			w.w = &SyncWorker{report: make(chan SyncWorkerStatus, 1), eventRecorder: record.NewFakeRecorder(100)}
 			w.Report(tt.next)
 			close(w.w.report)
 

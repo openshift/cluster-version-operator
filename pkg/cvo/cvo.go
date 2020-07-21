@@ -268,6 +268,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 			Steps:    3,
 		},
 		optr.exclude,
+		optr.eventRecorder,
 	)
 
 	return nil

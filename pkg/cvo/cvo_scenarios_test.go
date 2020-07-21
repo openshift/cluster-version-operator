@@ -11,16 +11,16 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 
-	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/apimachinery/pkg/util/wait"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/wait"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -77,6 +77,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		client:                      client,
 		cvLister:                    &clientCVLister{client: client},
 		exclude:                     "exclude-test",
+		eventRecorder:               record.NewFakeRecorder(100),
 	}
 
 	dynamicScheme := runtime.NewScheme()
@@ -92,6 +93,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 			Steps: 1,
 		},
 		"exclude-test",
+		record.NewFakeRecorder(100),
 	)
 	o.configSync = worker
 

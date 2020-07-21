@@ -7,6 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
@@ -184,6 +185,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						},
 					},
 				),
+				eventRecorder: record.NewFakeRecorder(100),
 			},
 			wantErr: func(t *testing.T, err error) {
 				if err == nil || err.Error() != "bad" {
