@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/util"
 )
 
 // Interface performs verification of the provided content. The default implementation
@@ -235,12 +236,10 @@ type fileStore struct {
 
 // Signatures reads signatures as "signature-1", "signature-2", etc. out of a digest-based subdirectory.
 func (s *fileStore) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
-	parts := strings.SplitN(digest, ":", 3)
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
+	digestPathSegment, err := util.DigestToKeyPrefix(digest, "=")
+	if err != nil {
+		return err
 	}
-	algo, hash := parts[0], parts[1]
-	digestPathSegment := fmt.Sprintf("%s=%s", algo, hash)
 
 	base := filepath.Join(s.directory, digestPathSegment, "signature-")
 	for i := 1; i < maxSignatureSearch; i++ {

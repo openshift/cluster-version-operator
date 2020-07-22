@@ -8,20 +8,94 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/klog"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/configmap"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/parallel"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
+	"github.com/openshift/cluster-version-operator/pkg/verify/util"
 )
 
-// ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
-// release payload to indicate that this config map controls signing for the payload.
-// Only the first config map within the payload should be used, regardless of whether
-// it has data. See NewFromConfigMapData for more.
-const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-config-map"
+const (
+	// ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
+	// release payload to indicate that this config map controls signing for the payload.
+	// Only the first config map within the payload should be used, regardless of whether
+	// it has data. See NewFromConfigMapData for more.
+	ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-config-map"
 
-// NewFromConfigMapData expects to receive the data field of the first config map in the release
+	// verifierPublicKeyPrefix is the unique portion of the key used within a config map
+	// identifying data field containing one or more GPG public keys in ASCII form that
+	// must have signed the release image by digest.
+	verifierPublicKeyPrefix = "verifier-public-key-"
+
+	// storePrefix is the unique portion of the key used within a config map identifying
+	// data field containing a URL (scheme http://, or https://) location that contains
+	// signatures.
+	storePrefix = "store-"
+)
+
+// GetSignaturesAsConfigmap returns the given signatures in a config map. Uses
+// util.DigestToKeyPrefix to replace colon with dash when saving digest to config map.
+func GetSignaturesAsConfigmap(digest string, signatures [][]byte) (*corev1.ConfigMap, error) {
+	cm := &corev1.ConfigMap{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: corev1.SchemeGroupVersion.String(),
+			Kind:       "ConfigMap",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: configmap.NamespaceLabelConfigMap,
+			Labels: map[string]string{
+				configmap.ReleaseLabelConfigMap: "",
+			},
+		},
+		BinaryData: make(map[string][]byte),
+	}
+	prefix, err := util.DigestToKeyPrefix(digest, "-")
+	if err != nil {
+		return nil, err
+	}
+	cm.Name = prefix
+	for i, v := range signatures {
+		cm.BinaryData[fmt.Sprintf("%s-%d", prefix, i+1)] = v
+	}
+	return cm, nil
+}
+
+// NewFromManifests fetches the first config map in the manifest list with the correct annotation.
+// It returns an error if the data is not valid, or no verifier if a config map wth the required
+// annotation is not found. See the verify package for more details on the algorithm for verification.
+// If the annotation is set, a verifier or error is always returned.
+func NewFromManifests(manifests []lib.Manifest, clientBuilder sigstore.HTTPClient) (*ReleaseVerifier, error) {
+	for _, manifest := range manifests {
+		configMap, err := util.ReadConfigMap(manifest.Raw)
+
+		// configMap will be nil if this is not a config map
+		if err != nil || configMap == nil {
+			continue
+		}
+		if _, ok := configMap.Annotations[ReleaseAnnotationConfigMapVerifier]; !ok {
+			continue
+		}
+		src := fmt.Sprintf("the config map %s/%s", configMap.Namespace, configMap.Name)
+		data, _, err := unstructured.NestedStringMap(manifest.Obj.Object, "data")
+		if err != nil {
+			return nil, errors.Wrapf(err, "%s is not valid: %v", src, err)
+		}
+		verifier, err := newFromConfigMapData(src, data, clientBuilder)
+		if err != nil {
+			return nil, err
+		}
+		return verifier, nil
+	}
+	return nil, nil
+}
+
+// newFromConfigMapData expects to receive the data field of the first config map in the release
 // image payload with the annotation "release.openshift.io/verification-config-map". Only the
 // first payload item in lexographic order will be considered - all others are ignored. The
 // verifier returned by this method
@@ -50,18 +124,18 @@ const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-co
 // The returned verifier will require that any new release image will only be considered verified
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
-func NewFromConfigMapData(src string, data map[string]string, clientBuilder sigstore.HTTPClient) (*ReleaseVerifier, error) {
+func newFromConfigMapData(src string, data map[string]string, clientBuilder sigstore.HTTPClient) (*ReleaseVerifier, error) {
 	verifiers := make(map[string]openpgp.EntityList)
 	var stores []store.Store
 	for k, v := range data {
 		switch {
-		case strings.HasPrefix(k, "verifier-public-key-"):
+		case strings.HasPrefix(k, verifierPublicKeyPrefix):
 			keyring, err := loadArmoredOrUnarmoredGPGKeyRing([]byte(v))
 			if err != nil {
 				return nil, errors.Wrapf(err, "%s has an invalid key %q that must be a GPG public key: %v", src, k, err)
 			}
 			verifiers[k] = keyring
-		case strings.HasPrefix(k, "store-"):
+		case strings.HasPrefix(k, storePrefix):
 			v = strings.TrimSpace(v)
 			u, err := url.Parse(v)
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {

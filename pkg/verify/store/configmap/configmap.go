@@ -18,13 +18,20 @@ import (
 	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/util"
 )
 
-// ReleaseLabelConfigMap is a label applied to a configmap inside the
-// openshift-config-managed namespace that indicates it contains signatures
-// for release image digests. Any binaryData key that starts with the digest
-// is added to the list of signatures checked.
-const ReleaseLabelConfigMap = "release.openshift.io/verification-signatures"
+const (
+	// NamespaceLabelConfigMap is the Namespace label applied to a configmap
+	// containing signatures.
+	NamespaceLabelConfigMap = "openshift-config-managed"
+
+	// ReleaseLabelConfigMap is a label applied to a configmap inside the
+	// openshift-config-managed namespace that indicates it contains signatures
+	// for release image digests. Any binaryData key that starts with the digest
+	// is added to the list of signatures checked.
+	ReleaseLabelConfigMap = "release.openshift.io/verification-signatures"
+)
 
 // Store abstracts retrieving signatures from config maps on a cluster.
 type Store struct {
@@ -44,7 +51,7 @@ func NewStore(client corev1client.ConfigMapsGetter, limiter *rate.Limiter) *Stor
 	}
 	return &Store{
 		client:  client,
-		ns:      "openshift-config-managed",
+		ns:      NamespaceLabelConfigMap,
 		limiter: limiter,
 	}
 }
@@ -77,21 +84,9 @@ func (s *Store) mostRecentConfigMaps() []corev1.ConfigMap {
 	return s.last
 }
 
-// digestToKeyPrefix changes digest to use '-' in place of ':',
-// {algo}-{hash} instead of {algo}:{hash}, because colons are not
-// allowed in ConfigMap keys.
-func digestToKeyPrefix(digest string) (string, error) {
-	parts := strings.SplitN(digest, ":", 3)
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return "", fmt.Errorf("the provided digest must be of the form ALGO:HASH")
-	}
-	algo, hash := parts[0], parts[1]
-	return fmt.Sprintf("%s-%s", algo, hash), nil
-}
-
 // Signatures returns a list of signatures that match the request
 // digest out of config maps labelled with ReleaseLabelConfigMap in the
-// openshift-config-managed namespace.
+// NamespaceLabelConfigMap namespace.
 func (s *Store) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
 	// avoid repeatedly reloading config maps
 	items := s.mostRecentConfigMaps()
@@ -108,7 +103,7 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 		s.rememberMostRecentConfigMaps(configMaps.Items)
 	}
 
-	prefix, err := digestToKeyPrefix(digest)
+	prefix, err := util.DigestToKeyPrefix(digest, "-")
 	if err != nil {
 		return err
 	}
@@ -146,7 +141,7 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 	}
 	count := 0
 	for digest, signatures := range signaturesByDigest {
-		prefix, err := digestToKeyPrefix(digest)
+		prefix, err := util.DigestToKeyPrefix(digest, "-")
 		if err != nil {
 			return err
 		}
