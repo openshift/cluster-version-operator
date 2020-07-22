@@ -45,9 +45,9 @@ spec:
             name: serving-cert
             readOnly: true
         env:
-          - name: KUBERNETES_SERVICE_PORT # allows CVO to communicate with apiserver directly on same host.
+          - name: KUBERNETES_SERVICE_PORT # allows CVO to communicate with apiserver directly on same host.  Is substituted with port from infrastructures.status.apiServerInternalURL if available.
             value: "6443"
-          - name: KUBERNETES_SERVICE_HOST # allows CVO to communicate with apiserver directly on same host.
+          - name: KUBERNETES_SERVICE_HOST # allows CVO to communicate with apiserver directly on same host.  Is substituted with hostname from infrastructures.status.apiServerInternalURL if available.
             value: "127.0.0.1"
           - name: NODE_NAME
             valueFrom:

@@ -3,6 +3,8 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 
 	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -22,18 +24,20 @@ import (
 )
 
 type deploymentBuilder struct {
-	client      *appsclientv1.AppsV1Client
-	proxyGetter configv1.ProxiesGetter
-	raw         []byte
-	modifier    MetaV1ObjectModifierFunc
-	mode        Mode
+	client               *appsclientv1.AppsV1Client
+	proxyGetter          configv1.ProxiesGetter
+	infrastructureGetter configv1.InfrastructuresGetter
+	raw                  []byte
+	modifier             MetaV1ObjectModifierFunc
+	mode                 Mode
 }
 
 func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
 	return &deploymentBuilder{
-		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		proxyGetter: configv1.NewForConfigOrDie(config),
-		raw:         m.Raw,
+		client:               appsclientv1.NewForConfigOrDie(withProtobuf(config)),
+		proxyGetter:          configv1.NewForConfigOrDie(config),
+		infrastructureGetter: configv1.NewForConfigOrDie(config),
+		raw:                  m.Raw,
 	}
 }
 
@@ -69,6 +73,43 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		)
 		if err != nil {
 			return err
+		}
+	}
+
+	// if we detect the CVO deployment we need to replace the KUBERNETES_SERVICE_HOST env var with the internal load
+	// balancer to be resilient to kube-apiserver rollouts that cause the localhost server to become non-responsive for
+	// multiple minutes.
+	if deployment.Namespace == "openshift-cluster-version" && deployment.Name == "cluster-version-operator" {
+		infrastructureConfig, err := b.infrastructureGetter.Infrastructures().Get("cluster", metav1.GetOptions{})
+		// not found just means that we don't have infrastructure configuration yet, so we should tolerate not found and avoid substitution
+		if err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		if !errors.IsNotFound(err) {
+			lbURL, err := url.Parse(infrastructureConfig.Status.APIServerInternalURL)
+			if err != nil {
+				return err
+			}
+			// if we have any error and have empty strings, substitution below will do nothing and leave the manifest specified value
+			// errors can happen when the port is not specified, in which case we have a host and we write that into the env vars
+			lbHost, lbPort, err := net.SplitHostPort(lbURL.Host)
+			if err != nil {
+				if strings.Contains(err.Error(), "missing port in address") {
+					lbHost = lbURL.Host
+					lbPort = ""
+				} else {
+					return err
+				}
+			}
+			err = updatePodSpecWithInternalLoadBalancerKubeService(
+				&deployment.Spec.Template.Spec,
+				[]string{"cluster-version-operator"},
+				lbHost,
+				lbPort,
+			)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
