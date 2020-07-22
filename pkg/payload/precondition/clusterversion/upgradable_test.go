@@ -116,7 +116,7 @@ func TestUpgradeableRun(t *testing.T) {
 				},
 			}
 			if len(tc.currVersion) > 0 {
-				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.currVersion})
+				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.currVersion, State: configv1.CompletedUpdate})
 			}
 			if tc.upgradeable != nil {
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
