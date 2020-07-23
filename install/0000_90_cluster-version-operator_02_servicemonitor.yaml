@@ -51,6 +51,13 @@ spec:
         (time()-cluster_version_operator_update_retrieval_timestamp_seconds) >= 3600 and ignoring(condition, name, reason) cluster_operator_conditions{name="version", condition="RetrievedUpdates", endpoint="metrics", reason!="NoChannel"}
       labels:
         severity: critical
+    - alert: UpdateAvailable
+      annotations:
+        message: Your upstream update recommendation service recommends you update your cluster.  For more information refer to 'oc adm upgrade'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+      expr: |
+        cluster_version_available_updates > 1
+      labels:
+        severity: info
   - name: cluster-operators
     rules:
     - alert: ClusterNotUpgradeable
