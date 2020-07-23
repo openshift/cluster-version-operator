@@ -56,6 +56,15 @@ github.com/openshift/api/image/docker10
 github.com/openshift/api/image/dockerpre012
 github.com/openshift/api/image/v1
 github.com/openshift/api/security/v1
+# github.com/openshift/build-machinery-go v0.0.0-20200211121458-5e3d6e570160
+github.com/openshift/build-machinery-go
+github.com/openshift/build-machinery-go/make
+github.com/openshift/build-machinery-go/make/lib
+github.com/openshift/build-machinery-go/make/targets
+github.com/openshift/build-machinery-go/make/targets/golang
+github.com/openshift/build-machinery-go/make/targets/openshift
+github.com/openshift/build-machinery-go/make/targets/openshift/operator
+github.com/openshift/build-machinery-go/scripts
 # github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/fake
