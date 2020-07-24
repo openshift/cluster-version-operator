@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -11,10 +13,10 @@ import (
 )
 
 // ApplyDeployment applies the required deployment to the cluster.
-func ApplyDeployment(client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
-	existing, err := client.Deployments(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyDeployment(ctx context.Context, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+	existing, err := client.Deployments(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Deployments(required.Namespace).Create(required)
+		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -31,15 +33,15 @@ func ApplyDeployment(client appsclientv1.DeploymentsGetter, required *appsv1.Dep
 		return existing, false, nil
 	}
 
-	actual, err := client.Deployments(required.Namespace).Update(existing)
+	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyDeploymentFromCache applies the required deployment to the cluster.
-func ApplyDeploymentFromCache(lister appslisterv1.DeploymentLister, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.DeploymentLister, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	existing, err := lister.Deployments(required.Namespace).Get(required.Name)
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Deployments(required.Namespace).Create(required)
+		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -57,15 +59,15 @@ func ApplyDeploymentFromCache(lister appslisterv1.DeploymentLister, client appsc
 		return existing, false, nil
 	}
 
-	actual, err := client.Deployments(required.Namespace).Update(existing)
+	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyDaemonSet applies the required daemonset to the cluster.
-func ApplyDaemonSet(client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
-	existing, err := client.DaemonSets(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyDaemonSet(ctx context.Context, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+	existing, err := client.DaemonSets(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.DaemonSets(required.Namespace).Create(required)
+		actual, err := client.DaemonSets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -82,15 +84,15 @@ func ApplyDaemonSet(client appsclientv1.DaemonSetsGetter, required *appsv1.Daemo
 		return existing, false, nil
 	}
 
-	actual, err := client.DaemonSets(required.Namespace).Update(existing)
+	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyDaemonSetFromCache applies the required deployment to the cluster.
-func ApplyDaemonSetFromCache(lister appslisterv1.DaemonSetLister, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+func ApplyDaemonSetFromCache(ctx context.Context, lister appslisterv1.DaemonSetLister, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
 	existing, err := lister.DaemonSets(required.Namespace).Get(required.Name)
 	if apierrors.IsNotFound(err) {
-		actual, err := client.DaemonSets(required.Namespace).Create(required)
+		actual, err := client.DaemonSets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -108,6 +110,6 @@ func ApplyDaemonSetFromCache(lister appslisterv1.DaemonSetLister, client appscli
 		return existing, false, nil
 	}
 
-	actual, err := client.DaemonSets(required.Namespace).Update(existing)
+	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }

@@ -63,15 +63,15 @@ func newClusterOperatorBuilder(config *rest.Config, m lib.Manifest) resourcebuil
 
 // ClusterOperatorsGetter abstracts object access with a client or a cache lister.
 type ClusterOperatorsGetter interface {
-	Get(name string) (*configv1.ClusterOperator, error)
+	Get(ctx context.Context, name string) (*configv1.ClusterOperator, error)
 }
 
 type clientClusterOperatorsGetter struct {
 	getter configclientv1.ClusterOperatorInterface
 }
 
-func (g clientClusterOperatorsGetter) Get(name string) (*configv1.ClusterOperator, error) {
-	return g.getter.Get(name, metav1.GetOptions{})
+func (g clientClusterOperatorsGetter) Get(ctx context.Context, name string) (*configv1.ClusterOperator, error) {
+	return g.getter.Get(ctx, name, metav1.GetOptions{})
 }
 
 // NewClusterOperatorBuilder accepts the ClusterOperatorsGetter interface which may be implemented by a
@@ -102,7 +102,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 
 	// create the object, and if we successfully created, update the status
 	if b.mode == resourcebuilder.PrecreatingMode {
-		clusterOperator, err := b.createClient.Create(os)
+		clusterOperator, err := b.createClient.Create(ctx, os, metav1.CreateOptions{})
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
 				return nil
@@ -110,7 +110,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 			return err
 		}
 		clusterOperator.Status.RelatedObjects = os.Status.DeepCopy().RelatedObjects
-		if _, err := b.createClient.UpdateStatus(clusterOperator); err != nil {
+		if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, metav1.UpdateOptions{}); err != nil {
 			if kerrors.IsConflict(err) {
 				return nil
 			}
@@ -125,7 +125,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
 	var lastErr error
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
-		actual, err := client.Get(expected.Name)
+		actual, err := client.Get(ctx, expected.Name)
 		if err != nil {
 			lastErr = &payload.UpdateError{
 				Nested:  err,

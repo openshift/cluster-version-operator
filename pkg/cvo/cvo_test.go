@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -54,11 +55,13 @@ type clientProxyLister struct {
 }
 
 func (c *clientProxyLister) Get(name string) (*configv1.Proxy, error) {
-	return c.client.ConfigV1().Proxies().Get(name, metav1.GetOptions{})
+	ctx := context.TODO()
+	return c.client.ConfigV1().Proxies().Get(ctx, name, metav1.GetOptions{})
 }
 
 func (c *clientProxyLister) List(selector labels.Selector) (ret []*configv1.Proxy, err error) {
-	list, err := c.client.ConfigV1().Proxies().List(metav1.ListOptions{LabelSelector: selector.String()})
+	ctx := context.TODO()
+	list, err := c.client.ConfigV1().Proxies().List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -74,10 +77,12 @@ type clientCVLister struct {
 }
 
 func (c *clientCVLister) Get(name string) (*configv1.ClusterVersion, error) {
-	return c.client.ConfigV1().ClusterVersions().Get(name, metav1.GetOptions{})
+	ctx := context.TODO()
+	return c.client.ConfigV1().ClusterVersions().Get(ctx, name, metav1.GetOptions{})
 }
 func (c *clientCVLister) List(selector labels.Selector) (ret []*configv1.ClusterVersion, err error) {
-	list, err := c.client.ConfigV1().ClusterVersions().List(metav1.ListOptions{LabelSelector: selector.String()})
+	ctx := context.TODO()
+	list, err := c.client.ConfigV1().ClusterVersions().List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -110,10 +115,13 @@ type clientCOLister struct {
 }
 
 func (c *clientCOLister) Get(name string) (*configv1.ClusterOperator, error) {
-	return c.client.ConfigV1().ClusterOperators().Get(name, metav1.GetOptions{})
+	ctx := context.TODO()
+	return c.client.ConfigV1().ClusterOperators().Get(ctx, name, metav1.GetOptions{})
 }
+
 func (c *clientCOLister) List(selector labels.Selector) (ret []*configv1.ClusterOperator, err error) {
-	list, err := c.client.ConfigV1().ClusterOperators().List(metav1.ListOptions{LabelSelector: selector.String()})
+	ctx := context.TODO()
+	list, err := c.client.ConfigV1().ClusterOperators().List(ctx, metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, err
 	}
@@ -217,35 +225,36 @@ func (c *fakeApiExtClient) RESTClient() rest.Interface { panic("not implemented"
 func (c *fakeApiExtClient) CustomResourceDefinitions() apiextclientv1.CustomResourceDefinitionInterface {
 	return c
 }
-func (c *fakeApiExtClient) Create(crd *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, error) {
+func (c *fakeApiExtClient) Create(ctx context.Context, crd *apiextv1beta1.CustomResourceDefinition, createOptions metav1.CreateOptions) (*apiextv1beta1.CustomResourceDefinition, error) {
 	return crd, nil
 }
-func (c *fakeApiExtClient) Update(*apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, error) {
+func (c *fakeApiExtClient) Update(ctx context.Context, crd *apiextv1beta1.CustomResourceDefinition, updateOptions metav1.UpdateOptions) (*apiextv1beta1.CustomResourceDefinition, error) {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) UpdateStatus(*apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, error) {
+func (c *fakeApiExtClient) UpdateStatus(ctx context.Context, crd *apiextv1beta1.CustomResourceDefinition, updateOptions metav1.UpdateOptions) (*apiextv1beta1.CustomResourceDefinition, error) {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) Delete(name string, options *metav1.DeleteOptions) error {
+func (c *fakeApiExtClient) Delete(ctx context.Context, name string, options metav1.DeleteOptions) error {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) DeleteCollection(options *metav1.DeleteOptions, listOptions metav1.ListOptions) error {
+func (c *fakeApiExtClient) DeleteCollection(ctx context.Context, options metav1.DeleteOptions, listOptions metav1.ListOptions) error {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) Get(name string, options metav1.GetOptions) (*apiextv1beta1.CustomResourceDefinition, error) {
+func (c *fakeApiExtClient) Get(ctx context.Context, name string, options metav1.GetOptions) (*apiextv1beta1.CustomResourceDefinition, error) {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) List(opts metav1.ListOptions) (*apiextv1beta1.CustomResourceDefinitionList, error) {
+func (c *fakeApiExtClient) List(ctx context.Context, opts metav1.ListOptions) (*apiextv1beta1.CustomResourceDefinitionList, error) {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) Watch(opts metav1.ListOptions) (watch.Interface, error) {
+func (c *fakeApiExtClient) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	panic("not implemented")
 }
-func (c *fakeApiExtClient) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *apiextv1beta1.CustomResourceDefinition, err error) {
+func (c *fakeApiExtClient) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, patchOptions metav1.PatchOptions, subresources ...string) (result *apiextv1beta1.CustomResourceDefinition, err error) {
 	panic("not implemented")
 }
 
 func TestOperator_sync(t *testing.T) {
+	ctx := context.Background()
 	id := uuid.Must(uuid.NewRandom()).String()
 
 	tests := []struct {
@@ -2259,7 +2268,7 @@ func TestOperator_sync(t *testing.T) {
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
 
-			err := optr.sync(optr.queueKey())
+			err := optr.sync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}

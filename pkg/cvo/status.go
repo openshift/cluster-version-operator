@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -154,7 +155,7 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
-func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
+func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
@@ -324,7 +325,7 @@ func (optr *Operator) syncStatus(original, config *configv1.ClusterVersion, stat
 	if klog.V(6) {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
+	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
 }
@@ -355,7 +356,7 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 // from the cache (instead of clearing the status).
 // if ierr is nil, return nil
 // if ierr is not nil, update OperatorStatus as Failing and return ierr
-func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr error) error {
+func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.ClusterVersion, ierr error) error {
 	if ierr == nil {
 		return nil
 	}
@@ -402,7 +403,7 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 
 	mergeOperatorHistory(config, optr.currentVersion(), false, now, false)
 
-	updated, err := applyClusterVersionStatus(optr.client.ConfigV1(), config, original)
+	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	if err != nil {
 		return err
@@ -415,13 +416,13 @@ func (optr *Operator) syncFailingStatus(original *configv1.ClusterVersion, ierr 
 // object does not change. The method will retry a conflict by retrieving the latest live
 // version and updating the metadata of required. required is modified if the object on
 // the server is newer.
-func applyClusterVersionStatus(client configclientv1.ClusterVersionsGetter, required, original *configv1.ClusterVersion) (*configv1.ClusterVersion, error) {
+func applyClusterVersionStatus(ctx context.Context, client configclientv1.ClusterVersionsGetter, required, original *configv1.ClusterVersion) (*configv1.ClusterVersion, error) {
 	if original != nil && equality.Semantic.DeepEqual(&original.Status, &required.Status) {
 		return required, nil
 	}
-	actual, err := client.ClusterVersions().UpdateStatus(required)
+	actual, err := client.ClusterVersions().UpdateStatus(ctx, required, metav1.UpdateOptions{})
 	if apierrors.IsConflict(err) {
-		existing, cErr := client.ClusterVersions().Get(required.Name, metav1.GetOptions{})
+		existing, cErr := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, cErr
 		}
@@ -432,7 +433,7 @@ func applyClusterVersionStatus(client configclientv1.ClusterVersionsGetter, requ
 			return existing, nil
 		}
 		required.ObjectMeta = existing.ObjectMeta
-		actual, err = client.ClusterVersions().UpdateStatus(required)
+		actual, err = client.ClusterVersions().UpdateStatus(ctx, required, metav1.UpdateOptions{})
 	}
 	if err != nil {
 		return nil, err

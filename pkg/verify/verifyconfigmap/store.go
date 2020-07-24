@@ -95,7 +95,7 @@ func (s *Store) DigestSignatures(ctx context.Context, digest string) ([][]byte, 
 	items := s.mostRecentConfigMaps()
 	r := s.limiter.Reserve()
 	if items == nil || r.OK() {
-		configMaps, err := s.client.ConfigMaps(s.ns).List(metav1.ListOptions{
+		configMaps, err := s.client.ConfigMaps(s.ns).List(ctx, metav1.ListOptions{
 			LabelSelector: ReleaseLabelConfigMap,
 		})
 		if err != nil {
@@ -152,9 +152,9 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 		retry.DefaultRetry,
 		func(err error) bool { return errors.IsConflict(err) || errors.IsAlreadyExists(err) },
 		func() error {
-			existing, err := s.client.ConfigMaps(s.ns).Get(cm.Name, metav1.GetOptions{})
+			existing, err := s.client.ConfigMaps(s.ns).Get(ctx, cm.Name, metav1.GetOptions{})
 			if errors.IsNotFound(err) {
-				_, err := s.client.ConfigMaps(s.ns).Create(cm)
+				_, err := s.client.ConfigMaps(s.ns).Create(ctx, cm, metav1.CreateOptions{})
 				if err != nil {
 					klog.V(4).Infof("create signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
 				}
@@ -166,7 +166,7 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			existing.Labels = cm.Labels
 			existing.BinaryData = cm.BinaryData
 			existing.Data = cm.Data
-			_, err = s.client.ConfigMaps(s.ns).Update(existing)
+			_, err = s.client.ConfigMaps(s.ns).Update(ctx, existing, metav1.UpdateOptions{})
 			if err != nil {
 				klog.V(4).Infof("update signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
 			}

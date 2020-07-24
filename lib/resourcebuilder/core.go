@@ -32,12 +32,12 @@ func (b *serviceAccountBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interfa
 	return b
 }
 
-func (b *serviceAccountBuilder) Do(_ context.Context) error {
+func (b *serviceAccountBuilder) Do(ctx context.Context) error {
 	serviceAccount := resourceread.ReadServiceAccountV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(serviceAccount)
 	}
-	_, _, err := resourceapply.ApplyServiceAccount(b.client, serviceAccount)
+	_, _, err := resourceapply.ApplyServiceAccount(ctx, b.client, serviceAccount)
 	return err
 }
 
@@ -63,12 +63,12 @@ func (b *configMapBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *configMapBuilder) Do(_ context.Context) error {
+func (b *configMapBuilder) Do(ctx context.Context) error {
 	configMap := resourceread.ReadConfigMapV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(configMap)
 	}
-	_, _, err := resourceapply.ApplyConfigMap(b.client, configMap)
+	_, _, err := resourceapply.ApplyConfigMap(ctx, b.client, configMap)
 	return err
 }
 
@@ -94,12 +94,12 @@ func (b *namespaceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *namespaceBuilder) Do(_ context.Context) error {
+func (b *namespaceBuilder) Do(ctx context.Context) error {
 	namespace := resourceread.ReadNamespaceV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(namespace)
 	}
-	_, _, err := resourceapply.ApplyNamespace(b.client, namespace)
+	_, _, err := resourceapply.ApplyNamespace(ctx, b.client, namespace)
 	return err
 }
 
@@ -125,11 +125,11 @@ func (b *serviceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *serviceBuilder) Do(_ context.Context) error {
+func (b *serviceBuilder) Do(ctx context.Context) error {
 	service := resourceread.ReadServiceV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(service)
 	}
-	_, _, err := resourceapply.ApplyService(b.client, service)
+	_, _, err := resourceapply.ApplyService(ctx, b.client, service)
 	return err
 }

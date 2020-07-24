@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -10,10 +12,10 @@ import (
 )
 
 // ApplyJob applies the required Job to the cluster.
-func ApplyJob(client batchclientv1.JobsGetter, required *batchv1.Job) (*batchv1.Job, bool, error) {
-	existing, err := client.Jobs(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyJob(ctx context.Context, client batchclientv1.JobsGetter, required *batchv1.Job) (*batchv1.Job, bool, error) {
+	existing, err := client.Jobs(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Jobs(required.Namespace).Create(required)
+		actual, err := client.Jobs(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -30,6 +32,6 @@ func ApplyJob(client batchclientv1.JobsGetter, required *batchv1.Job) (*batchv1.
 		return existing, false, nil
 	}
 
-	actual, err := client.Jobs(required.Namespace).Update(existing)
+	actual, err := client.Jobs(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
