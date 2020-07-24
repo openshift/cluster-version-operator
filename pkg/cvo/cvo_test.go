@@ -30,6 +30,7 @@ import (
 	kfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
@@ -2259,6 +2260,7 @@ func TestOperator_sync(t *testing.T) {
 				}
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
+			optr.eventRecorder = record.NewFakeRecorder(100)
 
 			err := optr.sync(optr.queueKey())
 			if err != nil && tt.wantErr == nil {
@@ -2626,6 +2628,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			optr.proxyLister = &clientProxyLister{client: optr.client}
 			optr.coLister = &clientCOLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
+			optr.eventRecorder = record.NewFakeRecorder(100)
 
 			if tt.handler != nil {
 				s := httptest.NewServer(http.HandlerFunc(tt.handler))
@@ -3129,6 +3132,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			optr.coLister = &clientCOLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
 			optr.upgradeableChecks = optr.defaultUpgradeableChecks()
+			optr.eventRecorder = record.NewFakeRecorder(100)
 
 			err := optr.upgradeableSync(optr.queueKey())
 			if err != nil && tt.wantErr == nil {

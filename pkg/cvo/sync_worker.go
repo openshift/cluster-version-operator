@@ -13,12 +13,13 @@ import (
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
-	"k8s.io/klog"
-
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -131,6 +132,7 @@ type SyncWorker struct {
 	retriever     PayloadRetriever
 	builder       payload.ResourceBuilder
 	preconditions precondition.List
+	eventRecorder record.EventRecorder
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
 	// used to define the maximum backoff interval when syncOnce() returns an error.
@@ -157,11 +159,12 @@ type SyncWorker struct {
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, eventRecorder record.EventRecorder) *SyncWorker {
 	return &SyncWorker{
-		retriever: retriever,
-		builder:   builder,
-		backoff:   backoff,
+		retriever:     retriever,
+		builder:       builder,
+		backoff:       backoff,
+		eventRecorder: eventRecorder,
 
 		minimumReconcileInterval: reconcileInterval,
 
@@ -178,8 +181,8 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string) *SyncWorker {
-	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude)
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, eventRecorder record.EventRecorder) *SyncWorker {
+	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, eventRecorder)
 	worker.preconditions = preconditions
 	return worker
 }
@@ -479,6 +482,8 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 	validPayload := w.payload
 	if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.ReleaseImage}, configv1.Update{Image: update.Image}) {
 		klog.V(4).Infof("Loading payload")
+		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", "retrieving payload version=%q image=%q", update.Version, update.Image)
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
 			Step:        "RetrievePayload",
@@ -488,6 +493,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		})
 		info, err := w.retriever.RetrievePayload(ctx, update)
 		if err != nil {
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", "retrieving payload failed version=%q image=%q failure=%v", update.Version, update.Image, err)
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
 				Failure:     err,
@@ -499,8 +505,10 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			return err
 		}
 
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "VerifyPayload", "verifying payload version=%q image=%q", update.Version, update.Image)
 		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image, w.exclude)
 		if err != nil {
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", "verifying payload failed version=%q image=%q failure=%v", update.Version, update.Image, err)
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
 				Failure:     err,
@@ -532,7 +540,9 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.ReleaseVersion}, clusterVersion)); err != nil {
 				if update.Force {
 					klog.V(4).Infof("Forcing past precondition failures: %s", err)
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", update.Version, update.Image, err)
 				} else {
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", update.Version, update.Image, err)
 					reporter.Report(SyncWorkerStatus{
 						Generation:  work.Generation,
 						Failure:     err,
@@ -545,9 +555,11 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 					return err
 				}
 			}
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", update.Version, update.Image)
 		}
 
 		w.payload = payloadUpdate
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", "payload loaded version=%q image=%q", update.Version, update.Image)
 		klog.V(4).Infof("Payload loaded from %s with hash %s", payloadUpdate.ReleaseImage, payloadUpdate.ManifestHash)
 	}
 
