@@ -121,8 +121,10 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 
 	tdir := filepath.Join(r.workingDir, payloadHash)
+	klog.Infof("dir=%s !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", tdir)
 	err := payload.ValidateDirectory(tdir)
 	if os.IsNotExist(err) {
+		klog.Infof("fetching!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		// the dirs don't exist, try fetching the payload to tdir.
 		err = r.fetchUpdatePayloadToDir(ctx, tdir, update)
 	}
@@ -132,6 +134,7 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 
 	// now that payload has been loaded check validation.
 	if err := payload.ValidateDirectory(tdir); err != nil {
+		klog.Infof("failed after fetch!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 		return "", err
 	}
 	return tdir, nil
@@ -149,6 +152,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		cmd             = []string{"/bin/sh"}
 		args            = []string{"-c", copyPayloadCmd(dir)}
 	)
+	klog.Infof("version=%s\npayload=%v\nname=%s\nnamespace=%s\n!!!!!!!!!!!!!!!!!!!!!!!!!!", version, payload, name, namespace)
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -206,11 +210,16 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		klog.Warningf("failed to prune jobs: %v", err)
 	}
 
+	klog.Infof("create Job!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
 	if err != nil {
+		klog.Infof("create Job err=%v \n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", err)
 		return err
 	}
-	return resourcebuilder.WaitForJobCompletion(ctx, r.kubeClient.BatchV1(), job)
+	klog.Infof("after create Job!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	err = resourcebuilder.WaitForJobCompletion(ctx, r.kubeClient.BatchV1(), job)
+	klog.Infof("after wait Jobi err=%v\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+	return err
 }
 
 // pruneJobs deletes the older, finished jobs in the namespace.
