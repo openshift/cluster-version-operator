@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -21,56 +22,56 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 	}{
 		{
 			name:     "skip updates that clear an error and are at an earlier fraction",
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
 			want:     false,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing2"}},
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing2"}},
 			want:         true,
 			wantProgress: true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
 			want:     true,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.1},
-			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Update{Image: "testing"}, Fraction: 0.2},
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.2},
 			want:         true,
 			wantProgress: true,
 		},
 		{
-			previous:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}, Completed: 1},
-			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}, Completed: 2},
+			previous:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, Completed: 1},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, Completed: 2},
 			want:         true,
 			wantProgress: true,
 		},
 		{
-			previous:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing-1"}, Completed: 1},
-			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing-2"}, Completed: 1},
+			previous:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing-1"}, Completed: 1},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing-2"}, Completed: 1},
 			want:         true,
 			wantProgress: true,
 		},
 		{
-			previous: SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			previous: SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
 			want:     true,
 		},
 		{
-			next:         SyncWorkerStatus{Actual: configv1.Update{Image: "testing"}},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
 			want:         true,
 			wantProgress: true,
 		},
@@ -93,7 +94,7 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 						t.Errorf("unexpected progress timestamp: %#v", evt)
 					}
 					evt.LastProgress = time.Time{}
-					if evt != tt.next {
+					if !reflect.DeepEqual(evt, tt.next) {
 						t.Fatalf("unexpected: %#v", evt)
 					}
 				}
@@ -153,35 +154,35 @@ func Test_runThrottledStatusNotifier(t *testing.T) {
 	ctx := context.Background()
 	go runThrottledStatusNotifier(ctx, 30*time.Second, 1, in, func() { out <- struct{}{} })
 
-	in <- SyncWorkerStatus{Actual: configv1.Update{Image: "test"}}
+	in <- SyncWorkerStatus{Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Reconciling: true, Actual: configv1.Update{Image: "test"}}
+	in <- SyncWorkerStatus{Reconciling: true, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Update{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 		t.Fatalf("should have throttled")

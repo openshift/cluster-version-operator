@@ -25,26 +25,30 @@ func TestGetUpdates(t *testing.T) {
 		version string
 
 		expectedQuery string
+		current       Update
 		available     []Update
 		err           string
 	}{{
 		name:          "one update available",
 		version:       "4.0.0-4",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-4",
+		current:       Update{Version: semver.MustParse("4.0.0-4"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-4"},
 		available: []Update{
-			{semver.MustParse("4.0.0-5"), "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
+			{Version: semver.MustParse("4.0.0-5"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
 		},
 	}, {
 		name:          "two updates available",
 		version:       "4.0.0-5",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-5",
+		current:       Update{Version: semver.MustParse("4.0.0-5"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
 		available: []Update{
-			{semver.MustParse("4.0.0-6"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6"},
-			{semver.MustParse("4.0.0-6+2"), "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"},
+			{Version: semver.MustParse("4.0.0-6"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-6"},
+			{Version: semver.MustParse("4.0.0-6+2"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"},
 		},
 	}, {
 		name:          "no updates available",
 		version:       "4.0.0-0.okd-0",
+		current:       Update{Version: semver.MustParse("4.0.0-0.okd-0"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-0.okd-0"},
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-0.okd-0",
 	}, {
 		name:          "unknown version",
@@ -79,38 +83,31 @@ func TestGetUpdates(t *testing.T) {
 					"nodes": [
 					  {
 						"version": "4.0.0-4",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-4",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-4"
 					  },
 					  {
 						"version": "4.0.0-5",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-5",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-5"
 					  },
 					  {
 						"version": "4.0.0-6",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-6",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-6"
 					  },
 					  {
 						"version": "4.0.0-6+2",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"
 					  },
 					  {
 						"version": "4.0.0-0.okd-0",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.okd-0",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.okd-0"
 					  },
 					  {
 						"version": "4.0.0-0.2",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.2",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.2"
 					  },
 					  {
 						"version": "4.0.0-0.3",
-						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.3",
-						"metadata": {}
+						"payload": "quay.io/openshift-release-dev/ocp-release:4.0.0-0.3"
 					  }
 					],
 					"edges": [[0,1],[1,2],[1,3],[5,6]]
@@ -133,13 +130,16 @@ func TestGetUpdates(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			updates, err := c.GetUpdates(context.Background(), uri, arch, channelName, semver.MustParse(test.version))
+			current, updates, err := c.GetUpdates(context.Background(), uri, arch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)
 				}
+				if !reflect.DeepEqual(current, test.current) {
+					t.Fatalf("expected current %v, got: %v", test.current, current)
+				}
 				if !reflect.DeepEqual(updates, test.available) {
-					t.Fatalf("expected %v, got: %v", test.available, updates)
+					t.Fatalf("expected updates %v, got: %v", test.available, updates)
 				}
 			} else {
 				if err == nil || err.Error() != test.err {
@@ -181,7 +181,11 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 			"metadata": {}
 		  }`),
 
-		exp: node{semver.MustParse("4.0.0-5"), "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
+		exp: node{
+			Version:  semver.MustParse("4.0.0-5"),
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.0.0-5",
+			Metadata: map[string]string{},
+		},
 	}, {
 		raw: []byte(`{
 			"version": "4.0.0-0.1",
@@ -190,7 +194,13 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 			  "description": "This is the beta1 image based on the 4.0.0-0.nightly-2019-01-15-010905 build"
 			}
 		  }`),
-		exp: node{semver.MustParse("4.0.0-0.1"), "quay.io/openshift-release-dev/ocp-release:4.0.0-0.1"},
+		exp: node{
+			Version: semver.MustParse("4.0.0-0.1"),
+			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-0.1",
+			Metadata: map[string]string{
+				"description": "This is the beta1 image based on the 4.0.0-0.nightly-2019-01-15-010905 build",
+			},
+		},
 	}, {
 		raw: []byte(`{
 			"version": "v4.0.0-0.1",

@@ -20,37 +20,37 @@ func Test_mergeEqualVersions(t *testing.T) {
 	tests := []struct {
 		name    string
 		current *configv1.UpdateHistory
-		desired configv1.Update
+		desired configv1.Release
 		want    bool
 	}{
 		{
 			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
-			desired: configv1.Update{Image: "test:1", Version: "0.0.1"},
+			desired: configv1.Release{Image: "test:1", Version: "0.0.1"},
 			want:    true,
 		},
 		{
-			current: &configv1.UpdateHistory{Image: "test:1", Version: ""},
-			desired: configv1.Update{Image: "test:1", Version: "0.0.1"},
-			want:    true,
-		},
-		{
-			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
-			desired: configv1.Update{Image: "test:1", Version: ""},
+			current: &configv1.UpdateHistory{Image: "test:1"},
+			desired: configv1.Release{Image: "test:1", Version: "0.0.1"},
 			want:    true,
 		},
 		{
 			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
-			desired: configv1.Update{Image: "", Version: "0.0.1"},
+			desired: configv1.Release{Image: "test:1"},
+			want:    true,
+		},
+		{
+			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
+			desired: configv1.Release{Version: "0.0.1"},
 			want:    false,
 		},
 		{
 			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
-			desired: configv1.Update{Image: "test:2", Version: "0.0.1"},
+			desired: configv1.Release{Image: "test:2", Version: "0.0.1"},
 			want:    false,
 		},
 		{
 			current: &configv1.UpdateHistory{Image: "test:1", Version: "0.0.1"},
-			desired: configv1.Update{Image: "test:1", Version: "0.0.2"},
+			desired: configv1.Release{Image: "test:1", Version: "0.0.2"},
 			want:    false,
 		},
 	}
@@ -152,7 +152,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 		init        func(optr *Operator)
 		wantErr     func(*testing.T, error)
 		wantActions func(*testing.T, *Operator)
-		wantSync    []configv1.Update
+		wantSync    []configv1.Release
 
 		original *configv1.ClusterVersion
 		ierr     error
@@ -160,10 +160,13 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 		{
 			ierr: fmt.Errorf("bad"),
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+					URL:     configv1.URL("https://example.com/v4.0.1"),
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -176,7 +179,11 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							History: []configv1.UpdateHistory{
 								{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							},
-							Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
+							Desired: configv1.Release{
+								Version: "4.0.1",
+								Image:   "image/image:v4.0.1",
+								URL:     configv1.URL("https://example.com/v4.0.1"),
+							},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -212,7 +219,11 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 						},
-						Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
+						Desired: configv1.Release{
+							Version: "4.0.1",
+							Image:   "image/image:v4.0.1",
+							URL:     configv1.URL("https://example.com/v4.0.1"),
+						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},

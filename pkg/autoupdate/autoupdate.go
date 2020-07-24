@@ -175,7 +175,10 @@ func (ctrl *Controller) sync(ctx context.Context, key string) error {
 		return nil
 	}
 	up := nextUpdate(clusterversion.Status.AvailableUpdates)
-	clusterversion.Spec.DesiredUpdate = &up
+	clusterversion.Spec.DesiredUpdate = &v1.Update{
+		Version: up.Version,
+		Image:   up.Image,
+	}
 
 	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctx, ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
@@ -184,11 +187,11 @@ func (ctrl *Controller) sync(ctx context.Context, key string) error {
 	return err
 }
 
-func updateAvail(ups []v1.Update) bool {
+func updateAvail(ups []v1.Release) bool {
 	return len(ups) > 0
 }
 
-func nextUpdate(ups []v1.Update) v1.Update {
+func nextUpdate(ups []v1.Release) v1.Release {
 	sorted := ups
 	sort.Slice(sorted, func(i, j int) bool {
 		vi := semver.MustParse(sorted[i].Version)

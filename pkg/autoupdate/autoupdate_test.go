@@ -29,9 +29,9 @@ func TestNextUpdate(t *testing.T) {
 	}}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test: #%d", idx), func(t *testing.T) {
-			ups := []v1.Update{}
+			ups := []v1.Release{}
 			for _, v := range test.avail {
-				ups = append(ups, v1.Update{Version: v})
+				ups = append(ups, v1.Release{Version: v})
 			}
 
 			got := nextUpdate(ups)

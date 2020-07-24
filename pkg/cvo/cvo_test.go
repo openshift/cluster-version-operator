@@ -272,8 +272,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "create version and status",
 			optr: Operator{
-				releaseVersion:              "4.0.1",
-				releaseImage:                "image/image:v4.0.1",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
 				enableDefaultClusterVersion: true,
 				namespace:                   "test",
 				name:                        "default",
@@ -302,17 +304,19 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Step:        "Moving",
 				Reconciling: false,
-				Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+				Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 				Failure: &payload.UpdateError{
 					Reason:  "UpdatePayloadIntegrity",
 					Message: "unable to apply object",
 				},
 			},
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -325,7 +329,7 @@ func TestOperator_sync(t *testing.T) {
 							History: []configv1.UpdateHistory{
 								{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							},
-							Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
+							Desired:     configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -356,7 +360,7 @@ func TestOperator_sync(t *testing.T) {
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -371,15 +375,17 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "progressing and previously failed, reconciling",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
 						Step:        "Moving",
 						Reconciling: true,
-						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
@@ -398,7 +404,7 @@ func TestOperator_sync(t *testing.T) {
 							History: []configv1.UpdateHistory{
 								{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							},
-							Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
+							Desired:     configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -429,7 +435,7 @@ func TestOperator_sync(t *testing.T) {
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -444,16 +450,18 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "progressing and previously failed, reconciling and multiple completions",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
 						Step:        "Moving",
 						Reconciling: true,
 						Completed:   2,
-						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
@@ -472,7 +480,7 @@ func TestOperator_sync(t *testing.T) {
 							History: []configv1.UpdateHistory{
 								{Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							},
-							Desired:     configv1.Update{Version: "4.0.1", Image: "image/image:v4.0.1"},
+							Desired:     configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -503,7 +511,7 @@ func TestOperator_sync(t *testing.T) {
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:     configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -518,14 +526,16 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "progressing and encounters error during image sync",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
 						Step:        "Moving",
-						Actual:      configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure:     fmt.Errorf("injected error"),
 						VersionHash: "foo",
 					},
@@ -569,7 +579,7 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Desired: configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Desired: configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}, CompletionTime: &defaultCompletionTime},
@@ -589,13 +599,15 @@ func TestOperator_sync(t *testing.T) {
 			name: "invalid image reports image error",
 			syncStatus: &SyncWorkerStatus{
 				Failure: os.ErrNotExist,
-				Actual:  configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -622,7 +634,7 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 						},
@@ -643,13 +655,15 @@ func TestOperator_sync(t *testing.T) {
 				Step:     "Working",
 				Fraction: 0.6,
 				Failure:  os.ErrNotExist,
-				Actual:   configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:   configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -686,7 +700,7 @@ func TestOperator_sync(t *testing.T) {
 						Channel: "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						History: []configv1.UpdateHistory{
 							// we populate state, but not startedTime
 							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{time.Unix(0, 0)}},
@@ -706,12 +720,14 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "set initial status conditions",
 			syncStatus: &SyncWorkerStatus{
-				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: ""},
+				Actual: configv1.Release{Image: "image/image:v4.0.1"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -745,11 +761,11 @@ func TestOperator_sync(t *testing.T) {
 							{
 								State:       configv1.PartialUpdate,
 								Image:       "image/image:v4.0.1",
-								Version:     "", // we don't know our image yet and releaseVersion is unset
+								Version:     "", // we don't know our image yet and release.Version is unset
 								StartedTime: defaultStartedTime,
 							},
 						},
-						Desired:     configv1.Update{Version: "", Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -764,13 +780,15 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "record a new version entry if the controller is restarted with a new image",
 			syncStatus: &SyncWorkerStatus{
-				Actual: configv1.Update{Image: "image/image:v4.0.2", Version: "4.0.2"},
+				Actual: configv1.Release{Image: "image/image:v4.0.2", Version: "4.0.2"},
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.2",
-				releaseVersion: "4.0.2",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.2",
+					Image:   "image/image:v4.0.2",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -790,7 +808,7 @@ func TestOperator_sync(t *testing.T) {
 								StartedTime: defaultStartedTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -833,7 +851,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.2", Version: "4.0.2"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.2", Version: "4.0.2"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -854,13 +872,15 @@ func TestOperator_sync(t *testing.T) {
 				// update unless we add some sort of delay - which might make clearing status
 				// slightly more useful to the user (instead of two status updates you get
 				// one).
-				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -887,7 +907,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.2"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.2"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -937,7 +957,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired: configv1.Update{
+						Desired: configv1.Release{
 							Version: "4.0.1",
 							Image:   "image/image:v4.0.1",
 						},
@@ -956,14 +976,16 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "after desired update is cancelled, revert to progressing",
 			syncStatus: &SyncWorkerStatus{
-				Actual:   configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:   configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 				Fraction: 0.334,
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -997,7 +1019,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1048,7 +1070,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1064,14 +1086,16 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "report partial retrieved version",
 			syncStatus: &SyncWorkerStatus{
-				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: ""},
+				Actual: configv1.Release{Image: "image/image:v4.0.1"},
 				Step:   "RetrievePayload",
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -1099,7 +1123,7 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						VersionHash: "",
 						Conditions:  []configv1.ClusterOperatorStatusCondition{},
 					},
@@ -1126,7 +1150,7 @@ func TestOperator_sync(t *testing.T) {
 							{
 								State:       configv1.PartialUpdate,
 								Image:       "image/image:v4.0.1",
-								Version:     "",
+								Version:     "4.0.1",
 								StartedTime: defaultStartedTime,
 							},
 							{
@@ -1144,7 +1168,10 @@ func TestOperator_sync(t *testing.T) {
 								CompletionTime: &defaultCompletionTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: ""},
+						Desired: configv1.Release{
+							Version: "4.0.1",
+							Image:   "image/image:v4.0.1",
+						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1161,12 +1188,14 @@ func TestOperator_sync(t *testing.T) {
 			name: "after initial status is set, set hash and correct version number",
 			syncStatus: &SyncWorkerStatus{
 				VersionHash: "xyz",
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -1185,7 +1214,7 @@ func TestOperator_sync(t *testing.T) {
 								StartedTime: defaultStartedTime,
 							},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1217,7 +1246,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.PartialUpdate, Image: "image/image:v4.0.1", Version: "0.0.1-abc", StartedTime: defaultStartedTime},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						VersionHash: "xyz",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1236,13 +1265,15 @@ func TestOperator_sync(t *testing.T) {
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "xyz",
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "0.0.1-abc",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "0.0.1-abc",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -1263,7 +1294,7 @@ func TestOperator_sync(t *testing.T) {
 									CompletionTime: &defaultStartedTime,
 								},
 							},
-							Desired: configv1.Update{
+							Desired: configv1.Release{
 								Version: "0.0.1-abc",
 								Image:   "image/image:v4.0.1",
 							},
@@ -1294,17 +1325,30 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				availableUpdates: &availableUpdates{
 					Upstream: "http://localhost:8080/graph",
 					Channel:  "fast",
-					Updates: []configv1.Update{
-						{Version: "4.0.2", Image: "test/image:1"},
+					Current: configv1.Release{
+						Version:  "0.0.1-abc",
+						Image:    "image/image:v4.0.1",
+						URL:      configv1.URL("https://example.com/v4.0.1"),
+						Channels: []string{"channel-a", "channel-b", "channel-c"},
+					},
+					Updates: []configv1.Release{
+						{
+							Version:  "4.0.2",
+							Image:    "test/image:1",
+							URL:      configv1.URL("https://example.com/v4.0.2"),
+							Channels: []string{"channel-a", "channel-d"},
+						},
 						{Version: "4.0.3", Image: "test/image:2"},
 					},
 					Condition: configv1.ClusterOperatorStatusCondition{
@@ -1351,14 +1395,24 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						AvailableUpdates: []configv1.Update{
-							{Version: "4.0.2", Image: "test/image:1"},
+						AvailableUpdates: []configv1.Release{
+							{
+								Version:  "4.0.2",
+								Image:    "test/image:1",
+								URL:      configv1.URL("https://example.com/v4.0.2"),
+								Channels: []string{"channel-a", "channel-d"},
+							},
 							{Version: "4.0.3", Image: "test/image:2"},
 						},
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired: configv1.Release{
+							Image:    "image/image:v4.0.1",
+							Version:  "0.0.1-abc",
+							URL:      configv1.URL("https://example.com/v4.0.1"),
+							Channels: []string{"channel-a", "channel-b", "channel-c"},
+						},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1376,12 +1430,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				upgradeable: &upgradeable{
 					Conditions: []configv1.ClusterOperatorStatusCondition{
 						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
@@ -1431,7 +1487,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1452,12 +1508,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				upgradeable: &upgradeable{
 					Conditions: []configv1.ClusterOperatorStatusCondition{
 						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
@@ -1507,7 +1565,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1527,12 +1585,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				upgradeable: &upgradeable{
 					Conditions: []configv1.ClusterOperatorStatusCondition{},
 				},
@@ -1581,7 +1641,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1599,17 +1659,19 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage:          "image/image:v4.0.1",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
 				namespace:             "test",
 				name:                  "default",
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				availableUpdates: &availableUpdates{
 					Upstream: "",
 					Channel:  "fast",
-					Updates: []configv1.Update{
+					Updates: []configv1.Release{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
 					},
@@ -1657,14 +1719,14 @@ func TestOperator_sync(t *testing.T) {
 						Channel:   "fast",
 					},
 					Status: configv1.ClusterVersionStatus{
-						AvailableUpdates: []configv1.Update{
+						AvailableUpdates: []configv1.Release{
 							{Version: "4.0.2", Image: "test/image:1"},
 							{Version: "4.0.3", Image: "test/image:2"},
 						},
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1682,16 +1744,18 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				availableUpdates: &availableUpdates{
 					Upstream: "http://localhost:8080/graph",
 					Channel:  "fast",
-					Updates: []configv1.Update{
+					Updates: []configv1.Release{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
 					},
@@ -1742,7 +1806,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
@@ -1760,12 +1824,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
@@ -1804,7 +1870,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired:            configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
@@ -1822,12 +1888,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
@@ -1841,7 +1909,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 					},
 					Status: configv1.ClusterVersionStatus{
-						AvailableUpdates: []configv1.Update{
+						AvailableUpdates: []configv1.Release{
 							{Version: "4.0.2", Image: "test/image:1"},
 							{Version: "4.0.3", Image: "test/image:2"},
 						},
@@ -1872,8 +1940,8 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
-						AvailableUpdates: []configv1.Update{
+						Desired: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						AvailableUpdates: []configv1.Release{
 							{Version: "4.0.2", Image: "test/image:1"},
 							{Version: "4.0.3", Image: "test/image:2"},
 						},
@@ -1895,12 +1963,14 @@ func TestOperator_sync(t *testing.T) {
 				Generation:  2,
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:       "default",
@@ -1914,7 +1984,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 					},
 					Status: configv1.ClusterVersionStatus{
-						AvailableUpdates: []configv1.Update{
+						AvailableUpdates: []configv1.Release{
 							{Version: "4.0.2", Image: "test/image:1"},
 							{Version: "4.0.3", Image: "test/image:2"},
 							{Version: "4.0.3", Image: "test/image:3"},
@@ -1947,8 +2017,8 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired: configv1.Update{Image: "image/image:v4.0.1", Version: "4.0.1"},
-						AvailableUpdates: []configv1.Update{
+						Desired: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+						AvailableUpdates: []configv1.Release{
 							{Version: "4.0.2", Image: "test/image:1"},
 							{Version: "4.0.3", Image: "test/image:2"},
 							{Version: "4.0.3", Image: "test/image:3"},
@@ -1971,13 +2041,15 @@ func TestOperator_sync(t *testing.T) {
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "0.0.1-abc",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "0.0.1-abc",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -1999,7 +2071,7 @@ func TestOperator_sync(t *testing.T) {
 									CompletionTime: &defaultCompletionTime,
 								},
 							},
-							Desired: configv1.Update{
+							Desired: configv1.Release{
 								Version: "0.0.1-abc",
 								Image:   "image/image:v4.0.1",
 							},
@@ -2031,13 +2103,15 @@ func TestOperator_sync(t *testing.T) {
 				Reconciling: true,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage:   "image/image:v4.0.1",
-				releaseVersion: "0.0.1-abc",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "0.0.1-abc",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2059,7 +2133,7 @@ func TestOperator_sync(t *testing.T) {
 									CompletionTime: &defaultCompletionTime,
 								},
 							},
-							Desired: configv1.Update{
+							Desired: configv1.Release{
 								Version: "0.0.1-abc",
 								Image:   "image/image:v4.0.1",
 							},
@@ -2101,7 +2175,7 @@ func TestOperator_sync(t *testing.T) {
 								StartedTime:    metav1.Time{time.Unix(0, 0)},
 							},
 						},
-						Desired:            configv1.Update{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Desired:            configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						ObservedGeneration: 2,
 						VersionHash:        "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -2120,12 +2194,14 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Reconciling: true,
 				Completed:   1,
-				Actual:      configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -2160,7 +2236,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{State: configv1.CompletedUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 						},
-						Desired: configv1.Update{
+						Desired: configv1.Release{
 							Version: "0.0.1-abc", Image: "image/image:v4.0.1",
 						},
 						VersionHash: "",
@@ -2179,12 +2255,14 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "invalid cluster version should not block initial sync",
 			syncStatus: &SyncWorkerStatus{
-				Actual: configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Actual: configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
-				releaseImage: "image/image:v4.0.1",
-				namespace:    "test",
-				name:         "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:            "default",
@@ -2199,7 +2277,7 @@ func TestOperator_sync(t *testing.T) {
 						History: []configv1.UpdateHistory{
 							{Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1"},
+						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -2236,9 +2314,9 @@ func TestOperator_sync(t *testing.T) {
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
-							{State: configv1.PartialUpdate, Image: "image/image:v4.0.1", Version: "0.0.1-abc", StartedTime: defaultStartedTime},
+							{State: configv1.PartialUpdate, Version: "0.0.1-abc", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
 						},
-						Desired:     configv1.Update{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -2308,11 +2386,13 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		{
 			name: "when version is missing, do nothing (other loops should create it)",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
-				client:         fake.NewSimpleClientset(),
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client:    fake.NewSimpleClientset(),
 			},
 		},
 		{
@@ -2321,10 +2401,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: Operator{
-				releaseVersion: "",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2360,10 +2441,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2399,10 +2482,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2438,10 +2522,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "4.0.1",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2481,7 +2567,14 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				fmt.Fprintf(w, `
 				{
 					"nodes": [
-						{"version":"4.0.1",            "payload": "image/image:v4.0.1"}
+						{
+							"version":"4.0.1",
+							"payload": "image/image:v4.0.1",
+							"metadata": {
+								"url": "https://example.com/v4.0.1",
+								"io.openshift.upgrades.graph.release.channels": "channel-c,channel-a,channel-b"
+							}
+						}
 					],
 					"edges": []
 				}
@@ -2489,10 +2582,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "4.0.1",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2519,6 +2614,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				Upstream: "",
 				Channel:  "fast",
+				Current: configv1.Release{
+					Version:  "4.0.1",
+					Image:    "image/image:v4.0.1",
+					URL:      "https://example.com/v4.0.1",
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
@@ -2545,10 +2646,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "4.0.1",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2575,7 +2678,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				Upstream: "",
 				Channel:  "fast",
-				Updates: []configv1.Update{
+				Current:  configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
+				Updates: []configv1.Release{
 					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
 				},
@@ -2598,11 +2702,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Channel:     "fast",
 					LastAttempt: time.Now(),
 				},
-
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2698,20 +2803,23 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "when version is missing, do nothing (other loops should create it)",
 			optr: Operator{
-				releaseVersion: "4.0.1",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
-				client:         fake.NewSimpleClientset(),
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client:    fake.NewSimpleClientset(),
 			},
 		},
 		{
 			name: "report error condition when overrides is set for version",
 			optr: Operator{
-				releaseVersion: "",
-				releaseImage:   "image/image:v4.0.1",
-				namespace:      "test",
-				name:           "default",
+				release: configv1.Release{
+					Image: "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2745,10 +2853,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "report error condition when the single clusteroperator is not upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2792,10 +2902,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "report error condition when single clusteroperator is not upgradeable and another has no conditions",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2847,10 +2959,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "report error condition when single clusteroperator is not upgradeable and another is upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2905,10 +3019,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "report error condition when two clusteroperators are not upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2965,10 +3081,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "report error condition when clusteroperators and version are not upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -3038,10 +3156,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "no error conditions",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -3066,10 +3186,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "no error conditions",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -3096,10 +3218,12 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			name: "no error conditions",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				releaseVersion:        "v4.0.0",
-				releaseImage:          "image/image:v4.0.1",
-				namespace:             "test",
-				name:                  "default",
+				release: configv1.Release{
+					Version: "v4.0.0",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
 				client: fake.NewSimpleClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -3455,6 +3579,123 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 			rv := got.(*verify.ReleaseVerifier)
 			if len(rv.Verifiers()) != tt.wantVerifiers {
 				t.Fatalf("unexpected release verifier: %#v", rv)
+			}
+		})
+	}
+}
+
+func TestOperator_mergeReleaseMetadata(t *testing.T) {
+	for _, testCase := range []struct {
+		name             string
+		input            configv1.Release
+		availableUpdates *availableUpdates
+		expected         configv1.Release
+	}{
+		{
+			name: "does not crash with empty inputs",
+		},
+		{
+			name:     "minimal release with no available updates",
+			input:    configv1.Release{Image: "image/image:v1.0.0"},
+			expected: configv1.Release{Image: "image/image:v1.0.0"},
+		},
+		{
+			name:             "minimal release with empty available updates",
+			input:            configv1.Release{Image: "image/image:v1.0.0"},
+			availableUpdates: &availableUpdates{},
+			expected:         configv1.Release{Image: "image/image:v1.0.0"},
+		},
+		{
+			name:  "minimal release with full, current available update",
+			input: configv1.Release{Image: "image/image:v1.0.0"},
+			availableUpdates: &availableUpdates{
+				Current: configv1.Release{
+					Version:  "1.0.1",
+					Image:    "image/image:v1.0.0",
+					URL:      configv1.URL("https://example.com/v1.0.1"),
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
+			},
+			expected: configv1.Release{
+				Version:  "1.0.1",
+				Image:    "image/image:v1.0.0",
+				URL:      configv1.URL("https://example.com/v1.0.1"),
+				Channels: []string{"channel-a", "channel-b", "channel-c"},
+			},
+		},
+		{
+			name:  "minimal release with full, next-hop available update",
+			input: configv1.Release{Image: "image/image:v1.0.0"},
+			availableUpdates: &availableUpdates{
+				Updates: []configv1.Release{
+					{
+						Version:  "1.0.1",
+						Image:    "image/image:v1.0.0",
+						URL:      configv1.URL("https://example.com/v1.0.1"),
+						Channels: []string{"channel-a", "channel-b", "channel-c"},
+					},
+				},
+			},
+			expected: configv1.Release{
+				Version:  "1.0.1",
+				Image:    "image/image:v1.0.0",
+				URL:      configv1.URL("https://example.com/v1.0.1"),
+				Channels: []string{"channel-a", "channel-b", "channel-c"},
+			},
+		},
+		{
+			name:  "minimal release with non-matching available updates",
+			input: configv1.Release{Image: "image/image:v1.0.0"},
+			availableUpdates: &availableUpdates{
+				Current: configv1.Release{
+					Version:  "1.0.1",
+					Image:    "image/image:v1.0.1",
+					URL:      configv1.URL("https://example.com/v1.0.1"),
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
+
+				Updates: []configv1.Release{
+					{
+						Version:  "1.0.2",
+						Image:    "image/image:v1.0.2",
+						URL:      configv1.URL("https://example.com/v1.0.2"),
+						Channels: []string{"channel-a", "channel-b", "channel-c"},
+					},
+				},
+			},
+			expected: configv1.Release{
+				Image: "image/image:v1.0.0",
+			},
+		},
+		{
+			name: "fill release with full, current available update",
+			input: configv1.Release{
+				Version:  "1.0.0",
+				Image:    "image/image:v1.0.0",
+				URL:      configv1.URL("https://example.com/v1.0.0"),
+				Channels: []string{"channel-z"},
+			},
+			availableUpdates: &availableUpdates{
+				Current: configv1.Release{
+					Version:  "1.0.1",
+					Image:    "image/image:v1.0.0",
+					URL:      configv1.URL("https://example.com/v1.0.1"),
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
+			},
+			expected: configv1.Release{
+				Version:  "1.0.0",
+				Image:    "image/image:v1.0.0",
+				URL:      configv1.URL("https://example.com/v1.0.0"),
+				Channels: []string{"channel-z"},
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			optr := Operator{availableUpdates: testCase.availableUpdates}
+			actual := optr.mergeReleaseMetadata(testCase.input)
+			if !reflect.DeepEqual(actual, testCase.expected) {
+				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(testCase.expected, actual))
 			}
 		})
 	}

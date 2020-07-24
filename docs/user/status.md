@@ -110,7 +110,7 @@ It could also be an overloaded or otherwise failing Cincinnati server.
 
 ### ResponseInvalid
 
-The Cincinnati server returned a response that was not valid JSON.
+The Cincinnati server returned a response that was not valid JSON or is otherwise corrupted.
 
 This could be caused by a buggy Cincinnati server.
 It could also be caused by response corruption, e.g. if the configured `upstream` was in the clear over HTTP or via a man-in-the-middle HTTPS proxy, and an intervening component altered the response in flight.

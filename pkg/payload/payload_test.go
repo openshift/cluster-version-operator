@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
 	"github.com/openshift/cluster-version-operator/lib"
@@ -34,8 +35,12 @@ func Test_loadUpdatePayload(t *testing.T) {
 				releaseImage: "image:1",
 			},
 			want: &Update{
-				ReleaseImage:   "image:1",
-				ReleaseVersion: "1.0.0-abc",
+				Release: configv1.Release{
+					Version:  "1.0.0-abc",
+					Image:    "image:1",
+					URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
 				ImageRef: &imagev1.ImageStream{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "ImageStream",

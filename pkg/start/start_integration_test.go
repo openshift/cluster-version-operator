@@ -47,6 +47,12 @@ func init() {
 var (
 	version_0_0_1 = map[string]interface{}{
 		"release-manifests": map[string]interface{}{
+			"release-metadata": `
+			{
+				"kind": "cincinnati-metadata-v0",
+				"version": "0.0.1"
+			}
+			`,
 			"image-references": `
 			{
 				"kind": "ImageStream",
@@ -92,6 +98,12 @@ var (
 	}
 	version_0_0_2 = map[string]interface{}{
 		"release-manifests": map[string]interface{}{
+			"release-metadata": `
+			{
+				"kind": "cincinnati-metadata-v0",
+				"version": "0.0.2"
+			}
+			`,
 			"image-references": `
 			{
 				"kind": "ImageStream",
@@ -135,6 +147,12 @@ var (
 	}
 	version_0_0_2_failing = map[string]interface{}{
 		"release-manifests": map[string]interface{}{
+			"release-metadata": `
+			{
+				"kind": "cincinnati-metadata-v0",
+				"version": "0.0.2"
+			}
+			`,
 			"image-references": `
 			{
 				"kind": "ImageStream",
@@ -674,6 +692,12 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 	if err := os.Mkdir(releaseManifestsDir, 0777); err != nil {
 		t.Fatal(err)
 	}
+	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "release-metadata"), []byte(`{
+  "kind": "cincinnati-metadata-v0",
+  "version": "0.0.1"
+}`), 0777); err != nil {
+		t.Fatal(err)
+	}
 	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
 apiVersion: image.openshift.io/v1
 metadata:
@@ -995,7 +1019,7 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	if cv.Status.ObservedGeneration != cv.Generation {
 		t.Fatalf("unexpected: %d instead of %d", cv.Status.ObservedGeneration, cv.Generation)
 	}
-	if cv.Status.Desired != expectedUpdate {
+	if cv.Status.Desired.Image != expectedUpdate.Image || cv.Status.Desired.Version != expectedUpdate.Version {
 		t.Fatalf("unexpected: %#v", cv.Status.Desired)
 	}
 	if len(cv.Status.History) != expectHistory {

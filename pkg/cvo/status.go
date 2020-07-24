@@ -29,7 +29,7 @@ const (
 	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
 )
 
-func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update) bool {
+func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Release) bool {
 	if len(desired.Image) > 0 && desired.Image == current.Image {
 		if len(desired.Version) == 0 {
 			return true
@@ -48,7 +48,7 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Update
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Update, verified bool, now metav1.Time, completed bool) {
+func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time, completed bool) {
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
@@ -180,8 +180,20 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	now := metav1.Now()
 	version := versionString(status.Actual)
-
-	mergeOperatorHistory(config, status.Actual, status.Verified, now, status.Completed > 0)
+	if status.Actual.Image == optr.release.Image {
+		// backfill any missing information from the operator (payload).
+		if status.Actual.Version == "" {
+			status.Actual.Version = optr.release.Version
+		}
+		if len(status.Actual.URL) == 0 {
+			status.Actual.URL = optr.release.URL
+		}
+		if status.Actual.Channels == nil {
+			status.Actual.Channels = append(optr.release.Channels[:0:0], optr.release.Channels...) // copy
+		}
+	}
+	desired := optr.mergeReleaseMetadata(status.Actual)
+	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0)
 
 	// update validation errors
 	var reason string
