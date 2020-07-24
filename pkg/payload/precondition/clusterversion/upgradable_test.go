@@ -128,7 +128,7 @@ func TestUpgradeableRun(t *testing.T) {
 			cvLister := fakeClusterVersionLister(clusterVersion)
 			instance := NewUpgradeable(cvLister)
 
-			err := instance.Run(context.TODO(), precondition.ReleaseContext{DesiredVersion: tc.desiredVersion})
+			err := instance.Run(context.TODO(), precondition.ReleaseContext{DesiredVersion: tc.desiredVersion}, clusterVersion)
 			switch {
 			case err != nil && len(tc.expected) == 0:
 				t.Error(err)

@@ -326,7 +326,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
-	go optr.configSync.Start(ctx, 16)
+	go optr.configSync.Start(ctx, 16, optr.name, optr.cvLister)
 	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
 	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
 	go wait.Until(func() {
