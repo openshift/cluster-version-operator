@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
-	github.com/openshift/api v0.0.0-20200723134351-89de68875e7c
+	github.com/openshift/api v0.0.0-20200724204552-3ae6754513d4
 	github.com/openshift/client-go v0.0.0-20200723130357-94e1065ab1f8
 	github.com/openshift/library-go v0.0.0-20200724192307-1ed21c4fa86c
 	github.com/pkg/errors v0.9.1
