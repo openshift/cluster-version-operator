@@ -55,7 +55,7 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, typedCRD)
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(ctx, b.clientV1beta1, typedCRD)
 		if err != nil {
 			return err
 		}
@@ -64,7 +64,7 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, typedCRD)
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(ctx, b.clientV1, typedCRD)
 		if err != nil {
 			return err
 		}
@@ -81,7 +81,7 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 
 func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd string) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		c, err := client.CustomResourceDefinitions().Get(crd, metav1.GetOptions{})
+		c, err := client.CustomResourceDefinitions().Get(ctx, crd, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the crd.
 			return false, err

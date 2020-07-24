@@ -181,6 +181,7 @@ var (
 )
 
 func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TEST_INTEGRATION") != "1" {
 		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
 	}
@@ -197,18 +198,22 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+	if _, err := kc.CoreV1().Namespaces().Create(
+		ctx,
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
 		},
-	}); err != nil {
+		metav1.CreateOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -249,7 +254,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -260,7 +265,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
-	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("wait for the next resync and verify that status didn't change")
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
@@ -273,17 +278,17 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
-	cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
+	cv, err := client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(cv.Status, lastCV.Status) {
 		t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(lastCV.Status, cv.Status))
 	}
-	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version")
-	cv, err = client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
+	cv, err = client.ConfigV1().ClusterVersions().Patch(ctx, ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)), metav1.PatchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,17 +297,17 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	t.Logf("wait for the new version to be available")
-	lastCV, err = waitForUpdateAvailable(t, client, ns, false, "0.0.1", "0.0.2")
+	lastCV, err = waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1", "0.0.2")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reached available at 0.0.2: %v", err)
 	}
 	t.Logf("Upgraded version:\n%s", printCV(lastCV))
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage2, Version: "0.0.2"}, 2)
-	verifyReleasePayload(t, kc, ns, "0.0.2", payloadImage2)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.2", payloadImage2)
 
 	t.Logf("delete an object so that the next resync will recover it")
-	if err := kc.CoreV1().ConfigMaps(ns).Delete("config1", nil); err != nil {
+	if err := kc.CoreV1().ConfigMaps(ns).Delete(ctx, "config1", metav1.DeleteOptions{}); err != nil {
 		t.Fatalf("couldn't delete CVO managed object: %v", err)
 	}
 
@@ -319,7 +324,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
-	cv, err = client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
+	cv, err = client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,10 +333,11 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	// should have recreated our deleted object
-	verifyReleasePayload(t, kc, ns, "0.0.2", payloadImage2)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.2", payloadImage2)
 }
 
 func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TEST_INTEGRATION") != "1" {
 		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
 	}
@@ -348,18 +354,22 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+	if _, err := kc.CoreV1().Namespaces().Create(
+		ctx,
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
 		},
-	}); err != nil {
+		metav1.CreateOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -401,7 +411,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -410,10 +420,10 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	t.Logf("verify the available cluster version's status matches our expectations")
 	t.Logf("Cluster version:\n%s", printCV(lastCV))
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 1)
-	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("trigger an update to a new version that should fail")
-	cv, err := client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)))
+	cv, err := client.ConfigV1().ClusterVersions().Patch(ctx, ns, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"desiredUpdate":{"image":"%s"}}}`, payloadImage2)), metav1.PatchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +433,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 
 	t.Logf("wait for operator to report failure")
 	lastCV, err = waitUntilUpgradeFails(
-		t, client, ns,
+		ctx, t, client, ns,
 		"UpdatePayloadResourceInvalid",
 		fmt.Sprintf(
 			`Could not update configmap "%s/config2" (2 of 2): the object is invalid, possibly due to local cluster configuration`,
@@ -438,27 +448,28 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	}
 
 	t.Logf("ensure that one config map was updated and the other was not")
-	verifyReleasePayloadConfigMap1(t, kc, ns, "0.0.2", payloadImage2)
-	verifyReleasePayloadConfigMap2(t, kc, ns, "0.0.1", payloadImage1)
+	verifyReleasePayloadConfigMap1(ctx, t, kc, ns, "0.0.2", payloadImage2)
+	verifyReleasePayloadConfigMap2(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("switch back to 0.0.1 and verify it succeeds")
-	cv, err = client.ConfigV1().ClusterVersions().Patch(ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"image":"", "version":"0.0.1"}}}`))
+	cv, err = client.ConfigV1().ClusterVersions().Patch(ctx, ns, types.MergePatchType, []byte(`{"spec":{"desiredUpdate":{"image":"", "version":"0.0.1"}}}`), metav1.PatchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cv.Spec.DesiredUpdate == nil {
 		t.Fatalf("cluster desired version was not preserved: %s", printCV(cv))
 	}
-	lastCV, err = waitForUpdateAvailable(t, client, ns, true, "0.0.2", "0.0.1")
+	lastCV, err = waitForUpdateAvailable(ctx, t, client, ns, true, "0.0.2", "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never reverted to 0.0.1: %v", err)
 	}
 	verifyClusterVersionStatus(t, lastCV, configv1.Update{Image: payloadImage1, Version: "0.0.1"}, 3)
-	verifyReleasePayload(t, kc, ns, "0.0.1", payloadImage1)
+	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 }
 
 func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TEST_INTEGRATION") != "1" {
 		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
 	}
@@ -475,18 +486,22 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(6))
 
-	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+	if _, err := kc.CoreV1().Namespaces().Create(
+		ctx,
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
 		},
-	}); err != nil {
+		metav1.CreateOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
@@ -507,17 +522,17 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	t.Logf("the controller should create a lock record on a config map")
-	ctx, cancel := context.WithCancel(context.Background())
+	runContext, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		options.run(ctx, controllers, lock)
+		options.run(runContext, controllers, lock)
 		close(done)
 	}()
 
 	// wait until the lock record exists
 	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, err := kc.CoreV1().ConfigMaps(ns).Get(ctx, ns, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -531,7 +546,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	t.Logf("verify the controller writes a leadership change event")
-	events, err := kc.CoreV1().Events(ns).List(metav1.ListOptions{})
+	events, err := kc.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +560,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	var endTime time.Time
 	// the lock should be deleted immediately
 	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, err := kc.CoreV1().ConfigMaps(ns).Get(ctx, ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			endTime = time.Now()
 			return true, nil
@@ -568,6 +583,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 }
 
 func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
+	ctx := context.Background()
 	if os.Getenv("TEST_INTEGRATION") != "1" {
 		t.Skipf("Integration tests are disabled unless TEST_INTEGRATION=1")
 	}
@@ -597,34 +613,42 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
-	if _, err := kc.CoreV1().Namespaces().Create(&v1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+	if _, err := kc.CoreV1().Namespaces().Create(
+		ctx,
+		&v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
 		},
-	}); err != nil {
+		metav1.CreateOptions{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := client.ConfigV1().ClusterVersions().Delete(ns, nil); err != nil {
+		if err := client.ConfigV1().ClusterVersions().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete cluster version %s: %v", ns, err)
 		}
-		if err := kc.CoreV1().Namespaces().Delete(ns, nil); err != nil {
+		if err := kc.CoreV1().Namespaces().Delete(ctx, ns, metav1.DeleteOptions{}); err != nil {
 			t.Logf("failed to delete namespace %s: %v", ns, err)
 		}
 	}()
 
 	id, _ := uuid.NewRandom()
 
-	client.ConfigV1().ClusterVersions().Create(&configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ns,
+	client.ConfigV1().ClusterVersions().Create(
+		ctx,
+		&configv1.ClusterVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+			Spec: configv1.ClusterVersionSpec{
+				Upstream:  configv1.URL(upstreamServer.URL),
+				Channel:   "test-channel",
+				ClusterID: configv1.ClusterID(id.String()),
+			},
 		},
-		Spec: configv1.ClusterVersionSpec{
-			Upstream:  configv1.URL(upstreamServer.URL),
-			Channel:   "test-channel",
-			ClusterID: configv1.ClusterID(id.String()),
-		},
-	})
+		metav1.CreateOptions{},
+	)
 
 	dir, err := ioutil.TempDir("", "cvo-test")
 	if err != nil {
@@ -678,7 +702,7 @@ metadata:
 	controllers.Start(ctx)
 
 	t.Logf("wait until we observe the cluster version become available")
-	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
+	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
 	if err != nil {
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatalf("cluster version never became available: %v", err)
@@ -706,12 +730,12 @@ metadata:
 	}
 }
 
-// waitForAvailableUpdate checks invariants during an upgrade process. versions is a list of the expected versions that
+// waitForUpdateAvailable checks invariants during an upgrade process. versions is a list of the expected versions that
 // should be seen during update, with the last version being the one we wait to see.
-func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
+func waitForUpdateAvailable(ctx context.Context, t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
+		cv, err := client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -819,10 +843,10 @@ func waitForUpdateAvailable(t *testing.T, client clientset.Interface, ns string,
 
 // waitUntilUpgradeFails checks invariants during an upgrade process. versions is a list of the expected versions that
 // should be seen during update, with the last version being the one we wait to see.
-func waitUntilUpgradeFails(t *testing.T, client clientset.Interface, ns string, failingReason, failingMessage, progressingMessage string, versions ...string) (*configv1.ClusterVersion, error) {
+func waitUntilUpgradeFails(ctx context.Context, t *testing.T, client clientset.Interface, ns string, failingReason, failingMessage, progressingMessage string, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
 	return lastCV, wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		cv, err := client.ConfigV1().ClusterVersions().Get(ns, metav1.GetOptions{})
+		cv, err := client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}
@@ -999,15 +1023,15 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 	}
 }
 
-func verifyReleasePayload(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
+func verifyReleasePayload(ctx context.Context, t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
-	verifyReleasePayloadConfigMap1(t, kc, ns, version, image)
-	verifyReleasePayloadConfigMap2(t, kc, ns, version, image)
+	verifyReleasePayloadConfigMap1(ctx, t, kc, ns, version, image)
+	verifyReleasePayloadConfigMap2(ctx, t, kc, ns, version, image)
 }
 
-func verifyReleasePayloadConfigMap1(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
+func verifyReleasePayloadConfigMap1(ctx context.Context, t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
-	cm, err := kc.CoreV1().ConfigMaps(ns).Get("config1", metav1.GetOptions{})
+	cm, err := kc.CoreV1().ConfigMaps(ns).Get(ctx, "config1", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to find cm/config1 in ns %s: %v", ns, err)
 	}
@@ -1016,9 +1040,9 @@ func verifyReleasePayloadConfigMap1(t *testing.T, kc kubernetes.Interface, ns, v
 	}
 }
 
-func verifyReleasePayloadConfigMap2(t *testing.T, kc kubernetes.Interface, ns, version, image string) {
+func verifyReleasePayloadConfigMap2(ctx context.Context, t *testing.T, kc kubernetes.Interface, ns, version, image string) {
 	t.Helper()
-	cm, err := kc.CoreV1().ConfigMaps(ns).Get("config2", metav1.GetOptions{})
+	cm, err := kc.CoreV1().ConfigMaps(ns).Get(ctx, "config2", metav1.GetOptions{})
 	if err != nil {
 		t.Fatalf("unable to find cm/config2 in ns %s: %v", ns, err)
 	}

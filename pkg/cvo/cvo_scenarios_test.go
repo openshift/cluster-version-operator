@@ -113,7 +113,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	// Step 4: Now that sync is complete, verify status is updated to represent image contents
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	// Step 6: After a reconciliation, there should be no status change because the state is the same
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +384,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -453,7 +453,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -535,7 +535,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// Step 4: Now that sync is complete, verify status is updated to represent image contents
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -614,7 +614,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// Step 6: After a reconciliation, there should be no status change because the state is the same
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -645,7 +645,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	// Step 1: Verify the CVO creates the initial Cluster Version object
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -673,7 +673,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -714,7 +714,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	desired := configv1.Update{Version: "4.0.1", Image: "image/image:1"}
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -796,7 +796,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	// Step 4: Now that sync is complete, verify status is updated to represent image contents
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,7 +875,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	// Step 6: After a reconciliation, there should be no status change because the state is the same
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -945,7 +945,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -967,7 +967,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	)
 
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1015,7 +1015,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", VerificationError: payloadErr}, nil)
 	//
 	// ensure the sync worker tells the sync loop about it
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1073,7 +1073,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1170,7 +1170,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1192,7 +1192,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	)
 
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1240,7 +1240,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", VerificationError: payloadErr}, nil)
 	//
 	// ensure the sync worker tells the sync loop about it
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1298,7 +1298,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1422,7 +1422,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	// Step 1: The operator should report that it is blocked on precondition checks failing
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1448,7 +1448,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	)
 
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1495,7 +1495,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	actual.Spec.DesiredUpdate = &copied
 	//
 	// ensure the sync worker tells the sync loop about it
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1559,7 +1559,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1657,7 +1657,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1681,7 +1681,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	)
 
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1729,7 +1729,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1782,7 +1782,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1867,7 +1867,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 1: The sync loop starts and triggers a sync, but does not update status
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1928,7 +1928,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1973,7 +1973,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2030,7 +2030,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// Step 1: The sync loop starts and triggers a sync, but does not update status
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2070,7 +2070,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	//         reconcile sync and verify status is not updated
 	//
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2147,7 +2147,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		},
 	)
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2230,7 +2230,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	// Step 1: Write initial status
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2313,7 +2313,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh())
 
 	client.ClearActions()
-	err = o.sync(o.queueKey())
+	err = o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2350,6 +2350,7 @@ func TestCVO_ParallelError(t *testing.T) {
 }
 
 func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
+	ctx := context.Background()
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -2393,7 +2394,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 	// Step 1: The sync loop starts and triggers a sync, but does not update status
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2408,6 +2409,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 }
 
 func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
+	ctx := context.Background()
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -2452,7 +2454,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 	// Step 1: The sync loop starts and triggers a sync, but does not update status
 	//
 	client.ClearActions()
-	err := o.sync(o.queueKey())
+	err := o.sync(ctx, o.queueKey())
 	if err != nil {
 		t.Fatal(err)
 	}

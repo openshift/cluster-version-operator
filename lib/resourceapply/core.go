@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,10 +14,10 @@ import (
 )
 
 // ApplyNamespace merges objectmeta, does not worry about anything else
-func ApplyNamespace(client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
-	existing, err := client.Namespaces().Get(required.Name, metav1.GetOptions{})
+func ApplyNamespace(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
+	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Namespaces().Create(required)
+		actual, err := client.Namespaces().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -32,17 +34,17 @@ func ApplyNamespace(client coreclientv1.NamespacesGetter, required *corev1.Names
 		return existing, false, nil
 	}
 
-	actual, err := client.Namespaces().Update(existing)
+	actual, err := client.Namespaces().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyService merges objectmeta and requires
 // TODO, since this cannot determine whether changes are due to legitimate actors (api server) or illegitimate ones (users), we cannot update
 // TODO I've special cased the selector for now
-func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) (*corev1.Service, bool, error) {
-	existing, err := client.Services(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyService(ctx context.Context, client coreclientv1.ServicesGetter, required *corev1.Service) (*corev1.Service, bool, error) {
+	existing, err := client.Services(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Services(required.Namespace).Create(required)
+		actual, err := client.Services(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -65,15 +67,15 @@ func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) 
 	existing.Spec.Selector = required.Spec.Selector
 	existing.Spec.Type = required.Spec.Type // if this is different, the update will fail.  Status will indicate it.
 
-	actual, err := client.Services(required.Namespace).Update(existing)
+	actual, err := client.Services(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyServiceAccount applies the required serviceaccount to the cluster.
-func ApplyServiceAccount(client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount) (*corev1.ServiceAccount, bool, error) {
-	existing, err := client.ServiceAccounts(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyServiceAccount(ctx context.Context, client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount) (*corev1.ServiceAccount, bool, error) {
+	existing, err := client.ServiceAccounts(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ServiceAccounts(required.Namespace).Create(required)
+		actual, err := client.ServiceAccounts(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -90,15 +92,15 @@ func ApplyServiceAccount(client coreclientv1.ServiceAccountsGetter, required *co
 		return existing, false, nil
 	}
 
-	actual, err := client.ServiceAccounts(required.Namespace).Update(existing)
+	actual, err := client.ServiceAccounts(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
 // ApplyConfigMap applies the required serviceaccount to the cluster.
-func ApplyConfigMap(client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap) (*corev1.ConfigMap, bool, error) {
-	existing, err := client.ConfigMaps(required.Namespace).Get(required.Name, metav1.GetOptions{})
+func ApplyConfigMap(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap) (*corev1.ConfigMap, bool, error) {
+	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ConfigMaps(required.Namespace).Create(required)
+		actual, err := client.ConfigMaps(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -115,6 +117,6 @@ func ApplyConfigMap(client coreclientv1.ConfigMapsGetter, required *corev1.Confi
 		return existing, false, nil
 	}
 
-	actual, err := client.ConfigMaps(required.Namespace).Update(existing)
+	actual, err := client.ConfigMaps(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }

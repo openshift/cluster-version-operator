@@ -32,12 +32,12 @@ func (b *clusterRoleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface 
 	return b
 }
 
-func (b *clusterRoleBuilder) Do(_ context.Context) error {
+func (b *clusterRoleBuilder) Do(ctx context.Context) error {
 	clusterRole := resourceread.ReadClusterRoleV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(clusterRole)
 	}
-	_, _, err := resourceapply.ApplyClusterRole(b.client, clusterRole)
+	_, _, err := resourceapply.ApplyClusterRole(ctx, b.client, clusterRole)
 	return err
 }
 
@@ -63,12 +63,12 @@ func (b *clusterRoleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Int
 	return b
 }
 
-func (b *clusterRoleBindingBuilder) Do(_ context.Context) error {
+func (b *clusterRoleBindingBuilder) Do(ctx context.Context) error {
 	clusterRoleBinding := resourceread.ReadClusterRoleBindingV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(clusterRoleBinding)
 	}
-	_, _, err := resourceapply.ApplyClusterRoleBinding(b.client, clusterRoleBinding)
+	_, _, err := resourceapply.ApplyClusterRoleBinding(ctx, b.client, clusterRoleBinding)
 	return err
 }
 
@@ -94,12 +94,12 @@ func (b *roleBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *roleBuilder) Do(_ context.Context) error {
+func (b *roleBuilder) Do(ctx context.Context) error {
 	role := resourceread.ReadRoleV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(role)
 	}
-	_, _, err := resourceapply.ApplyRole(b.client, role)
+	_, _, err := resourceapply.ApplyRole(ctx, b.client, role)
 	return err
 }
 
@@ -125,11 +125,11 @@ func (b *roleBindingBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface 
 	return b
 }
 
-func (b *roleBindingBuilder) Do(_ context.Context) error {
+func (b *roleBindingBuilder) Do(ctx context.Context) error {
 	roleBinding := resourceread.ReadRoleBindingV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(roleBinding)
 	}
-	_, _, err := resourceapply.ApplyRoleBinding(b.client, roleBinding)
+	_, _, err := resourceapply.ApplyRoleBinding(ctx, b.client, roleBinding)
 	return err
 }
