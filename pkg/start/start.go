@@ -64,6 +64,7 @@ type Options struct {
 
 	EnableAutoUpdate            bool
 	EnableDefaultClusterVersion bool
+	EnableShadow                bool
 
 	// Exclude is used to determine whether to exclude
 	// certain manifests based on an annotation:
@@ -107,6 +108,11 @@ func (o *Options) Run() error {
 	}
 	if o.ReleaseImage == "" {
 		return fmt.Errorf("missing --release-image flag, it is required")
+	}
+	if o.EnableShadow {
+		klog.Infof("Shadow enabled!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+		time.Sleep(time.Minute * 2)
+		return nil
 	}
 	if o.ServingCertFile == "" && o.ServingKeyFile != "" {
 		return fmt.Errorf("--serving-key-file was set, so --serving-cert-file must also be set")
