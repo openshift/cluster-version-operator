@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -12,10 +14,10 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyCustomResourceDefinitionV1beta1(client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
-	existing, err := client.CustomResourceDefinitions().Get(required.Name, metav1.GetOptions{})
+func ApplyCustomResourceDefinitionV1beta1(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
+	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.CustomResourceDefinitions().Create(required)
+		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -34,14 +36,14 @@ func ApplyCustomResourceDefinitionV1beta1(client apiextclientv1beta1.CustomResou
 
 	klog.V(2).Infof("Updating CRD %s", required.Name)
 
-	actual, err := client.CustomResourceDefinitions().Update(existing)
+	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
-func ApplyCustomResourceDefinitionV1(client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
-	existing, err := client.CustomResourceDefinitions().Get(required.Name, metav1.GetOptions{})
+func ApplyCustomResourceDefinitionV1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
+	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.CustomResourceDefinitions().Create(required)
+		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -60,6 +62,6 @@ func ApplyCustomResourceDefinitionV1(client apiextclientv1.CustomResourceDefinit
 
 	klog.V(2).Infof("Updating CRD %s", required.Name)
 
-	actual, err := client.CustomResourceDefinitions().Update(existing)
+	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }

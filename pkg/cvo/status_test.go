@@ -1,6 +1,7 @@
 package cvo
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -142,6 +143,7 @@ func Test_pruneStatusHistory(t *testing.T) {
 }
 
 func TestOperator_syncFailingStatus(t *testing.T) {
+	ctx := context.Background()
 	type args struct {
 	}
 	tests := []struct {
@@ -237,7 +239,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 				originalCopy = tt.original.DeepCopy()
 			}
 
-			err := optr.syncFailingStatus(tt.original, tt.ierr)
+			err := optr.syncFailingStatus(ctx, tt.original, tt.ierr)
 
 			if !reflect.DeepEqual(originalCopy, tt.original) {
 				t.Fatalf("syncFailingStatus mutated input: %s", diff.ObjectReflectDiff(originalCopy, tt.original))

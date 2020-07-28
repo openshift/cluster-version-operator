@@ -201,12 +201,12 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 	}
 
 	// Prune older jobs while gracefully handling errors.
-	err := r.pruneJobs(2)
+	err := r.pruneJobs(ctx, 2)
 	if err != nil {
 		klog.Warningf("failed to prune jobs: %v", err)
 	}
 
-	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(job)
+	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(ctx, job, metav1.CreateOptions{})
 	if err != nil {
 		return err
 	}
@@ -215,8 +215,8 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 
 // pruneJobs deletes the older, finished jobs in the namespace.
 // retain - the number of newest jobs to keep.
-func (r *payloadRetriever) pruneJobs(retain int) error {
-	jobs, err := r.kubeClient.BatchV1().Jobs(r.namespace).List(metav1.ListOptions{})
+func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
+	jobs, err := r.kubeClient.BatchV1().Jobs(r.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -258,7 +258,7 @@ func (r *payloadRetriever) pruneJobs(retain int) error {
 
 	var errs []error
 	for _, job := range deleteJobs[:len(deleteJobs)-retain] {
-		err := r.kubeClient.BatchV1().Jobs(r.namespace).Delete(job.Name, &metav1.DeleteOptions{})
+		err := r.kubeClient.BatchV1().Jobs(r.namespace).Delete(ctx, job.Name, metav1.DeleteOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "failed to delete job %v", job.Name))
 		}

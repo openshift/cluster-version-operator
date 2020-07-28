@@ -29,13 +29,13 @@ func readUnstructuredV1OrDie(objBytes []byte) *unstructured.Unstructured {
 	return udi.(*unstructured.Unstructured)
 }
 
-func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
+func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
 	if required.GetName() == "" {
 		return nil, false, fmt.Errorf("invalid object: name cannot be empty")
 	}
-	existing, err := client.Get(required.GetName(), metav1.GetOptions{})
+	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Create(required, metav1.CreateOptions{})
+		actual, err := client.Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -57,7 +57,7 @@ func applyUnstructured(client dynamic.ResourceInterface, required *unstructured.
 		existing.Object[k] = v
 	}
 
-	actual, err := client.Update(existing, metav1.UpdateOptions{})
+	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -88,13 +88,13 @@ func (b *genericBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc
 	return b
 }
 
-func (b *genericBuilder) Do(_ context.Context) error {
+func (b *genericBuilder) Do(ctx context.Context) error {
 	ud := readUnstructuredV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(ud)
 	}
 
-	_, _, err := applyUnstructured(b.client, ud)
+	_, _, err := applyUnstructured(ctx, b.client, ud)
 	return err
 }
 

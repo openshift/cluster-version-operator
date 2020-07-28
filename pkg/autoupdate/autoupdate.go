@@ -1,6 +1,7 @@
 package autoupdate
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"time"
@@ -42,7 +43,7 @@ type Controller struct {
 	client        clientset.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler       func(key string) error
+	syncHandler       func(ctx context.Context, key string) error
 	statusSyncHandler func(key string) error
 
 	cvLister    configlistersv1.ClusterVersionLister
@@ -87,23 +88,23 @@ func New(
 }
 
 // Run runs the autoupdate controller.
-func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *Controller) Run(ctx context.Context, workers int) {
 	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
 	klog.Info("Starting AutoUpdateController")
 	defer klog.Info("Shutting down AutoUpdateController")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.cacheSynced...) {
+	if !cache.WaitForCacheSync(ctx.Done(), ctrl.cacheSynced...) {
 		klog.Info("Caches never synchronized")
 		return
 	}
 
 	for i := 0; i < workers; i++ {
-		go wait.Until(ctrl.worker, time.Second, stopCh)
+		go wait.UntilWithContext(ctx, ctrl.worker, time.Second)
 	}
 
-	<-stopCh
+	<-ctx.Done()
 }
 
 func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {
@@ -115,19 +116,19 @@ func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {
 	}
 }
 
-func (ctrl *Controller) worker() {
-	for ctrl.processNextWorkItem() {
+func (ctrl *Controller) worker(ctx context.Context) {
+	for ctrl.processNextWorkItem(ctx) {
 	}
 }
 
-func (ctrl *Controller) processNextWorkItem() bool {
+func (ctrl *Controller) processNextWorkItem(ctx context.Context) bool {
 	key, quit := ctrl.queue.Get()
 	if quit {
 		return false
 	}
 	defer ctrl.queue.Done(key)
 
-	err := ctrl.syncHandler(key.(string))
+	err := ctrl.syncHandler(ctx, key.(string))
 	ctrl.handleErr(err, key)
 
 	return true
@@ -150,7 +151,7 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 	ctrl.queue.Forget(key)
 }
 
-func (ctrl *Controller) sync(key string) error {
+func (ctrl *Controller) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing auto-updates %q (%v)", key, startTime)
 	defer func() {
@@ -176,7 +177,7 @@ func (ctrl *Controller) sync(key string) error {
 	up := nextUpdate(clusterversion.Status.AvailableUpdates)
 	clusterversion.Spec.DesiredUpdate = &up
 
-	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctx, ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
 	if updated {
 		klog.Infof("Auto Update set to %v", up)
 	}

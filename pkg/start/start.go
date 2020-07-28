@@ -229,9 +229,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					time.Sleep(100 * time.Millisecond)
 					// if we still hold the leader lease, clear the owner identity (other lease watchers
 					// still have to wait for expiration) like the new ReleaseOnCancel code will do.
-					if err := lock.Update(resourcelock.LeaderElectionRecord{}); err == nil {
+					if err := lock.Update(localCtx, resourcelock.LeaderElectionRecord{}); err == nil {
 						// if we successfully clear the owner identity, we can safely delete the record
-						if err := lock.Client.ConfigMaps(lock.ConfigMapMeta.Namespace).Delete(lock.ConfigMapMeta.Name, nil); err != nil {
+						if err := lock.Client.ConfigMaps(lock.ConfigMapMeta.Namespace).Delete(localCtx, lock.ConfigMapMeta.Name, metav1.DeleteOptions{}); err != nil {
 							klog.Warningf("Unable to step down cleanly: %v", err)
 						}
 					}
@@ -439,7 +439,7 @@ func (c *Context) Start(ctx context.Context) {
 	ch := ctx.Done()
 	go c.CVO.Run(ctx, 2)
 	if c.AutoUpdate != nil {
-		go c.AutoUpdate.Run(2, ch)
+		go c.AutoUpdate.Run(ctx, 2)
 	}
 	c.CVInformerFactory.Start(ch)
 	c.OpenshiftConfigInformerFactory.Start(ch)

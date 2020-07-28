@@ -32,11 +32,11 @@ func (b *securityBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *securityBuilder) Do(_ context.Context) error {
+func (b *securityBuilder) Do(ctx context.Context) error {
 	scc := resourceread.ReadSecurityContextConstraintsV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(scc)
 	}
-	_, _, err := resourceapply.ApplySecurityContextConstraints(b.client, scc)
+	_, _, err := resourceapply.ApplySecurityContextConstraints(ctx, b.client, scc)
 	return err
 }

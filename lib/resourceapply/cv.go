@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
@@ -10,10 +12,10 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyClusterVersion(client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
-	existing, err := client.ClusterVersions().Get(required.Name, metav1.GetOptions{})
+func ApplyClusterVersion(ctx context.Context, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
+	existing, err := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		actual, err := client.ClusterVersions().Create(required)
+		actual, err := client.ClusterVersions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -30,14 +32,14 @@ func ApplyClusterVersion(client configclientv1.ClusterVersionsGetter, required *
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterVersions().Update(existing)
+	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
 
-func ApplyClusterVersionFromCache(lister configlistersv1.ClusterVersionLister, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
+func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.ClusterVersionLister, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	obj, err := lister.Get(required.Name)
 	if errors.IsNotFound(err) {
-		actual, err := client.ClusterVersions().Create(required)
+		actual, err := client.ClusterVersions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -56,6 +58,6 @@ func ApplyClusterVersionFromCache(lister configlistersv1.ClusterVersionLister, c
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterVersions().Update(existing)
+	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }

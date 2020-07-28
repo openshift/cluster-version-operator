@@ -59,7 +59,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 
 	// if proxy injection is requested, get the proxy values and use them
 	if containerNamesString := deployment.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
-		proxyConfig, err := b.proxyGetter.Proxies().Get("cluster", metav1.GetOptions{})
+		proxyConfig, err := b.proxyGetter.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -80,7 +80,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	// balancer to be resilient to kube-apiserver rollouts that cause the localhost server to become non-responsive for
 	// multiple minutes.
 	if deployment.Namespace == "openshift-cluster-version" && deployment.Name == "cluster-version-operator" {
-		infrastructureConfig, err := b.infrastructureGetter.Infrastructures().Get("cluster", metav1.GetOptions{})
+		infrastructureConfig, err := b.infrastructureGetter.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have infrastructure configuration yet, so we should tolerate not found and avoid substitution
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -113,7 +113,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	_, updated, err := resourceapply.ApplyDeployment(b.client, deployment)
+	_, updated, err := resourceapply.ApplyDeployment(ctx, b.client, deployment)
 	if err != nil {
 		return err
 	}
@@ -122,11 +122,12 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	}
 	return nil
 }
+
 func waitForDeploymentCompletion(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
 	iden := fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
 	var lastErr error
 	err := wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		d, err := client.Deployments(deployment.Namespace).Get(deployment.Name, metav1.GetOptions{})
+		d, err := client.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the deployment.
 			return false, err
@@ -246,7 +247,7 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 
 	// if proxy injection is requested, get the proxy values and use them
 	if containerNamesString := daemonset.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
-		proxyConfig, err := b.proxyGetter.Proxies().Get("cluster", metav1.GetOptions{})
+		proxyConfig, err := b.proxyGetter.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -263,7 +264,7 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	_, updated, err := resourceapply.ApplyDaemonSet(b.client, daemonset)
+	_, updated, err := resourceapply.ApplyDaemonSet(ctx, b.client, daemonset)
 	if err != nil {
 		return err
 	}
@@ -277,7 +278,7 @@ func waitForDaemonsetRollout(ctx context.Context, client appsclientv1.DaemonSets
 	iden := fmt.Sprintf("%s/%s", daemonset.Namespace, daemonset.Name)
 	var lastErr error
 	err := wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		d, err := client.DaemonSets(daemonset.Namespace).Get(daemonset.Name, metav1.GetOptions{})
+		d, err := client.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the daemonset.
 			return false, err
