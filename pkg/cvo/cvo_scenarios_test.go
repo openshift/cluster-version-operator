@@ -1111,7 +1111,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	})
 }
 
-func TestCVO_UpgradeUnverifiedPayloadRetriveOnce(t *testing.T) {
+func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest-2")
 
 	// Setup: a successful sync from a previous run, and the operator at the same image as before
