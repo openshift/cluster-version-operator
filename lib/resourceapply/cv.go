@@ -12,7 +12,7 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyClusterVersion(ctx context.Context, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
+func ApplyClusterVersionv1(ctx context.Context, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	existing, err := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		actual, err := client.ClusterVersions().Create(ctx, required, metav1.CreateOptions{})

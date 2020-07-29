@@ -270,10 +270,12 @@ func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
 		return nil, err
 	}
 
-	imageRef, err := resourceread.ReadImageStreamV1(imageRefData)
+	imageRefObj, err := resourceread.Read(imageRefData)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid image-references data %s", irf)
 	}
-
-	return imageRef, nil
+	if imageRef, ok := imageRefObj.(*imagev1.ImageStream); ok {
+		return imageRef, nil
+	}
+	return nil, fmt.Errorf("%s is a %T, not a v1 ImageStream", imageReferencesFile, imageRefObj)
 }

@@ -6,12 +6,12 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
-	apiregclientv1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
+	apiregv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
+	apiregclientv1beta1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1"
 	"k8s.io/utils/pointer"
 )
 
-func ApplyAPIServicev1(ctx context.Context, client apiregclientv1.APIServicesGetter, required *apiregv1.APIService) (*apiregv1.APIService, bool, error) {
+func ApplyAPIServicev1beta1(ctx context.Context, client apiregclientv1beta1.APIServicesGetter, required *apiregv1beta1.APIService) (*apiregv1beta1.APIService, bool, error) {
 	existing, err := client.APIServices().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.APIServices().Create(ctx, required, metav1.CreateOptions{})
@@ -26,7 +26,7 @@ func ApplyAPIServicev1(ctx context.Context, client apiregclientv1.APIServicesGet
 	}
 
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureAPIService(modified, existing, *required)
+	resourcemerge.EnsureAPIServicev1beta1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}

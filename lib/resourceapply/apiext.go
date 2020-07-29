@@ -14,7 +14,7 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyCustomResourceDefinitionV1beta1(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
+func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
@@ -40,7 +40,7 @@ func ApplyCustomResourceDefinitionV1beta1(ctx context.Context, client apiextclie
 	return actual, true, err
 }
 
-func ApplyCustomResourceDefinitionV1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
+func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
