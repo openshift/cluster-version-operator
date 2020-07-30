@@ -2741,7 +2741,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			},
 		},
 		{
-			name: "report error condition when single clusteroperator is not upgradeable",
+			name: "report error condition when the single clusteroperator is not upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				releaseVersion:        "v4.0.0",
@@ -2788,7 +2788,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			},
 		},
 		{
-			name: "report error condition when single clusteroperator is not upgradeable",
+			name: "report error condition when single clusteroperator is not upgradeable and another has no conditions",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				releaseVersion:        "v4.0.0",
@@ -2843,7 +2843,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			},
 		},
 		{
-			name: "report error condition when single clusteroperator is not upgradeable",
+			name: "report error condition when single clusteroperator is not upgradeable and another is upgradeable",
 			optr: Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				releaseVersion:        "v4.0.0",
