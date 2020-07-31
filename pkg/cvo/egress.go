@@ -11,39 +11,38 @@ import (
 
 // getHTTPSProxyURL returns a url.URL object for the configured
 // https proxy only. It can be nil if does not exist or there is an error.
-func (optr *Operator) getHTTPSProxyURL() (*url.URL, string, error) {
+func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
 	proxy, err := optr.proxyLister.Get("cluster")
 
 	if errors.IsNotFound(err) {
-		return nil, "", nil
+		return nil, nil
 	}
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	if &proxy.Spec != nil {
 		if proxy.Spec.HTTPSProxy != "" {
 			proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
-			return proxyURL, proxy.Spec.TrustedCA.Name, nil
+			return proxyURL, nil
 		}
 	}
-	return nil, "", nil
+	return nil, nil
 }
 
-func (optr *Operator) getTLSConfig(cmNameRef string) (*tls.Config, error) {
-	cm, err := optr.cmConfigLister.Get(cmNameRef)
-
+func (optr *Operator) getTLSConfig() (*tls.Config, error) {
+	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	certPool, _ := x509.SystemCertPool()
-	if certPool == nil {
-		certPool = x509.NewCertPool()
-	}
+	certPool := x509.NewCertPool()
 
 	if cm.Data["ca-bundle.crt"] != "" {
 		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
