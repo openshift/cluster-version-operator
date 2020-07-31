@@ -332,13 +332,13 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
-// unavailable AND the general payload task making progress towards its goal. An operator is given 10 minutes since
+// unavailable AND the general payload task making progress towards its goal. An operator is given 20 minutes since
 // its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
 	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
 		return "", "", false
 	}
-	if now.Sub(status.LastProgress) > 10*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
+	if now.Sub(status.LastProgress) > 20*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
 		return "", "", false
 	}
 	uErr, ok := status.Failure.(*payload.UpdateError)
