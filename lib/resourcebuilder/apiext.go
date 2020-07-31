@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/klog"
-
 	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -13,9 +11,6 @@ import (
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextclientv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 )
 
@@ -46,57 +41,24 @@ func (b *crdBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 func (b *crdBuilder) Do(ctx context.Context) error {
 	crd := resourceread.ReadCustomResourceDefinitionOrDie(b.raw)
 
-	var updated bool
-	var err error
-	var name string
-
 	switch typedCRD := crd.(type) {
 	case *apiextv1beta1.CustomResourceDefinition:
 		if b.modifier != nil {
 			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(ctx, b.clientV1beta1, typedCRD)
-		if err != nil {
+		if _, _, err := resourceapply.ApplyCustomResourceDefinitionV1beta1(ctx, b.clientV1beta1, typedCRD); err != nil {
 			return err
 		}
-		name = typedCRD.Name
 	case *apiextv1.CustomResourceDefinition:
 		if b.modifier != nil {
 			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(ctx, b.clientV1, typedCRD)
-		if err != nil {
+		if _, _, err := resourceapply.ApplyCustomResourceDefinitionV1(ctx, b.clientV1, typedCRD); err != nil {
 			return err
 		}
-		name = typedCRD.Name
 	default:
 		return fmt.Errorf("unrecognized CustomResourceDefinition version: %T", crd)
 	}
 
-	if updated {
-		return waitForCustomResourceDefinitionCompletion(ctx, b.clientV1beta1, name)
-	}
 	return nil
-}
-
-func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd string) error {
-	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		c, err := client.CustomResourceDefinitions().Get(ctx, crd, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			// exit early to recreate the crd.
-			return false, err
-		}
-		if err != nil {
-			klog.Errorf("error getting CustomResourceDefinition %s: %v", crd, err)
-			return false, nil
-		}
-
-		for _, condition := range c.Status.Conditions {
-			if condition.Type == apiextv1beta1.Established && condition.Status == apiextv1beta1.ConditionTrue {
-				return true, nil
-			}
-		}
-		klog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", c.Name, c.Status.Conditions)
-		return false, nil
-	}, ctx.Done())
 }
