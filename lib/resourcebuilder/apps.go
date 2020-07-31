@@ -7,58 +7,19 @@ import (
 	"net/url"
 	"strings"
 
-	configv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/klog"
 
-	"github.com/openshift/cluster-version-operator/lib"
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
-type deploymentBuilder struct {
-	client               *appsclientv1.AppsV1Client
-	proxyGetter          configv1.ProxiesGetter
-	infrastructureGetter configv1.InfrastructuresGetter
-	raw                  []byte
-	modifier             MetaV1ObjectModifierFunc
-	mode                 Mode
-}
-
-func newDeploymentBuilder(config *rest.Config, m lib.Manifest) Interface {
-	return &deploymentBuilder{
-		client:               appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		proxyGetter:          configv1.NewForConfigOrDie(config),
-		infrastructureGetter: configv1.NewForConfigOrDie(config),
-		raw:                  m.Raw,
-	}
-}
-
-func (b *deploymentBuilder) WithMode(m Mode) Interface {
-	b.mode = m
-	return b
-}
-
-func (b *deploymentBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
-	b.modifier = f
-	return b
-}
-
-func (b *deploymentBuilder) Do(ctx context.Context) error {
-	deployment := resourceread.ReadDeploymentV1OrDie(b.raw)
-	if b.modifier != nil {
-		b.modifier(deployment)
-	}
-
+func (b *builder) modifyDeployment(ctx context.Context, deployment *appsv1.Deployment) error {
 	// if proxy injection is requested, get the proxy values and use them
 	if containerNamesString := deployment.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
-		proxyConfig, err := b.proxyGetter.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+		proxyConfig, err := b.configClientv1.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -79,7 +40,7 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 	// balancer to be resilient to kube-apiserver rollouts that cause the localhost server to become non-responsive for
 	// multiple minutes.
 	if deployment.Namespace == "openshift-cluster-version" && deployment.Name == "cluster-version-operator" {
-		infrastructureConfig, err := b.infrastructureGetter.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+		infrastructureConfig, err := b.configClientv1.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have infrastructure configuration yet, so we should tolerate not found and avoid substitution
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -112,19 +73,16 @@ func (b *deploymentBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	if _, _, err := resourceapply.ApplyDeployment(ctx, b.client, deployment); err != nil {
-		return err
-	}
-
-	if b.mode != InitializingMode {
-		return checkDeploymentHealth(ctx, b.client, deployment)
-	}
 	return nil
 }
 
-func checkDeploymentHealth(ctx context.Context, client appsclientv1.DeploymentsGetter, deployment *appsv1.Deployment) error {
+func (b *builder) checkDeploymentHealth(ctx context.Context, deployment *appsv1.Deployment) error {
+	if b.mode == InitializingMode {
+		return nil
+	}
+
 	iden := fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
-	d, err := client.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
+	d, err := b.appsClientv1.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
@@ -181,41 +139,10 @@ func checkDeploymentHealth(ctx context.Context, client appsclientv1.DeploymentsG
 	return nil
 }
 
-type daemonsetBuilder struct {
-	client      *appsclientv1.AppsV1Client
-	proxyGetter configv1.ProxiesGetter
-	raw         []byte
-	modifier    MetaV1ObjectModifierFunc
-	mode        Mode
-}
-
-func newDaemonsetBuilder(config *rest.Config, m lib.Manifest) Interface {
-	return &daemonsetBuilder{
-		client:      appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		proxyGetter: configv1.NewForConfigOrDie(config),
-		raw:         m.Raw,
-	}
-}
-
-func (b *daemonsetBuilder) WithMode(m Mode) Interface {
-	b.mode = m
-	return b
-}
-
-func (b *daemonsetBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
-	b.modifier = f
-	return b
-}
-
-func (b *daemonsetBuilder) Do(ctx context.Context) error {
-	daemonset := resourceread.ReadDaemonSetV1OrDie(b.raw)
-	if b.modifier != nil {
-		b.modifier(daemonset)
-	}
-
+func (b *builder) modifyDaemonSet(ctx context.Context, daemonset *appsv1.DaemonSet) error {
 	// if proxy injection is requested, get the proxy values and use them
 	if containerNamesString := daemonset.Annotations["config.openshift.io/inject-proxy"]; len(containerNamesString) > 0 {
-		proxyConfig, err := b.proxyGetter.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
+		proxyConfig, err := b.configClientv1.Proxies().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have proxy configuration, so we should tolerate and fill in empty
 		if err != nil && !errors.IsNotFound(err) {
 			return err
@@ -232,20 +159,16 @@ func (b *daemonsetBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	if _, _, err := resourceapply.ApplyDaemonSet(ctx, b.client, daemonset); err != nil {
-		return err
-	}
-
-	if b.mode != InitializingMode {
-		return checkDaemonSetHealth(ctx, b.client, daemonset)
-	}
-
 	return nil
 }
 
-func checkDaemonSetHealth(ctx context.Context, client appsclientv1.DaemonSetsGetter, daemonset *appsv1.DaemonSet) error {
+func (b *builder) checkDaemonSetHealth(ctx context.Context, daemonset *appsv1.DaemonSet) error {
+	if b.mode == InitializingMode {
+		return nil
+	}
+
 	iden := fmt.Sprintf("%s/%s", daemonset.Namespace, daemonset.Name)
-	d, err := client.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
+	d, err := b.appsClientv1.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}

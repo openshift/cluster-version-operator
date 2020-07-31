@@ -11,8 +11,8 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// ApplySecurityContextConstraints applies the required SecurityContextConstraints to the cluster.
-func ApplySecurityContextConstraints(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
+// ApplySecurityContextConstraintsv1 applies the required SecurityContextConstraints to the cluster.
+func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
 	existing, err := client.SecurityContextConstraints().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.SecurityContextConstraints().Create(ctx, required, metav1.CreateOptions{})

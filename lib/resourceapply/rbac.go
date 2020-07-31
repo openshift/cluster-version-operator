@@ -11,8 +11,8 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// ApplyClusterRoleBinding applies the required clusterrolebinding to the cluster.
-func ApplyClusterRoleBinding(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
+// ApplyClusterRoleBindingv1 applies the required clusterrolebinding to the cluster.
+func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing, err := client.ClusterRoleBindings().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ClusterRoleBindings().Create(ctx, required, metav1.CreateOptions{})
@@ -36,8 +36,8 @@ func ApplyClusterRoleBinding(ctx context.Context, client rbacclientv1.ClusterRol
 	return actual, true, err
 }
 
-// ApplyClusterRole applies the required clusterrole to the cluster.
-func ApplyClusterRole(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
+// ApplyClusterRolev1 applies the required clusterrole to the cluster.
+func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
 	existing, err := client.ClusterRoles().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ClusterRoles().Create(ctx, required, metav1.CreateOptions{})
@@ -61,8 +61,8 @@ func ApplyClusterRole(ctx context.Context, client rbacclientv1.ClusterRolesGette
 	return actual, true, err
 }
 
-// ApplyRoleBinding applies the required clusterrolebinding to the cluster.
-func ApplyRoleBinding(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
+// ApplyRoleBindingv1 applies the required clusterrolebinding to the cluster.
+func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
 	existing, err := client.RoleBindings(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.RoleBindings(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -86,8 +86,8 @@ func ApplyRoleBinding(ctx context.Context, client rbacclientv1.RoleBindingsGette
 	return actual, true, err
 }
 
-// ApplyRole applies the required clusterrole to the cluster.
-func ApplyRole(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
+// ApplyRolev1 applies the required clusterrole to the cluster.
+func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
 	existing, err := client.Roles(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Roles(required.Namespace).Create(ctx, required, metav1.CreateOptions{})

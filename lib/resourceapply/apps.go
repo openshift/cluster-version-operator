@@ -12,8 +12,8 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// ApplyDeployment applies the required deployment to the cluster.
-func ApplyDeployment(ctx context.Context, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+// ApplyDeploymentv1 applies the required deployment to the cluster.
+func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	existing, err := client.Deployments(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -63,8 +63,8 @@ func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.Deploymen
 	return actual, true, err
 }
 
-// ApplyDaemonSet applies the required daemonset to the cluster.
-func ApplyDaemonSet(ctx context.Context, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+// ApplyDaemonSetv1 applies the required daemonset to the cluster.
+func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
 	existing, err := client.DaemonSets(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.DaemonSets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
