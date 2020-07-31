@@ -22,7 +22,7 @@ If this happens it is a CVO coding error, because clearing [`desiredUpdate`][api
 `ClusterOperatorNotAvailable` (or the consolidated `ClusterOperatorsNotAvailable`) is set when the CVO fails to retrieve the ClusterOperator from the cluster or when the retrieved ClusterOperator does not satisfy [the reconciliation conditions](reconciliation.md#clusteroperator).
 
 Unlike most manifest-reconciliation failures, this error does not immediately result in `Failing=True`.
-Under some conditions during installs and updates, the CVO will treat this condition as a `Progressing=True` condition and give the operator up to ten minutes to level before reporting `Failing=True`.
+Under some conditions during installs and updates, the CVO will treat this condition as a `Progressing=True` condition and give the operator up to twenty minutes to level before reporting `Failing=True`.
 
 ## RetrievedUpdates
 
