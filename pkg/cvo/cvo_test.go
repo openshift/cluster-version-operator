@@ -256,7 +256,6 @@ func (c *fakeApiExtClient) Patch(ctx context.Context, name string, pt types.Patc
 }
 
 func TestOperator_sync(t *testing.T) {
-	ctx := context.Background()
 	id := uuid.Must(uuid.NewRandom()).String()
 
 	tests := []struct {
@@ -2271,6 +2270,7 @@ func TestOperator_sync(t *testing.T) {
 			}
 			optr.eventRecorder = record.NewFakeRecorder(100)
 
+			ctx := context.Background()
 			err := optr.sync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
@@ -2651,7 +2651,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			}
 			old := optr.availableUpdates
 
-			err := optr.availableUpdatesSync(optr.queueKey())
+			ctx := context.Background()
+			err := optr.availableUpdatesSync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}
@@ -3143,7 +3144,8 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 			optr.eventRecorder = record.NewFakeRecorder(100)
 
-			err := optr.upgradeableSync(optr.queueKey())
+			ctx := context.Background()
+			err := optr.upgradeableSync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}

@@ -1,12 +1,14 @@
 package cincinnati
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
@@ -16,6 +18,9 @@ const (
 	// GraphMediaType is the media-type specified in the HTTP Accept header
 	// of requests sent to the Cincinnati-v1 Graph API.
 	GraphMediaType = "application/json"
+
+	// Timeout when calling upstream Cincinnati stack.
+	getUpdatesTimeout = time.Minute * 60
 )
 
 // Client is a Cincinnati client which can be used to fetch update graphs from
@@ -58,7 +63,7 @@ func (err *Error) Error() string {
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	queryParams := uri.Query()
@@ -83,7 +88,9 @@ func (c Client) GetUpdates(uri *url.URL, arch string, channel string, version se
 	}
 
 	client := http.Client{Transport: &transport}
-	resp, err := client.Do(req)
+	timeoutCtx, cancel := context.WithTimeout(ctx, getUpdatesTimeout)
+	defer cancel()
+	resp, err := client.Do(req.WithContext(timeoutCtx))
 	if err != nil {
 		return nil, &Error{Reason: "RemoteFailed", Message: err.Error(), cause: err}
 	}
