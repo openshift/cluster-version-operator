@@ -3,19 +3,24 @@ package payload
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/klog"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/blang/semver/v4"
+	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
 	"github.com/openshift/cluster-version-operator/lib"
@@ -92,10 +97,9 @@ const (
 	imageReferencesFile = "image-references"
 )
 
+// Update represents the contents of a release image.
 type Update struct {
-	ReleaseImage   string
-	ReleaseVersion string
-	// XXX: cincinatti.json struct
+	Release configv1.Release
 
 	VerifiedImage bool
 	LoadedAt      time.Time
@@ -105,6 +109,25 @@ type Update struct {
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
 	Manifests    []lib.Manifest
+}
+
+// metadata represents Cincinnati metadata.
+// https://github.com/openshift/cincinnati/blob/a8abb826ef00cf91fd0f8a84912d4e0c23b1335d/docs/design/cincinnati.md#update-graph
+type metadata struct {
+	// Kind is the document type.  Must be cincinnati-metadata-v0.
+	Kind string `json:"kind"`
+
+	// Version is the version of the release.
+	Version string `json:"version"`
+
+	// Previous is a slice of valid previous versions.
+	Previous []string `json:"previous,omitempty"`
+
+	// Next is a slice of valid next versions.
+	Next []string `json:"next,omitempty"`
+
+	// Metadata is an opaque object that allows a release to convey arbitrary information to its consumers.
+	Metadata map[string]interface{}
 }
 
 func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
@@ -139,19 +162,19 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 
 			raw, err := ioutil.ReadFile(p)
 			if err != nil {
-				errs = append(errs, errors.Wrapf(err, "error reading file %s", file.Name()))
+				errs = append(errs, err)
 				continue
 			}
 			if task.preprocess != nil {
 				raw, err = task.preprocess(raw)
 				if err != nil {
-					errs = append(errs, errors.Wrapf(err, "error running preprocess on %s", file.Name()))
+					errs = append(errs, fmt.Errorf("preprocess %s: %w", file.Name(), err))
 					continue
 				}
 			}
 			ms, err := lib.ParseManifests(bytes.NewReader(raw))
 			if err != nil {
-				errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
+				errs = append(errs, fmt.Errorf("parse %s: %w", file.Name(), err))
 				continue
 			}
 			// Filter out manifests that should be excluded based on annotation
@@ -198,25 +221,18 @@ func shouldExclude(excludeIdentifier string, manifest *lib.Manifest) bool {
 // looking for known files. It returns an error if the directory cannot
 // be an update.
 func ValidateDirectory(dir string) error {
-	// XXX: validate that cincinnati.json is correct
-	// 		validate image-references files is correct.
-
-	// make sure cvo and release manifests dirs exist.
-	_, err := os.Stat(filepath.Join(dir, CVOManifestDir))
-	if err != nil {
-		return err
-	}
-	releaseDir := filepath.Join(dir, ReleaseManifestDir)
-	_, err = os.Stat(releaseDir)
-	if err != nil {
-		return err
+	for _, dirname := range []string{CVOManifestDir, ReleaseManifestDir} {
+		if _, err := os.Stat(filepath.Join(dir, dirname)); err != nil {
+			return err
+		}
 	}
 
-	// make sure image-references file exists in releaseDir
-	_, err = os.Stat(filepath.Join(releaseDir, imageReferencesFile))
-	if err != nil {
-		return err
+	for _, filename := range []string{cincinnatiJSONFile, imageReferencesFile} {
+		if _, err := os.Stat(filepath.Join(dir, ReleaseManifestDir, filename)); err != nil {
+			return err
+		}
 	}
+
 	return nil
 }
 
@@ -236,14 +252,27 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		releaseDir = filepath.Join(dir, ReleaseManifestDir)
 	)
 
+	release, err := loadReleaseFromMetadata(releaseDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	release.Image = releaseImage
+
 	imageRef, err := loadImageReferences(releaseDir)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	if imageRef.Name != release.Version {
+		return nil, nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
+	}
+
 	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
 
-	return &Update{ImageRef: imageRef, ReleaseImage: releaseImage, ReleaseVersion: imageRef.Name}, tasks, nil
+	return &Update{
+		Release:  release,
+		ImageRef: imageRef,
+	}, tasks, nil
 }
 
 func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
@@ -263,6 +292,52 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
 	}}
 }
 
+func loadReleaseFromMetadata(releaseDir string) (configv1.Release, error) {
+	var release configv1.Release
+	path := filepath.Join(releaseDir, cincinnatiJSONFile)
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return release, err
+	}
+
+	var metadata metadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return release, fmt.Errorf("unmarshal Cincinnati metadata: %w", err)
+	}
+
+	if metadata.Kind != "cincinnati-metadata-v0" {
+		return release, fmt.Errorf("unrecognized Cincinnati metadata kind %q", metadata.Kind)
+	}
+
+	if metadata.Version == "" {
+		return release, errors.New("missing required Cincinnati metadata version")
+	}
+
+	if _, err := semver.Parse(metadata.Version); err != nil {
+		return release, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
+	}
+
+	release.Version = metadata.Version
+
+	if urlInterface, ok := metadata.Metadata["url"]; ok {
+		if urlString, ok := urlInterface.(string); ok {
+			release.URL = configv1.URL(urlString)
+		} else {
+			klog.Warningf("URL from %s (%s) is not a string: %v", cincinnatiJSONFile, release.Version, urlInterface)
+		}
+	}
+	if channelsInterface, ok := metadata.Metadata["io.openshift.upgrades.graph.release.channels"]; ok {
+		if channelsString, ok := channelsInterface.(string); ok {
+			release.Channels = strings.Split(channelsString, ",")
+			sort.Strings(release.Channels)
+		} else {
+			klog.Warningf("channel list from %s (%s) is not a string: %v", cincinnatiJSONFile, release.Version, channelsInterface)
+		}
+	}
+
+	return release, nil
+}
+
 func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 	imageRefData, err := ioutil.ReadFile(irf)
@@ -272,7 +347,7 @@ func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
 
 	imageRefObj, err := resourceread.Read(imageRefData)
 	if err != nil {
-		return nil, errors.Wrapf(err, "invalid image-references data %s", irf)
+		return nil, fmt.Errorf("unmarshal image-references: %w", err)
 	}
 	if imageRef, ok := imageRefObj.(*imagev1.ImageStream); ok {
 		return imageRef, nil

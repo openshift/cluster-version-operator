@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -87,13 +86,13 @@ type Operator struct {
 	// namespace and name are used to find the ClusterVersion, OperatorStatus.
 	namespace, name string
 
-	// releaseImage is the image the current operator points to and allows
-	// templating of the CVO deployment manifest.
-	releaseImage string
-	// releaseVersion is a string identifier for the current version, read
-	// from the image of the operator. It may be empty if no version exists, in
-	// which case no available updates will be returned.
-	releaseVersion string
+	// release is the release the current operator points to and
+	// metadata read from the release image.  It allows templating of
+	// the CVO deployment manifest.
+	//
+	// Fetch via currentVersion() to populate metadata from
+	// availableUpdates.
+	release configv1.Release
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
@@ -180,10 +179,12 @@ func New(
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
 
 	optr := &Operator{
-		nodename:     nodename,
-		namespace:    namespace,
-		name:         name,
-		releaseImage: releaseImage,
+		nodename:  nodename,
+		namespace: namespace,
+		name:      name,
+		release: configv1.Release{
+			Image: releaseImage,
+		},
 
 		enableDefaultClusterVersion: enableDefaultClusterVersion,
 
@@ -225,17 +226,13 @@ func New(
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage, optr.exclude)
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
-	// XXX: set this to the cincinnati version in preference
-	if _, err := semver.Parse(update.ImageRef.Name); err != nil {
-		return fmt.Errorf("the local release contents name %q is not a valid semantic version - no current version will be reported: %v", update.ImageRef.Name, err)
-	}
 
+	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
-	optr.releaseVersion = update.ImageRef.Name
 
 	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(optr.HTTPClient, nil)
 	configClient, err := coreclientsetv1.NewForConfig(restConfig)
@@ -454,7 +451,11 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	if ok {
 		klog.V(4).Infof("Desired version from spec is %#v", desired)
 	} else {
-		desired = optr.currentVersion()
+		currentVersion := optr.currentVersion()
+		desired = configv1.Update{
+			Version: currentVersion.Version,
+			Image:   currentVersion.Image,
+		}
 		klog.V(4).Infof("Desired version from operator is %#v", desired)
 	}
 
@@ -603,7 +604,7 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 }
 
 // versionString returns a string describing the desired version.
-func versionString(update configv1.Update) string {
+func versionString(update configv1.Release) string {
 	if len(update.Version) > 0 {
 		return update.Version
 	}
@@ -613,12 +614,50 @@ func versionString(update configv1.Update) string {
 	return "<unknown>"
 }
 
-// currentVersion returns an update object describing the current known cluster version.
-func (optr *Operator) currentVersion() configv1.Update {
-	return configv1.Update{
-		Version: optr.releaseVersion,
-		Image:   optr.releaseImage,
+// currentVersion returns an update object describing the current
+// known cluster version.  Values from the upstream Cincinnati service
+// are used as fallbacks for any properties not defined in the release
+// image itself.
+func (optr *Operator) currentVersion() configv1.Release {
+	return optr.mergeReleaseMetadata(optr.release)
+}
+
+// mergeReleaseMetadata returns a deep copy of the input release.
+// Values from any matching availableUpdates release are used as
+// fallbacks for any properties not defined in the input release.
+func (optr *Operator) mergeReleaseMetadata(release configv1.Release) configv1.Release {
+	merged := *release.DeepCopy()
+
+	if merged.Version == "" || len(merged.URL) == 0 || merged.Channels == nil {
+		// only fill in missing values from availableUpdates, to avoid clobbering data from payload.LoadUpdate.
+		availableUpdates := optr.getAvailableUpdates()
+		if availableUpdates != nil {
+			var update *configv1.Release
+			if merged.Image == availableUpdates.Current.Image {
+				update = &availableUpdates.Current
+			} else {
+				for _, u := range availableUpdates.Updates {
+					if u.Image == merged.Image {
+						update = &u
+						break
+					}
+				}
+			}
+			if update != nil {
+				if merged.Version == "" {
+					merged.Version = update.Version
+				}
+				if len(merged.URL) == 0 {
+					merged.URL = update.URL
+				}
+				if merged.Channels == nil {
+					merged.Channels = append(update.Channels[:0:0], update.Channels...) // copy
+				}
+			}
+		}
 	}
+
+	return merged
 }
 
 // SetSyncWorkerForTesting updates the sync worker for whitebox testing.

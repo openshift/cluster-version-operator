@@ -39,7 +39,7 @@ func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
 	return &payloadRetriever{
 		kubeClient:   optr.kubeClient,
 		operatorName: optr.name,
-		releaseImage: optr.releaseImage,
+		releaseImage: optr.release.Image,
 		namespace:    optr.namespace,
 		nodeName:     optr.nodename,
 		payloadDir:   optr.defaultPayloadDir(),
@@ -304,13 +304,21 @@ func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, boo
 
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
 	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version {
-			return update, len(update.Image) > 0
+		if update.Version == version && len(update.Image) > 0 {
+			return configv1.Update{
+				Version: version,
+				Image:   update.Image,
+				Force:   force,
+			}, true
 		}
 	}
 	for _, history := range config.Status.History {
-		if history.Version == version {
-			return configv1.Update{Image: history.Image, Version: history.Version, Force: force}, len(history.Image) > 0
+		if history.Version == version && len(history.Image) > 0 {
+			return configv1.Update{
+				Version: version,
+				Image:   history.Image,
+				Force:   force,
+			}, true
 		}
 	}
 	return configv1.Update{}, false

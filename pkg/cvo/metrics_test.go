@@ -26,8 +26,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects current version",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
@@ -41,8 +43,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects current version with no age",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 			},
 			wants: func(t *testing.T, metrics []prometheus.Metric) {
 				if len(metrics) != 2 {
@@ -55,9 +59,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects completed history",
 			optr: &Operator{
-				name:           "test",
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				name: "test",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cvLister: &cvLister{
 					Items: []*configv1.ClusterVersion{
@@ -91,9 +97,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects completed history with prior completion",
 			optr: &Operator{
-				name:           "test",
-				releaseVersion: "0.0.3",
-				releaseImage:   "test/image:2",
+				name: "test",
+				release: configv1.Release{
+					Version: "0.0.3",
+					Image:   "test/image:2",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cvLister: &cvLister{
 					Items: []*configv1.ClusterVersion{
@@ -128,9 +136,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "ignores partial history",
 			optr: &Operator{
-				name:           "test",
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				name: "test",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cvLister: &cvLister{
 					Items: []*configv1.ClusterVersion{
@@ -237,7 +247,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
 							},
 							Status: configv1.ClusterVersionStatus{
-								AvailableUpdates: []configv1.Update{
+								AvailableUpdates: []configv1.Release{
 									{Version: "1.0.1"},
 									{Version: "1.0.2"},
 								},
@@ -293,9 +303,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects update",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
-				name:           "test",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				name: "test",
 				cvLister: &cvLister{
 					Items: []*configv1.ClusterVersion{
 						{
@@ -330,8 +342,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects failing update",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				name:           "test",
 				releaseCreated: time.Unix(6, 0),
 				cvLister: &cvLister{
@@ -373,9 +387,11 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects failing image",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
-				name:           "test",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				name: "test",
 				cvLister: &cvLister{
 					Items: []*configv1.ClusterVersion{
 						{
@@ -407,8 +423,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects legacy openshift-install info",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{{
@@ -428,8 +446,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects openshift-install info",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{
@@ -455,8 +475,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects openshift-install-manifests info",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{{
@@ -476,8 +498,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "collects empty openshift-install info",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cmConfigLister: &cmConfigLister{
 					Items: []*corev1.ConfigMap{{
@@ -496,8 +520,10 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		{
 			name: "skips openshift-install info on error",
 			optr: &Operator{
-				releaseVersion: "0.0.2",
-				releaseImage:   "test/image:1",
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
 				releaseCreated: time.Unix(3, 0),
 				cmConfigLister: &cmConfigLister{
 					Err: errors.New("dial timeout"),

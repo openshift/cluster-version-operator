@@ -56,14 +56,15 @@ func (err *Error) Error() string {
 	return fmt.Sprintf("%s: %s", err.Reason, err.Message)
 }
 
-// GetUpdates fetches the next-applicable update payloads from the specified
+// GetUpdates fetches the current and next-applicable update payloads from the specified
 // upstream Cincinnati stack given the current version and channel. The next-
 // applicable updates are determined by downloading the update graph, finding
 // the current version within that graph (typically the root node), and then
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) ([]Update, error) {
+func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) (Update, []Update, error) {
+	var current Update
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	queryParams := uri.Query()
@@ -76,7 +77,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	// Download the update graph.
 	req, err := http.NewRequest("GET", uri.String(), nil)
 	if err != nil {
-		return nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
+		return current, nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
 	}
 	req.Header.Add("Accept", GraphMediaType)
 	if c.tlsConfig != nil {
@@ -92,23 +93,23 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	defer cancel()
 	resp, err := client.Do(req.WithContext(timeoutCtx))
 	if err != nil {
-		return nil, &Error{Reason: "RemoteFailed", Message: err.Error(), cause: err}
+		return current, nil, &Error{Reason: "RemoteFailed", Message: err.Error(), cause: err}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, &Error{Reason: "ResponseFailed", Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status)}
+		return current, nil, &Error{Reason: "ResponseFailed", Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status)}
 	}
 
 	// Parse the graph.
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &Error{Reason: "ResponseFailed", Message: err.Error(), cause: err}
+		return current, nil, &Error{Reason: "ResponseFailed", Message: err.Error(), cause: err}
 	}
 
 	var graph graph
 	if err = json.Unmarshal(body, &graph); err != nil {
-		return nil, &Error{Reason: "ResponseInvalid", Message: err.Error(), cause: err}
+		return current, nil, &Error{Reason: "ResponseInvalid", Message: err.Error(), cause: err}
 	}
 
 	// Find the current version within the graph.
@@ -117,12 +118,13 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	for i, node := range graph.Nodes {
 		if version.EQ(node.Version) {
 			currentIdx = i
+			current = Update(graph.Nodes[i])
 			found = true
 			break
 		}
 	}
 	if !found {
-		return nil, &Error{
+		return current, nil, &Error{
 			Reason:  "VersionNotFound",
 			Message: fmt.Sprintf("currently installed version %s not found in the %q channel", version, channel),
 		}
@@ -141,7 +143,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 		updates = append(updates, Update(graph.Nodes[i]))
 	}
 
-	return updates, nil
+	return current, updates, nil
 }
 
 type graph struct {
@@ -150,8 +152,9 @@ type graph struct {
 }
 
 type node struct {
-	Version semver.Version `json:"version"`
-	Image   string         `json:"payload"`
+	Version  semver.Version    `json:"version"`
+	Image    string            `json:"payload"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 type edge struct {

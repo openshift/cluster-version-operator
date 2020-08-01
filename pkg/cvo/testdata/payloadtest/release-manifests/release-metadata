@@ -1,0 +1,12 @@
+{
+  "kind": "cincinnati-metadata-v0",
+  "version": "1.0.0-abc",
+  "previous": [
+    "1.1.1",
+    "1.2.2"
+  ],
+  "metadata": {
+    "url": "https://example.com/v1.0.0-abc",
+    "io.openshift.upgrades.graph.release.channels": "channel-c,channel-a,channel-b"
+  }
+}

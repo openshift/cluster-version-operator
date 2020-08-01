@@ -120,7 +120,13 @@ func Test_SyncWorker_apply(t *testing.T) {
 				manifests = append(manifests, m)
 			}
 
-			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Update{
+				Release: configv1.Release{
+					Version: "v0.0.0",
+					Image:   "test",
+				},
+				Manifests: manifests,
+			}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
 			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))
@@ -312,7 +318,13 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
 			dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
-			up := &payload.Update{ReleaseImage: "test", ReleaseVersion: "v0.0.0", Manifests: manifests}
+			up := &payload.Update{
+				Release: configv1.Release{
+					Version: "v0.0.0",
+					Image:   "test",
+				},
+				Manifests: manifests,
+			}
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
 			worker.backoff.Steps = 1
 			worker.builder = &testResourceBuilder{
