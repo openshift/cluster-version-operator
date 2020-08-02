@@ -126,7 +126,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	if !found {
 		return current, nil, &Error{
 			Reason:  "VersionNotFound",
-			Message: fmt.Sprintf("currently installed version %s not found in the %q channel", version, channel),
+			Message: fmt.Sprintf("currently reconciling cluster version %s not found in the %q channel", version, channel),
 		}
 	}
 

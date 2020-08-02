@@ -117,9 +117,9 @@ It could also be caused by response corruption, e.g. if the configured `upstream
 
 ### VersionNotFound
 
-The currently installed version was not found in the configured `channel`.
+The currently reconciling cluster version was not found in the configured `channel`.
 
-This usually means that the configured `channel` is known to Cincinnati, but the cluster's current version is not found in that channel's graph.
+This usually means that the configured `channel` is known to Cincinnati, but the version the cluster is currently applying is not found in that channel's graph.
 Fix by setting `channel` to [a valid value][channels], e.g. `stable-4.3`.
 
 If this error occurs because you forced an update to a release that is not in any channel, fix by updating back to a release that occurs in a channel, although you are on your own to determine a safe update path.

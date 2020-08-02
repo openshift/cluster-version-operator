@@ -54,7 +54,7 @@ func TestGetUpdates(t *testing.T) {
 		name:          "unknown version",
 		version:       "4.0.0-3",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-3",
-		err:           "VersionNotFound: currently installed version 4.0.0-3 not found in the \"test-channel\" channel",
+		err:           "VersionNotFound: currently reconciling cluster version 4.0.0-3 not found in the \"test-channel\" channel",
 	}}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
