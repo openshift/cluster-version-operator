@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 	"k8s.io/klog"
 
@@ -18,9 +20,10 @@ func init() {
 			// To help debugging, immediately log version
 			klog.Infof("%s", version.String)
 
-			if err := opts.Run(); err != nil {
+			if err := opts.Run(context.Background()); err != nil {
 				klog.Fatalf("error: %v", err)
 			}
+			klog.Info("Graceful shutdown complete.")
 		},
 	}
 

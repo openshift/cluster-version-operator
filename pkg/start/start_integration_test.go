@@ -267,9 +267,14 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
@@ -424,9 +429,14 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", record.NewFakeRecorder(100))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
@@ -534,7 +544,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	lock, err := createResourceLock(cb, ns, ns)
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -721,9 +731,14 @@ metadata:
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(ctx, t, client, ns, false, "0.0.1")
