@@ -315,7 +315,7 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
-func (optr *Operator) Run(ctx context.Context, workers int) {
+func (optr *Operator) Run(ctx context.Context, workers int) error {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
 	stopCh := ctx.Done()
@@ -325,8 +325,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	defer klog.Info("Shutting down ClusterVersionOperator")
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
-		klog.Info("Caches never synchronized")
-		return
+		return fmt.Errorf("caches never synchronized: %w", ctx.Err())
 	}
 
 	// trigger the first cluster version reconcile always
@@ -355,6 +354,8 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	// stop the queue, then wait for the worker to exit
 	optr.queue.ShutDown()
 	<-workerStopCh
+
+	return nil
 }
 
 func (optr *Operator) queueKey() string {

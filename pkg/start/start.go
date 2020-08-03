@@ -8,7 +8,6 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -68,6 +67,11 @@ type Options struct {
 	ResyncInterval  time.Duration
 }
 
+type asyncResult struct {
+	name  string
+	error error
+}
+
 func defaultEnv(name, defaultValue string) string {
 	env, ok := os.LookupEnv(name)
 	if !ok {
@@ -92,7 +96,7 @@ func NewOptions() *Options {
 	}
 }
 
-func (o *Options) Run() error {
+func (o *Options) Run(ctx context.Context) error {
 	if o.NodeName == "" {
 		return fmt.Errorf("node-name is required")
 	}
@@ -122,102 +126,101 @@ func (o *Options) Run() error {
 		return err
 	}
 
-	// TODO: Kube 1.14 will contain a ReleaseOnCancel boolean on
-	//   LeaderElectionConfig that allows us to have the lock code
-	//   release the lease when this context is cancelled. At that
-	//   time we can remove our changes to OnStartedLeading.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	o.run(ctx, controllerCtx, lock)
+	return nil
+}
+
+// run launches a number of goroutines to handle manifest application,
+// metrics serving, etc.  It continues operating until ctx.Done(),
+// and then attempts a clean shutdown limited by an internal context
+// with a two-minute cap.  It returns after it successfully collects all
+// launched goroutines.
+func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
+	runContext, runCancel := context.WithCancel(ctx) // so we can cancel internally on errors or TERM
+	defer runCancel()
+	shutdownContext, shutdownCancel := context.WithCancel(context.Background()) // extends beyond ctx
+	defer shutdownCancel()
+	postMainContext, postMainCancel := context.WithCancel(context.Background()) // extends beyond ctx
+	defer postMainCancel()
+
 	ch := make(chan os.Signal, 1)
 	defer func() { signal.Stop(ch) }()
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		sig := <-ch
 		klog.Infof("Shutting down due to %s", sig)
-		cancel()
-
-		// exit after 2s no matter what
-		select {
-		case <-time.After(5 * time.Second):
-			klog.Fatalf("Exiting")
-		case <-ch:
-			klog.Fatalf("Received shutdown signal twice, exiting")
-		}
+		runCancel()
+		sig = <-ch
+		klog.Fatalf("Received shutdown signal twice, exiting: %s", sig)
 	}()
 
-	o.run(ctx, controllerCtx, lock)
-	return nil
-}
-
-func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
-	runContext, runCancel := context.WithCancel(ctx)
-	defer runCancel()
-	shutdownContext, shutdownCancel := context.WithCancel(ctx)
-	defer shutdownCancel()
-	errorChannel := make(chan error, 1)
-	errorChannelCount := 0
+	resultChannel := make(chan asyncResult, 1)
+	resultChannelCount := 0
 	if o.ListenAddr != "" {
-		errorChannelCount++
+		resultChannelCount++
 		go func() {
-			errorChannel <- cvo.RunMetrics(runContext, shutdownContext, o.ListenAddr)
+			err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr)
+			resultChannel <- asyncResult{name: "metrics server", error: err}
 		}()
 	}
 
-	exit := make(chan struct{})
-	exitClose := sync.Once{}
+	informersDone := postMainContext.Done()
+	// FIXME: would be nice if there was a way to collect these.
+	controllerCtx.CVInformerFactory.Start(informersDone)
+	controllerCtx.OpenshiftConfigInformerFactory.Start(informersDone)
+	controllerCtx.InformerFactory.Start(informersDone)
 
-	// TODO: when we switch to graceful lock shutdown, this can be
-	// moved back inside RunOrDie
-	// TODO: properly wire ctx here
-	go leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
-		Lock:          lock,
-		LeaseDuration: leaseDuration,
-		RenewDeadline: renewDeadline,
-		RetryPeriod:   retryPeriod,
-		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(localCtx context.Context) {
-				controllerCtx.Start(runContext)
-				select {
-				case <-runContext.Done():
-					// WARNING: this is not completely safe until we have Kube 1.14 and ReleaseOnCancel
-					//   and client-go ContextCancelable, which allows us to block new API requests before
-					//   we step down. However, the CVO isn't that sensitive to races and can tolerate
-					//   brief overlap.
-					klog.Infof("Stepping down as leader")
-					// give the controllers some time to shut down
-					time.Sleep(100 * time.Millisecond)
-					// if we still hold the leader lease, clear the owner identity (other lease watchers
-					// still have to wait for expiration) like the new ReleaseOnCancel code will do.
-					if err := lock.Update(resourcelock.LeaderElectionRecord{}); err == nil {
-						// if we successfully clear the owner identity, we can safely delete the record
-						if err := lock.Client.ConfigMaps(lock.ConfigMapMeta.Namespace).Delete(lock.ConfigMapMeta.Name, nil); err != nil {
-							klog.Warningf("Unable to step down cleanly: %v", err)
-						}
+	resultChannelCount++
+	go func() {
+		leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
+			Lock:            lock,
+			ReleaseOnCancel: true,
+			LeaseDuration:   leaseDuration,
+			RenewDeadline:   renewDeadline,
+			RetryPeriod:     retryPeriod,
+			Callbacks: leaderelection.LeaderCallbacks{
+				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
+					resultChannelCount++
+					go func() {
+						err := controllerCtx.CVO.Run(runContext, 2)
+						resultChannel <- asyncResult{name: "main operator", error: err}
+					}()
+
+					if controllerCtx.AutoUpdate != nil {
+						resultChannelCount++
+						go func() {
+							err := controllerCtx.AutoUpdate.Run(2, runContext.Done())
+							resultChannel <- asyncResult{name: "auto-update controller", error: err}
+						}()
 					}
-					klog.Infof("Finished shutdown")
-					exitClose.Do(func() { close(exit) })
-				case <-localCtx.Done():
-					// we will exit in OnStoppedLeading
-				}
+				},
+				OnStoppedLeading: func() {
+					klog.Info("Stopped leading; shutting down.")
+					runCancel()
+				},
 			},
-			OnStoppedLeading: func() {
-				klog.Warning("leaderelection lost")
-				exitClose.Do(func() { close(exit) })
-			},
-		},
-	})
+		})
+		resultChannel <- asyncResult{name: "leader controller", error: nil}
+	}()
 
-	for errorChannelCount > 0 {
-		var shutdownTimer *time.Timer
+	var shutdownTimer *time.Timer
+	for resultChannelCount > 0 {
+		klog.Infof("Waiting on %d outstanding goroutines.", resultChannelCount)
 		if shutdownTimer == nil { // running
 			select {
 			case <-runContext.Done():
+				klog.Info("Run context completed; beginning two-minute graceful shutdown period.")
 				shutdownTimer = time.NewTimer(2 * time.Minute)
-			case err := <-errorChannel:
-				errorChannelCount--
-				if err != nil {
-					klog.Error(err)
+			case result := <-resultChannel:
+				resultChannelCount--
+				if result.error == nil {
+					klog.Infof("Collected %s goroutine.", result.name)
+				} else {
+					klog.Errorf("Collected %s goroutine: %v", result.name, result.error)
 					runCancel() // this will cause shutdownTimer initialization in the next loop
+				}
+				if result.name == "main operator" {
+					postMainCancel()
 				}
 			}
 		} else { // shutting down
@@ -225,17 +228,20 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			case <-shutdownTimer.C: // never triggers after the channel is stopped, although it would not matter much if it did because subsequent cancel calls do nothing.
 				shutdownCancel()
 				shutdownTimer.Stop()
-			case err := <-errorChannel:
-				errorChannelCount--
-				if err != nil {
-					klog.Error(err)
-					runCancel()
+			case result := <-resultChannel:
+				resultChannelCount--
+				if result.error == nil {
+					klog.Infof("Collected %s goroutine.", result.name)
+				} else {
+					klog.Errorf("Collected %s goroutine: %v", result.name, result.error)
+				}
+				if result.name == "main operator" {
+					postMainCancel()
 				}
 			}
 		}
 	}
-
-	<-exit
+	klog.Info("Finished collecting operator goroutines.")
 }
 
 // createResourceLock initializes the lock.
@@ -390,17 +396,4 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 		}
 	}
 	return ctx
-}
-
-// Start launches the controllers in the provided context and any supporting
-// infrastructure. When ch is closed the controllers will be shut down.
-func (c *Context) Start(ctx context.Context) {
-	ch := ctx.Done()
-	go c.CVO.Run(ctx, 2)
-	if c.AutoUpdate != nil {
-		go c.AutoUpdate.Run(2, ch)
-	}
-	c.CVInformerFactory.Start(ch)
-	c.OpenshiftConfigInformerFactory.Start(ch)
-	c.InformerFactory.Start(ch)
 }

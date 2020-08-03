@@ -37,6 +37,7 @@ spec:
           fieldRef:
             fieldPath: spec.nodeName
   hostNetwork: true
+  terminationGracePeriodSeconds: 130
   volumes:
     - name: kubeconfig
       hostPath:
