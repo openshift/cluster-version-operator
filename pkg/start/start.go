@@ -43,9 +43,13 @@ const (
 
 	minResyncPeriod = 2 * time.Minute
 
-	leaseDuration = 90 * time.Second
-	renewDeadline = 45 * time.Second
-	retryPeriod   = 30 * time.Second
+	// TODO set the slower lease values after we're able to reliably shut down gracefully.  This fixes the slow status update for now.
+	//leaseDuration = 90 * time.Second
+	//renewDeadline = 45 * time.Second
+	//retryPeriod   = 30 * time.Second
+	leaseDuration = 30 * time.Second
+	renewDeadline = 15 * time.Second
+	retryPeriod   = 10 * time.Second
 )
 
 // Options are the valid inputs to starting the CVO.
