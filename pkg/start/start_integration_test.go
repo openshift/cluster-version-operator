@@ -526,7 +526,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 
 	// wait until the lock record exists
 	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, _, err := lock.Get()
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -548,26 +548,26 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		t.Fatalf("no leader election events found in\n%#v", events.Items)
 	}
 
-	t.Logf("after the context is closed, the lock record should be deleted quickly")
+	t.Logf("after the context is closed, the lock should be released quickly")
 	cancel()
 	startTime := time.Now()
 	var endTime time.Time
 	// the lock should be deleted immediately
 	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			endTime = time.Now()
-			return true, nil
-		}
+		electionRecord, _, err := lock.Get()
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
-		return false, nil
+		endTime = time.Now()
+		return electionRecord.HolderIdentity == "", nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("lock deleted in %s", endTime.Sub(startTime))
+	t.Logf("lock released in %s", endTime.Sub(startTime))
 
 	select {
 	case <-time.After(time.Second):
