@@ -285,7 +285,9 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 			copied := *location
 			copied.Path = path.Join(location.Path, name)
 			if err := checkHTTPSignatures(ctx, client, copied, maxSignatureSearch, verifier); err != nil {
-				return err
+				if err != context.Canceled && err != context.DeadlineExceeded {
+					return err
+				}
 			}
 		default:
 			return fmt.Errorf("internal error: the store %s type is unrecognized, cannot verify signatures", location)
@@ -384,10 +386,13 @@ var errNotFound = fmt.Errorf("no more signatures to check")
 // over HTTP or HTTPS until either the provided fn returns an error, false, or the server returns 404. No
 // more than maxSignaturesToCheck will be read. If the provided context is cancelled search will be terminated.
 func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn func(path string, signature []byte) (bool, error)) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Millisecond*1)
+	defer cancel()
+
 	base := filepath.Join(u.Path, "signature-")
 	sigURL := u
 	for i := 1; i < maxSignatureSearch; i++ {
-		if err := ctx.Err(); err != nil {
+		if err := timeoutCtx.Err(); err != nil {
 			return err
 		}
 
@@ -397,7 +402,8 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 		if err != nil {
 			return fmt.Errorf("could not build request to check signature: %v", err)
 		}
-		req = req.WithContext(ctx)
+		req = req.WithContext(timeoutCtx)
+		//time.Sleep(18 * time.Second)
 		// load the body, being careful not to allow unbounded reads
 		resp, err := client.Do(req)
 		if err != nil {

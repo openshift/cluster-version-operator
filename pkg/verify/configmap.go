@@ -64,6 +64,12 @@ func NewFromConfigMapData(src string, data map[string]string, clientBuilder Clie
 				return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)
 			}
 			stores = append(stores, u)
+			u2, err := url.Parse("https://storage.googleapis.com/openshift-release/official/signatures/openshift/release")
+			if err != nil {
+				klog.Warningf("%s invalid !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!", u2)
+			} else {
+				stores = append(stores, u2)
+			}
 		default:
 			klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
 		}
