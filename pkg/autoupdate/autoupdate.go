@@ -99,7 +99,7 @@ func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	}
 
 	for i := 0; i < workers; i++ {
-		// FIXME: actually wait until these complete if the Context is canceled.
+		// FIXME: actually wait until these complete if the Context is canceled.  And possibly add utilruntime.HandleCrash.
 		go wait.Until(ctrl.worker, time.Second, stopCh)
 	}
 
