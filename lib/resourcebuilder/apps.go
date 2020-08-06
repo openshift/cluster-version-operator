@@ -114,20 +114,11 @@ func (b *builder) checkDeploymentHealth(ctx context.Context, deployment *appsv1.
 		}
 	}
 
-	if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse {
+	if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse && progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse {
 		return &payload.UpdateError{
-			Nested:  fmt.Errorf("deployment %s is not available; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
+			Nested:  fmt.Errorf("deployment %s is not available and not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
 			Reason:  "WorkloadNotAvailable",
-			Message: fmt.Sprintf("deployment %s is not available %s: %s", iden, availableCondition.Reason, availableCondition.Message),
-			Name:    iden,
-		}
-	}
-
-	if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse {
-		return &payload.UpdateError{
-			Nested:  fmt.Errorf("deployment %s is not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
-			Reason:  "WorkloadNotAvailable",
-			Message: fmt.Sprintf("deployment %s is not progressing %s: %s", iden, progressingCondition.Reason, progressingCondition.Message),
+			Message: fmt.Sprintf("deployment %s is not available %s (%s) or progressing %s (%s)", iden, availableCondition.Reason, availableCondition.Message, progressingCondition.Reason, progressingCondition.Message),
 			Name:    iden,
 		}
 	}
