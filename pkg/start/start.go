@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -184,6 +185,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 	defer func() { signal.Stop(ch) }()
 	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 	go func() {
+		defer utilruntime.HandleCrash()
 		sig := <-ch
 		klog.Infof("Shutting down due to %s", sig)
 		runCancel()
@@ -204,6 +206,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		}
 		resultChannelCount++
 		go func() {
+			defer utilruntime.HandleCrash()
 			err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, tlsConfig)
 			resultChannel <- asyncResult{name: "metrics server", error: err}
 		}()
@@ -218,6 +221,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 
 	resultChannelCount++
 	go func() {
+		defer utilruntime.HandleCrash()
 		leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
 			Lock:            lock,
 			ReleaseOnCancel: true,
@@ -228,6 +232,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					resultChannelCount++
 					go func() {
+						defer utilruntime.HandleCrash()
 						err := controllerCtx.CVO.Run(runContext, 2)
 						resultChannel <- asyncResult{name: "main operator", error: err}
 					}()
@@ -235,6 +240,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					if controllerCtx.AutoUpdate != nil {
 						resultChannelCount++
 						go func() {
+							defer utilruntime.HandleCrash()
 							err := controllerCtx.AutoUpdate.Run(runContext, 2)
 							resultChannel <- asyncResult{name: "auto-update controller", error: err}
 						}()

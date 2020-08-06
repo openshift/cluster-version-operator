@@ -85,7 +85,6 @@ func New(
 
 // Run runs the autoupdate controller.
 func (ctrl *Controller) Run(ctx context.Context, workers int) error {
-	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
 	klog.Info("Starting AutoUpdateController")
@@ -96,7 +95,7 @@ func (ctrl *Controller) Run(ctx context.Context, workers int) error {
 	}
 
 	for i := 0; i < workers; i++ {
-		// FIXME: actually wait until these complete if the Context is canceled.
+		// FIXME: actually wait until these complete if the Context is canceled.  And possibly add utilruntime.HandleCrash.
 		go wait.UntilWithContext(ctx, ctrl.worker, time.Second)
 	}
 

@@ -291,7 +291,6 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder s
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
 func (optr *Operator) Run(ctx context.Context, workers int) error {
-	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
 	stopCh := ctx.Done()
 	workerStopCh := make(chan struct{})
