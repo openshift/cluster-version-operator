@@ -59,6 +59,7 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	ensureTolerations(modified, &existing.Tolerations, required.Tolerations)
 	setStringIfSet(modified, &existing.PriorityClassName, required.PriorityClassName)
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
+	setBoolPtr(modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
 }
 
 func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
