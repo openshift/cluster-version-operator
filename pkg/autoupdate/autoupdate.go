@@ -27,11 +27,7 @@ import (
 )
 
 const (
-	// maxRetries is the number of times a machineconfig pool will be retried before it is dropped out of the queue.
-	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
-	// a machineconfig pool is going to be requeued:
-	//
-	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
+	// maxRetries is the number of times a work-item will be retried before it is dropped out of the queue.
 	maxRetries = 15
 )
 
@@ -141,13 +137,13 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 	}
 
 	if ctrl.queue.NumRequeues(key) < maxRetries {
-		klog.V(2).Infof("Error syncing controller %v: %v", key, err)
+		klog.V(2).Infof("Error handling %v: %v", key, err)
 		ctrl.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	klog.V(2).Infof("Dropping controller %q out of the queue: %v", key, err)
+	klog.V(2).Infof("Dropping %q out of the queue: %v", key, err)
 	ctrl.queue.Forget(key)
 }
 
