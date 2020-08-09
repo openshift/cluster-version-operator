@@ -539,7 +539,6 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		} else if payloadUpdate.Release.Version != work.Desired.Version {
 			err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", "verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
-			/* FIXME: Ignore for now.  I will make this fatal in a follow-up pivot
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
 				Failure:     err,
@@ -550,7 +549,6 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Verified:    info.Verified,
 			})
 			return err
-			*/
 		}
 
 		// need to make sure the payload is only set when the preconditions have been successful
