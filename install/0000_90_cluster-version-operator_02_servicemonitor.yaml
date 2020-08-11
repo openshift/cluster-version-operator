@@ -55,7 +55,7 @@ spec:
       annotations:
         message: Your upstream update recommendation service recommends you update your cluster.  For more information refer to 'oc adm upgrade'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
-        cluster_version_available_updates > 1
+        cluster_version_available_updates > 0
       labels:
         severity: info
   - name: cluster-operators
