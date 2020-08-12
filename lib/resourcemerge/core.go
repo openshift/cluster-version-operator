@@ -61,6 +61,7 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
 	setBoolPtr(modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
 	ensureDNSPolicy(modified, &existing.DNSPolicy, required.DNSPolicy)
+	setInt64Ptr(modified, &existing.TerminationGracePeriodSeconds, required.TerminationGracePeriodSeconds)
 }
 
 func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
