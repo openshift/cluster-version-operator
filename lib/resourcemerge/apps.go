@@ -8,7 +8,6 @@ import (
 // EnsureDeployment ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required appsv1.Deployment) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
 	if required.Spec.Replicas != nil && *required.Spec.Replicas != *existing.Spec.Replicas {
 		*modified = true
