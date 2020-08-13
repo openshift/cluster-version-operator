@@ -483,6 +483,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		Image:   work.Desired.Image,
 	}
 	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
+	cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
@@ -491,7 +492,6 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		desired = validPayload.Release
 	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
 		klog.V(4).Infof("Loading payload")
-		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", "retrieving payload version=%q image=%q", desired.Version, desired.Image)
 		reporter.Report(SyncWorkerStatus{
 			Generation:  work.Generation,
@@ -593,7 +593,11 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		klog.V(4).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
 	}
 
-	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
+	err := w.apply(ctx, w.payload, work, maxWorkers, reporter)
+	if err != nil && work.State == payload.UpdatingPayload {
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "ApplyFailed", "failed to apply update to version=%q image=%q attempt=%d: %v", work.Desired.Version, work.Desired.Image, work.Attempt, err)
+	}
+	return err
 }
 
 // apply updates the server with the contents of the provided image or returns an error.
@@ -703,6 +707,10 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			}
 			cr.Inc()
 			klog.V(4).Infof("Done syncing for %s", task)
+		}
+		if work.State == payload.UpdatingPayload && len(tasks) > 0 {
+			cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "TaskNodeComplete", "synchronized task node ending in %s on update to version=%q image=%q attempt=%d", tasks[len(tasks)-1], work.Desired.Version, work.Desired.Image, work.Attempt)
 		}
 		return nil
 	})
