@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
@@ -215,9 +216,28 @@ func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperat
 	return cond
 }
 
+type clusterManifestDeleteInProgressUpgradeable struct {
+}
+
+func (check *clusterManifestDeleteInProgressUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
+	cond := &configv1.ClusterOperatorStatusCondition{
+		Type:   configv1.ClusterStatusConditionType("UpgradeableDeletesInProgress"),
+		Status: configv1.ConditionFalse,
+	}
+	if deletes := resourcedelete.DeletesInProgress(); len(deletes) > 0 {
+		resources := strings.Join(deletes, ",")
+		klog.V(4).Infof("Resource deletions in progress; resources=%s", resources)
+		cond.Reason = "ResourceDeletesInProgress"
+		cond.Message = fmt.Sprintf("Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=%s", resources)
+		return cond
+	}
+	return nil
+}
+
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
+		&clusterManifestDeleteInProgressUpgradeable{},
 	}
 }

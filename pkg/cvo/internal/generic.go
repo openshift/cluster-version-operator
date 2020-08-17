@@ -19,6 +19,7 @@ import (
 
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
@@ -29,6 +30,32 @@ func readUnstructuredV1OrDie(objBytes []byte) *unstructured.Unstructured {
 		panic(err)
 	}
 	return udi.(*unstructured.Unstructured)
+}
+
+func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (bool, error) {
+	if required.GetName() == "" {
+		return false, fmt.Errorf("Error running delete, invalid object: name cannot be empty")
+	}
+	if delAnnoFound, err := resourcedelete.ValidDeleteAnnotation(required.GetAnnotations()); !delAnnoFound || err != nil {
+		return delAnnoFound, err
+	}
+	resource := resourcedelete.Resource{
+		Kind:      required.GetKind(),
+		Namespace: required.GetNamespace(),
+		Name:      required.GetName(),
+	}
+	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
+	if deleteRequested, err := resourcedelete.GetDeleteProgress(resource, err); err == nil {
+		if !deleteRequested {
+			if err := client.Delete(ctx, required.GetName(), metav1.DeleteOptions{}); err != nil {
+				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+			}
+			resourcedelete.SetDeleteRequested(existing, resource)
+		}
+	} else {
+		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+	}
+	return true, nil
 }
 
 func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
@@ -117,7 +144,12 @@ func (b *genericBuilder) Do(ctx context.Context) error {
 		b.modifier(ud)
 	}
 
-	_, _, err := applyUnstructured(ctx, b.client, ud)
+	deleteReq, err := deleteUnstructured(ctx, b.client, ud)
+	if err != nil {
+		return err
+	} else if !deleteReq {
+		_, _, err = applyUnstructured(ctx, b.client, ud)
+	}
 	return err
 }
 
