@@ -21,11 +21,11 @@ import (
 	"net/url"
 	"path"
 	"strconv"
-	"strings"
 
 	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/util"
 )
 
 // maxSignatureSearch prevents unbounded recursion on malicious signature stores (if
@@ -46,13 +46,10 @@ type Store struct {
 
 // Signatures fetches signatures for the provided digest.
 func (s *Store) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
-	parts := strings.SplitN(digest, ":", 3)
-	if len(parts) != 2 || len(parts[0]) == 0 || len(parts[1]) == 0 {
-		return fmt.Errorf("the provided release image digest must be of the form ALGO:HASH")
+	equalDigest, err := util.DigestToKeyPrefix(digest, "=")
+	if err != nil {
+		return err
 	}
-	algo, hash := parts[0], parts[1]
-	equalDigest := fmt.Sprintf("%s=%s", algo, hash)
-
 	switch s.URI.Scheme {
 	case "http", "https":
 		client, err := s.HTTPClient()
