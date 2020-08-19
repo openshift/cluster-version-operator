@@ -3,6 +3,27 @@
 [The ClusterVersion object](../dev/clusterversion.md) sets `conditions` describing the state of the cluster-version operator (CVO).
 This document describes those conditions and, where appropriate, suggests possible mitigations.
 
+## Failing
+
+When `Failing` is True, the CVO is failing to reconcile the cluster with the desired release image.
+In all cases, the impact on the cluster will be that dependent nodes in [the manifest graph](reconciliation.md#manifest-graph) may not be [reconciled](reconciliation.md#reconciling-the-graph).
+Note that the graph [may be flattened](reconciliation.md#manifest-graph), in which case there are no dependent nodes.
+
+Most reconciliation errors will result in `Failing=True`, although [`ClusterOperatorNotAvailable`](#clusteroperatornotavailable) has special handling.
+
+### NoDesiredImage
+
+The CVO has not been given a release image to reconcile.
+
+If this happens it is a CVO coding error, because clearing [`desiredUpdate`][api-desired-update] should return you to the current CVO's release image.
+
+### ClusterOperatorNotAvailable
+
+`ClusterOperatorNotAvailable` (or the consolidated `ClusterOperatorsNotAvailable`) is set when the CVO fails to retrieve the ClusterOperator from the cluster or when the retrieved ClusterOperator does not satisfy [the reconciliation conditions](reconciliation.md#clusteroperator).
+
+Unlike most manifest-reconciliation failures, this error does not immediately result in `Failing=True`.
+Under some conditions during installs and updates, the CVO will treat this condition as a `Progressing=True` condition and give the operator up to twenty minutes to level before reporting `Failing=True`.
+
 ## RetrievedUpdates
 
 When `RetrievedUpdates` is `True`, the CVO is succesfully retrieving updates, which is good.
@@ -107,5 +128,6 @@ If this error occurs because you forced an update to a release that is not in an
 If this happens it is a CVO coding error.
 There is no mitigation short of updating to a new release image with a fixed CVO.
 
+[api-desired-update]: https://github.com/openshift/api/blob/34f54f12813aaed8822bb5bc56e97cbbfa92171d/config/v1/types_cluster_version.go#L40-L54
 [channels]: https://docs.openshift.com/container-platform/4.3/updating/updating-cluster-between-minor.html#understanding-upgrade-channels_updating-cluster-between-minor
 [Cincinnati]: https://github.com/openshift/cincinnati/blob/master/docs/design/openshift.md
