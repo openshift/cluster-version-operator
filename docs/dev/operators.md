@@ -20,10 +20,9 @@ a time.
 During upgrades, the contents of `/release-manifests` are applied in order, exactly as `ls` would
 return on a standard Linux or Unix derivative. The CVO supports the idea of "run levels" by
 defining a convention for how operators that wish to run before other operators should name
-their manifests. A run level is of the form `0000_\d\d_[a-z0-9\-]+_<filename>` where the first
-digits are the level (see [below for a list of assigned levels](#how-do-i-get-added-as-a-special-run-level)), the second chunk is the component name that
-usually matches your operator name (e.g. `kube-apiserver` or `cluster-monitoring-operator`)
-and the filename is a local name.
+their manifests. Manifest files are of the form `0000_<runlevel>_<dash-separated-component>_<manifest_filename>`, declaring the run level (see [below for a list of assigned levels](#how-do-i-get-added-as-a-special-run-level)), the component name that
+usually matches your operator name (e.g. `kube-apiserver` or `cluster-monitoring-operator`),
+and a local name to order manifests within a given runlevel/component block.
 
 A few special optimizations are applied above linear ordering - if the CVO sees two different
 components that have the same run level - for instance, `0000_70_cluster-monitoring-operator_*` and
@@ -109,7 +108,7 @@ To do this, you can set .metadata.annotations["release.openshift.io/create-only"
 
 Some operators need to run at a specific time in the release process (OLM, kube, openshift core operators, network, service CA).  These components can ensure they run in a specific order across operators by prefixing their manifests with:
 
-    0000_<runlevel>_<dash-separated_component>-<manifest_filename>
+    0000_<runlevel>_<dash-separated-component>_<manifest_filename>
 
 For example, the Kube core operators run in runlevel 10-19 and have filenames like
 
