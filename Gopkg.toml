@@ -75,3 +75,7 @@ required = [ "k8s.io/code-generator/cmd/client-gen", "k8s.io/gengo/types" ]
 [[override]]
   name = "github.com/openshift/library-go"
   branch = "master"
+
+[[constraint]]
+  name = "golang.org/x/text"
+  version = "0.3.3"
