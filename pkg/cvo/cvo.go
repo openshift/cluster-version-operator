@@ -169,7 +169,16 @@ func New(
 	kubeClient kubernetes.Interface,
 	exclude string,
 ) *Operator {
-	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster := record.NewBroadcasterWithCorrelatorOptions(record.CorrelatorOptions{
+		LRUCacheSize: 1000, // FIXME: intelligent tuning
+		BurstSize:    1000,
+		QPS:          1000,
+		MaxEvents:    1000,
+		KeyFunc: func(event *corev1.Event) (aggregateKey string, localKey string) {
+			aggregateKey, localKey = record.EventAggregatorByReasonFunc(event)
+			return fmt.Sprintf("%s%s", aggregateKey, event.Message), localKey
+		},
+	})
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
 
