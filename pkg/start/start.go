@@ -380,9 +380,10 @@ type Context struct {
 	CVO        *cvo.Operator
 	AutoUpdate *autoupdate.Controller
 
-	CVInformerFactory              externalversions.SharedInformerFactory
-	OpenshiftConfigInformerFactory informers.SharedInformerFactory
-	InformerFactory                externalversions.SharedInformerFactory
+	CVInformerFactory                     externalversions.SharedInformerFactory
+	OpenshiftConfigInformerFactory        informers.SharedInformerFactory
+	OpenshiftConfigManagedInformerFactory informers.SharedInformerFactory
+	InformerFactory                       externalversions.SharedInformerFactory
 }
 
 // NewControllerContext initializes the default Context for the current Options. It does
@@ -395,14 +396,16 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
 	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigNamespace))
+	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigManagedNamespace))
 
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
 
 	coInformer := sharedInformers.Config().V1().ClusterOperators()
 	ctx := &Context{
-		CVInformerFactory:              cvInformer,
-		OpenshiftConfigInformerFactory: openshiftConfigInformer,
-		InformerFactory:                sharedInformers,
+		CVInformerFactory:                     cvInformer,
+		OpenshiftConfigInformerFactory:        openshiftConfigInformer,
+		OpenshiftConfigManagedInformerFactory: openshiftConfigManagedInformer,
+		InformerFactory:                       sharedInformers,
 
 		CVO: cvo.New(
 			o.NodeName,
@@ -414,6 +417,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			cvInformer.Config().V1().ClusterVersions(),
 			coInformer,
 			openshiftConfigInformer.Core().V1().ConfigMaps(),
+			openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
 			sharedInformers.Config().V1().Proxies(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
@@ -447,5 +451,6 @@ func (c *Context) Start(ctx context.Context) {
 	}
 	c.CVInformerFactory.Start(ch)
 	c.OpenshiftConfigInformerFactory.Start(ch)
+	c.OpenshiftConfigManagedInformerFactory.Start(ch)
 	c.InformerFactory.Start(ch)
 }
