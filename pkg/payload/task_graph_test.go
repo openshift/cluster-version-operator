@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func Test_TaskGraph_Split(t *testing.T) {
@@ -26,7 +26,7 @@ func Test_TaskGraph_Split(t *testing.T) {
 	tasks := func(gvks ...schema.GroupVersionKind) []*Task {
 		var arr []*Task
 		for _, gvk := range gvks {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{GVK: gvk}})
+			arr = append(arr, &Task{Manifest: &manifest.Manifest{GVK: gvk}})
 		}
 		return arr
 	}
@@ -128,7 +128,7 @@ func TestByNumberAndComponent(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+			arr = append(arr, &Task{Manifest: &manifest.Manifest{OriginalFilename: name}})
 		}
 		return arr
 	}
@@ -237,7 +237,7 @@ func TestShiftOrder(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+			arr = append(arr, &Task{Manifest: &manifest.Manifest{OriginalFilename: name}})
 		}
 		return arr
 	}
@@ -349,7 +349,7 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+			arr = append(arr, &Task{Manifest: &manifest.Manifest{OriginalFilename: name}})
 		}
 		return arr
 	}
@@ -507,7 +507,7 @@ func Test_TaskGraph_real(t *testing.T) {
 func Test_TaskGraph_example(t *testing.T) {
 	pod := func(name string) *Task {
 		return &Task{
-			Manifest: &lib.Manifest{
+			Manifest: &manifest.Manifest{
 				GVK:              schema.GroupVersionKind{Kind: "Pod", Version: "v1"},
 				OriginalFilename: name,
 			},
@@ -515,7 +515,7 @@ func Test_TaskGraph_example(t *testing.T) {
 	}
 	job := func(name string) *Task {
 		return &Task{
-			Manifest: &lib.Manifest{
+			Manifest: &manifest.Manifest{
 				GVK:              schema.GroupVersionKind{Kind: "Job", Version: "v1", Group: "batch"},
 				OriginalFilename: name,
 			},
@@ -627,7 +627,7 @@ func Test_TaskGraph_bulkAdd(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			arr = append(arr, &Task{Manifest: &lib.Manifest{OriginalFilename: name}})
+			arr = append(arr, &Task{Manifest: &manifest.Manifest{OriginalFilename: name}})
 		}
 		return arr
 	}
@@ -704,7 +704,7 @@ func TestRunGraph(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			manifest := &lib.Manifest{OriginalFilename: name}
+			manifest := &manifest.Manifest{OriginalFilename: name}
 			err := manifest.UnmarshalJSON([]byte(fmt.Sprintf(`
 {
   "apiVersion": "v1",
