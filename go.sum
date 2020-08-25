@@ -71,7 +71,6 @@ github.com/cockroachdb/datadriven v0.0.0-20190809214429-80d97fb3cbaa/go.mod h1:z
 github.com/containerd/continuity v0.0.0-20190827140505-75bee3e2ccb6/go.mod h1:GL3xCUCBDV3CZiTSEKksMWbLE66hEyuu9qyDOOqM47Y=
 github.com/coreos/bbolt v1.3.2/go.mod h1:iRUV2dpdMOn7Bo10OQBFzIJO9kkE559Wcmn+qkEiiKk=
 github.com/coreos/etcd v3.3.10+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
-github.com/coreos/etcd v3.3.15+incompatible/go.mod h1:uF7uidLiAD3TWHmW31ZFd/JWoc32PjwdhPthX9715RE=
 github.com/coreos/go-oidc v2.1.0+incompatible/go.mod h1:CgnwVTmzoESiwO9qyAFEMiHoZ1nMCKZlZ9V6mm3/LKc=
 github.com/coreos/go-semver v0.2.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
 github.com/coreos/go-semver v0.3.0/go.mod h1:nnelYz7RCh+5ahJtPPxZlU+153eP4D4r3EedlOD2RNk=
@@ -343,8 +342,8 @@ github.com/openshift/build-machinery-go v0.0.0-20200713135615-1f43d26dccc7/go.mo
 github.com/openshift/client-go v0.0.0-20200722173614-5a1b0aaeff15/go.mod h1:yd4Zpcdk+8JyMWi6v+h78jPqK0FvXbJY41Wq3SZxl+c=
 github.com/openshift/client-go v0.0.0-20200723130357-94e1065ab1f8 h1:rCyKXyp937G/UAen+i+m2pUNE7W4ScHpbAes7uhbJfg=
 github.com/openshift/client-go v0.0.0-20200723130357-94e1065ab1f8/go.mod h1:SM853gbDKNDcVUuw+uCf1azo5R+4nbUQK0BomDSvYnI=
-github.com/openshift/library-go v0.0.0-20200724192307-1ed21c4fa86c h1:T/4DbTPpDUPSHol9UlMO5EI3gLJJFE6w3gBc4t25Ih4=
-github.com/openshift/library-go v0.0.0-20200724192307-1ed21c4fa86c/go.mod h1:2d0VWHc/hNfV9xGf19ZoZMsqXWYLnsS9IKC52Jmx3S8=
+github.com/openshift/library-go v0.0.0-20200825134320-3926cf368e59 h1:eY84qLTdJ7sYdlJKE9C/vacFemjFvksUJ6kDj391vbQ=
+github.com/openshift/library-go v0.0.0-20200825134320-3926cf368e59/go.mod h1:q7ebJwBFgDx4nP5jGhd+K9XgOIpKaNVh4RWpKmW61Gg=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
 github.com/pelletier/go-toml v1.2.0/go.mod h1:5z9KED0ma1S8pY6P1sdut58dfprrGBbd/94hg7ilaic=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
