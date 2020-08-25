@@ -23,10 +23,10 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
@@ -996,9 +996,9 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *manifest.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
-		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
+		kind, namespace, name := manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName()
 		if ov.Kind == kind &&
 			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
 			ov.Name == name {

@@ -32,7 +32,6 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
@@ -42,11 +41,12 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
-	"github.com/openshift/cluster-version-operator/pkg/verify"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store/configmap"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store/serial"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
+	"github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/verify"
+	"github.com/openshift/library-go/pkg/verify/store"
+	"github.com/openshift/library-go/pkg/verify/store/configmap"
+	"github.com/openshift/library-go/pkg/verify/store/serial"
+	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
 const (
@@ -676,7 +676,7 @@ func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvoin
 	}
 }
 
-func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (resourcebuilder.Interface, error) {
+func (b *resourceBuilder) builderFor(m *manifest.Manifest, state payload.State) (resourcebuilder.Interface, error) {
 	config := b.config
 	if state == payload.InitializingPayload {
 		config = b.burstConfig
@@ -692,14 +692,14 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)
 	}
-	client, err := dynamicclient.New(config, m.GVK, m.Object().GetNamespace())
+	client, err := dynamicclient.New(config, m.GVK, m.Obj.GetNamespace())
 	if err != nil {
 		return nil, err
 	}
 	return cvointernal.NewGenericBuilder(client, *m)
 }
 
-func (b *resourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
+func (b *resourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	builder, err := b.builderFor(m, state)
 	if err != nil {
 		return err

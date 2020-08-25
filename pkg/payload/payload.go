@@ -23,8 +23,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // State describes the state of the payload and alters
@@ -108,7 +108,7 @@ type Update struct {
 
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
-	Manifests    []lib.Manifest
+	Manifests    []manifest.Manifest
 }
 
 // metadata represents Cincinnati metadata.
@@ -136,7 +136,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 		return nil, err
 	}
 
-	var manifests []lib.Manifest
+	var manifests []manifest.Manifest
 	var errs []error
 	for _, task := range tasks {
 		files, err := ioutil.ReadDir(task.idir)
@@ -172,13 +172,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 					continue
 				}
 			}
-			ms, err := lib.ParseManifests(bytes.NewReader(raw))
+			ms, err := manifest.ParseManifests(bytes.NewReader(raw))
 			if err != nil {
 				errs = append(errs, fmt.Errorf("parse %s: %w", file.Name(), err))
 				continue
 			}
 			// Filter out manifests that should be excluded based on annotation
-			filteredMs := []lib.Manifest{}
+			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
 				if shouldExclude(excludeIdentifier, &manifest) {
 					continue
@@ -211,9 +211,9 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 	return payload, nil
 }
 
-func shouldExclude(excludeIdentifier string, manifest *lib.Manifest) bool {
+func shouldExclude(excludeIdentifier string, manifest *manifest.Manifest) bool {
 	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	annotations := manifest.Object().GetAnnotations()
+	annotations := manifest.Obj.GetAnnotations()
 	return annotations != nil && annotations[excludeAnnotation] == "true"
 }
 
