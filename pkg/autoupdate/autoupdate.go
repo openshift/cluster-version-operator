@@ -84,23 +84,23 @@ func New(
 }
 
 // Run runs the autoupdate controller.
-func (ctrl *Controller) Run(ctx context.Context, workers int) {
-	defer utilruntime.HandleCrash()
+func (ctrl *Controller) Run(ctx context.Context, workers int) error {
 	defer ctrl.queue.ShutDown()
 
 	klog.Info("Starting AutoUpdateController")
 	defer klog.Info("Shutting down AutoUpdateController")
 
 	if !cache.WaitForCacheSync(ctx.Done(), ctrl.cacheSynced...) {
-		klog.Info("Caches never synchronized")
-		return
+		return fmt.Errorf("caches never synchronized: %w", ctx.Err())
 	}
 
 	for i := 0; i < workers; i++ {
+		// FIXME: actually wait until these complete if the Context is canceled.  And possibly add utilruntime.HandleCrash.
 		go wait.UntilWithContext(ctx, ctrl.worker, time.Second)
 	}
 
 	<-ctx.Done()
+	return nil
 }
 
 func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {
