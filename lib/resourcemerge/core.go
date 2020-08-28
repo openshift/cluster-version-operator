@@ -59,6 +59,9 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	ensureTolerations(modified, &existing.Tolerations, required.Tolerations)
 	setStringIfSet(modified, &existing.PriorityClassName, required.PriorityClassName)
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
+	setBoolPtr(modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
+	ensureDNSPolicy(modified, &existing.DNSPolicy, required.DNSPolicy)
+	setInt64Ptr(modified, &existing.TerminationGracePeriodSeconds, required.TerminationGracePeriodSeconds)
 }
 
 func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
@@ -516,6 +519,13 @@ func ensureResourceList(modified *bool, existing *corev1.ResourceList, required 
 	if !equality.Semantic.DeepEqual(existing, required) {
 		*modified = true
 		required.DeepCopyInto(existing)
+	}
+}
+
+func ensureDNSPolicy(modified *bool, existing *corev1.DNSPolicy, required corev1.DNSPolicy) {
+	if !equality.Semantic.DeepEqual(required, *existing) {
+		*modified = true
+		*existing = required
 	}
 }
 
