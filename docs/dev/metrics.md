@@ -7,7 +7,7 @@ The cluster version is reported as seconds since the epoch with labels for `vers
 
 * `current` - the version the operator is applying right now (the running CVO version) and the age of the payload
 * `initial` - the initial version of the cluster, and value is the creation timestamp of the cluster version (cluster age)
-* `cluster` - the current version of the cluster with from_version set to the initial version, and value is the creation timestamp of the cluster version (cluster age)
+* `cluster` - the current version of the cluster with `from_version` set to the initial version, and value is the creation timestamp of the cluster version (cluster age)
 * `failure` - if the failure condition is set, reports the last transition time for the condition.
 * `desired` - reported if different from current as the most recent timestamp on the cluster version
 * `completed` - the time the most recent version was completely applied, or absent if not reached
@@ -59,10 +59,10 @@ cluster_operator_payload_errors{version="4.0.3"} 10
 
 Metrics about the installation:
 
-`cluster_installer` records information about the installation process. The type is either "openshift-install", indicating that `openshift-install` was used to install the cluster (IPI) or "", indicating that an unknown process installed the cluster (UPI). When `openshift-install` creates a cluster, it will also report its version and invoker. The version is helpful for determining exactly which builds are being used to install (e.g. were they official builds or had they been modified). The invoker is "user" by default, but it may be overridden by a consuming tool (e.g. Hive, CI).
+`cluster_installer` records information about the installation process. The type is either "openshift-install", indicating that `openshift-install` was used to install the cluster (IPI) or "other", indicating that an unknown process installed the cluster (UPI). When `openshift-install` creates a cluster, it will also report its version and invoker. When an unknown process installed the cluster, the version and invoker reported will be that of the `openshift-install` invocation which created the manifests. The version is helpful for determining exactly which builds are being used to install (e.g. were they official builds or had they been modified). The invoker is "user" by default, but it may be overridden by a consuming tool (e.g. Hive, CI, Assisted Installer).
 
 ```
 # TYPE cluster_installer gauge
 cluster_installer{type="openshift-install",invoker="user",version="unreleased-master-1209-gfd08f44181f2111486749e2fb38399088f315cfb"} 1
-cluster_installer{type="",invoker="",version=""} 1
+cluster_installer{type="other",invoker="user",version="unreleased-master-1209-gfd08f44181f2111486749e2fb38399088f315cfb"} 1
 ```
