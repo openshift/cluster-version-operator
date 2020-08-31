@@ -15,7 +15,7 @@ spec:
       - "--release-image={{.ReleaseImage}}"
       - "--enable-auto-update=false"
       - "--enable-default-cluster-version=false"
-      - "--v=4"
+      - "--v=5"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
     securityContext:
       privileged: true
