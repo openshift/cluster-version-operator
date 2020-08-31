@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 
 	"github.com/openshift/cluster-version-operator/lib"
 )
@@ -70,6 +71,7 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 	var lastErr error
 	backoff := st.Backoff
 	maxDuration := 15 * time.Second // TODO: fold back into Backoff in 1.13
+	start := time.Now()
 	for {
 		// attempt the apply, waiting as long as necessary
 		err := builder.Apply(ctx, st.Manifest, state)
@@ -91,6 +93,8 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 		// sleep or wait for cancellation
 		select {
 		case <-time.After(d):
+			t := time.Now()
+			klog.Infof("continue after: %d milliseconds !!!!", t.Sub(start).Milliseconds())
 			continue
 		case <-ctx.Done():
 			if uerr, ok := lastErr.(*UpdateError); ok {
@@ -101,6 +105,8 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 			if len(cause) > 0 {
 				cause = ": " + cause
 			}
+			t := time.Now()
+			klog.Infof("Could not update %s%s. Elapsed time: %d milliseconds !!!!", st, cause, t.Sub(start).Milliseconds())
 			return &UpdateError{
 				Nested:  lastErr,
 				Reason:  reason,

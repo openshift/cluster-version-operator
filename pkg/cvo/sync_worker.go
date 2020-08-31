@@ -306,6 +306,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 					//   much drift we found, and then we can turn down the timeout
 					syncTimeout = w.minimumReconcileInterval * 2
 				}
+				klog.Infof("State=%v   syncTimeout=%d seconds !!!!", work.State, syncTimeout.Seconds())
 				ctx, cancelFn := context.WithTimeout(ctx, syncTimeout)
 
 				w.lock.Lock()
