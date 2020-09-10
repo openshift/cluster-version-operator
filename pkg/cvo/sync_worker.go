@@ -213,7 +213,13 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		w.work.Generation = generation
 	}
 
-	if work.Empty() || equalSyncWork(w.work, work) {
+	if work.Empty() {
+		klog.V(5).Info("Update work has no release image; ignoring requested change")
+		return w.status.DeepCopy()
+	}
+
+	if equalSyncWork(w.work, work) {
+		klog.V(5).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
 
@@ -234,12 +240,15 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	// notify the sync loop that we changed config
 	w.work = work
 	if w.cancelFn != nil {
+		klog.V(5).Info("Cancel the sync worker's current loop")
 		w.cancelFn()
 		w.cancelFn = nil
 	}
 	select {
 	case w.notify <- struct{}{}:
+		klog.V(5).Info("Notify the sync worker that new work is available")
 	default:
+		klog.V(5).Info("The sync worker has already been notified that new work is available")
 	}
 
 	return w.status.DeepCopy()
