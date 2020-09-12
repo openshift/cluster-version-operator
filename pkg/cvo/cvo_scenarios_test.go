@@ -76,6 +76,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		queue:                       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
 		client:                      client,
 		cvLister:                    &clientCVLister{client: client},
+		exclude:                     "exclude-test",
 	}
 
 	dynamicScheme := runtime.NewScheme()
@@ -90,7 +91,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		wait.Backoff{
 			Steps: 1,
 		},
-		"",
+		"exclude-test",
 	)
 	o.configSync = worker
 

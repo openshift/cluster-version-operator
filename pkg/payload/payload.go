@@ -56,6 +56,11 @@ const (
 	// Our goal is to get the entire payload created, even if some
 	// operators are still converging.
 	InitializingPayload
+	// PrecreatingPayload indicates we are selectively creating
+	// specific resources during a first pass of the payload to
+	// provide better visibility during install and upgrade of
+	// error conditions.
+	PrecreatingPayload
 )
 
 // Initializing is true if the state is InitializingPayload.
@@ -102,7 +107,7 @@ type Update struct {
 	Manifests    []lib.Manifest
 }
 
-func LoadUpdate(dir, releaseImage string) (*Update, error) {
+func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
@@ -149,6 +154,15 @@ func LoadUpdate(dir, releaseImage string) (*Update, error) {
 				errs = append(errs, errors.Wrapf(err, "error parsing %s", file.Name()))
 				continue
 			}
+			// Filter out manifests that should be excluded based on annotation
+			filteredMs := []lib.Manifest{}
+			for _, manifest := range ms {
+				if shouldExclude(excludeIdentifier, &manifest) {
+					continue
+				}
+				filteredMs = append(filteredMs, manifest)
+			}
+			ms = filteredMs
 			for i := range ms {
 				ms[i].OriginalFilename = filepath.Base(file.Name())
 			}
@@ -172,6 +186,12 @@ func LoadUpdate(dir, releaseImage string) (*Update, error) {
 	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	payload.Manifests = manifests
 	return payload, nil
+}
+
+func shouldExclude(excludeIdentifier string, manifest *lib.Manifest) bool {
+	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
+	annotations := manifest.Object().GetAnnotations()
+	return annotations != nil && annotations[excludeAnnotation] == "true"
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by

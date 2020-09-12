@@ -495,7 +495,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			return err
 		}
 
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, update.Image, w.exclude)
 		if err != nil {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -585,12 +585,14 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	}
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
+	var precreateObjects bool
 	switch work.State {
 	case payload.InitializingPayload:
 		// Create every component in parallel to maximize reaching steady
 		// state.
 		graph.Parallelize(payload.FlattenByNumberAndComponent)
 		maxWorkers = len(graph.Nodes)
+		precreateObjects = true
 	case payload.ReconcilingPayload:
 		// Run the graph in random order during reconcile so that we don't
 		// hang on any particular component - we seed from the number of
@@ -608,6 +610,28 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		// perform an orderly roll out by payload order, using some parallelization
 		// but avoiding out of order creation so components have some base
 		graph.Parallelize(payload.ByNumberAndComponent)
+		precreateObjects = true
+	}
+
+	// in specific modes, attempt to precreate a set of known types (currently ClusterOperator) without
+	// retries
+	if precreateObjects {
+		payload.RunGraph(ctx, graph, 8, func(ctx context.Context, tasks []*payload.Task) error {
+			for _, task := range tasks {
+				if err := ctx.Err(); err != nil {
+					return cr.ContextError(err)
+				}
+				if task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+					continue
+				}
+				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
+					klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
+					continue
+				}
+				klog.V(4).Infof("Precreated resource %s", task)
+			}
+			return nil
+		})
 	}
 
 	// update each object
@@ -621,7 +645,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			klog.V(4).Infof("Running sync for %s", task)
 			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
-			ov, ok := getOverrideForManifest(work.Overrides, w.exclude, task.Manifest)
+			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
 				klog.V(4).Infof("Skipping %s as unmanaged", task)
 				continue
@@ -916,7 +940,7 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdentifier string, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -924,10 +948,6 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, excludeIdent
 			ov.Name == name {
 			return overrides[idx], true
 		}
-	}
-	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	if annotations := manifest.Object().GetAnnotations(); annotations != nil && annotations[excludeAnnotation] == "true" {
-		return configv1.ComponentOverride{Unmanaged: true}, true
 	}
 	return configv1.ComponentOverride{}, false
 }

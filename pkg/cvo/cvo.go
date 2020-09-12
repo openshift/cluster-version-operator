@@ -236,7 +236,7 @@ func (vcb *verifyClientBuilder) HTTPClient() (*http.Client, error) {
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage)
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.releaseImage, optr.exclude)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
@@ -663,7 +663,11 @@ func (b *resourceBuilder) builderFor(m *lib.Manifest, state payload.State) (reso
 	}
 
 	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
-		return cvointernal.NewClusterOperatorBuilder(b.clusterOperators, *m), nil
+		client, err := clientset.NewForConfig(config)
+		if err != nil {
+			return nil, err
+		}
+		return cvointernal.NewClusterOperatorBuilder(b.clusterOperators, client.ConfigV1().ClusterOperators(), *m), nil
 	}
 	if resourcebuilder.Mapper.Exists(m.GVK) {
 		return resourcebuilder.New(resourcebuilder.Mapper, config, *m)
@@ -694,6 +698,8 @@ func stateToMode(state payload.State) resourcebuilder.Mode {
 		return resourcebuilder.UpdatingMode
 	case payload.ReconcilingPayload:
 		return resourcebuilder.ReconcilingMode
+	case payload.PrecreatingPayload:
+		return resourcebuilder.PrecreatingMode
 	default:
 		panic(fmt.Sprintf("unexpected payload state %d", int(state)))
 	}
