@@ -832,6 +832,26 @@ func TestRunGraph(t *testing.T) {
 			},
 		},
 		{
+			name: "mid-task cancellation with work in queue does not deadlock",
+			nodes: []*TaskNode{
+				{Tasks: tasks("a1", "a2", "a3")},
+				{Tasks: tasks("b")},
+			},
+			sleep:    time.Millisecond,
+			parallel: 1,
+			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
+				if name == "a2" {
+					cancelFn()
+				}
+				return nil
+			},
+			want:     []string{"a1", "a2"},
+			wantErrs: []string{"context canceled"},
+		},
+		{
 			name: "task errors in parallel nodes both reported",
 			nodes: []*TaskNode{
 				{Tasks: tasks("a"), Out: []int{1}},
