@@ -507,9 +507,18 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 			case <-ctx.Done():
 			}
 		case inflight > 0: // no work available to push; collect results
-			result := <-resultCh
-			results[result.index] = &result
-			inflight--
+			select {
+			case result := <-resultCh:
+				results[result.index] = &result
+				inflight--
+			case <-ctx.Done():
+				select {
+				case runTask := <-workCh: // workers canceled, so remove any work from the queue ourselves
+					inflight--
+					submitted[runTask.index] = false
+				default:
+				}
+			}
 		default: // no work to push and nothing in flight.  We're done
 			done = true
 		}
