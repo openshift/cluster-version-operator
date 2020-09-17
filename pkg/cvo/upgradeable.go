@@ -184,12 +184,12 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	return cond
 }
 
-type clusterVersionOverridesUpgradebale struct {
+type clusterVersionOverridesUpgradeable struct {
 	name     string
 	cvLister configlistersv1.ClusterVersionLister
 }
 
-func (check *clusterVersionOverridesUpgradebale) Check() *configv1.ClusterOperatorStatusCondition {
+func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
 	cond := &configv1.ClusterOperatorStatusCondition{
 		Type:   configv1.ClusterStatusConditionType("UpgradeableClusterVersionOverrides"),
 		Status: configv1.ConditionFalse,
@@ -218,6 +218,6 @@ func (check *clusterVersionOverridesUpgradebale) Check() *configv1.ClusterOperat
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
-		&clusterVersionOverridesUpgradebale{name: optr.name, cvLister: optr.cvLister},
+		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
 	}
 }
