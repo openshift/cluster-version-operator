@@ -1,4 +1,4 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.14 AS builder
+FROM registry.svc.ci.openshift.org/openshift/release:golang-1.15 AS builder
 WORKDIR /go/src/github.com/openshift/cluster-version-operator
 COPY . .
 RUN hack/build-go.sh; \
