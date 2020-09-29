@@ -19,7 +19,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -460,7 +460,7 @@ func (w *SyncWorker) updateStatus(update SyncWorkerStatus) {
 	select {
 	case w.report <- update:
 	default:
-		if klog.V(5) {
+		if klog.V(5).Enabled() {
 			klog.Infof("Status report channel was full %#v", update)
 		}
 	}
@@ -862,7 +862,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 	}
 
 	// log the errors to assist in debugging future summarization
-	if klog.V(4) {
+	if klog.V(4).Enabled() {
 		klog.Infof("Summarizing %d errors", len(errs))
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {

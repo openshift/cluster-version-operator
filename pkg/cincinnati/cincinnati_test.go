@@ -13,7 +13,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
-	_ "k8s.io/klog" // integration tests set glog flags.
+	_ "k8s.io/klog/v2" // integration tests set glog flags.
 )
 
 func TestGetUpdates(t *testing.T) {
