@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -113,7 +113,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	// leave this here in case we find other future history bugs and need to debug it
-	if klog.V(5) && len(config.Status.History) > 1 {
+	if klog.V(5).Enabled() && len(config.Status.History) > 1 {
 		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
 			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
 			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
@@ -334,7 +334,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 	}
 
-	if klog.V(6) {
+	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)

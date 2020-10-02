@@ -8,7 +8,7 @@ import (
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"

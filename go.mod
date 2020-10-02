@@ -1,6 +1,6 @@
 module github.com/openshift/cluster-version-operator
 
-go 1.13
+go 1.15
 
 require (
 	github.com/blang/semver/v4 v4.0.0
@@ -24,7 +24,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.19.0-rc.2
 	k8s.io/apimachinery v0.19.0-rc.2
 	k8s.io/client-go v0.19.0-rc.2
-	k8s.io/klog v1.0.0
+	k8s.io/klog/v2 v2.3.0
 	k8s.io/kube-aggregator v0.19.0-rc.2
 	k8s.io/utils v0.0.0-20200720150651-0bdb4ca86cbc
 )

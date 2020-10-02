@@ -19,7 +19,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
 	configv1 "github.com/openshift/api/config/v1"

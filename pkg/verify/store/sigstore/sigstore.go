@@ -22,7 +22,7 @@ import (
 	"path"
 	"strconv"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/util"

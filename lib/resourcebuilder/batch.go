@@ -8,7 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // WaitForJobCompletion waits for job to complete.

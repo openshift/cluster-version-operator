@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/openpgp"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/util"
@@ -175,7 +175,7 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 	}
 
 	if len(remaining) > 0 {
-		if klog.V(4) {
+		if klog.V(4).Enabled() {
 			for k := range remaining {
 				klog.Infof("Unable to verify %s against keyring %s", releaseDigest, k)
 			}

@@ -27,7 +27,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	externalversions "github.com/openshift/client-go/config/informers/externalversions"

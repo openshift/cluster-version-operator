@@ -10,7 +10,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // SplitOnJobs enforces the rule that any Job in the payload prevents reordering or parallelism (either before or after)
