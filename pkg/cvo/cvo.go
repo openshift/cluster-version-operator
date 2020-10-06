@@ -43,9 +43,7 @@ import (
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/openshift/library-go/pkg/verify"
-	"github.com/openshift/library-go/pkg/verify/store"
 	"github.com/openshift/library-go/pkg/verify/store/configmap"
-	"github.com/openshift/library-go/pkg/verify/store/serial"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
@@ -284,7 +282,7 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder s
 	// allow the verifier to consult the cluster for signature data, and also configure
 	// a process that writes signatures back to that store
 	signatureStore := configmap.NewStore(configMapClient, nil)
-	verifier.Store = &serial.Store{Stores: []store.Store{signatureStore, verifier.Store}}
+	verifier.AddStore(signatureStore)
 	persister := verify.NewSignatureStorePersister(signatureStore, verifier)
 	return verifier, persister, nil
 }
