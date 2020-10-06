@@ -21,13 +21,21 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 		wantProgress bool
 	}{
 		{
-			name:     "skip updates that clear an error and are at an earlier fraction",
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
-			want:     false,
+			name: "skip updates that clear an error and are at an earlier fraction",
+			previous: SyncWorkerStatus{
+				Failure:  fmt.Errorf("a"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
+			next: SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			want: false,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{
+				Failure:  fmt.Errorf("a"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
 			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing2"}},
 			want:         true,
 			wantProgress: true,
@@ -38,18 +46,38 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
-			want:     true,
+			previous: SyncWorkerStatus{
+				Failure:  fmt.Errorf("a"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
+			next: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
+			want: true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			want:     true,
+			previous: SyncWorkerStatus{
+				Failure:  fmt.Errorf("a"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
+			next: SyncWorkerStatus{
+				Failure:  fmt.Errorf("b"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
+			want: true,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.2},
+			previous: SyncWorkerStatus{
+				Failure:  fmt.Errorf("a"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.1,
+			},
+			next: SyncWorkerStatus{
+				Failure:  fmt.Errorf("b"),
+				Actual:   configv1.Release{Image: "testing"},
+				Fraction: 0.2,
+			},
 			want:         true,
 			wantProgress: true,
 		},

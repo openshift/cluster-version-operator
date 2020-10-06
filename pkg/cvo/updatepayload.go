@@ -78,7 +78,9 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	}
 
 	if len(update.Image) == 0 {
-		return PayloadInfo{}, fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
+		return PayloadInfo{}, fmt.Errorf(
+			"no payload image has been specified and the contents of the payload cannot be retrieved",
+		)
 	}
 
 	var info PayloadInfo

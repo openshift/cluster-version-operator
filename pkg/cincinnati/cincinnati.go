@@ -63,7 +63,13 @@ func (err *Error) Error() string {
 // finding all of the children. These children are the available updates for
 // the current version and their payloads indicate from where the actual update
 // image can be downloaded.
-func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) (Update, []Update, error) {
+func (c Client) GetUpdates(
+	ctx context.Context,
+	uri *url.URL,
+	arch string,
+	channel string,
+	version semver.Version,
+) (Update, []Update, error) {
 	var current Update
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
@@ -98,7 +104,10 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return current, nil, &Error{Reason: "ResponseFailed", Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status)}
+		return current, nil, &Error{
+			Reason:  "ResponseFailed",
+			Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status),
+		}
 	}
 
 	// Parse the graph.
@@ -125,8 +134,12 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	}
 	if !found {
 		return current, nil, &Error{
-			Reason:  "VersionNotFound",
-			Message: fmt.Sprintf("currently reconciling cluster version %s not found in the %q channel", version, channel),
+			Reason: "VersionNotFound",
+			Message: fmt.Sprintf(
+				"currently reconciling cluster version %s not found in the %q channel",
+				version,
+				channel,
+			),
 		}
 	}
 

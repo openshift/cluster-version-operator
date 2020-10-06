@@ -171,7 +171,9 @@ func New(
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
+	eventBroadcaster.StartRecordingToSink(
+		&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)},
+	)
 
 	optr := &Operator{
 		nodename:  nodename,
@@ -192,9 +194,18 @@ func New(
 		kubeClient:    kubeClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
-		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
-		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
+		queue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(),
+			"clusterversion",
+		),
+		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(),
+			"availableupdates",
+		),
+		upgradeableQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(),
+			"upgradeable",
+		),
 
 		exclude: exclude,
 	}
@@ -223,7 +234,10 @@ func New(
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude)
 	if err != nil {
-		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
+		return fmt.Errorf(
+			"the local release contents are invalid - no current version can be determined from disk: %v",
+			err,
+		)
 	}
 
 	optr.release = update.Release
@@ -236,7 +250,11 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	}
 
 	// attempt to load a verifier as defined in the payload
-	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, httpClientConstructor.HTTPClient, configClient)
+	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(
+		update,
+		httpClientConstructor.HTTPClient,
+		configClient,
+	)
 	if err != nil {
 		return err
 	}
@@ -272,7 +290,11 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 // It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
 // package for more details on the algorithm for verification. If the annotation is set, a verifier or error
 // is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder sigstore.HTTPClient, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
+func loadConfigMapVerifierDataFromUpdate(
+	update *payload.Update,
+	clientBuilder sigstore.HTTPClient,
+	configMapClient coreclientsetv1.ConfigMapsGetter,
+) (verify.Interface, *verify.StorePersister, error) {
 	verifier, err := verify.NewFromManifests(update.Manifests, clientBuilder)
 	if err != nil {
 		return nil, nil, err
@@ -306,10 +328,24 @@ func (optr *Operator) Run(ctx context.Context, workers int) error {
 	optr.queue.Add(optr.queueKey())
 
 	// start the config sync loop, and have it notify the queue when new status is detected
-	go runThrottledStatusNotifier(ctx, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
+	go runThrottledStatusNotifier(
+		ctx,
+		optr.statusInterval,
+		2,
+		optr.configSync.StatusCh(),
+		func() { optr.queue.Add(optr.queueKey()) },
+	)
 	go optr.configSync.Start(ctx, 16, optr.name, optr.cvLister)
-	go wait.UntilWithContext(ctx, func(ctx context.Context) { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second)
-	go wait.UntilWithContext(ctx, func(ctx context.Context) { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second)
+	go wait.UntilWithContext(
+		ctx,
+		func(ctx context.Context) { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) },
+		time.Second,
+	)
+	go wait.UntilWithContext(
+		ctx,
+		func(ctx context.Context) { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) },
+		time.Second,
+	)
 	go wait.UntilWithContext(ctx, func(ctx context.Context) {
 		defer close(workerStopCh)
 
@@ -357,14 +393,23 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	}
 }
 
-func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error) {
+func (optr *Operator) worker(
+	ctx context.Context,
+	queue workqueue.RateLimitingInterface,
+	syncHandler func(context.Context, string) error,
+) {
 	for processNextWorkItem(ctx, queue, syncHandler, optr.syncFailingStatus) {
 	}
 }
 
 type syncFailingStatusFunc func(ctx context.Context, config *configv1.ClusterVersion, err error) error
 
-func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error, syncFailingStatus syncFailingStatusFunc) bool {
+func processNextWorkItem(
+	ctx context.Context,
+	queue workqueue.RateLimitingInterface,
+	syncHandler func(context.Context, string) error,
+	syncFailingStatus syncFailingStatusFunc,
+) bool {
 	key, quit := queue.Get()
 	if quit {
 		return false
@@ -376,7 +421,13 @@ func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterf
 	return true
 }
 
-func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
+func handleErr(
+	ctx context.Context,
+	queue workqueue.RateLimitingInterface,
+	err error,
+	key interface{},
+	syncFailingStatus syncFailingStatusFunc,
+) {
 	if err == nil {
 		queue.Forget(key)
 		return
@@ -542,7 +593,10 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
+func (optr *Operator) getOrCreateClusterVersion(
+	ctx context.Context,
+	enableDefault bool,
+) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
@@ -668,7 +722,10 @@ type resourceBuilder struct {
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter) payload.ResourceBuilder {
+func NewResourceBuilder(
+	config, burstConfig *rest.Config,
+	clusterOperators cvointernal.ClusterOperatorsGetter,
+) payload.ResourceBuilder {
 	return &resourceBuilder{
 		config:           config,
 		burstConfig:      burstConfig,

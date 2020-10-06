@@ -18,10 +18,12 @@ func TestSummarize(t *testing.T) {
 		exp:   "random error",
 	}, {
 		input: []error{&Error{
-			Nested:  nil,
-			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
-			Name:    "FeatureGate",
+			Nested: nil,
+			Reason: "NotAllowedFeatureGateSet",
+			Message: fmt.Sprintf(
+				"Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
+			),
+			Name: "FeatureGate",
 		}},
 		exp: `Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
 	}, {
@@ -31,15 +33,19 @@ func TestSummarize(t *testing.T) {
 * random error 2`,
 	}, {
 		input: []error{&Error{
-			Nested:  nil,
-			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
-			Name:    "FeatureGate",
+			Nested: nil,
+			Reason: "NotAllowedFeatureGateSet",
+			Message: fmt.Sprintf(
+				"Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
+			),
+			Name: "FeatureGate",
 		}, &Error{
-			Nested:  nil,
-			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
-			Name:    "FeatureGate",
+			Nested: nil,
+			Reason: "NotAllowedFeatureGateSet",
+			Message: fmt.Sprintf(
+				"Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
+			),
+			Name: "FeatureGate",
 		}},
 		exp: `Multiple precondition checks failed:
 * Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.
@@ -48,10 +54,12 @@ func TestSummarize(t *testing.T) {
 		input: []error{
 			fmt.Errorf("random error"),
 			&Error{
-				Nested:  nil,
-				Reason:  "NotAllowedFeatureGateSet",
-				Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
-				Name:    "FeatureGate",
+				Nested: nil,
+				Reason: "NotAllowedFeatureGateSet",
+				Message: fmt.Sprintf(
+					"Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
+				),
+				Name: "FeatureGate",
 			}},
 		exp: `Multiple precondition checks failed:
 * random error

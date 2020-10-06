@@ -432,7 +432,11 @@ func ensureAffinity(modified *bool, existing *corev1.Affinity, required corev1.A
 	}
 }
 
-func ensurePodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
+func ensurePodSecurityContextPtr(
+	modified *bool,
+	existing **corev1.PodSecurityContext,
+	required *corev1.PodSecurityContext,
+) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
@@ -510,7 +514,11 @@ func ensureSELinuxOptions(modified *bool, existing *corev1.SELinuxOptions, requi
 	setStringIfSet(modified, &existing.Level, required.Level)
 }
 
-func ensureResourceRequirements(modified *bool, existing *corev1.ResourceRequirements, required corev1.ResourceRequirements) {
+func ensureResourceRequirements(
+	modified *bool,
+	existing *corev1.ResourceRequirements,
+	required corev1.ResourceRequirements,
+) {
 	ensureResourceList(modified, &existing.Limits, &required.Limits)
 	ensureResourceList(modified, &existing.Requests, &required.Requests)
 }

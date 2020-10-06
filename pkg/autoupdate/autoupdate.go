@@ -60,7 +60,9 @@ func New(
 ) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
+	eventBroadcaster.StartRecordingToSink(
+		&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)},
+	)
 
 	ctrl := &Controller{
 		namespace:     namespace,
@@ -176,7 +178,12 @@ func (ctrl *Controller) sync(ctx context.Context, key string) error {
 		Image:   up.Image,
 	}
 
-	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctx, ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)
+	_, updated, err := resourceapply.ApplyClusterVersionFromCache(
+		ctx,
+		ctrl.cvLister,
+		ctrl.client.ConfigV1(),
+		clusterversion,
+	)
 	if updated {
 		klog.Infof("Auto Update set to %v", up)
 	}

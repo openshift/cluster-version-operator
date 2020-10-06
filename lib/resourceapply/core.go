@@ -14,7 +14,11 @@ import (
 )
 
 // ApplyNamespacev1 merges objectmeta, does not worry about anything else
-func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
+func ApplyNamespacev1(
+	ctx context.Context,
+	client coreclientv1.NamespacesGetter,
+	required *corev1.Namespace,
+) (*corev1.Namespace, bool, error) {
 	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Namespaces().Create(ctx, required, metav1.CreateOptions{})
@@ -41,7 +45,11 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 // ApplyServicev1 merges objectmeta and requires
 // TODO, since this cannot determine whether changes are due to legitimate actors (api server) or illegitimate ones (users), we cannot update
 // TODO I've special cased the selector for now
-func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, required *corev1.Service) (*corev1.Service, bool, error) {
+func ApplyServicev1(
+	ctx context.Context,
+	client coreclientv1.ServicesGetter,
+	required *corev1.Service,
+) (*corev1.Service, bool, error) {
 	existing, err := client.Services(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Services(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -72,7 +80,11 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 }
 
 // ApplyServiceAccountv1 applies the required serviceaccount to the cluster.
-func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount) (*corev1.ServiceAccount, bool, error) {
+func ApplyServiceAccountv1(
+	ctx context.Context,
+	client coreclientv1.ServiceAccountsGetter,
+	required *corev1.ServiceAccount,
+) (*corev1.ServiceAccount, bool, error) {
 	existing, err := client.ServiceAccounts(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ServiceAccounts(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -97,7 +109,11 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 }
 
 // ApplyConfigMapv1 applies the required serviceaccount to the cluster.
-func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap) (*corev1.ConfigMap, bool, error) {
+func ApplyConfigMapv1(
+	ctx context.Context,
+	client coreclientv1.ConfigMapsGetter,
+	required *corev1.ConfigMap,
+) (*corev1.ConfigMap, bool, error) {
 	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ConfigMaps(required.Namespace).Create(ctx, required, metav1.CreateOptions{})

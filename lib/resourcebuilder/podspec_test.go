@@ -93,7 +93,13 @@ func TestUpdatePodSpecWithProxy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := updatePodSpecWithProxy(test.input, test.containerNames, test.httpProxy, test.httpsProxy, test.noProxy)
+			err := updatePodSpecWithProxy(
+				test.input,
+				test.containerNames,
+				test.httpProxy,
+				test.httpsProxy,
+				test.noProxy,
+			)
 			switch {
 			case err == nil && len(test.expectedErr) == 0:
 			case err != nil && len(test.expectedErr) == 0:
@@ -249,7 +255,12 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := updatePodSpecWithInternalLoadBalancerKubeService(test.input, test.containerNames, test.lbHost, test.lbPort)
+			err := updatePodSpecWithInternalLoadBalancerKubeService(
+				test.input,
+				test.containerNames,
+				test.lbHost,
+				test.lbPort,
+			)
 			switch {
 			case err == nil && len(test.expectedErr) == 0:
 			case err != nil && len(test.expectedErr) == 0:

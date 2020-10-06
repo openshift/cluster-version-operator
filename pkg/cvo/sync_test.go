@@ -67,10 +67,16 @@ func Test_SyncWorker_apply(t *testing.T) {
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(
+				got,
+				exp,
+			) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
-			if got, exp := actions[1], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[1], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(
+				got,
+				exp,
+			) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
@@ -104,7 +110,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(
+				got,
+				exp,
+			) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
@@ -129,8 +138,14 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
-			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))
-			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, newTestBuilder(r, test.reactors))
+			testMapper.RegisterGVK(
+				schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"},
+				newTestBuilder(r, test.reactors),
+			)
+			testMapper.RegisterGVK(
+				schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"},
+				newTestBuilder(r, test.reactors),
+			)
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
@@ -314,8 +329,14 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			}
 
 			dynamicScheme := runtime.NewScheme()
-			dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, &unstructured.Unstructured{})
-			dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
+			dynamicScheme.AddKnownTypeWithName(
+				schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"},
+				&unstructured.Unstructured{},
+			)
+			dynamicScheme.AddKnownTypeWithName(
+				schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"},
+				&unstructured.Unstructured{},
+			)
 			dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
 			up := &payload.Update{
@@ -402,10 +423,20 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 	return ch
 }
 
-func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
+func (r *fakeSyncRecorder) Start(
+	ctx context.Context,
+	maxWorkers int,
+	cvoOptrName string,
+	lister configlistersv1.ClusterVersionLister,
+) {
 }
 
-func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(
+	generation int64,
+	desired configv1.Update,
+	overrides []configv1.ComponentOverride,
+	state payload.State,
+) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }
@@ -448,7 +479,11 @@ type testResourceBuilder struct {
 
 func (b *testResourceBuilder) Apply(ctx context.Context, m *lib.Manifest, state payload.State) error {
 	ns := m.Object().GetNamespace()
-	fakeGVR := schema.GroupVersionResource{Group: m.GVK.Group, Version: m.GVK.Version, Resource: strings.ToLower(m.GVK.Kind)}
+	fakeGVR := schema.GroupVersionResource{
+		Group:    m.GVK.Group,
+		Version:  m.GVK.Version,
+		Resource: strings.ToLower(m.GVK.Kind),
+	}
 	client := b.client.Resource(fakeGVR).Namespace(ns)
 	builder, err := internal.NewGenericBuilder(client, *m)
 	if err != nil {

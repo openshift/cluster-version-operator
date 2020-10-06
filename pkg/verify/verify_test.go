@@ -61,7 +61,14 @@ func Test_ReleaseVerifier_Verify(t *testing.T) {
 	defer emptyServer.Close()
 	emptyServerURL, _ := url.Parse(emptyServer.URL)
 
-	validSignatureData, err := ioutil.ReadFile(filepath.Join("testdata", "signatures", "sha256=e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7", "signature-1"))
+	validSignatureData, err := ioutil.ReadFile(
+		filepath.Join(
+			"testdata",
+			"signatures",
+			"sha256=e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7",
+			"signature-1",
+		),
+	)
 	validSignatureStore := &memory.Store{
 		Data: map[string][][]byte{
 			"sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7": {
@@ -237,7 +244,9 @@ func Test_ReleaseVerifier_Signatures(t *testing.T) {
 
 	const signedDigest = "sha256:e3f12513a4b22a2d7c0e7c9207f52128113758d9d68c7d06b11a0ac7672966f7"
 
-	expectedSignature, err := ioutil.ReadFile(filepath.Join("testdata", "signatures", strings.Replace(signedDigest, ":", "=", 1), "signature-1"))
+	expectedSignature, err := ioutil.ReadFile(
+		filepath.Join("testdata", "signatures", strings.Replace(signedDigest, ":", "=", 1), "signature-1"),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,7 +258,8 @@ func Test_ReleaseVerifier_Signatures(t *testing.T) {
 		map[string]openpgp.EntityList{"redhat": redhatPublic},
 		&memory.Store{},
 	)
-	if err := verifier.Verify(context.Background(), signedDigest); err == nil || err.Error() != "unable to locate a valid signature for one or more sources" {
+	if err := verifier.Verify(context.Background(), signedDigest); err == nil ||
+		err.Error() != "unable to locate a valid signature for one or more sources" {
 		t.Fatal(err)
 	}
 	if sigs := verifier.Signatures(); len(sigs) != 0 {
@@ -289,7 +299,8 @@ func Test_ReleaseVerifier_Signatures(t *testing.T) {
 	if err := verifier.Verify(context.Background(), signedDigest); err != nil {
 		t.Fatal(err)
 	}
-	if sigs := verifier.Signatures(); len(sigs) != maxSignatureCacheSize || !reflect.DeepEqual(sigs[signedDigest], [][]byte{expectedSignature}) {
+	if sigs := verifier.Signatures(); len(sigs) != maxSignatureCacheSize ||
+		!reflect.DeepEqual(sigs[signedDigest], [][]byte{expectedSignature}) {
 		t.Fatalf("%d %#v", len(sigs), sigs)
 	}
 }

@@ -18,31 +18,68 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 
 	if len(config.Spec.Upstream) > 0 {
 		if _, err := url.Parse(string(config.Spec.Upstream)); err != nil {
-			errs = append(errs, field.Invalid(field.NewPath("spec", "upstream"), config.Spec.Upstream, "must be a valid URL or empty"))
+			errs = append(
+				errs,
+				field.Invalid(field.NewPath("spec", "upstream"), config.Spec.Upstream, "must be a valid URL or empty"),
+			)
 		}
 	}
 	if len(config.Spec.ClusterID) > 0 {
 		id, _ := uuid.Parse(string(config.Spec.ClusterID))
 		switch {
 		case id.Variant() != uuid.RFC4122:
-			errs = append(errs, field.Invalid(field.NewPath("spec", "clusterID"), config.Spec.ClusterID, "must be an RFC4122-variant UUID"))
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("spec", "clusterID"),
+					config.Spec.ClusterID,
+					"must be an RFC4122-variant UUID",
+				),
+			)
 		case id.Version() != 4:
-			errs = append(errs, field.Invalid(field.NewPath("spec", "clusterID"), config.Spec.ClusterID, "must be a version-4 UUID"))
+			errs = append(
+				errs,
+				field.Invalid(field.NewPath("spec", "clusterID"), config.Spec.ClusterID, "must be a version-4 UUID"),
+			)
 		}
 	}
 	if u := config.Spec.DesiredUpdate; u != nil {
 		switch {
 		case len(u.Version) == 0 && len(u.Image) == 0:
-			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate", "version"), "must specify version or image"))
+			errs = append(
+				errs,
+				field.Required(field.NewPath("spec", "desiredUpdate", "version"), "must specify version or image"),
+			)
 		case len(u.Version) > 0 && !validSemVer(u.Version):
-			errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "must be a semantic version (1.2.3[-...])"))
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("spec", "desiredUpdate", "version"),
+					u.Version,
+					"must be a semantic version (1.2.3[-...])",
+				),
+			)
 		case len(u.Version) > 0 && len(u.Image) == 0:
 			switch countPayloadsForVersion(config, u.Version) {
 			case 0:
-				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "when image is empty the update must be a previous version or an available update"))
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("spec", "desiredUpdate", "version"),
+						u.Version,
+						"when image is empty the update must be a previous version or an available update",
+					),
+				)
 			case 1:
 			default:
-				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version, "there are multiple possible payloads for this version, specify the exact image"))
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("spec", "desiredUpdate", "version"),
+						u.Version,
+						"there are multiple possible payloads for this version, specify the exact image",
+					),
+				)
 			}
 		}
 	}

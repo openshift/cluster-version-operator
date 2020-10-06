@@ -98,7 +98,9 @@ func (u *upgradeable) NeedsUpdate(original *configv1.ClusterVersion) *configv1.C
 	return config
 }
 
-func collectUpgradeableConditions(conditions []configv1.ClusterOperatorStatusCondition) []configv1.ClusterOperatorStatusCondition {
+func collectUpgradeableConditions(
+	conditions []configv1.ClusterOperatorStatusCondition,
+) []configv1.ClusterOperatorStatusCondition {
 	var ret []configv1.ClusterOperatorStatusCondition
 	for _, c := range conditions {
 		if strings.HasPrefix(string(c.Type), string(configv1.OperatorUpgradeable)) {
@@ -158,7 +160,8 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	}
 	var notup []notUpgradeableCondition
 	for _, op := range ops {
-		if up := resourcemerge.FindOperatorStatusCondition(op.Status.Conditions, configv1.OperatorUpgradeable); up != nil && up.Status == configv1.ConditionFalse {
+		if up := resourcemerge.FindOperatorStatusCondition(op.Status.Conditions, configv1.OperatorUpgradeable); up != nil &&
+			up.Status == configv1.ConditionFalse {
 			notup = append(notup, notUpgradeableCondition{name: op.GetName(), condition: up})
 		}
 	}
@@ -170,7 +173,11 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	reason := ""
 	if len(notup) == 1 {
 		reason = notup[0].condition.Reason
-		msg = fmt.Sprintf("Cluster operator %s cannot be upgraded between minor versions: %s", notup[0].name, notup[0].condition.Message)
+		msg = fmt.Sprintf(
+			"Cluster operator %s cannot be upgraded between minor versions: %s",
+			notup[0].name,
+			notup[0].condition.Message,
+		)
 	} else {
 		reason = "ClusterOperatorsNotUpgradeable"
 		var msgs []string

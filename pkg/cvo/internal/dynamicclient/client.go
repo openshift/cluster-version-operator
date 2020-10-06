@@ -54,7 +54,10 @@ func New(config *rest.Config, gvk schema.GroupVersionKind, namespace string) (dy
 }
 
 // getResourceClient returns the dynamic client for the resource specified by the gvk.
-func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, namespace string) (dynamic.ResourceInterface, error) {
+func (c *resourceClientFactory) getResourceClient(
+	gvk schema.GroupVersionKind,
+	namespace string,
+) (dynamic.ResourceInterface, error) {
 	var (
 		gvr        *schema.GroupVersionResource
 		namespaced bool
@@ -80,13 +83,20 @@ func (c *resourceClientFactory) getResourceClient(gvk schema.GroupVersionKind, n
 	return c.dynamicClient.Resource(*gvr).Namespace(ns), nil
 }
 
-func gvkToGVR(gvk schema.GroupVersionKind, restMapper *restmapper.DeferredDiscoveryRESTMapper) (*schema.GroupVersionResource, bool, error) {
+func gvkToGVR(
+	gvk schema.GroupVersionKind,
+	restMapper *restmapper.DeferredDiscoveryRESTMapper,
+) (*schema.GroupVersionResource, bool, error) {
 	mapping, err := restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if meta.IsNoMatchError(err) {
 		return nil, false, err
 	}
 	if err != nil {
-		return nil, false, errors.Wrapf(err, "failed to get the resource REST mapping for GroupVersionKind(%s)", gvk.String())
+		return nil, false, errors.Wrapf(
+			err,
+			"failed to get the resource REST mapping for GroupVersionKind(%s)",
+			gvk.String(),
+		)
 	}
 
 	return &mapping.Resource, mapping.Scope.Name() == meta.RESTScopeNameNamespace, nil

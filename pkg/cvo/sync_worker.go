@@ -32,7 +32,12 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
+	Update(
+		generation int64,
+		desired configv1.Update,
+		overrides []configv1.ComponentOverride,
+		state payload.State,
+	) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -159,7 +164,14 @@ type SyncWorker struct {
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, eventRecorder record.EventRecorder) *SyncWorker {
+func NewSyncWorker(
+	retriever PayloadRetriever,
+	builder payload.ResourceBuilder,
+	reconcileInterval time.Duration,
+	backoff wait.Backoff,
+	exclude string,
+	eventRecorder record.EventRecorder,
+) *SyncWorker {
 	return &SyncWorker{
 		retriever:     retriever,
 		builder:       builder,
@@ -181,7 +193,15 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, eventRecorder record.EventRecorder) *SyncWorker {
+func NewSyncWorkerWithPreconditions(
+	retriever PayloadRetriever,
+	builder payload.ResourceBuilder,
+	preconditions precondition.List,
+	reconcileInterval time.Duration,
+	backoff wait.Backoff,
+	exclude string,
+	eventRecorder record.EventRecorder,
+) *SyncWorker {
 	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, eventRecorder)
 	worker.preconditions = preconditions
 	return worker
@@ -198,7 +218,12 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+func (w *SyncWorker) Update(
+	generation int64,
+	desired configv1.Update,
+	overrides []configv1.ComponentOverride,
+	state payload.State,
+) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -257,7 +282,12 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
-func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
+func (w *SyncWorker) Start(
+	ctx context.Context,
+	maxWorkers int,
+	cvoOptrName string,
+	lister configlistersv1.ClusterVersionLister,
+) {
 	klog.V(5).Infof("Starting sync worker")
 
 	work := &SyncWork{}
@@ -378,7 +408,8 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 			}
 		}
 	}
-	if status.Fraction > p.Fraction || status.Completed > p.Completed || (status.Failure == nil && status.Actual.Image != p.Actual.Image) {
+	if status.Fraction > p.Fraction || status.Completed > p.Completed ||
+		(status.Failure == nil && status.Actual.Image != p.Actual.Image) {
 		status.LastProgress = time.Now()
 	}
 	if status.Generation == 0 {
@@ -486,12 +517,27 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // sync retrieves the image and applies it to the server, returning an error if
 // the update could not be completely applied. The status is updated as we progress.
 // Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter, clusterVersion *configv1.ClusterVersion) error {
+func (w *SyncWorker) syncOnce(
+	ctx context.Context,
+	work *SyncWork,
+	maxWorkers int,
+	reporter StatusReporter,
+	clusterVersion *configv1.ClusterVersion,
+) error {
 	desired := configv1.Release{
 		Version: work.Desired.Version,
 		Image:   work.Desired.Image,
 	}
-	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
+	klog.V(
+		4,
+	).Infof(
+		"Running sync %s (force=%t) on generation %d in state %s at attempt %d",
+		versionString(desired),
+		work.Desired.Force,
+		work.Generation,
+		work.State,
+		work.Attempt,
+	)
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
@@ -608,7 +654,13 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 // apply updates the server with the contents of the provided image or returns an error.
 // Cancelling the context will abort the execution of the sync. Will be executed in parallel if
 // maxWorkers is set greater than 1.
-func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+func (w *SyncWorker) apply(
+	ctx context.Context,
+	payloadUpdate *payload.Update,
+	work *SyncWork,
+	maxWorkers int,
+	reporter StatusReporter,
+) error {
 	// encapsulate status reporting in a threadsafe updater
 	total := len(payloadUpdate.Manifests)
 	cr := &consistentReporter{
@@ -660,7 +712,9 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 		steps := 8
 		epoch, iteration := work.Attempt/steps, work.Attempt%steps
 		r := rand.New(rand.NewSource(int64(epoch)))
-		graph.Parallelize(payload.ShiftOrder(payload.PermuteOrder(payload.FlattenByNumberAndComponent, r), iteration, steps))
+		graph.Parallelize(
+			payload.ShiftOrder(payload.PermuteOrder(payload.FlattenByNumberAndComponent, r), iteration, steps),
+		)
 		maxWorkers = 2
 	default:
 		// perform an orderly roll out by payload order, using some parallelization
@@ -867,7 +921,15 @@ func summarizeTaskGraphErrors(errs []error) error {
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {
 				if uErr.Task != nil {
-					klog.Infof("Update error %d of %d: %s %s (%T: %v)", uErr.Task.Index, uErr.Task.Total, uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
+					klog.Infof(
+						"Update error %d of %d: %s %s (%T: %v)",
+						uErr.Task.Index,
+						uErr.Task.Total,
+						uErr.Reason,
+						uErr.Message,
+						uErr.Nested,
+						uErr.Nested,
+					)
 				} else {
 					klog.Infof("Update error: %s %s (%T: %v)", uErr.Reason, uErr.Message, uErr.Nested, uErr.Nested)
 				}
@@ -996,7 +1058,10 @@ func newMultipleError(errs []error) error {
 }
 
 // getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *lib.Manifest) (configv1.ComponentOverride, bool) {
+func getOverrideForManifest(
+	overrides []configv1.ComponentOverride,
+	manifest *lib.Manifest,
+) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
 		kind, namespace, name := manifest.GVK.Kind, manifest.Object().GetNamespace(), manifest.Object().GetName()
 		if ov.Kind == kind &&
@@ -1020,7 +1085,13 @@ func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1Obj
 
 // runThrottledStatusNotifier invokes fn every time ch is updated, but no more often than once
 // every interval. If bucket is non-zero then the channel is throttled like a rate limiter bucket.
-func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, bucket int, ch <-chan SyncWorkerStatus, fn func()) {
+func runThrottledStatusNotifier(
+	ctx context.Context,
+	interval time.Duration,
+	bucket int,
+	ch <-chan SyncWorkerStatus,
+	fn func(),
+) {
 	// notify the status change function fairly infrequently to avoid updating
 	// the caller status more frequently than is needed
 	throttle := rate.NewLimiter(rate.Every(interval), bucket)
@@ -1032,8 +1103,10 @@ func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, buc
 				return
 			case next := <-ch:
 				// only throttle if we aren't on an edge
-				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
-					if err := throttle.Wait(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.Reconciling == last.Reconciling &&
+					(next.Failure != nil) == (last.Failure != nil) {
+					if err := throttle.Wait(ctx); err != nil && err != context.Canceled &&
+						err != context.DeadlineExceeded {
 						utilruntime.HandleError(fmt.Errorf("unable to throttle status notification: %v", err))
 					}
 				}

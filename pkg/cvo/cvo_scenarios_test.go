@@ -31,58 +31,70 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
-func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
+func setupCVOTest(
+	payloadDir string,
+) (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
 	client := &fake.Clientset{}
 	client.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 	})
 	cvs := make(map[string]runtime.Object)
-	client.AddReactor("*", "clusterversions", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
-		switch a := action.(type) {
-		case clientgotesting.GetAction:
-			obj, ok := cvs[a.GetName()]
-			if !ok {
-				return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
+	client.AddReactor(
+		"*",
+		"clusterversions",
+		func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+			switch a := action.(type) {
+			case clientgotesting.GetAction:
+				obj, ok := cvs[a.GetName()]
+				if !ok {
+					return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
+				}
+				return true, obj.DeepCopyObject(), nil
+			case clientgotesting.CreateAction:
+				obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
+				obj.Generation = 1
+				cvs[obj.Name] = obj
+				return true, obj, nil
+			case clientgotesting.UpdateAction:
+				obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
+				existing := cvs[obj.Name].DeepCopyObject().(*configv1.ClusterVersion)
+				rv, _ := strconv.Atoi(existing.ResourceVersion)
+				nextRV := strconv.Itoa(rv + 1)
+				if a.GetSubresource() == "status" {
+					existing.Status = obj.Status
+				} else {
+					existing.Spec = obj.Spec
+					existing.ObjectMeta = obj.ObjectMeta
+					obj.Generation++
+				}
+				existing.ResourceVersion = nextRV
+				cvs[existing.Name] = existing
+				return true, existing, nil
 			}
-			return true, obj.DeepCopyObject(), nil
-		case clientgotesting.CreateAction:
-			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
-			obj.Generation = 1
-			cvs[obj.Name] = obj
-			return true, obj, nil
-		case clientgotesting.UpdateAction:
-			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
-			existing := cvs[obj.Name].DeepCopyObject().(*configv1.ClusterVersion)
-			rv, _ := strconv.Atoi(existing.ResourceVersion)
-			nextRV := strconv.Itoa(rv + 1)
-			if a.GetSubresource() == "status" {
-				existing.Status = obj.Status
-			} else {
-				existing.Spec = obj.Spec
-				existing.ObjectMeta = obj.ObjectMeta
-				obj.Generation++
-			}
-			existing.ResourceVersion = nextRV
-			cvs[existing.Name] = existing
-			return true, existing, nil
-		}
-		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
-	})
+			return false, nil, fmt.Errorf("unexpected client action: %#v", action)
+		},
+	)
 
 	o := &Operator{
 		namespace:                   "test",
 		name:                        "version",
 		enableDefaultClusterVersion: true,
-		queue:                       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
-		client:                      client,
-		cvLister:                    &clientCVLister{client: client},
-		exclude:                     "exclude-test",
-		eventRecorder:               record.NewFakeRecorder(100),
+		queue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.DefaultControllerRateLimiter(),
+			"cvo-loop-test",
+		),
+		client:        client,
+		cvLister:      &clientCVLister{client: client},
+		exclude:       "exclude-test",
+		eventRecorder: record.NewFakeRecorder(100),
 	}
 
 	dynamicScheme := runtime.NewScheme()
 	//dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, &unstructured.Unstructured{})
-	dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
+	dynamicScheme.AddKnownTypeWithName(
+		schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"},
+		&unstructured.Unstructured{},
+	)
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
 	worker := NewSyncWorker(
@@ -167,8 +179,18 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "No configured operator version, unable to update cluster",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -205,7 +227,12 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			ObservedGeneration: 1,
 			Desired:            desired,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "4.0.1",
+					StartedTime: defaultStartedTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -315,13 +342,29 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					Image:          "image/image:1",
+					Version:        "4.0.1",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -482,8 +525,18 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "No configured operator version, unable to update cluster",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -520,7 +573,12 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "4.0.1",
+					StartedTime: defaultStartedTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -630,13 +688,29 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					Image:          "image/image:1",
+					Version:        "4.0.1",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -787,8 +861,18 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// report back to the user that we don't have enough info to proceed
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "No configured operator version, unable to update cluster"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "NoDesiredImage", Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "No configured operator version, unable to update cluster",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "NoDesiredImage",
+					Message: "Unable to apply <unknown>: an unknown error has occurred: NoDesiredImage",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -825,7 +909,12 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "4.0.1",
+					StartedTime: defaultStartedTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -935,13 +1024,29 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					Image:          "image/image:1",
+					Version:        "4.0.1",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1043,12 +1148,23 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1125,14 +1241,36 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.1-abc",
+					StartedTime: defaultStartedTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "The update cannot be verified: some random error",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "Unable to apply 1.0.1-abc: the image may not be safe to use",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1164,7 +1302,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("never saw expected sync event")
 		}
-		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+		if status.Step == "RetrievePayload" &&
+			reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
 			break
 		}
 		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
@@ -1252,13 +1391,30 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.1-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.1-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1290,12 +1446,23 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1372,14 +1539,36 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.1-abc",
+					StartedTime: defaultStartedTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "The update cannot be verified: some random error",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "Unable to apply 1.0.1-abc: the image may not be safe to use",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1411,7 +1600,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("never saw expected sync event")
 		}
-		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+		if status.Step == "RetrievePayload" &&
+			reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
 			break
 		}
 		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
@@ -1499,13 +1689,30 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.1-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.1-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1590,12 +1797,23 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1633,9 +1851,13 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Step:    "PreconditionChecks",
-			Failure: &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
-			Actual:  configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step: "PreconditionChecks",
+			Failure: &payload.UpdateError{
+				Reason:  "UpgradePreconditionCheckFailed",
+				Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt",
+				Name:    "PreconditionCheck",
+			},
+			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
 	)
 
@@ -1666,14 +1888,36 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.1-abc",
+					StartedTime: defaultStartedTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Unable to apply 1.0.1-abc: it may not be safe to apply this update"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "UpgradePreconditionCheckFailed",
+					Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "UpgradePreconditionCheckFailed",
+					Message: "Unable to apply 1.0.1-abc: it may not be safe to apply this update",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1704,7 +1948,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("never saw expected sync event")
 		}
-		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+		if status.Step == "RetrievePayload" &&
+			reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
 			break
 		}
 		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
@@ -1797,13 +2042,30 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.1-abc",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.1-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1836,12 +2098,23 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1921,14 +2194,36 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.1-abc",
+					StartedTime: defaultStartedTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "The update cannot be verified: some random error"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ImageVerificationFailed", Message: "Unable to apply 1.0.1-abc: the image may not be safe to use"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "The update cannot be verified: some random error",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ImageVerificationFailed",
+					Message: "Unable to apply 1.0.1-abc: the image may not be safe to use",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2044,13 +2339,31 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.1-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.1-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2093,15 +2406,40 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					Image:          "image/image:1",
+					Version:        "4.0.1",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
+				{
+					State:          configv1.PartialUpdate,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2305,12 +2643,23 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2484,12 +2833,29 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:1",
+					Version:        "1.0.0-abc",
+					Verified:       true,
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadFailed", Message: "Could not update test \"file-yml\" (3 of 3)"},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
+				{
+					Type:    ClusterStatusFailing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "UpdatePayloadFailed",
+					Message: "Could not update test \"file-yml\" (3 of 3)",
+				},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Reason:  "UpdatePayloadFailed",
+					Message: "Error while reconciling 1.0.0-abc: the update could not be applied",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2605,7 +2971,8 @@ func TestCVO_ParallelError(t *testing.T) {
 		}
 		err := status.Failure
 		uErr, ok := err.(*payload.UpdateError)
-		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" || uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
+		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" ||
+			uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if status.LastProgress.IsZero() {
@@ -2651,12 +3018,22 @@ func TestCVO_ParallelError(t *testing.T) {
 			Desired:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash: "7m-gGRrpkDU=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.0-abc",
+					StartedTime: defaultStartedTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 33% complete, waiting on operator-1, operator-2"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Reason:  "ClusterOperatorsNotAvailable",
+					Message: "Working towards 1.0.0-abc: 33% complete, waiting on operator-1, operator-2",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2694,12 +3071,21 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.0-abc",
+					StartedTime: defaultStartedTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2753,13 +3139,28 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 			Desired:     desired,
 			VersionHash: "6GC9TkkG9PA=",
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{
+					State:       configv1.PartialUpdate,
+					Image:       "image/image:1",
+					Version:     "1.0.0-abc",
+					StartedTime: defaultStartedTime,
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					Image:          "image/image:0",
+					Version:        "1.0.0-abc.0",
+					StartedTime:    defaultStartedTime,
+					CompletionTime: &defaultCompletionTime,
+				},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionFalse,
+					Message: "Cluster version is 1.0.0-abc",
+				},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},

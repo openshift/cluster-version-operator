@@ -29,7 +29,11 @@ func readUnstructuredV1OrDie(objBytes []byte) *unstructured.Unstructured {
 	return udi.(*unstructured.Unstructured)
 }
 
-func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
+func applyUnstructured(
+	ctx context.Context,
+	client dynamic.ResourceInterface,
+	required *unstructured.Unstructured,
+) (*unstructured.Unstructured, bool, error) {
 	if required.GetName() == "" {
 		return nil, false, fmt.Errorf("invalid object: name cannot be empty")
 	}

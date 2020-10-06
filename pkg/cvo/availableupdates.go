@@ -38,7 +38,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getAvailableUpdates()
-	if u != nil && u.Upstream == upstream && u.Channel == channel && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
+	if u != nil && u.Upstream == upstream && u.Channel == channel &&
+		u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(4).Infof("Available updates were recently retrieved, will try later.")
 		return nil
 	}
@@ -48,7 +49,16 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		return err
 	}
 
-	current, updates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.release.Version)
+	current, updates, condition := calculateAvailableUpdatesStatus(
+		ctx,
+		string(config.Spec.ClusterID),
+		proxyURL,
+		tlsConfig,
+		upstream,
+		arch,
+		channel,
+		optr.release.Version,
+	)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -101,7 +111,10 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *confi
 		return nil
 	}
 	if equality.Semantic.DeepEqual(u.Updates, original.Status.AvailableUpdates) &&
-		equality.Semantic.DeepEqual(u.Condition, resourcemerge.FindOperatorStatusCondition(original.Status.Conditions, u.Condition.Type)) {
+		equality.Semantic.DeepEqual(
+			u.Condition,
+			resourcemerge.FindOperatorStatusCondition(original.Status.Conditions, u.Condition.Type),
+		) {
 		return nil
 	}
 
@@ -144,7 +157,13 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(
+	ctx context.Context,
+	clusterID string,
+	proxyURL *url.URL,
+	tlsConfig *tls.Config,
+	upstream, arch, channel, version string,
+) (configv1.Release, []configv1.Release, configv1.ClusterOperatorStatusCondition) {
 	var cvoCurrent configv1.Release
 	if len(upstream) == 0 {
 		return cvoCurrent, nil, configv1.ClusterOperatorStatusCondition{
@@ -199,7 +218,17 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, prox
 		}
 	}
 
-	current, updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
+	current, updates, err := cincinnati.NewClient(
+		uuid,
+		proxyURL,
+		tlsConfig,
+	).GetUpdates(
+		ctx,
+		upstreamURI,
+		arch,
+		channel,
+		currentVersion,
+	)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {

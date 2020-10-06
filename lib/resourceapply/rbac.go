@@ -12,7 +12,11 @@ import (
 )
 
 // ApplyClusterRoleBindingv1 applies the required clusterrolebinding to the cluster.
-func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
+func ApplyClusterRoleBindingv1(
+	ctx context.Context,
+	client rbacclientv1.ClusterRoleBindingsGetter,
+	required *rbacv1.ClusterRoleBinding,
+) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing, err := client.ClusterRoleBindings().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ClusterRoleBindings().Create(ctx, required, metav1.CreateOptions{})
@@ -37,7 +41,11 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 }
 
 // ApplyClusterRolev1 applies the required clusterrole to the cluster.
-func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
+func ApplyClusterRolev1(
+	ctx context.Context,
+	client rbacclientv1.ClusterRolesGetter,
+	required *rbacv1.ClusterRole,
+) (*rbacv1.ClusterRole, bool, error) {
 	existing, err := client.ClusterRoles().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.ClusterRoles().Create(ctx, required, metav1.CreateOptions{})
@@ -62,7 +70,11 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 }
 
 // ApplyRoleBindingv1 applies the required clusterrolebinding to the cluster.
-func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
+func ApplyRoleBindingv1(
+	ctx context.Context,
+	client rbacclientv1.RoleBindingsGetter,
+	required *rbacv1.RoleBinding,
+) (*rbacv1.RoleBinding, bool, error) {
 	existing, err := client.RoleBindings(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.RoleBindings(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -87,7 +99,11 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 }
 
 // ApplyRolev1 applies the required clusterrole to the cluster.
-func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
+func ApplyRolev1(
+	ctx context.Context,
+	client rbacclientv1.RolesGetter,
+	required *rbacv1.Role,
+) (*rbacv1.Role, bool, error) {
 	existing, err := client.Roles(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Roles(required.Namespace).Create(ctx, required, metav1.CreateOptions{})

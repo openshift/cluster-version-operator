@@ -606,7 +606,10 @@ func Test_TaskGraph_example(t *testing.T) {
 					{Tasks: []*Task{pod("0000_07_a_0"), pod("0000_08_a_0")}, In: []int{0}, Out: []int{2, 3}},
 					{Tasks: []*Task{pod("0000_09_a_0"), pod("0000_09_a_1")}, In: []int{1}, Out: []int{4}},
 					{Tasks: []*Task{pod("0000_09_b_0"), pod("0000_09_b_1")}, In: []int{1}, Out: []int{4}},
-					{Tasks: []*Task{pod("0000_10_a_0"), pod("0000_10_a_1"), pod("0000_11_a_0"), pod("0000_11_a_1")}, In: []int{2, 3}},
+					{
+						Tasks: []*Task{pod("0000_10_a_0"), pod("0000_10_a_1"), pod("0000_11_a_0"), pod("0000_11_a_1")},
+						In:    []int{2, 3},
+					},
 				},
 			},
 		},
@@ -895,8 +898,11 @@ func TestRunGraph(t *testing.T) {
 				t.Fatalf("task b should never run")
 				return nil
 			},
-			want:     []string{"a"},
-			wantErrs: []string{`1 incomplete task nodes, beginning with configmap "default/b" (0 of 0)`, "context canceled"},
+			want: []string{"a"},
+			wantErrs: []string{
+				`1 incomplete task nodes, beginning with configmap "default/b" (0 of 0)`,
+				"context canceled",
+			},
 		},
 	}
 	for _, tt := range tests {

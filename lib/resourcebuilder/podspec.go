@@ -8,7 +8,11 @@ import (
 
 // updatePodSpecWithProxy mutates the input podspec with proxy env vars for all init containers and containers
 // matching the container names.
-func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, httpProxy, httpsProxy, noProxy string) error {
+func updatePodSpecWithProxy(
+	podSpec *corev1.PodSpec,
+	containerNames []string,
+	httpProxy, httpsProxy, noProxy string,
+) error {
 	hasProxy := len(httpsProxy) > 0 || len(httpProxy) > 0 || len(noProxy) > 0
 	if !hasProxy {
 		return nil
@@ -22,9 +26,18 @@ func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, ht
 			}
 			found = true
 
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			podSpec.Containers[i].Env = append(
+				podSpec.Containers[i].Env,
+				corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy},
+			)
+			podSpec.Containers[i].Env = append(
+				podSpec.Containers[i].Env,
+				corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy},
+			)
+			podSpec.Containers[i].Env = append(
+				podSpec.Containers[i].Env,
+				corev1.EnvVar{Name: "NO_PROXY", Value: noProxy},
+			)
 		}
 		for i := range podSpec.InitContainers {
 			if podSpec.InitContainers[i].Name != containerName {
@@ -32,9 +45,18 @@ func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, ht
 			}
 			found = true
 
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			podSpec.InitContainers[i].Env = append(
+				podSpec.InitContainers[i].Env,
+				corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy},
+			)
+			podSpec.InitContainers[i].Env = append(
+				podSpec.InitContainers[i].Env,
+				corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy},
+			)
+			podSpec.InitContainers[i].Env = append(
+				podSpec.InitContainers[i].Env,
+				corev1.EnvVar{Name: "NO_PROXY", Value: noProxy},
+			)
 		}
 
 		if !found {
@@ -48,7 +70,11 @@ func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, ht
 
 // updatePodSpecWithInternalLoadBalancerKubeService mutates the input podspec by setting the KUBERNETES_SERVICE_HOST to the internal
 // loadbalancer endpoint and the KUBERNETES_SERVICE_PORT to the specified port
-func updatePodSpecWithInternalLoadBalancerKubeService(podSpec *corev1.PodSpec, containerNames []string, internalLoadBalancerHost, internalLoadBalancerPort string) error {
+func updatePodSpecWithInternalLoadBalancerKubeService(
+	podSpec *corev1.PodSpec,
+	containerNames []string,
+	internalLoadBalancerHost, internalLoadBalancerPort string,
+) error {
 	hasInternalLoadBalancer := len(internalLoadBalancerHost) > 0
 	if !hasInternalLoadBalancer {
 		return nil
@@ -62,7 +88,11 @@ func updatePodSpecWithInternalLoadBalancerKubeService(podSpec *corev1.PodSpec, c
 			}
 			found = true
 
-			podSpec.Containers[i].Env = setKubeServiceValue(podSpec.Containers[i].Env, internalLoadBalancerHost, internalLoadBalancerPort)
+			podSpec.Containers[i].Env = setKubeServiceValue(
+				podSpec.Containers[i].Env,
+				internalLoadBalancerHost,
+				internalLoadBalancerPort,
+			)
 		}
 		for i := range podSpec.InitContainers {
 			if podSpec.InitContainers[i].Name != containerName {
@@ -70,7 +100,11 @@ func updatePodSpecWithInternalLoadBalancerKubeService(podSpec *corev1.PodSpec, c
 			}
 			found = true
 
-			podSpec.InitContainers[i].Env = setKubeServiceValue(podSpec.Containers[i].Env, internalLoadBalancerHost, internalLoadBalancerPort)
+			podSpec.InitContainers[i].Env = setKubeServiceValue(
+				podSpec.Containers[i].Env,
+				internalLoadBalancerHost,
+				internalLoadBalancerPort,
+			)
 		}
 
 		if !found {
@@ -82,7 +116,10 @@ func updatePodSpecWithInternalLoadBalancerKubeService(podSpec *corev1.PodSpec, c
 }
 
 // setKubeServiceValue replaces values if they are present and adds them if they are not
-func setKubeServiceValue(in []corev1.EnvVar, internalLoadBalancerHost, internalLoadBalancerPort string) []corev1.EnvVar {
+func setKubeServiceValue(
+	in []corev1.EnvVar,
+	internalLoadBalancerHost, internalLoadBalancerPort string,
+) []corev1.EnvVar {
 	ret := []corev1.EnvVar{}
 
 	portVal := "443"

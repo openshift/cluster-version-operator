@@ -187,8 +187,17 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
-								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+								{
+									Type:    ClusterStatusFailing,
+									Status:  configv1.ConditionTrue,
+									Reason:  "UpdatePayloadIntegrity",
+									Message: "unable to apply object",
+								},
+								{
+									Type:    configv1.OperatorProgressing,
+									Status:  configv1.ConditionTrue,
+									Message: "Working towards 4.0.1",
+								},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							},
 						},
@@ -217,7 +226,12 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 					},
 					Status: configv1.ClusterVersionStatus{
 						History: []configv1.UpdateHistory{
-							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: defaultStartedTime},
+							{
+								State:       configv1.PartialUpdate,
+								Version:     "4.0.1",
+								Image:       "image/image:v4.0.1",
+								StartedTime: defaultStartedTime,
+							},
 						},
 						Desired: configv1.Release{
 							Version: "4.0.1",
@@ -228,7 +242,12 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Error ensuring the cluster version is up to date: bad"},
+							{
+								Type:    configv1.OperatorProgressing,
+								Status:  configv1.ConditionTrue,
+								Reason:  "",
+								Message: "Error ensuring the cluster version is up to date: bad",
+							},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},

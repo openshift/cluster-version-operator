@@ -47,7 +47,11 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 // Run runs the Upgradeable precondition.
 // If the feature gate `key` is not found, or the api for clusterversion doesn't exist, this check is inert and always returns nil error.
 // Otherwise, if Upgradeable condition is set to false in the object, it returns an PreconditionError when possible.
-func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.ReleaseContext, clusterVersion *configv1.ClusterVersion) error {
+func (pf *Upgradeable) Run(
+	ctx context.Context,
+	releaseContext precondition.ReleaseContext,
+	clusterVersion *configv1.ClusterVersion,
+) error {
 	cv, err := pf.lister.Get(pf.key)
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
@@ -68,7 +72,16 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		return nil
 	}
 	if up.Status != configv1.ConditionFalse {
-		klog.V(4).Infof("Precondition %s passed: Upgradeable %s since %v: %s: %s", pf.Name(), up.Status, up.LastTransitionTime, up.Reason, up.Message)
+		klog.V(
+			4,
+		).Infof(
+			"Precondition %s passed: Upgradeable %s since %v: %s: %s",
+			pf.Name(),
+			up.Status,
+			up.LastTransitionTime,
+			up.Reason,
+			up.Message,
+		)
 		return nil
 	}
 
@@ -81,14 +94,37 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	currentVersion := getCurrentVersion(cv.Status.History)
 	currentMinor := getEffectiveMinor(currentVersion)
 	desiredMinor := getEffectiveMinor(releaseContext.DesiredVersion)
-	klog.V(5).Infof("currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s", currentMinor, releaseContext.DesiredVersion, desiredMinor)
+	klog.V(
+		5,
+	).Infof(
+		"currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s",
+		currentMinor,
+		releaseContext.DesiredVersion,
+		desiredMinor,
+	)
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	// if no cluster overrides have been set
 	if currentMinor == desiredMinor {
-		klog.V(4).Infof("Precondition %q passed: minor from the current %s matches minor from the target %s (both %s).", pf.Name(), currentVersion, releaseContext.DesiredVersion, currentMinor)
+		klog.V(
+			4,
+		).Infof(
+			"Precondition %q passed: minor from the current %s matches minor from the target %s (both %s).",
+			pf.Name(),
+			currentVersion,
+			releaseContext.DesiredVersion,
+			currentMinor,
+		)
 		if condition := ClusterVersionOverridesCondition(clusterVersion); condition != nil {
-			klog.V(4).Infof("Update from %s to %s blocked by %s: %s", currentVersion, releaseContext.DesiredVersion, condition.Reason, condition.Message)
+			klog.V(
+				4,
+			).Infof(
+				"Update from %s to %s blocked by %s: %s",
+				currentVersion,
+				releaseContext.DesiredVersion,
+				condition.Reason,
+				condition.Message,
+			)
 
 			return &precondition.Error{
 				Reason:  condition.Reason,

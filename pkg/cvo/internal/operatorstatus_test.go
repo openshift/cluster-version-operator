@@ -257,7 +257,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
+			Nested: fmt.Errorf(
+				"cluster operator test-co is not done; it is available=false, progressing=true, degraded=true",
+			),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
@@ -272,7 +274,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -286,7 +290,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=false, progressing=true, degraded=true"),
+			Nested: fmt.Errorf(
+				"cluster operator test-co is not done; it is available=false, progressing=true, degraded=true",
+			),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
@@ -301,7 +307,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -330,7 +338,10 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -344,7 +355,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
+			Nested: fmt.Errorf(
+				"cluster operator test-co is not done; it is available=true, progressing=true, degraded=true",
+			),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
@@ -359,7 +372,10 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -388,7 +404,11 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -417,7 +437,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -431,7 +453,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:  fmt.Errorf("cluster operator test-co is not done; it is available=true, progressing=true, degraded=true"),
+			Nested: fmt.Errorf(
+				"cluster operator test-co is not done; it is available=true, progressing=true, degraded=true",
+			),
 			Reason:  "ClusterOperatorNotAvailable",
 			Message: "Cluster operator test-co has not yet reported success",
 			Name:    "test-co",
@@ -446,7 +470,11 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -463,23 +491,37 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := &fake.Clientset{}
-			client.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
-				return false, nil, fmt.Errorf("unexpected client action: %#v", action)
-			})
-			client.AddReactor("*", "clusteroperators", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
-				switch a := action.(type) {
-				case clientgotesting.GetAction:
-					if test.actual != nil && a.GetName() == test.actual.GetName() {
-						return true, test.actual.DeepCopyObject(), nil
+			client.AddReactor(
+				"*",
+				"*",
+				func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+					return false, nil, fmt.Errorf("unexpected client action: %#v", action)
+				},
+			)
+			client.AddReactor(
+				"*",
+				"clusteroperators",
+				func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+					switch a := action.(type) {
+					case clientgotesting.GetAction:
+						if test.actual != nil && a.GetName() == test.actual.GetName() {
+							return true, test.actual.DeepCopyObject(), nil
+						}
+						return true, nil, apierrors.NewNotFound(schema.GroupResource{Resource: "clusteroperator"}, a.GetName())
 					}
-					return true, nil, apierrors.NewNotFound(schema.GroupResource{Resource: "clusteroperator"}, a.GetName())
-				}
-				return false, nil, fmt.Errorf("unexpected client action: %#v", action)
-			})
+					return false, nil, fmt.Errorf("unexpected client action: %#v", action)
+				},
+			)
 
 			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
 			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode)
+			err := waitForOperatorStatusToBeDone(
+				ctxWithTimeout,
+				1*time.Millisecond,
+				clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()},
+				test.exp,
+				test.mode,
+			)
 			if (test.expErr == nil) != (err == nil) {
 				t.Fatalf("unexpected error: %v", err)
 			}

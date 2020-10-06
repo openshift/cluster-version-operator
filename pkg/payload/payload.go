@@ -264,7 +264,13 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 	}
 
 	if imageRef.Name != release.Version {
-		return nil, nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
+		return nil, nil, fmt.Errorf(
+			"Version from %s (%s) differs from %s (%s)",
+			imageReferencesFile,
+			imageRef.Name,
+			cincinnatiJSONFile,
+			release.Version,
+		)
 	}
 
 	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
@@ -314,7 +320,11 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, error) {
 	}
 
 	if _, err := semver.Parse(metadata.Version); err != nil {
-		return release, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
+		return release, fmt.Errorf(
+			"Cincinnati metadata version %q is not a valid semantic version: %v",
+			metadata.Version,
+			err,
+		)
 	}
 
 	release.Version = metadata.Version

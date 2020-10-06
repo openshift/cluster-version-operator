@@ -26,15 +26,20 @@ func (s *delay) Signatures(ctx context.Context, name string, digest string, fn s
 	defer cancel()
 	responses := make(chan *signatureResponse, 1)
 	go func(ctx context.Context, name string, digest string, responses chan *signatureResponse) {
-		err := s.store.Signatures(ctx, name, digest, func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
-			select {
-			case <-ctx.Done():
-				return true, nil
-			case responses <- &signatureResponse{signature: signature, errIn: errIn}:
-				log.Printf("queued response: %s", string(signature))
-			}
-			return false, nil
-		})
+		err := s.store.Signatures(
+			ctx,
+			name,
+			digest,
+			func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
+				select {
+				case <-ctx.Done():
+					return true, nil
+				case responses <- &signatureResponse{signature: signature, errIn: errIn}:
+					log.Printf("queued response: %s", string(signature))
+				}
+				return false, nil
+			},
+		)
 		if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 			log.Fatal(err)
 		}
@@ -140,16 +145,21 @@ func TestStore(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			signatures := []string{}
-			err := parallel.Signatures(ctx, "name", "sha256:123", func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
-				if errIn != nil {
-					return false, errIn
-				}
-				signatures = append(signatures, string(signature))
-				if string(signature) == testCase.doneSignature {
-					return true, testCase.doneError
-				}
-				return false, nil
-			})
+			err := parallel.Signatures(
+				ctx,
+				"name",
+				"sha256:123",
+				func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
+					if errIn != nil {
+						return false, errIn
+					}
+					signatures = append(signatures, string(signature))
+					if string(signature) == testCase.doneSignature {
+						return true, testCase.doneError
+					}
+					return false, nil
+				},
+			)
 			if err == nil {
 				if testCase.expectedError != nil {
 					t.Fatalf("signatures succeeded when we expected %s", testCase.expectedError)

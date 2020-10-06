@@ -13,7 +13,11 @@ import (
 )
 
 // ApplyDeploymentv1 applies the required deployment to the cluster.
-func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+func ApplyDeploymentv1(
+	ctx context.Context,
+	client appsclientv1.DeploymentsGetter,
+	required *appsv1.Deployment,
+) (*appsv1.Deployment, bool, error) {
 	existing, err := client.Deployments(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -38,7 +42,12 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 }
 
 // ApplyDeploymentFromCache applies the required deployment to the cluster.
-func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.DeploymentLister, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
+func ApplyDeploymentFromCache(
+	ctx context.Context,
+	lister appslisterv1.DeploymentLister,
+	client appsclientv1.DeploymentsGetter,
+	required *appsv1.Deployment,
+) (*appsv1.Deployment, bool, error) {
 	existing, err := lister.Deployments(required.Namespace).Get(required.Name)
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -64,7 +73,11 @@ func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.Deploymen
 }
 
 // ApplyDaemonSetv1 applies the required daemonset to the cluster.
-func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+func ApplyDaemonSetv1(
+	ctx context.Context,
+	client appsclientv1.DaemonSetsGetter,
+	required *appsv1.DaemonSet,
+) (*appsv1.DaemonSet, bool, error) {
 	existing, err := client.DaemonSets(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.DaemonSets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
@@ -89,7 +102,12 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 }
 
 // ApplyDaemonSetFromCache applies the required deployment to the cluster.
-func ApplyDaemonSetFromCache(ctx context.Context, lister appslisterv1.DaemonSetLister, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+func ApplyDaemonSetFromCache(
+	ctx context.Context,
+	lister appslisterv1.DaemonSetLister,
+	client appsclientv1.DaemonSetsGetter,
+	required *appsv1.DaemonSet,
+) (*appsv1.DaemonSet, bool, error) {
 	existing, err := lister.DaemonSets(required.Namespace).Get(required.Name)
 	if apierrors.IsNotFound(err) {
 		actual, err := client.DaemonSets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})

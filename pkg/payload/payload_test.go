@@ -54,7 +54,16 @@ func Test_loadUpdatePayload(t *testing.T) {
 				Manifests: []lib.Manifest{
 					{
 						OriginalFilename: "0000_10_a_file.json",
-						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtest", "release-manifests", "0000_10_a_file.json")),
+						Raw: mustRead(
+							filepath.Join(
+								"..",
+								"cvo",
+								"testdata",
+								"payloadtest",
+								"release-manifests",
+								"0000_10_a_file.json",
+							),
+						),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",

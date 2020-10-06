@@ -32,7 +32,10 @@ func TestGetUpdates(t *testing.T) {
 		name:          "one update available",
 		version:       "4.0.0-4",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-4",
-		current:       Update{Version: semver.MustParse("4.0.0-4"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-4"},
+		current: Update{
+			Version: semver.MustParse("4.0.0-4"),
+			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-4",
+		},
 		available: []Update{
 			{Version: semver.MustParse("4.0.0-5"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
 		},
@@ -40,15 +43,21 @@ func TestGetUpdates(t *testing.T) {
 		name:          "two updates available",
 		version:       "4.0.0-5",
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-5",
-		current:       Update{Version: semver.MustParse("4.0.0-5"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-5"},
+		current: Update{
+			Version: semver.MustParse("4.0.0-5"),
+			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-5",
+		},
 		available: []Update{
 			{Version: semver.MustParse("4.0.0-6"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-6"},
 			{Version: semver.MustParse("4.0.0-6+2"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-6+2"},
 		},
 	}, {
-		name:          "no updates available",
-		version:       "4.0.0-0.okd-0",
-		current:       Update{Version: semver.MustParse("4.0.0-0.okd-0"), Image: "quay.io/openshift-release-dev/ocp-release:4.0.0-0.okd-0"},
+		name:    "no updates available",
+		version: "4.0.0-0.okd-0",
+		current: Update{
+			Version: semver.MustParse("4.0.0-0.okd-0"),
+			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-0.okd-0",
+		},
 		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.0.0-0.okd-0",
 	}, {
 		name:          "unknown version",
@@ -130,7 +139,13 @@ func TestGetUpdates(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			current, updates, err := c.GetUpdates(context.Background(), uri, arch, channelName, semver.MustParse(test.version))
+			current, updates, err := c.GetUpdates(
+				context.Background(),
+				uri,
+				arch,
+				channelName,
+				semver.MustParse(test.version),
+			)
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)

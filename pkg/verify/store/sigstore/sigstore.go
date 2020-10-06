@@ -73,7 +73,13 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 // checkHTTPSignatures reads signatures as "signature-1", "signature-2", etc. as children of the provided URL
 // over HTTP or HTTPS.  No more than maxSignaturesToCheck will be read. If the provided context is cancelled
 // search will be terminated.
-func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, maxSignaturesToCheck int, fn store.Callback) error {
+func checkHTTPSignatures(
+	ctx context.Context,
+	client *http.Client,
+	u url.URL,
+	maxSignaturesToCheck int,
+	fn store.Callback,
+) error {
 	base := path.Join(u.Path, "signature-")
 	sigURL := u
 	for i := 1; i < maxSignatureSearch; i++ {

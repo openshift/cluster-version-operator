@@ -7,7 +7,11 @@ import (
 
 // EnsureClusterRoleBindingv1beta1 ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
-func EnsureClusterRoleBindingv1beta1(modified *bool, existing *rbacv1beta1.ClusterRoleBinding, required rbacv1beta1.ClusterRoleBinding) {
+func EnsureClusterRoleBindingv1beta1(
+	modified *bool,
+	existing *rbacv1beta1.ClusterRoleBinding,
+	required rbacv1beta1.ClusterRoleBinding,
+) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
 		*modified = true

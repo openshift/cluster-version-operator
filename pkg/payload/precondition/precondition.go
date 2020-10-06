@@ -72,7 +72,10 @@ func Summarize(errs []error) error {
 	var msgs []string
 	for _, e := range errs {
 		if pferr, ok := e.(*Error); ok {
-			msgs = append(msgs, fmt.Sprintf("Precondition %q failed because of %q: %v", pferr.Name, pferr.Reason, pferr.Error()))
+			msgs = append(
+				msgs,
+				fmt.Sprintf("Precondition %q failed because of %q: %v", pferr.Name, pferr.Reason, pferr.Error()),
+			)
 			continue
 		}
 		msgs = append(msgs, e.Error())

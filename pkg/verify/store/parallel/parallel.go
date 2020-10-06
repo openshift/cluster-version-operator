@@ -40,7 +40,14 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 				}
 				return false, nil
 			})
-		}(nestedCtx, s.Stores[i], name, digest, responses, errorChannel)
+		}(
+			nestedCtx,
+			s.Stores[i],
+			name,
+			digest,
+			responses,
+			errorChannel,
+		)
 	}
 
 	allDone := false

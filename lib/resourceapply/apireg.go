@@ -11,7 +11,11 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-func ApplyAPIServicev1(ctx context.Context, client apiregclientv1.APIServicesGetter, required *apiregv1.APIService) (*apiregv1.APIService, bool, error) {
+func ApplyAPIServicev1(
+	ctx context.Context,
+	client apiregclientv1.APIServicesGetter,
+	required *apiregv1.APIService,
+) (*apiregv1.APIService, bool, error) {
 	existing, err := client.APIServices().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.APIServices().Create(ctx, required, metav1.CreateOptions{})

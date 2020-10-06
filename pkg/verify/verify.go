@@ -149,26 +149,31 @@ func (v *ReleaseVerifier) Verify(ctx context.Context, releaseDigest string) erro
 	}
 
 	var signedWith [][]byte
-	err := v.Store.Signatures(ctx, "", releaseDigest, func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
-		if errIn != nil {
-			klog.V(4).Infof("error retrieving signature for %s: %v", releaseDigest, errIn)
-			return false, nil
-		}
-		for k, keyring := range remaining {
-			content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
-			if err != nil {
-				klog.V(4).Infof("keyring %q could not verify signature for %s: %v", k, releaseDigest, err)
-				continue
+	err := v.Store.Signatures(
+		ctx,
+		"",
+		releaseDigest,
+		func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
+			if errIn != nil {
+				klog.V(4).Infof("error retrieving signature for %s: %v", releaseDigest, errIn)
+				return false, nil
 			}
-			if err := verifyAtomicContainerSignature(content, releaseDigest); err != nil {
-				klog.V(4).Infof("signature for %s is not valid: %v", releaseDigest, err)
-				continue
+			for k, keyring := range remaining {
+				content, _, err := verifySignatureWithKeyring(bytes.NewReader(signature), keyring)
+				if err != nil {
+					klog.V(4).Infof("keyring %q could not verify signature for %s: %v", k, releaseDigest, err)
+					continue
+				}
+				if err := verifyAtomicContainerSignature(content, releaseDigest); err != nil {
+					klog.V(4).Infof("signature for %s is not valid: %v", releaseDigest, err)
+					continue
+				}
+				delete(remaining, k)
+				signedWith = append(signedWith, signature)
 			}
-			delete(remaining, k)
-			signedWith = append(signedWith, signature)
-		}
-		return len(remaining) == 0, nil
-	})
+			return len(remaining) == 0, nil
+		},
+	)
 	if err != nil {
 		klog.V(4).Infof("Failed to retrieve signatures for %s (should never happen)", releaseDigest)
 		return err

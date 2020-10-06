@@ -106,7 +106,12 @@ version for 'cluster', or empty for 'initial'.
 // and then attempts a clean shutdown limited by shutdownContext.Done().
 // Assumes runContext.Done() occurs before or simultaneously with
 // shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress string, tlsConfig *tls.Config) error {
+func RunMetrics(
+	runContext context.Context,
+	shutdownContext context.Context,
+	listenAddress string,
+	tlsConfig *tls.Config,
+) error {
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", promhttp.Handler())
 	server := &http.Server{
@@ -314,7 +319,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			ch <- g
 		}
 
-		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
+		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 ||
+			resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
 			upstream := "<default>"
 			if len(cv.Spec.Upstream) > 0 {
 				upstream = string(cv.Spec.Upstream)
@@ -328,7 +334,11 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			if condition.Status == configv1.ConditionUnknown {
 				continue
 			}
-			g := m.clusterOperatorConditions.WithLabelValues("version", string(condition.Type), string(condition.Reason))
+			g := m.clusterOperatorConditions.WithLabelValues(
+				"version",
+				string(condition.Type),
+				string(condition.Reason),
+			)
 			if condition.Status == configv1.ConditionTrue {
 				g.Set(1)
 			} else {

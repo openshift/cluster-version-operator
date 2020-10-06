@@ -76,7 +76,11 @@ func (g clientClusterOperatorsGetter) Get(ctx context.Context, name string) (*co
 
 // NewClusterOperatorBuilder accepts the ClusterOperatorsGetter interface which may be implemented by a
 // client or a lister cache.
-func NewClusterOperatorBuilder(client ClusterOperatorsGetter, createClient configclientv1.ClusterOperatorInterface, m lib.Manifest) resourcebuilder.Interface {
+func NewClusterOperatorBuilder(
+	client ClusterOperatorsGetter,
+	createClient configclientv1.ClusterOperatorInterface,
+	m lib.Manifest,
+) resourcebuilder.Interface {
 	return &clusterOperatorBuilder{
 		client:       client,
 		createClient: createClient,
@@ -122,7 +126,13 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	return waitForOperatorStatusToBeDone(ctx, 1*time.Second, b.client, os, b.mode)
 }
 
-func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
+func waitForOperatorStatusToBeDone(
+	ctx context.Context,
+	interval time.Duration,
+	client ClusterOperatorsGetter,
+	expected *configv1.ClusterOperator,
+	mode resourcebuilder.Mode,
+) error {
 	var lastErr error
 	err := wait.PollImmediateUntil(interval, func() (bool, error) {
 		actual, err := client.Get(ctx, expected.Name)

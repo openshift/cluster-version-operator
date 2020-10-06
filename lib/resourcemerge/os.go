@@ -9,12 +9,20 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
-func EnsureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOperator, required configv1.ClusterOperator) {
+func EnsureClusterOperatorStatus(
+	modified *bool,
+	existing *configv1.ClusterOperator,
+	required configv1.ClusterOperator,
+) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureClusterOperatorStatus(modified, &existing.Status, required.Status)
 }
 
-func ensureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOperatorStatus, required configv1.ClusterOperatorStatus) {
+func ensureClusterOperatorStatus(
+	modified *bool,
+	existing *configv1.ClusterOperatorStatus,
+	required configv1.ClusterOperatorStatus,
+) {
 	if !equality.Semantic.DeepEqual(existing.Conditions, required.Conditions) {
 		*modified = true
 		existing.Conditions = required.Conditions
@@ -38,7 +46,10 @@ func ensureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOpera
 	}
 }
 
-func SetOperatorStatusCondition(conditions *[]configv1.ClusterOperatorStatusCondition, newCondition configv1.ClusterOperatorStatusCondition) {
+func SetOperatorStatusCondition(
+	conditions *[]configv1.ClusterOperatorStatusCondition,
+	newCondition configv1.ClusterOperatorStatusCondition,
+) {
 	if conditions == nil {
 		conditions = &[]configv1.ClusterOperatorStatusCondition{}
 	}
@@ -58,7 +69,10 @@ func SetOperatorStatusCondition(conditions *[]configv1.ClusterOperatorStatusCond
 	existingCondition.Message = newCondition.Message
 }
 
-func RemoveOperatorStatusCondition(conditions *[]configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) {
+func RemoveOperatorStatusCondition(
+	conditions *[]configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+) {
 	if conditions == nil {
 		conditions = &[]configv1.ClusterOperatorStatusCondition{}
 	}
@@ -72,7 +86,10 @@ func RemoveOperatorStatusCondition(conditions *[]configv1.ClusterOperatorStatusC
 	*conditions = newConditions
 }
 
-func FindOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) *configv1.ClusterOperatorStatusCondition {
+func FindOperatorStatusCondition(
+	conditions []configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+) *configv1.ClusterOperatorStatusCondition {
 	for i := range conditions {
 		if conditions[i].Type == conditionType {
 			return &conditions[i]
@@ -82,15 +99,25 @@ func FindOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCond
 	return nil
 }
 
-func IsOperatorStatusConditionTrue(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) bool {
+func IsOperatorStatusConditionTrue(
+	conditions []configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+) bool {
 	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, configv1.ConditionTrue)
 }
 
-func IsOperatorStatusConditionFalse(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType) bool {
+func IsOperatorStatusConditionFalse(
+	conditions []configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+) bool {
 	return IsOperatorStatusConditionPresentAndEqual(conditions, conditionType, configv1.ConditionFalse)
 }
 
-func IsOperatorStatusConditionPresentAndEqual(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType, status configv1.ConditionStatus) bool {
+func IsOperatorStatusConditionPresentAndEqual(
+	conditions []configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+	status configv1.ConditionStatus,
+) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
 			return condition.Status == status
@@ -99,7 +126,11 @@ func IsOperatorStatusConditionPresentAndEqual(conditions []configv1.ClusterOpera
 	return false
 }
 
-func IsOperatorStatusConditionNotIn(conditions []configv1.ClusterOperatorStatusCondition, conditionType configv1.ClusterStatusConditionType, status ...configv1.ConditionStatus) bool {
+func IsOperatorStatusConditionNotIn(
+	conditions []configv1.ClusterOperatorStatusCondition,
+	conditionType configv1.ClusterStatusConditionType,
+	status ...configv1.ConditionStatus,
+) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType {
 			for _, s := range status {

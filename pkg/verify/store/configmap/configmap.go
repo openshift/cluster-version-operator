@@ -158,7 +158,14 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			if errors.IsNotFound(err) {
 				_, err := s.client.ConfigMaps(s.ns).Create(ctx, cm, metav1.CreateOptions{})
 				if err != nil {
-					klog.V(4).Infof("create signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
+					klog.V(
+						4,
+					).Infof(
+						"create signature cache config map %s in namespace %s with %d signatures",
+						cm.ObjectMeta.Name,
+						s.ns,
+						count,
+					)
 				}
 				return err
 			}
@@ -170,7 +177,14 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 			existing.Data = cm.Data
 			_, err = s.client.ConfigMaps(s.ns).Update(ctx, existing, metav1.UpdateOptions{})
 			if err != nil {
-				klog.V(4).Infof("update signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
+				klog.V(
+					4,
+				).Infof(
+					"update signature cache config map %s in namespace %s with %d signatures",
+					cm.ObjectMeta.Name,
+					s.ns,
+					count,
+				)
 			}
 			return err
 		},

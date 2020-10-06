@@ -73,16 +73,21 @@ func TestStore(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			signatures := []string{}
-			err := serial.Signatures(ctx, "name", "sha256:123", func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
-				if errIn != nil {
-					return false, errIn
-				}
-				signatures = append(signatures, string(signature))
-				if string(signature) == testCase.doneSignature {
-					return true, testCase.doneError
-				}
-				return false, nil
-			})
+			err := serial.Signatures(
+				ctx,
+				"name",
+				"sha256:123",
+				func(ctx context.Context, signature []byte, errIn error) (done bool, err error) {
+					if errIn != nil {
+						return false, errIn
+					}
+					signatures = append(signatures, string(signature))
+					if string(signature) == testCase.doneSignature {
+						return true, testCase.doneError
+					}
+					return false, nil
+				},
+			)
 			if err == nil {
 				if testCase.expectedError != nil {
 					t.Fatalf("signatures succeeded when we expected %s", testCase.expectedError)

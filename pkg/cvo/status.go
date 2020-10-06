@@ -48,7 +48,13 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Releas
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time, completed bool) {
+func mergeOperatorHistory(
+	config *configv1.ClusterVersion,
+	desired configv1.Release,
+	verified bool,
+	now metav1.Time,
+	completed bool,
+) {
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
@@ -114,9 +120,15 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 
 	// leave this here in case we find other future history bugs and need to debug it
 	if klog.V(5).Enabled() && len(config.Status.History) > 1 {
-		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
+		if config.Status.History[0].Image == config.Status.History[1].Image &&
+			config.Status.History[0].Version == config.Status.History[1].Version {
 			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
-			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
+			panic(
+				fmt.Errorf(
+					"tried to update cluster version history to contain duplicate image entries: %s",
+					string(data),
+				),
+			)
 		}
 	}
 
@@ -155,7 +167,12 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
-func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
+func (optr *Operator) syncStatus(
+	ctx context.Context,
+	original, config *configv1.ClusterVersion,
+	status *SyncWorkerStatus,
+	validationErrs field.ErrorList,
+) error {
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
@@ -239,7 +256,11 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 	}
 
-	progressReason, progressShortMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
+	progressReason, progressShortMessage, skipFailure := convertErrorToProgressing(
+		config.Status.History,
+		now.Time,
+		status,
+	)
 
 	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
@@ -346,7 +367,11 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 // still making internal progress. The general error we try to suppress is an operator or operators still being
 // unavailable AND the general payload task making progress towards its goal. An operator is given 40 minutes since
 // its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
-func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
+func convertErrorToProgressing(
+	history []configv1.UpdateHistory,
+	now time.Time,
+	status *SyncWorkerStatus,
+) (reason string, message string, ok bool) {
 	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
 		return "", "", false
 	}
@@ -391,7 +416,14 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 	msg := fmt.Sprintf("Error ensuring the cluster version is up to date: %v", ierr)
 
 	// clear the available condition
-	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse, LastTransitionTime: now})
+	resourcemerge.SetOperatorStatusCondition(
+		&config.Status.Conditions,
+		configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorAvailable,
+			Status:             configv1.ConditionFalse,
+			LastTransitionTime: now,
+		},
+	)
 
 	// reset the failing message
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -428,7 +460,11 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 // object does not change. The method will retry a conflict by retrieving the latest live
 // version and updating the metadata of required. required is modified if the object on
 // the server is newer.
-func applyClusterVersionStatus(ctx context.Context, client configclientv1.ClusterVersionsGetter, required, original *configv1.ClusterVersion) (*configv1.ClusterVersion, error) {
+func applyClusterVersionStatus(
+	ctx context.Context,
+	client configclientv1.ClusterVersionsGetter,
+	required, original *configv1.ClusterVersion,
+) (*configv1.ClusterVersion, error) {
 	if original != nil && equality.Semantic.DeepEqual(&original.Status, &required.Status) {
 		return required, nil
 	}

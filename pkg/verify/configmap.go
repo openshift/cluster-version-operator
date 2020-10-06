@@ -124,7 +124,11 @@ func NewFromManifests(manifests []lib.Manifest, clientBuilder sigstore.HTTPClien
 // The returned verifier will require that any new release image will only be considered verified
 // if each provided public key has signed the release image digest. The signature may be in any
 // store and the lookup order is internally defined.
-func newFromConfigMapData(src string, data map[string]string, clientBuilder sigstore.HTTPClient) (*ReleaseVerifier, error) {
+func newFromConfigMapData(
+	src string,
+	data map[string]string,
+	clientBuilder sigstore.HTTPClient,
+) (*ReleaseVerifier, error) {
 	verifiers := make(map[string]openpgp.EntityList)
 	var stores []store.Store
 	for k, v := range data {
@@ -139,7 +143,11 @@ func newFromConfigMapData(src string, data map[string]string, clientBuilder sigs
 			v = strings.TrimSpace(v)
 			u, err := url.Parse(v)
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {
-				return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)
+				return nil, fmt.Errorf(
+					"%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://",
+					src,
+					k,
+				)
 			}
 			if u.Scheme == "file" {
 				stores = append(stores, &fileStore{
@@ -152,14 +160,21 @@ func newFromConfigMapData(src string, data map[string]string, clientBuilder sigs
 				})
 			}
 		default:
-			klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
+			klog.Warningf(
+				"An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s",
+				src,
+				k,
+			)
 		}
 	}
 	if len(stores) == 0 {
 		return nil, fmt.Errorf("%s did not provide any signature stores to read from and cannot be used", src)
 	}
 	if len(verifiers) == 0 {
-		return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
+		return nil, fmt.Errorf(
+			"%s did not provide any GPG public keys to verify signatures from and cannot be used",
+			src,
+		)
 	}
 
 	return NewReleaseVerifier(verifiers, &parallel.Store{Stores: stores}), nil

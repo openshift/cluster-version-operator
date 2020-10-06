@@ -116,19 +116,29 @@ func TestUpgradeableRun(t *testing.T) {
 				},
 			}
 			if len(tc.currVersion) > 0 {
-				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.currVersion, State: configv1.CompletedUpdate})
+				clusterVersion.Status.History = append(
+					clusterVersion.Status.History,
+					configv1.UpdateHistory{Version: tc.currVersion, State: configv1.CompletedUpdate},
+				)
 			}
 			if tc.upgradeable != nil {
-				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-					Type:    configv1.OperatorUpgradeable,
-					Status:  *tc.upgradeable,
-					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
-				})
+				clusterVersion.Status.Conditions = append(
+					clusterVersion.Status.Conditions,
+					configv1.ClusterOperatorStatusCondition{
+						Type:    configv1.OperatorUpgradeable,
+						Status:  *tc.upgradeable,
+						Message: fmt.Sprintf("set to %v", *tc.upgradeable),
+					},
+				)
 			}
 			cvLister := fakeClusterVersionLister(clusterVersion)
 			instance := NewUpgradeable(cvLister)
 
-			err := instance.Run(context.TODO(), precondition.ReleaseContext{DesiredVersion: tc.desiredVersion}, clusterVersion)
+			err := instance.Run(
+				context.TODO(),
+				precondition.ReleaseContext{DesiredVersion: tc.desiredVersion},
+				clusterVersion,
+			)
 			switch {
 			case err != nil && len(tc.expected) == 0:
 				t.Error(err)

@@ -431,7 +431,12 @@ type taskStatus struct {
 // RunGraph executes the provided graph in order and in parallel up to maxParallelism. It will not start
 // a new TaskNode until all of the prerequisites have completed. If fn returns an error, no dependencies
 // of that node will be executed, but other indepedent edges will continue executing.
-func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) []error {
+func RunGraph(
+	ctx context.Context,
+	graph *TaskGraph,
+	maxParallelism int,
+	fn func(ctx context.Context, tasks []*Task) error,
+) []error {
 	submitted := make([]bool, len(graph.Nodes))
 	results := make([]*taskStatus, len(graph.Nodes))
 
@@ -546,7 +551,10 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 
 	if len(errs) == 0 && firstIncompleteNode != nil {
-		errs = append(errs, fmt.Errorf("%d incomplete task nodes, beginning with %s", incompleteCount, firstIncompleteNode.Tasks[0]))
+		errs = append(
+			errs,
+			fmt.Errorf("%d incomplete task nodes, beginning with %s", incompleteCount, firstIncompleteNode.Tasks[0]),
+		)
 		if err := ctx.Err(); err != nil {
 			errs = append(errs, err)
 		}

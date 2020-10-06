@@ -25,8 +25,18 @@ var (
 
 func init() {
 	rootCmd.AddCommand(renderCmd)
-	renderCmd.PersistentFlags().StringVar(&renderOpts.outputDir, "output-dir", "", "The output directory where the manifests will be rendered.")
-	renderCmd.PersistentFlags().StringVar(&renderOpts.releaseImage, "release-image", "", "The Openshift release image url.")
+	renderCmd.PersistentFlags().StringVar(
+		&renderOpts.outputDir,
+		"output-dir",
+		"",
+		"The output directory where the manifests will be rendered.",
+	)
+	renderCmd.PersistentFlags().StringVar(
+		&renderOpts.releaseImage,
+		"release-image",
+		"",
+		"The Openshift release image url.",
+	)
 }
 
 func runRenderCmd(cmd *cobra.Command, args []string) {

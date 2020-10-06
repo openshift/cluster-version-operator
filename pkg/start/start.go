@@ -405,11 +405,24 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
-	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)(), "", func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
-	})
-	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigNamespace))
-	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigManagedNamespace))
+	cvInformer := externalversions.NewFilteredSharedInformerFactory(
+		client,
+		resyncPeriod(o.ResyncInterval)(),
+		"",
+		func(opts *metav1.ListOptions) {
+			opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
+		},
+	)
+	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient,
+		resyncPeriod(o.ResyncInterval)(),
+		informers.WithNamespace(internal.ConfigNamespace),
+	)
+	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(
+		kubeClient,
+		resyncPeriod(o.ResyncInterval)(),
+		informers.WithNamespace(internal.ConfigManagedNamespace),
+	)
 
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
 
