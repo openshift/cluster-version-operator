@@ -152,14 +152,14 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 		return cond
 	}
 
-	type notUpradeableCondition struct {
+	type notUpgradeableCondition struct {
 		name      string
 		condition *configv1.ClusterOperatorStatusCondition
 	}
-	var notup []notUpradeableCondition
+	var notup []notUpgradeableCondition
 	for _, op := range ops {
 		if up := resourcemerge.FindOperatorStatusCondition(op.Status.Conditions, configv1.OperatorUpgradeable); up != nil && up.Status == configv1.ConditionFalse {
-			notup = append(notup, notUpradeableCondition{name: op.GetName(), condition: up})
+			notup = append(notup, notUpgradeableCondition{name: op.GetName(), condition: up})
 		}
 	}
 
