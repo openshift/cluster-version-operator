@@ -91,7 +91,7 @@ version for 'cluster', or empty for 'initial'.
 		}, []string{"name", "condition"}),
 		clusterInstaller: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_installer",
-			Help: "Reports info about the installation process and, if applicable, the install tool.",
+			Help: "Reports info about the installation process and, if applicable, the install tool. The type is either 'openshift-install', indicating that openshift-install was used to install the cluster, or 'other', indicating that an unknown process installed the cluster. The invoker is 'user' by default, but it may be overridden by a consuming tool. The version reported is that of the openshift-install that was used to generate the manifests and, if applicable, provision the infrastructure.",
 		}, []string{"type", "version", "invoker"}),
 		clusterVersionOperatorUpdateRetrievalTimestampSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
