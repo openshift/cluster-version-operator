@@ -238,15 +238,19 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
@@ -390,16 +394,20 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
-	options.EnableMetrics = false
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")
@@ -497,13 +505,12 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.Name = ns
 	options.ListenAddr = ""
 	options.NodeName = "test-node"
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 
 	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	lock, err := createResourceLock(cb, ns, ns)
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +526,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 
 	// wait until the lock record exists
 	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
+		_, _, err := lock.Get()
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -541,26 +548,26 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		t.Fatalf("no leader election events found in\n%#v", events.Items)
 	}
 
-	t.Logf("after the context is closed, the lock record should be deleted quickly")
+	t.Logf("after the context is closed, the lock should be released quickly")
 	cancel()
 	startTime := time.Now()
 	var endTime time.Time
 	// the lock should be deleted immediately
 	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-		_, err := kc.CoreV1().ConfigMaps(ns).Get(ns, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			endTime = time.Now()
-			return true, nil
-		}
+		electionRecord, _, err := lock.Get()
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
 			return false, err
 		}
-		return false, nil
+		endTime = time.Now()
+		return electionRecord.HolderIdentity == "", nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("lock deleted in %s", endTime.Sub(startTime))
+	t.Logf("lock released in %s", endTime.Sub(startTime))
 
 	select {
 	case <-time.After(time.Second):
@@ -667,7 +674,6 @@ metadata:
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = payloadDir
-	options.EnableMetrics = false
 	controllers := options.NewControllerContext(cb)
 	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		t.Fatal(err)
@@ -676,9 +682,14 @@ metadata:
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "")
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
+	lock, err := createResourceLock(cb, options.Namespace, options.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	controllers.Start(ctx)
+	go options.run(ctx, controllers, lock)
 
 	t.Logf("wait until we observe the cluster version become available")
 	lastCV, err := waitForUpdateAvailable(t, client, ns, false, "0.0.1")

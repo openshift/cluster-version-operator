@@ -52,6 +52,7 @@ spec:
       nodeSelector:
         node-role.kubernetes.io/master: ""
       priorityClassName: "system-cluster-critical"
+      terminationGracePeriodSeconds: 130
       tolerations:
       - key: "node-role.kubernetes.io/master"
         operator: Exists

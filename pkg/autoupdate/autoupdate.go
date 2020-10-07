@@ -7,7 +7,6 @@ import (
 
 	"github.com/blang/semver"
 
-	"k8s.io/klog"
 	v1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
@@ -23,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 )
 
 const (
@@ -87,7 +87,7 @@ func New(
 }
 
 // Run runs the autoupdate controller.
-func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 	defer ctrl.queue.ShutDown()
 
@@ -95,15 +95,16 @@ func (ctrl *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer klog.Info("Shutting down AutoUpdateController")
 
 	if !cache.WaitForCacheSync(stopCh, ctrl.cacheSynced...) {
-		klog.Info("Caches never synchronized")
-		return
+		return fmt.Errorf("caches never synchronized")
 	}
 
 	for i := 0; i < workers; i++ {
+		// FIXME: actually wait until these complete if the Context is canceled.  And possibly add utilruntime.HandleCrash.
 		go wait.Until(ctrl.worker, time.Second, stopCh)
 	}
 
 	<-stopCh
+	return nil
 }
 
 func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {

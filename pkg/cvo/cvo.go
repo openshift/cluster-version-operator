@@ -169,7 +169,6 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
-	enableMetrics bool,
 	exclude string,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -214,11 +213,6 @@ func New(
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
-	if enableMetrics {
-		if err := optr.registerMetrics(coInformer.Informer()); err != nil {
-			panic(err)
-		}
-	}
 	return optr
 }
 
@@ -321,8 +315,7 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 }
 
 // Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
-func (optr *Operator) Run(ctx context.Context, workers int) {
-	defer utilruntime.HandleCrash()
+func (optr *Operator) Run(ctx context.Context, workers int) error {
 	defer optr.queue.ShutDown()
 	stopCh := ctx.Done()
 	workerStopCh := make(chan struct{})
@@ -331,8 +324,7 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	defer klog.Info("Shutting down ClusterVersionOperator")
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
-		klog.Info("Caches never synchronized")
-		return
+		return fmt.Errorf("caches never synchronized: %w", ctx.Err())
 	}
 
 	// trigger the first cluster version reconcile always
@@ -361,6 +353,8 @@ func (optr *Operator) Run(ctx context.Context, workers int) {
 	// stop the queue, then wait for the worker to exit
 	optr.queue.ShutDown()
 	<-workerStopCh
+
+	return nil
 }
 
 func (optr *Operator) queueKey() string {
