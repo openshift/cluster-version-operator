@@ -2,6 +2,9 @@
   "kind": "Test",
   "apiVersion": "v1",
   "metadata": {
-    "name": "file"
+    "name": "file",
+    "annotations": {
+      "include.release.openshift.io/self-managed-high-availability": "true"
+    }
   }
 }

@@ -36,6 +36,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func init() {
@@ -58,7 +59,10 @@ var (
 				"kind": "ImageStream",
 				"apiVersion": "image.openshift.io/v1",
 				"metadata": {
-					"name": "0.0.1"
+					"name": "0.0.1",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}
 			`,
@@ -69,7 +73,10 @@ var (
 				"apiVersion": "v1",
 				"metadata": {
 					"name": "config2",
-					"namespace": "$(NAMESPACE)"
+					"namespace": "$(NAMESPACE)",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.1",
@@ -86,7 +93,10 @@ var (
 				"apiVersion": "v1",
 				"metadata": {
 					"name": "config1",
-					"namespace": "$(NAMESPACE)"
+					"namespace": "$(NAMESPACE)",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.1",
@@ -119,7 +129,10 @@ var (
 				"apiVersion": "v1",
 				"metadata": {
 					"name": "config2",
-					"namespace": "$(NAMESPACE)"
+					"namespace": "$(NAMESPACE)",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.2",
@@ -135,7 +148,10 @@ var (
 				"apiVersion": "v1",
 				"metadata": {
 					"name": "config1",
-					"namespace": "$(NAMESPACE)"
+					"namespace": "$(NAMESPACE)",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.2",
@@ -170,7 +186,10 @@ var (
 				"metadata": {
 					"name": "config2",
 					"namespace": "$(NAMESPACE)",
-					"labels": {"": ""}
+					"labels": {"": ""},
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.2",
@@ -186,7 +205,10 @@ var (
 				"apiVersion": "v1",
 				"metadata": {
 					"name": "config1",
-					"namespace": "$(NAMESPACE)"
+					"namespace": "$(NAMESPACE)",
+					"annotations": {
+					  "include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				},
 				"data": {
 					"version": "0.0.2",
@@ -264,7 +286,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "ignored")
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -426,7 +448,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", record.NewFakeRecorder(100))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -541,7 +563,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.NodeName = "test-node"
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -728,7 +750,7 @@ metadata:
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)

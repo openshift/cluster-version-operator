@@ -2,3 +2,5 @@ kind: Test
 apiVersion: v1
 metadata:
   name: 20-b-file
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"

@@ -78,6 +78,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		cvLister:                    &clientCVLister{client: client},
 		exclude:                     "exclude-test",
 		eventRecorder:               record.NewFakeRecorder(100),
+		clusterProfile:              payload.DefaultClusterProfile,
 	}
 
 	dynamicScheme := runtime.NewScheme()
@@ -94,6 +95,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		},
 		"exclude-test",
 		record.NewFakeRecorder(100),
+		o.clusterProfile,
 	)
 	o.configSync = worker
 
@@ -228,7 +230,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -241,7 +243,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -255,7 +257,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Fraction:    float32(2) / 3,
 			Initial:     true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -269,7 +271,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -312,7 +314,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -334,7 +336,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -347,7 +349,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -360,7 +362,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -373,7 +375,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -542,7 +544,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -555,7 +557,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -569,7 +571,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Fraction:    float32(2) / 3,
 			Initial:     true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -583,7 +585,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -627,7 +629,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -648,7 +650,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -661,7 +663,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -674,7 +676,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -687,7 +689,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -847,7 +849,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -860,7 +862,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			Initial:     true,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -874,7 +876,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Fraction:    float32(2) / 3,
 			Initial:     true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -888,7 +890,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -932,7 +934,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -953,7 +955,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -966,7 +968,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -979,7 +981,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -992,7 +994,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1041,7 +1043,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -1123,7 +1125,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1176,7 +1178,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1187,7 +1189,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1199,7 +1201,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1212,7 +1214,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1250,7 +1252,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				Image:   "image/image:1",
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1288,7 +1290,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -1370,7 +1372,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1423,7 +1425,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1434,7 +1436,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1446,7 +1448,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1459,7 +1461,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1497,7 +1499,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				Image:   "image/image:1",
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1517,7 +1519,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1529,7 +1531,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1541,7 +1543,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1553,7 +1555,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1588,7 +1590,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -1664,7 +1666,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1721,7 +1723,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1732,7 +1734,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1744,7 +1746,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1757,7 +1759,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1795,7 +1797,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				Image:   "image/image:1",
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1834,7 +1836,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -1919,7 +1921,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			ObservedGeneration: 1,
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1964,7 +1966,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1976,7 +1978,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1989,7 +1991,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2003,7 +2005,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2042,7 +2044,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 				Image:   "image/image:1",
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2090,7 +2092,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2142,7 +2144,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2154,7 +2156,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2167,7 +2169,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2180,7 +2182,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Completed:   1,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2209,7 +2211,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2221,7 +2223,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2233,7 +2235,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2245,7 +2247,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Completed:   2,
 			Fraction:    1,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2303,7 +2305,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -2348,7 +2350,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2384,7 +2386,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2406,7 +2408,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Reconciling: true,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -2439,7 +2441,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Reconciling: true,
 			Step:        "ApplyResources",
 			Fraction:    float32(2) / 3,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			Failure: &payload.UpdateError{
 				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
@@ -2482,7 +2484,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -2577,7 +2579,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		SyncWorkerStatus{
 			Initial:     true,
 			Step:        "ApplyResources",
-			VersionHash: "7m-gGRrpkDU=",
+			VersionHash: "Gyh2W6qcDO4=",
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 	)
@@ -2595,7 +2597,7 @@ func TestCVO_ParallelError(t *testing.T) {
 					Initial:     true,
 					Fraction:    status.Fraction,
 					Step:        "ApplyResources",
-					VersionHash: "7m-gGRrpkDU=",
+					VersionHash: "Gyh2W6qcDO4=",
 					Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 				}) {
 					t.Fatalf("unexpected status: %v", status)
@@ -2616,7 +2618,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Failure:      err,
 			Fraction:     float32(1) / 3,
 			Step:         "ApplyResources",
-			VersionHash:  "7m-gGRrpkDU=",
+			VersionHash:  "Gyh2W6qcDO4=",
 			Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			LastProgress: status.LastProgress,
 		}) {
@@ -2649,7 +2651,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
-			VersionHash: "7m-gGRrpkDU=",
+			VersionHash: "Gyh2W6qcDO4=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
@@ -2692,7 +2694,7 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
@@ -2751,7 +2753,7 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
-			VersionHash: "6GC9TkkG9PA=",
+			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},

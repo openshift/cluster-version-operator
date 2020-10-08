@@ -96,7 +96,7 @@ const (
 	cincinnatiJSONFile  = "release-metadata"
 	imageReferencesFile = "image-references"
 
-	defaultClusterProfile = "self-managed-high-availability"
+	DefaultClusterProfile = "self-managed-high-availability"
 )
 
 // Update represents the contents of a release image.
@@ -132,7 +132,7 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
+func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, error) {
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if shouldExclude(excludeIdentifier, &manifest) {
+				if shouldExclude(excludeIdentifier, profile, &manifest) {
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
@@ -213,10 +213,22 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string) (*Update, error) {
 	return payload, nil
 }
 
-func shouldExclude(excludeIdentifier string, manifest *manifest.Manifest) bool {
-	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
+func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifest) bool {
 	annotations := manifest.Obj.GetAnnotations()
-	return annotations != nil && annotations[excludeAnnotation] == "true"
+	if annotations == nil {
+		return true
+	}
+
+	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
+	if annotations[excludeAnnotation] == "true" {
+		return true
+	}
+
+	profileAnnotation := fmt.Sprintf("include.release.openshift.io/%s", profile)
+	if val, ok := annotations[profileAnnotation]; ok && val == "true" {
+		return false
+	}
+	return true
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
@@ -283,7 +295,7 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
 
 	mrc := manifestRenderConfig{
 		ReleaseImage:   releaseImage,
-		ClusterProfile: defaultClusterProfile,
+		ClusterProfile: DefaultClusterProfile,
 	}
 
 	return []payloadTasks{{

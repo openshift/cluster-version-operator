@@ -4,4 +4,5 @@ metadata:
   name: release-verification
   namespace: openshift-config-managed
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/verification-config-map: ""

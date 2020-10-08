@@ -50,7 +50,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 						Name: "1.0.0-abc",
 					},
 				},
-				ManifestHash: "6GC9TkkG9PA=",
+				ManifestHash: "DL-FFQ2Uem8=",
 				Manifests: []manifest.Manifest{
 					{
 						OriginalFilename: "0000_10_a_file.json",
@@ -64,14 +64,15 @@ func Test_loadUpdatePayload(t *testing.T) {
 								"kind":       "Test",
 								"apiVersion": "v1",
 								"metadata": map[string]interface{}{
-									"name": "file-json",
+									"name":        "file-json",
+									"annotations": map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
 								},
 							},
 						},
 					},
 					{
 						OriginalFilename: "0000_10_a_file.yaml",
-						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yaml"}}`),
+						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"annotations":{"include.release.openshift.io/self-managed-high-availability":"true"},"name":"file-yaml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -81,14 +82,15 @@ func Test_loadUpdatePayload(t *testing.T) {
 								"kind":       "Test",
 								"apiVersion": "v1",
 								"metadata": map[string]interface{}{
-									"name": "file-yaml",
+									"name":        "file-yaml",
+									"annotations": map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
 								},
 							},
 						},
 					},
 					{
 						OriginalFilename: "0000_10_a_file.yml",
-						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"name":"file-yml"}}`),
+						Raw:              []byte(`{"apiVersion":"v1","kind":"Test","metadata":{"annotations":{"include.release.openshift.io/self-managed-high-availability":"true"},"name":"file-yml"}}`),
 						GVK: schema.GroupVersionKind{
 							Kind:    "Test",
 							Version: "v1",
@@ -98,7 +100,8 @@ func Test_loadUpdatePayload(t *testing.T) {
 								"kind":       "Test",
 								"apiVersion": "v1",
 								"metadata": map[string]interface{}{
-									"name": "file-yml",
+									"name":        "file-yml",
+									"annotations": map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
 								},
 							},
 						},
@@ -109,7 +112,7 @@ func Test_loadUpdatePayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test")
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", DefaultClusterProfile)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -127,4 +130,58 @@ func mustRead(path string) []byte {
 		panic(err)
 	}
 	return data
+}
+
+func Test_Exclude(t *testing.T) {
+	tests := []struct {
+		exclude     string
+		profile     string
+		annotations map[string]interface{}
+
+		isExcluded bool
+	}{
+		{
+			exclude: "identifier",
+			profile: DefaultClusterProfile,
+			annotations: map[string]interface{}{
+				"exclude.release.openshift.io/identifier":                     "true",
+				"include.release.openshift.io/self-managed-high-availability": "true"},
+			isExcluded: true,
+		},
+		{
+			profile:     "single-node",
+			annotations: map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
+			isExcluded:  true,
+		},
+		{
+			profile:     DefaultClusterProfile,
+			annotations: map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
+		},
+		{
+			profile:     DefaultClusterProfile,
+			annotations: map[string]interface{}{},
+			isExcluded:  true,
+		},
+		{
+			profile:     DefaultClusterProfile,
+			annotations: nil,
+			isExcluded:  true,
+		},
+	}
+	for _, tt := range tests {
+		metadata := map[string]interface{}{}
+		if tt.annotations != nil {
+			metadata["annotations"] = tt.annotations
+		}
+		ret := shouldExclude(tt.exclude, tt.profile, &manifest.Manifest{
+			Obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": metadata,
+				},
+			},
+		})
+		if ret != tt.isExcluded {
+			t.Errorf("(exclude: %v, profile: %v, annotations: %v) %v != %v", tt.exclude, tt.profile, tt.annotations, tt.isExcluded, ret)
+		}
+	}
 }
