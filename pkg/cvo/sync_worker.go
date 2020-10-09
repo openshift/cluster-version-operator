@@ -699,7 +699,6 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			cr.Update()
 
 			klog.V(4).Infof("Running sync for %s", task)
-			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
