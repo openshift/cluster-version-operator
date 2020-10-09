@@ -32,11 +32,11 @@ func (b *apiServiceBuilder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	return b
 }
 
-func (b *apiServiceBuilder) Do(_ context.Context) error {
+func (b *apiServiceBuilder) Do(ctx context.Context) error {
 	apiService := resourceread.ReadAPIServiceV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(apiService)
 	}
-	_, _, err := resourceapply.ApplyAPIService(b.client, apiService)
+	_, _, err := resourceapply.ApplyAPIService(ctx, b.client, apiService)
 	return err
 }

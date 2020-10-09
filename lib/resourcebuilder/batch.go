@@ -45,7 +45,7 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(job)
 	}
-	_, updated, err := resourceapply.ApplyJob(b.client, job)
+	_, updated, err := resourceapply.ApplyJob(ctx, b.client, job)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (b *jobBuilder) Do(ctx context.Context) error {
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		j, err := client.Jobs(job.Namespace).Get(job.Name, metav1.GetOptions{})
+		j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Errorf("error getting Job %s: %v", job.Name, err)
 			return false, nil

@@ -267,7 +267,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	// which will consume the verifier
 	optr.configSync = NewSyncWorkerWithPreconditions(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(restConfig, burstRestConfig, optr.coLister),
+		NewResourceBuilder(restConfig, burstRestConfig, &dummyContextOperatorGetter{wrapped: optr.coLister}),
 		optr.defaultPreconditionChecks(),
 		optr.minimumUpdateCheckInterval,
 		wait.Backoff{
@@ -333,14 +333,14 @@ func (optr *Operator) Run(ctx context.Context, workers int) error {
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
 	go optr.configSync.Start(ctx, 16)
-	go wait.Until(func() { optr.worker(optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
-	go wait.Until(func() { optr.worker(optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
+	go wait.Until(func() { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
 	go wait.Until(func() {
 		defer close(workerStopCh)
 
 		// run the worker, then when the queue is closed sync one final time to flush any pending status
-		optr.worker(optr.queue, optr.sync)
-		if err := optr.sync(optr.queueKey()); err != nil {
+		optr.worker(ctx, optr.queue, func(key string) error { return optr.sync(ctx, key) })
+		if err := optr.sync(ctx, optr.queueKey()); err != nil {
 			utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 		}
 	}, time.Second, stopCh)
@@ -382,14 +382,14 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	}
 }
 
-func (optr *Operator) worker(queue workqueue.RateLimitingInterface, syncHandler func(string) error) {
-	for processNextWorkItem(queue, syncHandler, optr.syncFailingStatus) {
+func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(string) error) {
+	for processNextWorkItem(ctx, queue, syncHandler, optr.syncFailingStatus) {
 	}
 }
 
-type syncFailingStatusFunc func(config *configv1.ClusterVersion, err error) error
+type syncFailingStatusFunc func(ctx context.Context, config *configv1.ClusterVersion, err error) error
 
-func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncFailingStatus syncFailingStatusFunc) bool {
+func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(string) error, syncFailingStatus syncFailingStatusFunc) bool {
 	key, quit := queue.Get()
 	if quit {
 		return false
@@ -397,11 +397,11 @@ func processNextWorkItem(queue workqueue.RateLimitingInterface, syncHandler func
 	defer queue.Done(key)
 
 	err := syncHandler(key.(string))
-	handleErr(queue, err, key, syncFailingStatus)
+	handleErr(ctx, queue, err, key, syncFailingStatus)
 	return true
 }
 
-func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
+func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
 	if err == nil {
 		queue.Forget(key)
 		return
@@ -413,7 +413,7 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 		return
 	}
 
-	err = syncFailingStatus(nil, err)
+	err = syncFailingStatus(ctx, nil, err)
 	utilruntime.HandleError(err)
 	klog.V(2).Infof("Dropping operator %q out of the queue %v: %v", key, queue, err)
 	queue.Forget(key)
@@ -426,7 +426,7 @@ func handleErr(queue workqueue.RateLimitingInterface, err error, key interface{}
 // 3. The configSync object is kept up to date maintaining the user's desired version
 //
 // It returns an error if it could not update the cluster version object.
-func (optr *Operator) sync(key string) error {
+func (optr *Operator) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
 	defer func() {
@@ -435,7 +435,7 @@ func (optr *Operator) sync(key string) error {
 
 	// ensure the cluster version exists, that the object is valid, and that
 	// all initial conditions are set.
-	original, changed, err := optr.getOrCreateClusterVersion(optr.enableDefaultClusterVersion)
+	original, changed, err := optr.getOrCreateClusterVersion(ctx, optr.enableDefaultClusterVersion)
 	if err != nil {
 		return err
 	}
@@ -465,7 +465,7 @@ func (optr *Operator) sync(key string) error {
 
 	// handle the case of a misconfigured CVO by doing nothing
 	if len(desired.Image) == 0 {
-		return optr.syncStatus(original, config, &SyncWorkerStatus{
+		return optr.syncStatus(ctx, original, config, &SyncWorkerStatus{
 			Failure: &payload.UpdateError{
 				Reason:  "NoDesiredImage",
 				Message: "No configured operator version, unable to update cluster",
@@ -488,7 +488,7 @@ func (optr *Operator) sync(key string) error {
 	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
 
 	// write cluster version status
-	return optr.syncStatus(original, config, status, errs)
+	return optr.syncStatus(ctx, original, config, status, errs)
 }
 
 // availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
@@ -564,7 +564,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.ClusterVersion, bool, error) {
+func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
@@ -601,7 +601,7 @@ func (optr *Operator) getOrCreateClusterVersion(enableDefault bool) (*configv1.C
 		},
 	}
 
-	actual, _, err := resourceapply.ApplyClusterVersionFromCache(optr.cvLister, optr.client.ConfigV1(), config)
+	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
 	if apierrors.IsAlreadyExists(err) {
 		return nil, true, nil
 	}
@@ -632,6 +632,15 @@ func (optr *Operator) SetSyncWorkerForTesting(worker ConfigSyncWorker) {
 	optr.configSync = worker
 }
 
+// wraps configlistersv1.ClusterOperatorLister until it learns about context.
+type dummyContextOperatorGetter struct {
+	wrapped configlistersv1.ClusterOperatorLister
+}
+
+func (d *dummyContextOperatorGetter) Get(ctx context.Context, name string) (*configv1.ClusterOperator, error) {
+	return d.wrapped.Get(name)
+}
+
 // resourceBuilder provides the default builder implementation for the operator.
 // It is abstracted for testing.
 type resourceBuilder struct {
@@ -643,7 +652,7 @@ type resourceBuilder struct {
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators configlistersv1.ClusterOperatorLister) payload.ResourceBuilder {
+func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter) payload.ResourceBuilder {
 	return &resourceBuilder{
 		config:           config,
 		burstConfig:      burstConfig,

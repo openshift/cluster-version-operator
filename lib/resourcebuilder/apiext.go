@@ -2,6 +2,7 @@ package resourcebuilder
 
 import (
 	"context"
+	"fmt"
 
 	"k8s.io/klog"
 
@@ -49,25 +50,27 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 	var err error
 	var name string
 
-	switch crd := crd.(type) {
+	switch typedCRD := crd.(type) {
 	case *apiextv1beta1.CustomResourceDefinition:
 		if b.modifier != nil {
-			b.modifier(crd)
+			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(b.clientV1beta1, crd)
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1beta1(ctx, b.clientV1beta1, typedCRD)
 		if err != nil {
 			return err
 		}
-		name = crd.Name
+		name = typedCRD.Name
 	case *apiextv1.CustomResourceDefinition:
 		if b.modifier != nil {
-			b.modifier(crd)
+			b.modifier(typedCRD)
 		}
-		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(b.clientV1, crd)
+		_, updated, err = resourceapply.ApplyCustomResourceDefinitionV1(ctx, b.clientV1, typedCRD)
 		if err != nil {
 			return err
 		}
-		name = crd.Name
+		name = typedCRD.Name
+	default:
+		return fmt.Errorf("unrecognized CustomResourceDefinition version: %T", crd)
 	}
 
 	if updated {
@@ -78,7 +81,7 @@ func (b *crdBuilder) Do(ctx context.Context) error {
 
 func waitForCustomResourceDefinitionCompletion(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, crd string) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		c, err := client.CustomResourceDefinitions().Get(crd, metav1.GetOptions{})
+		c, err := client.CustomResourceDefinitions().Get(ctx, crd, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			// exit early to recreate the crd.
 			return false, err

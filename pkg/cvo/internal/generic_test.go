@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -13,6 +14,7 @@ import (
 )
 
 func TestCreateOnlyCreate(t *testing.T) {
+	ctx := context.Background()
 	feature := `{
   "kind": "FeatureGate",
   "apiVersion": "config.openshift.io/v1",
@@ -30,6 +32,7 @@ func TestCreateOnlyCreate(t *testing.T) {
 
 	fakeClient := fake.NewSimpleDynamicClient(runtime.NewScheme())
 	_, modified, err := applyUnstructured(
+		ctx,
 		fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}),
 		obj.(*unstructured.Unstructured))
 	if err != nil {
@@ -41,6 +44,7 @@ func TestCreateOnlyCreate(t *testing.T) {
 }
 
 func TestCreateOnlyUpdate(t *testing.T) {
+	ctx := context.Background()
 	feature := `{
   "kind": "FeatureGate",
   "apiVersion": "config.openshift.io/v1",
@@ -73,6 +77,7 @@ func TestCreateOnlyUpdate(t *testing.T) {
 
 	fakeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), existingObj)
 	_, modified, err := applyUnstructured(
+		ctx,
 		fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}),
 		obj.(*unstructured.Unstructured))
 	if err != nil {

@@ -1,6 +1,8 @@
 package resourceapply
 
 import (
+	"context"
+
 	securityv1 "github.com/openshift/api/security/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -10,10 +12,10 @@ import (
 )
 
 // ApplySecurityContextConstraints applies the required SecurityContextConstraints to the cluster.
-func ApplySecurityContextConstraints(client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
-	existing, err := client.SecurityContextConstraints().Get(required.Name, metav1.GetOptions{})
+func ApplySecurityContextConstraints(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
+	existing, err := client.SecurityContextConstraints().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.SecurityContextConstraints().Create(required)
+		actual, err := client.SecurityContextConstraints().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
 	if err != nil {
@@ -30,6 +32,6 @@ func ApplySecurityContextConstraints(client securityclientv1.SecurityContextCons
 		return existing, false, nil
 	}
 
-	actual, err := client.SecurityContextConstraints().Update(existing)
+	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
