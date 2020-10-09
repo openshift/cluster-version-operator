@@ -455,12 +455,12 @@ func (w *SyncWorker) updateStatus(update SyncWorkerStatus) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	klog.V(5).Infof("Status change %#v", update)
+	klog.V(6).Infof("Status change %#v", update)
 	w.status = update
 	select {
 	case w.report <- update:
 	default:
-		if klog.V(5).Enabled() {
+		if klog.V(6).Enabled() {
 			klog.Infof("Status report channel was full %#v", update)
 		}
 	}
