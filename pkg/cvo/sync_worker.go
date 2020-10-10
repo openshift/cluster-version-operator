@@ -455,12 +455,12 @@ func (w *SyncWorker) updateStatus(update SyncWorkerStatus) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	klog.V(5).Infof("Status change %#v", update)
+	klog.V(6).Infof("Status change %#v", update)
 	w.status = update
 	select {
 	case w.report <- update:
 	default:
-		if klog.V(5).Enabled() {
+		if klog.V(6).Enabled() {
 			klog.Infof("Status report channel was full %#v", update)
 		}
 	}
@@ -699,7 +699,6 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			cr.Update()
 
 			klog.V(4).Infof("Running sync for %s", task)
-			klog.V(5).Infof("Manifest: %s", string(task.Manifest.Raw))
 
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
