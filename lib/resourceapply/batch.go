@@ -33,6 +33,6 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 		return existing, false, nil
 	}
 
-	actual, err := client.Jobs(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Jobs(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

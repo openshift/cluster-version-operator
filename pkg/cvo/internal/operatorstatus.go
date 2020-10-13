@@ -110,7 +110,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 			return err
 		}
 		clusterOperator.Status.RelatedObjects = os.Status.DeepCopy().RelatedObjects
-		if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, metav1.UpdateOptions{}); err != nil {
+		if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, lib.Metav1UpdateOptions()); err != nil {
 			if kerrors.IsConflict(err) {
 				return nil
 			}

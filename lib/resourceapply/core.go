@@ -35,7 +35,7 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 		return existing, false, nil
 	}
 
-	actual, err := client.Namespaces().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Namespaces().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -68,7 +68,7 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 	existing.Spec.Selector = required.Spec.Selector
 	existing.Spec.Type = required.Spec.Type // if this is different, the update will fail.  Status will indicate it.
 
-	actual, err := client.Services(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Services(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -93,7 +93,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 		return existing, false, nil
 	}
 
-	actual, err := client.ServiceAccounts(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ServiceAccounts(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -118,6 +118,6 @@ func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter,
 		return existing, false, nil
 	}
 
-	actual, err := client.ConfigMaps(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ConfigMaps(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

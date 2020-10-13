@@ -33,6 +33,6 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 		return existing, false, nil
 	}
 
-	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.SecurityContextConstraints().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

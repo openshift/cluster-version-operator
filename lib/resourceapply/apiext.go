@@ -37,7 +37,7 @@ func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclie
 
 	klog.V(2).Infof("Updating CRD %s", required.Name)
 
-	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -63,6 +63,6 @@ func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.
 
 	klog.V(2).Infof("Updating CRD %s", required.Name)
 
-	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

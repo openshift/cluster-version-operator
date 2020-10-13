@@ -18,6 +18,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -432,7 +433,7 @@ func applyClusterVersionStatus(ctx context.Context, client configclientv1.Cluste
 	if original != nil && equality.Semantic.DeepEqual(&original.Status, &required.Status) {
 		return required, nil
 	}
-	actual, err := client.ClusterVersions().UpdateStatus(ctx, required, metav1.UpdateOptions{})
+	actual, err := client.ClusterVersions().UpdateStatus(ctx, required, lib.Metav1UpdateOptions())
 	if apierrors.IsConflict(err) {
 		existing, cErr := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 		if err != nil {
@@ -445,7 +446,7 @@ func applyClusterVersionStatus(ctx context.Context, client configclientv1.Cluste
 			return existing, nil
 		}
 		required.ObjectMeta = existing.ObjectMeta
-		actual, err = client.ClusterVersions().UpdateStatus(ctx, required, metav1.UpdateOptions{})
+		actual, err = client.ClusterVersions().UpdateStatus(ctx, required, lib.Metav1UpdateOptions())
 	}
 	if err != nil {
 		return nil, err

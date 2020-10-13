@@ -34,7 +34,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return existing, false, nil
 	}
 
-	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -60,7 +60,7 @@ func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.Deploymen
 		return existing, false, nil
 	}
 
-	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -85,7 +85,7 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 		return existing, false, nil
 	}
 
-	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -111,6 +111,6 @@ func ApplyDaemonSetFromCache(ctx context.Context, lister appslisterv1.DaemonSetL
 		return existing, false, nil
 	}
 
-	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

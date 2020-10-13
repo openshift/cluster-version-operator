@@ -32,6 +32,6 @@ func ApplyAPIServicev1(ctx context.Context, client apiregclientv1.APIServicesGet
 		return existing, false, nil
 	}
 
-	actual, err := client.APIServices().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.APIServices().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

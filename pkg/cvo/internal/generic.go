@@ -57,7 +57,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		existing.Object[k] = v
 	}
 
-	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Update(ctx, existing, lib.Metav1UpdateOptions())
 	if err != nil {
 		return nil, false, err
 	}

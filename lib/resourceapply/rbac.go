@@ -33,7 +33,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterRoleBindings().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ClusterRoleBindings().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -58,7 +58,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ClusterRoles().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -83,7 +83,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 		return existing, false, nil
 	}
 
-	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -108,6 +108,6 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 		return existing, false, nil
 	}
 
-	actual, err := client.Roles(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.Roles(required.Namespace).Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }

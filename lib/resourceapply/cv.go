@@ -33,7 +33,7 @@ func ApplyClusterVersionv1(ctx context.Context, client configclientv1.ClusterVer
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ClusterVersions().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
 
@@ -59,6 +59,6 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 		return existing, false, nil
 	}
 
-	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.ClusterVersions().Update(ctx, existing, lib.Metav1UpdateOptions())
 	return actual, true, err
 }
