@@ -429,12 +429,10 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	return changed
 }
 
-// equalUpdate returns true if two updates have the same image.
+// equalUpdate returns true if two updates are semantically equivalent.
+// It checks if the updates have have the same force and image values
 func equalUpdate(a, b configv1.Update) bool {
-	if a.Force != b.Force {
-		return false
-	}
-	return a.Image == b.Image
+	return a.Force == b.Force && a.Image == b.Image
 }
 
 // equalSyncWork returns true if a and b are equal.
