@@ -3,6 +3,7 @@ package resourceapply
 import (
 	"context"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +15,7 @@ import (
 func ApplyAPIServicev1(ctx context.Context, client apiregclientv1.APIServicesGetter, required *apiregv1.APIService) (*apiregv1.APIService, bool, error) {
 	existing, err := client.APIServices().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.APIServices().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.APIServices().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {

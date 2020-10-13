@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/openshift/cluster-version-operator/lib"
 	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
 )
@@ -41,7 +41,7 @@ func main() {
 				log.Fatalf("Unable to parse CRD %s: %v", path, err)
 			}
 			name = crd.Name
-			_, err = client.ApiextensionsV1beta1().CustomResourceDefinitions().Create(ctx, &crd, metav1.CreateOptions{})
+			_, err = client.ApiextensionsV1beta1().CustomResourceDefinitions().Create(ctx, &crd, lib.Metav1CreateOptions())
 			if errors.IsAlreadyExists(err) {
 				return true, nil
 			}

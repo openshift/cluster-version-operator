@@ -3,6 +3,7 @@ package resourceapply
 import (
 	"context"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,7 +16,7 @@ import (
 func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing, err := client.ClusterRoleBindings().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ClusterRoleBindings().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ClusterRoleBindings().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -40,7 +41,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
 	existing, err := client.ClusterRoles().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ClusterRoles().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ClusterRoles().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -65,7 +66,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
 	existing, err := client.RoleBindings(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.RoleBindings(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.RoleBindings(required.Namespace).Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -90,7 +91,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
 	existing, err := client.Roles(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Roles(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.Roles(required.Namespace).Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {

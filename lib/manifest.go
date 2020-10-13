@@ -116,3 +116,17 @@ func ParseManifests(r io.Reader) ([]Manifest, error) {
 		manifests = append(manifests, m)
 	}
 }
+
+// Metav1CreateOptions returns default create options for new objects
+func Metav1CreateOptions() metav1.CreateOptions {
+	return metav1.CreateOptions{
+		FieldManager: "cluster-version-operator",
+	}
+}
+
+// Metav1UpdateOptions returns default update objects for existing objects
+func Metav1UpdateOptions() metav1.UpdateOptions {
+	return metav1.UpdateOptions{
+		FieldManager: "cluster-version-operator",
+	}
+}

@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/util/retry"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/verify/store"
 	"github.com/openshift/cluster-version-operator/pkg/verify/util"
 )
@@ -156,7 +157,7 @@ func (s *Store) Store(ctx context.Context, signaturesByDigest map[string][][]byt
 		func() error {
 			existing, err := s.client.ConfigMaps(s.ns).Get(ctx, cm.Name, metav1.GetOptions{})
 			if errors.IsNotFound(err) {
-				_, err := s.client.ConfigMaps(s.ns).Create(ctx, cm, metav1.CreateOptions{})
+				_, err := s.client.ConfigMaps(s.ns).Create(ctx, cm, lib.Metav1CreateOptions())
 				if err != nil {
 					klog.V(4).Infof("create signature cache config map %s in namespace %s with %d signatures", cm.ObjectMeta.Name, s.ns, count)
 				}

@@ -3,6 +3,7 @@ package resourceapply
 import (
 	"context"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -17,7 +18,7 @@ import (
 func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.CustomResourceDefinitions().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -43,7 +44,7 @@ func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclie
 func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.CustomResourceDefinitions().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {

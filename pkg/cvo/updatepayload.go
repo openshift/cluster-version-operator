@@ -23,6 +23,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
@@ -206,7 +207,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		klog.Warningf("failed to prune jobs: %v", err)
 	}
 
-	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(ctx, job, metav1.CreateOptions{})
+	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(ctx, job, lib.Metav1CreateOptions())
 	if err != nil {
 		return err
 	}

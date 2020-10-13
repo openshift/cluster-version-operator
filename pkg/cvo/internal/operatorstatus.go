@@ -102,7 +102,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 
 	// create the object, and if we successfully created, update the status
 	if b.mode == resourcebuilder.PrecreatingMode {
-		clusterOperator, err := b.createClient.Create(ctx, os, metav1.CreateOptions{})
+		clusterOperator, err := b.createClient.Create(ctx, os, lib.Metav1CreateOptions())
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
 				return nil

@@ -10,6 +10,7 @@ import (
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
@@ -17,7 +18,7 @@ import (
 func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
 	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Namespaces().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.Namespaces().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -44,7 +45,7 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, required *corev1.Service) (*corev1.Service, bool, error) {
 	existing, err := client.Services(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Services(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.Services(required.Namespace).Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -75,7 +76,7 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount) (*corev1.ServiceAccount, bool, error) {
 	existing, err := client.ServiceAccounts(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ServiceAccounts(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ServiceAccounts(required.Namespace).Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -100,7 +101,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap) (*corev1.ConfigMap, bool, error) {
 	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ConfigMaps(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ConfigMaps(required.Namespace).Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {

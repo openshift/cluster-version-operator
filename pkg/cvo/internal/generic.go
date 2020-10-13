@@ -35,7 +35,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 	}
 	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {

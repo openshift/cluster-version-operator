@@ -6,6 +6,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,7 +16,7 @@ import (
 func ApplyClusterVersionv1(ctx context.Context, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	existing, err := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		actual, err := client.ClusterVersions().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ClusterVersions().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
@@ -39,7 +40,7 @@ func ApplyClusterVersionv1(ctx context.Context, client configclientv1.ClusterVer
 func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.ClusterVersionLister, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
 	obj, err := lister.Get(required.Name)
 	if errors.IsNotFound(err) {
-		actual, err := client.ClusterVersions().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ClusterVersions().Create(ctx, required, lib.Metav1CreateOptions())
 		return actual, true, err
 	}
 	if err != nil {
