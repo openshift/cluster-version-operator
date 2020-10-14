@@ -92,10 +92,10 @@ def parse_lines(lines):
             sync['lines'] = []
             sync['manifests'] = {}
             metadata['syncs'].append(sync)
-        if sync:
-            sync['lines'].append(line)
-        else:
+        if not sync:
             logging.warning('sync worker line outside of sync: {}'.format(line))
+            continue
+        sync['lines'].append(line)
         if line['message'].startswith(end_of_sync_cycle_prefix):
             sync['results'] = {
                 'result': line['message'][len(end_of_sync_cycle_prefix):],
