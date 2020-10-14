@@ -92,8 +92,7 @@ type SyncWorkerStatus struct {
 	Fraction float32
 
 	Completed   int
-	Reconciling bool
-	Initial     bool
+	State       payload.State
 	VersionHash string
 
 	LastProgress time.Time
@@ -228,8 +227,8 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	if w.work == nil {
 		work.State = state
 		w.status = SyncWorkerStatus{
-			Generation:  generation,
-			Reconciling: state.Reconciling(),
+			Generation: generation,
+			State:      state,
 			Actual: configv1.Release{
 				Version: work.Desired.Version,
 				Image:   work.Desired.Image,
@@ -503,22 +502,20 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", "retrieving payload version=%q image=%q", desired.Version, desired.Image)
 		reporter.Report(SyncWorkerStatus{
-			Generation:  work.Generation,
-			Step:        "RetrievePayload",
-			Initial:     work.State.Initializing(),
-			Reconciling: work.State.Reconciling(),
-			Actual:      desired,
+			Generation: work.Generation,
+			Step:       "RetrievePayload",
+			State:      work.State,
+			Actual:     desired,
 		})
 		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
 		if err != nil {
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", "retrieving payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "RetrievePayload",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
+				Generation: work.Generation,
+				Failure:    err,
+				Step:       "RetrievePayload",
+				State:      work.State,
+				Actual:     desired,
 			})
 			return err
 		}
@@ -528,13 +525,12 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		if err != nil {
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", "verifying payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "VerifyPayload",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
+				Generation: work.Generation,
+				Failure:    err,
+				Step:       "VerifyPayload",
+				State:      work.State,
+				Actual:     desired,
+				Verified:   info.Verified,
 			})
 			return err
 		}
@@ -553,8 +549,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Generation:  work.Generation,
 				Failure:     err,
 				Step:        "VerifyPayloadVersion",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
+				State:       work.State,
 				Actual:      desired,
 				Verified:    info.Verified,
 			})
@@ -569,12 +564,11 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			klog.V(4).Info("Skipping preconditions for a local operator image payload.")
 		} else {
 			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Step:        "PreconditionChecks",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
+				Generation: work.Generation,
+				Step:       "PreconditionChecks",
+				State:      work.State,
+				Actual:     desired,
+				Verified:   info.Verified,
 			})
 			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
 				if work.Desired.Force {
@@ -583,13 +577,12 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				} else {
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
 					reporter.Report(SyncWorkerStatus{
-						Generation:  work.Generation,
-						Failure:     err,
-						Step:        "PreconditionChecks",
-						Initial:     work.State.Initializing(),
-						Reconciling: work.State.Reconciling(),
-						Actual:      desired,
-						Verified:    info.Verified,
+						Generation: work.Generation,
+						Failure:    err,
+						Step:       "PreconditionChecks",
+						State:      work.State,
+						Actual:     desired,
+						Verified:   info.Verified,
 					})
 					return err
 				}
@@ -614,8 +607,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
 			Generation:  work.Generation,
-			Initial:     work.State.Initializing(),
-			Reconciling: work.State.Reconciling(),
+			State:       work.State,
 			VersionHash: payloadUpdate.ManifestHash,
 			Actual:      payloadUpdate.Release,
 			Verified:    payloadUpdate.VerifiedImage,
@@ -814,8 +806,7 @@ func (r *consistentReporter) Complete() {
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
 	copied.Completed = r.completed + 1
-	copied.Initial = false
-	copied.Reconciling = true
+	copied.State = payload.ReconcilingPayload
 	copied.Fraction = 1
 	r.reporter.Report(copied)
 }
@@ -1031,7 +1022,7 @@ func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, buc
 				return
 			case next := <-ch:
 				// only throttle if we aren't on an edge
-				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
+				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.State == last.State && (next.Failure != nil) == (last.Failure != nil) {
 					if err := throttle.Wait(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 						utilruntime.HandleError(fmt.Errorf("unable to throttle status notification: %v", err))
 					}
