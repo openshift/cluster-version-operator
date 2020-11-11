@@ -24,7 +24,7 @@ When ClusterVersionOperator encounters a ClusterOperator Custom Resource,
 
 ClusterVersionOperator will only deploy files with `.yaml`, `.yml`, or `.json` extensions, like `kubectl create -f DIR`.
 
-**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that he ClusterVersionOperator will pre-create the ClusterOperator resource found in the `/manifests` folder (to provide better support to must-gather operation in case of install or upgrade failure). It remains a responsibility of the respective operator to properly update (or recreate if deleted) the ClusterOperator Custom Resource.
+**NOTE**: ClusterVersionOperator sweeps the manifests in the release image in alphabetical order, therefore if the ClusterOperator Custom Resource exists before the deployment for the operator that is supposed to report the Custom Resource, ClusterVersionOperator will be stuck waiting and cannot proceed. Also note that the ClusterVersionOperator will pre-create the ClusterOperator resource found in the `/manifests` folder (to provide better support to must-gather operation in case of install or upgrade failure). It remains a responsibility of the respective operator to properly update (or recreate if deleted) the ClusterOperator Custom Resource.
 
 ### What should be the contents of ClusterOperator Custom Resource in /manifests
 
