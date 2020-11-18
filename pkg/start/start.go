@@ -117,11 +117,11 @@ func (o *Options) Run(ctx context.Context) error {
 	if o.ReleaseImage == "" {
 		return fmt.Errorf("missing --release-image flag, it is required")
 	}
-	if o.ServingCertFile == "" && o.ServingKeyFile != "" {
-		return fmt.Errorf("--serving-key-file was set, so --serving-cert-file must also be set")
+	if o.ListenAddr != "" && o.ServingCertFile == "" {
+		return fmt.Errorf("--listen was not set empty, so --serving-cert-file must be set")
 	}
-	if o.ServingKeyFile == "" && o.ServingCertFile != "" {
-		return fmt.Errorf("--serving-cert-file was set, so --serving-key-file must also be set")
+	if o.ListenAddr != "" && o.ServingKeyFile == "" {
+		return fmt.Errorf("--listen was not set empty, so --serving-key-file must be set")
 	}
 	if len(o.PayloadOverride) > 0 {
 		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
@@ -202,12 +202,10 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 	resultChannelCount := 0
 	var tlsConfig *tls.Config
 	if o.ListenAddr != "" {
-		if o.ServingCertFile != "" || o.ServingKeyFile != "" {
-			var err error
-			tlsConfig, err = o.makeTLSConfig()
-			if err != nil {
-				klog.Fatalf("Failed to create TLS config: %v", err)
-			}
+		var err error
+		tlsConfig, err = o.makeTLSConfig()
+		if err != nil {
+			klog.Fatalf("Failed to create TLS config: %v", err)
 		}
 	}
 
