@@ -5,9 +5,6 @@ github.com/beorn7/perks/quantile
 github.com/blang/semver/v4
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
-# github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
-## explicit
-github.com/cockroachdb/cmux
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
