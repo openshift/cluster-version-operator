@@ -552,23 +552,6 @@ func convertErrorToProgressing(now time.Time, statusFailure error) (reason strin
 		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
 	case payload.UpdateEffectFail:
 		return "", "", false
-	case payload.UpdateEffectFailAfterInterval:
-		var exceeded []string
-		threshold := now.Add(-(40 * time.Minute))
-		names := uErr.Names
-		if len(names) == 0 {
-			names = []string{uErr.Name}
-		}
-		for _, name := range names {
-			if payload.COUpdateStartTimesGet(name).Before(threshold) {
-				exceeded = append(exceeded, name)
-			}
-		}
-		if len(exceeded) > 0 {
-			return uErr.Reason, fmt.Sprintf("wait has exceeded 40 minutes for these operators: %s", strings.Join(exceeded, ", ")), false
-		} else {
-			return uErr.Reason, fmt.Sprintf("waiting up to 40 minutes on %s", uErr.Name), true
-		}
 	}
 	return "", "", false
 }

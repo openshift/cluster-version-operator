@@ -432,7 +432,7 @@ func Test_checkOperatorHealth(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:              fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
-			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			UpdateEffect:        payload.UpdateEffectReport,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             "Cluster operator test-co is degraded",
@@ -504,7 +504,7 @@ func Test_checkOperatorHealth(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:              fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
-			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			UpdateEffect:        payload.UpdateEffectReport,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             "Cluster operator test-co is degraded",
@@ -573,7 +573,7 @@ func Test_checkOperatorHealth(t *testing.T) {
 		},
 		expErr: &payload.UpdateError{
 			Nested:              fmt.Errorf("cluster operator test-co: available=true, progressing=true, degraded=true, undone="),
-			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			UpdateEffect:        payload.UpdateEffectReport,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             "Cluster operator test-co is degraded",

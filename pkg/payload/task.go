@@ -161,10 +161,6 @@ const (
 
 	// UpdateEffectFail defines an error as indicating the update is failing.
 	UpdateEffectFail UpdateEffectType = "Fail"
-
-	// UpdateEffectFailAfterInterval defines an error as one which indicates the update
-	// is failing if the error continues for a defined interval.
-	UpdateEffectFailAfterInterval UpdateEffectType = "FailAfterInterval"
 )
 
 // UpdateError is a wrapper for errors that occur during a payload sync.

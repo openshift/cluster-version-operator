@@ -1264,10 +1264,6 @@ func condenseClusterOperators(errs []error) []error {
 				if updateEffect == payload.UpdateEffectReport {
 					updateEffect = payload.UpdateEffectNone
 				}
-			case payload.UpdateEffectFailAfterInterval:
-				if updateEffect != payload.UpdateEffectFail {
-					updateEffect = payload.UpdateEffectFailAfterInterval
-				}
 			case payload.UpdateEffectFail:
 				updateEffect = payload.UpdateEffectFail
 			}

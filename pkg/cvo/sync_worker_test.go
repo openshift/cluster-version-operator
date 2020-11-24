@@ -256,8 +256,8 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Name:                "test-co-B",
 		Task:                task("test-co-B", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
-	coCDegradedFailAfterInterval := &payload.UpdateError{
-		UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+	coCDegraded := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectReport,
 		Reason:              "ClusterOperatorDegraded",
 		PluralReason:        "ClusterOperatorsDegraded",
 		Message:             "Cluster operator test-co-C is degraded",
@@ -318,10 +318,9 @@ func Test_condenseClusterOperators(t *testing.T) {
 		input: []error{
 			coBUpdating,
 			coAUpdating,
-			coCDegradedFailAfterInterval,
+			coCDegraded,
 		},
 		expected: []error{
-			coCDegradedFailAfterInterval, // Degraded sorts before Updating
 			&payload.UpdateError{
 				Nested:              errors.NewAggregate([]error{coBUpdating, coAUpdating}),
 				UpdateEffect:        payload.UpdateEffectNone,
@@ -332,17 +331,18 @@ func Test_condenseClusterOperators(t *testing.T) {
 				Name:                "test-co-A, test-co-B",
 				Names:               []string{"test-co-A", "test-co-B"},
 			},
+			coCDegraded,
 		},
 	}, {
 		name: "there ClusterOperator with the same reason but different effects",
 		input: []error{
 			coBDegradedFail,
 			coADegradedNone,
-			coCDegradedFailAfterInterval,
+			coCDegraded,
 		},
 		expected: []error{
 			&payload.UpdateError{
-				Nested:              errors.NewAggregate([]error{coBDegradedFail, coADegradedNone, coCDegradedFailAfterInterval}),
+				Nested:              errors.NewAggregate([]error{coBDegradedFail, coADegradedNone, coCDegraded}),
 				UpdateEffect:        payload.UpdateEffectFail,
 				Reason:              "ClusterOperatorsDegraded",
 				PluralReason:        "ClusterOperatorsDegraded",
@@ -353,15 +353,15 @@ func Test_condenseClusterOperators(t *testing.T) {
 			},
 		},
 	}, {
-		name: "to ClusterOperator with the same reason but None and FailAfterInterval effects",
+		name: "to ClusterOperator with the same reason but None and Report effects",
 		input: []error{
 			coADegradedNone,
-			coCDegradedFailAfterInterval,
+			coCDegraded,
 		},
 		expected: []error{
 			&payload.UpdateError{
-				Nested:              errors.NewAggregate([]error{coADegradedNone, coCDegradedFailAfterInterval}),
-				UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+				Nested:              errors.NewAggregate([]error{coADegradedNone, coCDegraded}),
+				UpdateEffect:        payload.UpdateEffectFail,
 				Reason:              "ClusterOperatorsDegraded",
 				PluralReason:        "ClusterOperatorsDegraded",
 				Message:             "Cluster operators test-co-A, test-co-C are degraded",

@@ -232,20 +232,15 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 		}
 	}
 
+	var degradedError error
 	if degraded {
 		if degradedCondition != nil && len(degradedCondition.Message) > 0 {
 			nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s, %s", actual.Name, degradedCondition.Type, degradedCondition.Status, degradedCondition.Reason, degradedCondition.Message)
 		}
-		var updateEffect payload.UpdateEffectType
 
-		if mode == resourcebuilder.InitializingMode {
-			updateEffect = payload.UpdateEffectReport
-		} else {
-			updateEffect = payload.UpdateEffectFailAfterInterval
-		}
-		return &payload.UpdateError{
+		degradedError = &payload.UpdateError{
 			Nested:              nestedMessage,
-			UpdateEffect:        updateEffect,
+			UpdateEffect:        payload.UpdateEffectReport,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             fmt.Sprintf("Cluster operator %s is degraded", actual.Name),
@@ -256,10 +251,19 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 
 	// during initialization we allow undone versions
 	if len(undone) > 0 && mode != resourcebuilder.InitializingMode {
-		nestedMessage = fmt.Errorf("cluster operator %s is available and not degraded but has not finished updating to target version", actual.Name)
+		var updateEffect payload.UpdateEffectType
+
+		if degradedError == nil {
+			nestedMessage = fmt.Errorf("cluster operator %s is available and not degraded but has not finished updating to target version", actual.Name)
+			updateEffect = payload.UpdateEffectNone // block on versions, but nothing to go Failing=True over
+		} else {
+			nestedMessage = fmt.Errorf("cluster operator %s is available but %s=%s and has not finished updating to target version", actual.Name, degradedCondition.Type, degradedCondition.Status)
+			updateEffect = payload.UpdateEffectFail // block on versions, go Failing=True on Degraded=True
+		}
+
 		return &payload.UpdateError{
 			Nested:              nestedMessage,
-			UpdateEffect:        payload.UpdateEffectNone,
+			UpdateEffect:        updateEffect,
 			Reason:              "ClusterOperatorUpdating",
 			PluralReason:        "ClusterOperatorsUpdating",
 			Message:             fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
@@ -268,5 +272,5 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 		}
 	}
 
-	return nil
+	return degradedError
 }
