@@ -95,6 +95,8 @@ const (
 
 	cincinnatiJSONFile  = "release-metadata"
 	imageReferencesFile = "image-references"
+
+	defaultClusterProfile = "self-managed-high-availability"
 )
 
 // Update represents the contents of a release image.
@@ -279,7 +281,10 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
 	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 
-	mrc := manifestRenderConfig{ReleaseImage: releaseImage}
+	mrc := manifestRenderConfig{
+		ReleaseImage:   releaseImage,
+		ClusterProfile: defaultClusterProfile,
+	}
 
 	return []payloadTasks{{
 		idir:       cvoDir,
