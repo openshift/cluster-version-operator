@@ -536,7 +536,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	incompleteCount := 0
 	for i, result := range results {
 		if result == nil {
-			if firstIncompleteNode == nil {
+			if firstIncompleteNode == nil && len(graph.Nodes[i].Tasks) > 0 {
 				firstIncompleteNode = graph.Nodes[i]
 			}
 			incompleteCount++
