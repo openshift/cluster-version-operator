@@ -65,6 +65,11 @@ func (err *Error) Error() string {
 // image can be downloaded.
 func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) (Update, []Update, error) {
 	var current Update
+	// HACK!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	version, err := semver.Parse("4.5.16")
+	if err != nil {
+		return current, nil, &Error{Reason: "BAD HACK", Message: err.Error(), cause: err}
+	}
 	transport := http.Transport{}
 	// Prepare parametrized cincinnati query.
 	queryParams := uri.Query()

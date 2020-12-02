@@ -600,7 +600,9 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		klog.V(4).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
 	}
 
-	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
+	//return w.apply(ctx, w.payload, work, maxWorkers, reporter)
+	klog.Infof("!!!! no-oping apply updates")
+	return nil
 }
 
 // apply updates the server with the contents of the provided image or returns an error.

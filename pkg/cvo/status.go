@@ -30,21 +30,33 @@ const (
 )
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Release) bool {
+
+	klog.Infof("!!!! desired.Version %s", desired.Version)
+	klog.Infof("!!!! current.Version %s", current.Version)
+	klog.Infof("!!!! desired.Image   %s", desired.Image)
+	klog.Infof("!!!! current.Image   %s", current.Image)
+
 	if len(desired.Image) > 0 && desired.Image == current.Image {
+		klog.Infof("1")
 		if len(desired.Version) == 0 {
+			klog.Infof("2")
 			return true
 		}
 		if len(current.Version) == 0 || desired.Version == current.Version {
+			klog.Infof("3")
 			current.Version = desired.Version
 			return true
 		}
 	}
 	if len(desired.Version) > 0 && desired.Version == current.Version {
+		klog.Infof("4")
 		if len(current.Image) == 0 || desired.Image == current.Image {
+			klog.Infof("5")
 			current.Image = desired.Image
 			return true
 		}
 	}
+	klog.Infof("6")
 	return false
 }
 
