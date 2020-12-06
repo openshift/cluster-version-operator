@@ -10,9 +10,9 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/library-go/pkg/manifest"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +53,7 @@ type builder struct {
 	securityClientv1             *securityclientv1.SecurityV1Client
 }
 
-func newBuilder(config *rest.Config, m lib.Manifest) Interface {
+func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &builder{
 		raw: m.Raw,
 

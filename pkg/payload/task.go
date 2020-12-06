@@ -14,7 +14,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	manifest "github.com/openshift/library-go/pkg/manifest"
 )
 
 var (
@@ -32,13 +32,13 @@ func init() {
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
-	Apply(context.Context, *lib.Manifest, State) error
+	Apply(context.Context, *manifest.Manifest, State) error
 }
 
 type Task struct {
 	Index    int
 	Total    int
-	Manifest *lib.Manifest
+	Manifest *manifest.Manifest
 	Requeued int
 	Backoff  wait.Backoff
 }
@@ -53,11 +53,11 @@ func (st *Task) Copy() *Task {
 }
 
 func (st *Task) String() string {
-	name := st.Manifest.Object().GetName()
+	name := st.Manifest.Obj.GetName()
 	if len(name) == 0 {
 		name = st.Manifest.OriginalFilename
 	}
-	ns := st.Manifest.Object().GetNamespace()
+	ns := st.Manifest.Obj.GetNamespace()
 	if len(ns) == 0 {
 		return fmt.Sprintf("%s %q (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), name, st.Index, st.Total)
 	}

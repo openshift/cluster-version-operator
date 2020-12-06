@@ -39,10 +39,9 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
-	"github.com/openshift/cluster-version-operator/lib"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
-	"github.com/openshift/cluster-version-operator/pkg/verify"
-	"github.com/openshift/cluster-version-operator/pkg/verify/store/sigstore"
+	"github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
 var (
@@ -3397,63 +3396,44 @@ func fakeClientsetWithUpdates(obj *configv1.ClusterVersion) *fake.Clientset {
 
 func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 	const (
-		ExpectedError    = "the config map openshift-config-managed/release-verification did not provide any signature stores to read from and cannot be used"
-		ExpectedVerifier = "All release image digests must have GPG signatures from verifier-public-key-redhat (567E347AD0044ADE55BA8A5F199E2F91FD431D51: Red Hat, Inc. (release key 2) <security@redhat.com>) - will check for signatures in containers/image format at serial signature store wrapping config maps in openshift-config-managed with label \"release.openshift.io/verification-signatures\", parallel signature store wrapping file:///verify/testdata/signatures"
+		ExpectedError       = "the config map openshift-config-managed/release-verification did not provide any signature stores to read from and cannot be used"
+		ExpectedVerifierKey = "verifier-public-key-redhat"
 	)
 
 	tests := []struct {
-		name             string
-		fileName         string
-		update           *payload.Update
-		expectedError    string
-		expectedVerifier string
-		expectStore      bool
+		name           string
+		fileName       string
+		update         *payload.Update
+		expectedError  string
+		expectVerifier bool
+		expectStore    bool
 	}{
 		{
-			name:     "is a no-op when no objects are found",
+			name:     "no-op when no objects are found",
 			fileName: "",
 			update:   &payload.Update{},
 		},
 		{
-			name:          "requires data",
+			name:          "no data, error returned",
 			fileName:      "requires-data.yaml",
 			update:        &payload.Update{},
 			expectedError: ExpectedError,
 		},
 		{
-			name:          "requires stores",
-			fileName:      "requires-stores.yaml",
-			update:        &payload.Update{},
-			expectedError: ExpectedError,
-		},
-		{
-			name:          "requires verifiers",
-			fileName:      "requires-verifiers.yaml",
-			update:        &payload.Update{},
-			expectedError: ExpectedError,
-		},
-		{
-			name:             "loads valid configuration",
-			fileName:         "loads-valid.yaml",
-			update:           &payload.Update{},
-			expectedVerifier: ExpectedVerifier,
-			expectStore:      true,
-		},
-		{
-			name:             "only the first valid configuration is used",
-			fileName:         "only-first-used.yaml",
-			update:           &payload.Update{},
-			expectedVerifier: ExpectedVerifier,
-			expectStore:      true,
+			name:           "loads valid configuration",
+			fileName:       "loads-valid.yaml",
+			update:         &payload.Update{},
+			expectVerifier: true,
+			expectStore:    true,
 		},
 	}
 	for _, tt := range tests {
 		if tt.fileName != "" {
-			raw, err := ioutil.ReadFile(filepath.Join("..", "verify", "testdata", "manifests", tt.fileName))
+			raw, err := ioutil.ReadFile(filepath.Join("testdata", "manifests", tt.fileName))
 			if err != nil {
 				t.Fatal(err)
 			}
-			ms, err := lib.ParseManifests(bytes.NewReader(raw))
+			ms, err := manifest.ParseManifests(bytes.NewReader(raw))
 			if err != nil {
 				t.Fatalf("failed to parse file %s as a manifest, error = %v", tt.fileName, err)
 			}
@@ -3464,29 +3444,28 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, sigstore.DefaultClient, f.CoreV1())
 			if err == nil {
 				if tt.expectedError != "" {
-					t.Fatalf("loadReleaseVerifierFromPayload succeeded when we expected error \"%s\"", tt.expectedError)
+					t.Fatalf("loadConfigMapVerifierDataFromUpdate succeeded when we expected error \"%s\"", tt.expectedError)
 				}
 			} else if tt.expectedError == "" {
-				t.Fatalf("loadReleaseVerifierFromPayload failed when we expected success: %v", err)
+				t.Fatalf("loadConfigMapVerifierDataFromUpdate failed when we expected success: %v", err)
 			} else if tt.expectedError != err.Error() {
-				t.Fatalf("loadReleaseVerifierFromPayload failed with \"%v\" (expected \"%s\")", err, tt.expectedError)
+				t.Fatalf("loadConfigMapVerifierDataFromUpdate failed with \"%v\" (expected \"%s\")", err, tt.expectedError)
 			}
 
 			if got == nil {
-				if tt.expectedVerifier != "" {
-					t.Fatalf("loadReleaseVerifierFromPayload did not return a verifier when expected")
+				if tt.expectVerifier {
+					t.Fatalf("loadConfigMapVerifierDataFromUpdate did not return a verifier when expected")
 				}
-			} else if tt.expectedVerifier == "" {
-				t.Fatalf("loadReleaseVerifierFromPayload returned a verifer when not expected")
+			} else if !tt.expectVerifier {
+				t.Fatalf("loadConfigMapVerifierDataFromUpdate returned a verifer when not expected")
 			} else {
-				rvString := got.(*verify.ReleaseVerifier).String()
-				if rvString != tt.expectedVerifier {
-					t.Fatalf("loadReleaseVerifierFromPayload returned \"%v\" when we expected \"%v\"", rvString, tt.expectedVerifier)
+				if _, ok := got.Verifiers()[ExpectedVerifierKey]; !ok {
+					t.Fatalf("loadConfigMapVerifierDataFromUpdate did not return expected verifier %s", ExpectedVerifierKey)
 				}
 			}
 
 			if tt.expectStore && store == nil {
-				t.Fatalf("loadReleaseVerifierFromPayload did not return a store when expected")
+				t.Fatalf("loadConfigMapVerifierDataFromUpdate did not return a store when expected")
 			}
 		})
 	}

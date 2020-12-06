@@ -1,4 +1,4 @@
-package lib
+package manifest
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/pkg/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -18,6 +17,11 @@ import (
 
 // Manifest stores Kubernetes object in Raw from a file.
 // It stores the GroupVersionKind for the manifest.
+// Raw and Obj should always be kept in sync such that
+// each provides the same data but in different formats.
+// To ensure Raw and Obj are always in sync, they should not
+// be set directly but rather only be set by calling
+// either method ManifestsFromFiles or ParseManifests.
 type Manifest struct {
 	// OriginalFilename is set to the filename this manifest was loaded from.
 	// It is not guaranteed to be set or be unique, but we will set it when
@@ -30,7 +34,8 @@ type Manifest struct {
 	Obj *unstructured.Unstructured
 }
 
-// UnmarshalJSON unmarshals bytes of single kubernetes object to Manifest.
+// UnmarshalJSON implements the json.Unmarshaler interface for the Manifest
+// type. It unmarshals bytes of a single kubernetes object to Manifest.
 func (m *Manifest) UnmarshalJSON(in []byte) error {
 	if m == nil {
 		return errors.New("Manifest: UnmarshalJSON on nil pointer")
@@ -57,12 +62,9 @@ func (m *Manifest) UnmarshalJSON(in []byte) error {
 	}
 
 	m.GVK = ud.GroupVersionKind()
-	m.Obj = ud.DeepCopy()
+	m.Obj = ud
 	return nil
 }
-
-// Object returns underlying metav1.Object
-func (m *Manifest) Object() metav1.Object { return m.Obj }
 
 // ManifestsFromFiles reads files and returns Manifests in the same order.
 // files should be list of absolute paths for the manifests on disk.

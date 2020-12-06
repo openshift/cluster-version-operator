@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/cluster-version-operator/lib"
+	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -18,7 +18,7 @@ func TestTaskString(t *testing.T) {
 	}{
 		{
 			name: "Manifest with name",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				OriginalFilename: "a",
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
@@ -34,7 +34,7 @@ func TestTaskString(t *testing.T) {
 		},
 		{
 			name: "Manifest with GVK",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				GVK: schema.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "Ingress"},
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
@@ -50,7 +50,7 @@ func TestTaskString(t *testing.T) {
 		},
 		{
 			name: "Manifest with name and namespace",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				OriginalFilename: "a",
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
@@ -67,7 +67,7 @@ func TestTaskString(t *testing.T) {
 		},
 		{
 			name: "Manifest with GVK and namespace",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				GVK: schema.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "Ingress"},
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
@@ -85,7 +85,7 @@ func TestTaskString(t *testing.T) {
 		{
 			name: "index and total",
 			task: &Task{
-				Manifest: &lib.Manifest{
+				Manifest: &manifest.Manifest{
 					GVK: schema.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "Ingress"},
 					Obj: &unstructured.Unstructured{
 						Object: map[string]interface{}{
@@ -105,7 +105,7 @@ func TestTaskString(t *testing.T) {
 		{
 			name: "Namespaced, index and total",
 			task: &Task{
-				Manifest: &lib.Manifest{
+				Manifest: &manifest.Manifest{
 					GVK: schema.GroupVersionKind{Group: "extensions", Version: "v1beta1", Kind: "Ingress"},
 					Obj: &unstructured.Unstructured{
 						Object: map[string]interface{}{
@@ -125,7 +125,7 @@ func TestTaskString(t *testing.T) {
 		},
 		{
 			name: "List",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				OriginalFilename: "list_manifest.yaml",
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
@@ -142,7 +142,7 @@ func TestTaskString(t *testing.T) {
 		},
 		{
 			name: "List and GVK",
-			task: &Task{Manifest: &lib.Manifest{
+			task: &Task{Manifest: &manifest.Manifest{
 				OriginalFilename: "list_manifest.yaml",
 				GVK:              schema.GroupVersionKind{Group: "", Version: "v1", Kind: "List"},
 				Obj: &unstructured.Unstructured{

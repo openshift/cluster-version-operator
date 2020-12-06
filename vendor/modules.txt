@@ -11,8 +11,7 @@ github.com/cockroachdb/cmux
 # github.com/davecgh/go-spew v1.1.1
 ## explicit
 github.com/davecgh/go-spew/spew
-# github.com/evanphx/json-patch v4.5.0+incompatible
-## explicit
+# github.com/evanphx/json-patch v4.9.0+incompatible
 github.com/evanphx/json-patch
 # github.com/ghodss/yaml v1.0.0
 ## explicit
@@ -62,14 +61,14 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
-# github.com/openshift/api v0.0.0-20200724204552-3ae6754513d4
+# github.com/openshift/api v0.0.0-20200827090112-c05698d102cf
 ## explicit
 github.com/openshift/api/config/v1
 github.com/openshift/api/image/docker10
 github.com/openshift/api/image/dockerpre012
 github.com/openshift/api/image/v1
 github.com/openshift/api/security/v1
-# github.com/openshift/client-go v0.0.0-20200723130357-94e1065ab1f8
+# github.com/openshift/client-go v0.0.0-20200827190008-3062137373b5
 ## explicit
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/fake
@@ -83,9 +82,17 @@ github.com/openshift/client-go/config/informers/externalversions/internalinterfa
 github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/security/clientset/versioned/scheme
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1
-# github.com/openshift/library-go v0.0.0-20200724192307-1ed21c4fa86c
+# github.com/openshift/library-go v0.0.0-20201013192036-5bd7c282e3e7
 ## explicit
 github.com/openshift/library-go/pkg/crypto
+github.com/openshift/library-go/pkg/manifest
+github.com/openshift/library-go/pkg/verify
+github.com/openshift/library-go/pkg/verify/store
+github.com/openshift/library-go/pkg/verify/store/configmap
+github.com/openshift/library-go/pkg/verify/store/parallel
+github.com/openshift/library-go/pkg/verify/store/serial
+github.com/openshift/library-go/pkg/verify/store/sigstore
+github.com/openshift/library-go/pkg/verify/util
 # github.com/pkg/errors v0.9.1
 ## explicit
 github.com/pkg/errors
@@ -111,7 +118,6 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-## explicit
 golang.org/x/crypto/cast5
 golang.org/x/crypto/openpgp
 golang.org/x/crypto/openpgp/armor
@@ -185,7 +191,7 @@ google.golang.org/protobuf/types/known/timestamppb
 gopkg.in/inf.v0
 # gopkg.in/yaml.v2 v2.3.0
 gopkg.in/yaml.v2
-# k8s.io/api v0.19.0-rc.2
+# k8s.io/api v0.19.0
 ## explicit
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
@@ -228,7 +234,7 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apiextensions-apiserver v0.19.0-rc.2
+# k8s.io/apiextensions-apiserver v0.19.0
 ## explicit
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
@@ -237,7 +243,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.19.0-rc.2
+# k8s.io/apimachinery v0.19.0
 ## explicit
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
@@ -285,9 +291,9 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/apiserver v0.19.0-rc.2
+# k8s.io/apiserver v0.19.0
 k8s.io/apiserver/pkg/authentication/user
-# k8s.io/client-go v0.19.0-rc.2
+# k8s.io/client-go v0.19.0
 ## explicit
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/cached/memory
@@ -507,7 +513,7 @@ k8s.io/client-go/util/workqueue
 # k8s.io/klog/v2 v2.3.0
 ## explicit
 k8s.io/klog/v2
-# k8s.io/kube-aggregator v0.19.0-rc.2
+# k8s.io/kube-aggregator v0.19.0
 ## explicit
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
@@ -515,15 +521,15 @@ k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1
-# k8s.io/kube-openapi v0.0.0-20200427153329-656914f816f9
+# k8s.io/kube-openapi v0.0.0-20200805222855-6aeccd4b50c6
 k8s.io/kube-openapi/pkg/util/proto
-# k8s.io/utils v0.0.0-20200720150651-0bdb4ca86cbc
+# k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 ## explicit
 k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# sigs.k8s.io/structured-merge-diff/v3 v3.0.1-0.20200706213357-43c19bbb7fba
-sigs.k8s.io/structured-merge-diff/v3/value
+# sigs.k8s.io/structured-merge-diff/v4 v4.0.1
+sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml

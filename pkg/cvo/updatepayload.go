@@ -25,7 +25,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
-	"github.com/openshift/cluster-version-operator/pkg/verify"
+	"github.com/openshift/library-go/pkg/verify"
 )
 
 func (optr *Operator) defaultPayloadDir() string {
