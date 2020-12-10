@@ -22,7 +22,10 @@ func Render(outputDir, releaseImage string) error {
 		bootstrapDir  = "/bootstrap"
 		oBootstrapDir = filepath.Join(outputDir, "bootstrap")
 
-		renderConfig = manifestRenderConfig{ReleaseImage: releaseImage}
+		renderConfig = manifestRenderConfig{
+			ReleaseImage:   releaseImage,
+			ClusterProfile: defaultClusterProfile,
+		}
 	)
 
 	tasks := []struct {
@@ -102,7 +105,8 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 }
 
 type manifestRenderConfig struct {
-	ReleaseImage string
+	ReleaseImage   string
+	ClusterProfile string
 }
 
 // renderManifest Executes go text template from `manifestBytes` with `config`.
