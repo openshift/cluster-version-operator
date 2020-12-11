@@ -7,7 +7,7 @@ require (
 	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
 	github.com/davecgh/go-spew v1.1.1
 	github.com/ghodss/yaml v1.0.0
-	github.com/google/uuid v1.1.1
+	github.com/google/uuid v1.1.2
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/openshift/api v0.0.0-20200827090112-c05698d102cf
@@ -16,13 +16,13 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
-	github.com/spf13/cobra v1.0.0
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	k8s.io/api v0.19.0
-	k8s.io/apiextensions-apiserver v0.19.0
-	k8s.io/apimachinery v0.19.0
-	k8s.io/client-go v0.19.0
-	k8s.io/klog/v2 v2.3.0
-	k8s.io/kube-aggregator v0.19.0
-	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
+	github.com/spf13/cobra v1.1.1
+	golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
+	k8s.io/api v0.20.0
+	k8s.io/apiextensions-apiserver v0.20.0
+	k8s.io/apimachinery v0.20.0
+	k8s.io/client-go v0.20.0
+	k8s.io/klog/v2 v2.4.0
+	k8s.io/kube-aggregator v0.20.0
+	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
