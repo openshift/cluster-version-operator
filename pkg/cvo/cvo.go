@@ -614,11 +614,11 @@ func (optr *Operator) mergeReleaseMetadata(release configv1.Release) configv1.Re
 		availableUpdates := optr.getAvailableUpdates()
 		if availableUpdates != nil {
 			var update *configv1.Release
-			if merged.Image == availableUpdates.Current.Image {
+			if equalDigest(merged.Image, availableUpdates.Current.Image) {
 				update = &availableUpdates.Current
 			} else {
 				for _, u := range availableUpdates.Updates {
-					if u.Image == merged.Image {
+					if equalDigest(u.Image, merged.Image) {
 						update = &u
 						break
 					}
