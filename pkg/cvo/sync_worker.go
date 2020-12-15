@@ -678,6 +678,11 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				if task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
 					continue
 				}
+				ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
+				if ok && ov.Unmanaged {
+					klog.V(4).Infof("Skipping precreation of %s as unmanaged", task)
+					continue
+				}
 				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
 					klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
 					continue
