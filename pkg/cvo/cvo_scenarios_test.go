@@ -220,14 +220,14 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		SyncWorkerStatus{
 			Generation: 1,
 			Step:       "RetrievePayload",
-			Initial:    true,
+			State:      payload.InitializingPayload,
 			// the desired version is briefly incorrect (user provided) until we retrieve the image
 			Actual: configv1.Release{Version: "4.0.1", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Generation:  1,
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -240,7 +240,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -253,7 +253,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		SyncWorkerStatus{
 			Generation:  1,
 			Fraction:    float32(2) / 3,
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -266,7 +266,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -332,7 +332,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Generation:  1,
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -344,7 +344,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -357,7 +357,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -370,7 +370,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -533,15 +533,15 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Initial: true,
+			Step:  "RetrievePayload",
+			State: payload.InitializingPayload,
 			// the desired version is briefly incorrect (user provided) until we retrieve the image
 			Actual:     configv1.Release{Version: "4.0.1", Image: "image/image:1"},
 			Generation: 1,
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -554,7 +554,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -567,7 +567,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -580,7 +580,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -646,7 +646,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -658,7 +658,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -671,7 +671,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -684,7 +684,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -838,15 +838,15 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Initial: true,
+			Step:  "RetrievePayload",
+			State: payload.InitializingPayload,
 			// the desired version is briefly incorrect (user provided) until we retrieve the image
 			Actual:     configv1.Release{Version: "4.0.1", Image: "image/image:1"},
 			Generation: 1,
 		},
 		SyncWorkerStatus{
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -859,7 +859,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -872,7 +872,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Fraction:    float32(2) / 3,
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -885,7 +885,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -951,7 +951,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -963,7 +963,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -976,7 +976,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -989,7 +989,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -1209,7 +1209,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -1456,7 +1456,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -1515,7 +1515,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -1526,7 +1526,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -1538,7 +1538,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -1550,7 +1550,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -1754,7 +1754,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -2000,7 +2000,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Generation:   2,
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -2121,7 +2121,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	expectGet(t, actions[0], "clusterversions", "", "version")
 
 	// check the worker status is initially set to reconciling
-	if status := worker.Status(); !status.Reconciling || status.Completed != 0 {
+	if status := worker.Status(); status.State != payload.ReconcilingPayload || status.Completed != 0 {
 		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
 	}
 	if worker.work.State != payload.ReconcilingPayload {
@@ -2135,12 +2135,12 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
-			Step:        "RetrievePayload",
-			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			State:  payload.ReconcilingPayload,
+			Step:   "RetrievePayload",
+			Actual: configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -2151,7 +2151,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2164,7 +2164,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2177,7 +2177,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   1,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -2207,7 +2207,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		// note that the image is not retrieved a second time
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -2218,7 +2218,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2230,7 +2230,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2242,7 +2242,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Completed:   2,
 			Fraction:    1,
 			VersionHash: "6GC9TkkG9PA=",
@@ -2330,7 +2330,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	expectGet(t, actions[0], "clusterversions", "", "version")
 
 	// check the worker status is initially set to reconciling
-	if status := worker.Status(); !status.Reconciling || status.Completed != 0 {
+	if status := worker.Status(); status.State != payload.ReconcilingPayload || status.Completed != 0 {
 		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
 	}
 	if worker.work.State != payload.ReconcilingPayload {
@@ -2341,12 +2341,12 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
-			Step:        "RetrievePayload",
-			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			State:  payload.ReconcilingPayload,
+			Step:   "RetrievePayload",
+			Actual: configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
 			Actual: configv1.Release{
@@ -2381,7 +2381,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// verify we observe the remaining changes in the first sync
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(1) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2403,7 +2403,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// verify we observe the remaining changes in the first sync
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Fraction:    float32(2) / 3,
 			Step:        "ApplyResources",
 			VersionHash: "6GC9TkkG9PA=",
@@ -2436,7 +2436,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// verify we see the update after the context times out
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Reconciling: true,
+			State:       payload.ReconcilingPayload,
 			Step:        "ApplyResources",
 			Fraction:    float32(2) / 3,
 			VersionHash: "6GC9TkkG9PA=",
@@ -2554,12 +2554,12 @@ func TestCVO_ParallelError(t *testing.T) {
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 
-	// check the worker status is initially set to reconciling
-	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
-		t.Fatalf("The worker should be reconciling from the beginning: %#v", status)
+	// check the worker status is initially set to initializing
+	if status := worker.Status(); status.State != payload.InitializingPayload || status.Completed != 0 {
+		t.Fatalf("The worker should be initializing from the beginning: %#v", status)
 	}
 	if worker.work.State != payload.InitializingPayload {
-		t.Fatalf("The worker should be reconciling: %v", worker.work)
+		t.Fatalf("The worker should be initializing: %v", worker.work)
 	}
 
 	// Step 2: Start the sync worker and verify the sequence of events
@@ -2570,12 +2570,12 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Initial: true,
-			Step:    "RetrievePayload",
-			Actual:  configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			State:  payload.InitializingPayload,
+			Step:   "RetrievePayload",
+			Actual: configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
-			Initial:     true,
+			State:       payload.InitializingPayload,
 			Step:        "ApplyResources",
 			VersionHash: "7m-gGRrpkDU=",
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -2592,7 +2592,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		if status.Failure == nil {
 			if status.Fraction == 0 || status.Fraction == 1/3 {
 				if !reflect.DeepEqual(status, SyncWorkerStatus{
-					Initial:     true,
+					State:       payload.InitializingPayload,
 					Fraction:    status.Fraction,
 					Step:        "ApplyResources",
 					VersionHash: "7m-gGRrpkDU=",
@@ -2612,7 +2612,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			t.Fatalf("unexpected last progress: %v", status.LastProgress)
 		}
 		if !reflect.DeepEqual(status, SyncWorkerStatus{
-			Initial:      true,
+			State:        payload.InitializingPayload,
 			Failure:      err,
 			Fraction:     float32(1) / 3,
 			Step:         "ApplyResources",
@@ -2713,8 +2713,8 @@ func TestCVO_VerifyInitializingPayloadState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// check the worker status is initially set to reconciling
-	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
+	// check the worker status is initially set to initializing
+	if status := worker.Status(); status.State != payload.InitializingPayload || status.Completed != 0 {
 		t.Fatalf("The worker should be initializing from the beginning: %#v", status)
 	}
 	if worker.work.State != payload.InitializingPayload {
@@ -2773,8 +2773,8 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// check the worker status is initially set to reconciling
-	if status := worker.Status(); status.Reconciling || status.Completed != 0 {
+	// check the worker status is initially set to updating
+	if status := worker.Status(); status.State != payload.UpdatingPayload || status.Completed != 0 {
 		t.Fatalf("The worker should be updating from the beginning: %#v", status)
 	}
 	if worker.work.State != payload.UpdatingPayload {

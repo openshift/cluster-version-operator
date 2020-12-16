@@ -10,6 +10,8 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_statusWrapper_ReportProgress(t *testing.T) {
@@ -161,28 +163,28 @@ func Test_runThrottledStatusNotifier(t *testing.T) {
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Reconciling: true, Actual: configv1.Release{Image: "test"}}
+	in <- SyncWorkerStatus{State: payload.ReconcilingPayload, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), State: payload.ReconcilingPayload, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), State: payload.ReconcilingPayload, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 	case <-time.After(100 * time.Millisecond):
 		t.Fatalf("should have not throttled")
 	}
 
-	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), Reconciling: true, Actual: configv1.Release{Image: "test"}}
+	in <- SyncWorkerStatus{Failure: fmt.Errorf("a"), State: payload.ReconcilingPayload, Actual: configv1.Release{Image: "test"}}
 	select {
 	case <-out:
 		t.Fatalf("should have throttled")

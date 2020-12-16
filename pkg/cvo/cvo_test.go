@@ -301,9 +301,9 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "progressing and previously failed, not reconciling",
 			syncStatus: &SyncWorkerStatus{
-				Step:        "Moving",
-				Reconciling: false,
-				Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+				Step:   "Moving",
+				State:  payload.UpdatingPayload,
+				Actual: configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 				Failure: &payload.UpdateError{
 					Reason:  "UpdatePayloadIntegrity",
 					Message: "unable to apply object",
@@ -382,9 +382,9 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Step:        "Moving",
-						Reconciling: true,
-						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Step:   "Moving",
+						State:  payload.ReconcilingPayload,
+						Actual: configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
@@ -457,10 +457,10 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Step:        "Moving",
-						Reconciling: true,
-						Completed:   2,
-						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						Step:      "Moving",
+						State:     payload.ReconcilingPayload,
+						Completed: 2,
+						Actual:    configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
@@ -1261,7 +1261,7 @@ func TestOperator_sync(t *testing.T) {
 			name: "version is live and was recently synced, do nothing",
 			syncStatus: &SyncWorkerStatus{
 				Generation:  2,
-				Reconciling: true,
+				State:       payload.ReconcilingPayload,
 				Completed:   1,
 				VersionHash: "xyz",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -1321,10 +1321,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates, version is live and was recently synced, sync",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1426,10 +1426,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new upgradable conditions, version is live and was recently synced, sync",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1504,10 +1504,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new upgradable conditions with some old ones, version is live and was recently synced, sync",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1581,10 +1581,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "no upgradeable conditions, version is live and was recently synced, sync",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1655,10 +1655,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates for the default upstream URL, client has no upstream",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1740,10 +1740,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "new available updates but for a different channel",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1820,10 +1820,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version, sync loop hasn't started",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1884,10 +1884,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version that isn't in the updates or history",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1959,10 +1959,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "user requested a version has duplicates",
 			syncStatus: &SyncWorkerStatus{
-				Generation:  2,
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Generation: 2,
+				State:      payload.ReconcilingPayload,
+				Completed:  1,
+				Actual:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -2037,7 +2037,7 @@ func TestOperator_sync(t *testing.T) {
 			name: "image hash matches content hash, act as reconcile, no need to apply",
 			syncStatus: &SyncWorkerStatus{
 				Generation:  2,
-				Reconciling: true,
+				State:       payload.ReconcilingPayload,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -2099,7 +2099,7 @@ func TestOperator_sync(t *testing.T) {
 			name: "image hash does not match content hash, act as reconcile, no need to apply",
 			syncStatus: &SyncWorkerStatus{
 				Generation:  2,
-				Reconciling: true,
+				State:       payload.ReconcilingPayload,
 				Completed:   1,
 				VersionHash: "y_Kc5IQiIyU=",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
@@ -2191,9 +2191,9 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "detect invalid cluster version",
 			syncStatus: &SyncWorkerStatus{
-				Reconciling: true,
-				Completed:   1,
-				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
+				State:     payload.ReconcilingPayload,
+				Completed: 1,
+				Actual:    configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
 			optr: Operator{
 				release: configv1.Release{

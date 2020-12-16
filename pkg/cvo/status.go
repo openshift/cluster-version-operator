@@ -259,7 +259,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 
 		// update progressing
-		if status.Reconciling {
+		if status.State == payload.ReconcilingPayload {
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionFalse,
@@ -282,7 +282,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
 
 		// update progressing
-		if status.Reconciling {
+		if status.State == payload.ReconcilingPayload {
 			message := fmt.Sprintf("Cluster version is %s", version)
 			if len(validationErrs) > 0 {
 				message = fmt.Sprintf("Stopped at %s: the cluster version is invalid", version)
@@ -347,7 +347,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 // unavailable AND the general payload task making progress towards its goal. An operator is given 40 minutes since
 // its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
-	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
+	if len(history) == 0 || status.Failure == nil || status.State == payload.ReconcilingPayload || status.LastProgress.IsZero() {
 		return "", "", false
 	}
 	if now.Sub(status.LastProgress) > 40*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
