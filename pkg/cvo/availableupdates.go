@@ -215,7 +215,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, prox
 		}
 	}
 
-	cvoCurrent, err = convertRetreivedUpdateToRelease(current)
+	cvoCurrent, err = convertRetrievedUpdateToRelease(current)
 	if err != nil {
 		return cvoCurrent, nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "ResponseInvalid",
@@ -225,7 +225,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, prox
 
 	var cvoUpdates []configv1.Release
 	for _, update := range updates {
-		cvoUpdate, err := convertRetreivedUpdateToRelease(update)
+		cvoUpdate, err := convertRetrievedUpdateToRelease(update)
 		if err != nil {
 			return cvoCurrent, nil, configv1.ClusterOperatorStatusCondition{
 				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "ResponseInvalid",
@@ -243,7 +243,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, prox
 	}
 }
 
-func convertRetreivedUpdateToRelease(update cincinnati.Update) (configv1.Release, error) {
+func convertRetrievedUpdateToRelease(update cincinnati.Update) (configv1.Release, error) {
 	cvoUpdate := configv1.Release{
 		Version: update.Version.String(),
 		Image:   update.Image,

@@ -430,9 +430,34 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 }
 
 // equalUpdate returns true if two updates are semantically equivalent.
-// It checks if the updates have have the same force and image values
+// It checks if the updates have have the same force and image values.
+//
+// We require complete pullspec equality, not just digest equality,
+// because we want to go through the usual update process even if it's
+// only the registry portion of the pullspec which has changed.
 func equalUpdate(a, b configv1.Update) bool {
 	return a.Force == b.Force && a.Image == b.Image
+}
+
+// equalDigest returns true if and only if the two pullspecs are
+// by-digest pullspecs and the digests are equal or the two pullspecs
+// are identical.
+func equalDigest(pullspecA string, pullspecB string) bool {
+	if pullspecA == pullspecB {
+		return true
+	}
+	digestA := splitDigest(pullspecA)
+	return digestA != "" && digestA == splitDigest(pullspecB)
+}
+
+// splitDigest returns the pullspec's digest, or an empty string if
+// the pullspec is not by-digest (e.g. it is by-tag, or implicit).
+func splitDigest(pullspec string) string {
+	parts := strings.SplitN(pullspec, "@", 3)
+	if len(parts) != 2 {
+		return ""
+	}
+	return parts[1]
 }
 
 // equalSyncWork returns true if a and b are equal.

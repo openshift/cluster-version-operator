@@ -189,3 +189,98 @@ func Test_runThrottledStatusNotifier(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+func Test_equalDigest(t *testing.T) {
+	for _, testCase := range []struct {
+		name      string
+		pullspecA string
+		pullspecB string
+		expected  bool
+	}{
+		{
+			name:      "both empty",
+			pullspecA: "",
+			pullspecB: "",
+			expected:  true,
+		},
+		{
+			name:      "A empty",
+			pullspecA: "",
+			pullspecB: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  false,
+		},
+		{
+			name:      "B empty",
+			pullspecA: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "",
+			expected:  false,
+		},
+		{
+			name:      "A implicit tag",
+			pullspecA: "example.com",
+			pullspecB: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  false,
+		},
+		{
+			name:      "B implicit tag",
+			pullspecA: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "example.com",
+			expected:  false,
+		},
+		{
+			name:      "A by tag",
+			pullspecA: "example.com:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  false,
+		},
+		{
+			name:      "B by tag",
+			pullspecA: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "example.com:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  false,
+		},
+		{
+			name:      "identical by tag",
+			pullspecA: "example.com:latest",
+			pullspecB: "example.com:latest",
+			expected:  true,
+		},
+		{
+			name:      "different repositories, same tag",
+			pullspecA: "a.example.com:latest",
+			pullspecB: "b.example.com:latest",
+			expected:  false,
+		},
+		{
+			name:      "different repositories, same digest",
+			pullspecA: "a.example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "b.example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  true,
+		},
+		{
+			name:      "same repository, different digests",
+			pullspecA: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "example.com@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+			expected:  false,
+		},
+		{
+			name:      "A empty repository, same digest",
+			pullspecA: "@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  true,
+		},
+		{
+			name:      "B empty repository, same digest",
+			pullspecA: "example.com@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			pullspecB: "@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			expected:  true,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			actual := equalDigest(testCase.pullspecA, testCase.pullspecB)
+			if actual != testCase.expected {
+				t.Fatalf("got %t, not the expected %t", actual, testCase.expected)
+			}
+		})
+	}
+}
