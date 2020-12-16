@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -240,14 +241,18 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 	}
 
-	progressReason, progressShortMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
+	progressReason, progressMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
 
 	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
-		msg := "an error occurred"
+		msg := progressMessage
 		if uErr, ok := err.(*payload.UpdateError); ok {
 			reason = uErr.Reason
-			msg = payload.SummaryForReason(reason, uErr.Name)
+			if msg == "" {
+				msg = payload.SummaryForReason(reason, uErr.Name)
+			}
+		} else if msg == "" {
+			msg = "an error occurred"
 		}
 
 		// set the failing condition
@@ -304,7 +309,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			case fractionComplete > 0 && skipFailure:
 				reason = progressReason
 				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete), %s", version,
-					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)), progressShortMessage)
+					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)), progressMessage)
 			case fractionComplete > 0:
 				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete)", version,
 					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)))
@@ -315,7 +320,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 				message = fmt.Sprintf("Working towards %s: downloading update", version)
 			case skipFailure:
 				reason = progressReason
-				message = fmt.Sprintf("Working towards %s: %s", version, progressShortMessage)
+				message = fmt.Sprintf("Working towards %s: %s", version, progressMessage)
 			default:
 				message = fmt.Sprintf("Working towards %s", version)
 			}
@@ -348,21 +353,35 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
-// unavailable AND the general payload task making progress towards its goal. An operator is given 40 minutes since
-// its last update to go ready, or an hour has elapsed since the update began, before the condition is ignored.
+// unavailable AND the general payload task making progress towards its goal. The error's UpdateEffect determines
+// whether an error should be considered a failure and, if so, whether the operator should be given up to 40 minutes
+// to recover from the error.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
-	if len(history) == 0 || status.Failure == nil || status.Reconciling || status.LastProgress.IsZero() {
-		return "", "", false
-	}
-	if now.Sub(status.LastProgress) > 40*time.Minute || now.Sub(history[0].StartedTime.Time) > time.Hour {
+	if len(history) == 0 || status.Failure == nil || status.Reconciling {
 		return "", "", false
 	}
 	uErr, ok := status.Failure.(*payload.UpdateError)
 	if !ok {
 		return "", "", false
 	}
-	if uErr.Reason == "ClusterOperatorNotAvailable" || uErr.Reason == "ClusterOperatorsNotAvailable" {
+	switch uErr.UpdateEffect {
+	case payload.UpdateEffectNone:
 		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
+	case payload.UpdateEffectFail:
+		return "", "", false
+	case payload.UpdateEffectFailAfterInterval:
+		var exceeded []string
+		threshold := now.Add(-(40 * time.Minute))
+		for _, name := range strings.Split(uErr.Name, ", ") {
+			if payload.COUpdateStartTimesGet(name).Before(threshold) {
+				exceeded = append(exceeded, name)
+			}
+		}
+		if len(exceeded) > 0 {
+			return uErr.Reason, fmt.Sprintf("wait has exceeded 40 minutes for these operators: %s", strings.Join(exceeded, ", ")), false
+		} else {
+			return uErr.Reason, fmt.Sprintf("waiting up to 40 minutes on %s", uErr.Name), true
+		}
 	}
 	return "", "", false
 }

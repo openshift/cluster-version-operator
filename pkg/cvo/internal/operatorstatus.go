@@ -96,6 +96,10 @@ func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModi
 
 func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	os := readClusterOperatorV1OrDie(b.raw)
+
+	// add cluster operator's start time if not already there
+	payload.COUpdateStartTimesEnsureName(os.Name)
+
 	if b.modifier != nil {
 		b.modifier(os)
 	}
@@ -128,10 +132,11 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 		actual, err := client.Get(ctx, expected.Name)
 		if err != nil {
 			lastErr = &payload.UpdateError{
-				Nested:  err,
-				Reason:  "ClusterOperatorNotAvailable",
-				Message: fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
-				Name:    expected.Name,
+				Nested:       err,
+				UpdateEffect: payload.UpdateEffectNone,
+				Reason:       "ClusterOperatorNotAvailable",
+				Message:      fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
+				Name:         expected.Name,
 			}
 			return false, nil
 		}
@@ -160,10 +165,11 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 
 			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
 			lastErr = &payload.UpdateError{
-				Nested:  errors.New(lowerFirst(message)),
-				Reason:  "ClusterOperatorNotAvailable",
-				Message: message,
-				Name:    actual.Name,
+				Nested:       errors.New(lowerFirst(message)),
+				UpdateEffect: payload.UpdateEffectNone,
+				Reason:       "ClusterOperatorNotAvailable",
+				Message:      message,
+				Name:         actual.Name,
 			}
 			return false, nil
 		}
@@ -210,31 +216,44 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			}
 		}
 
+		nestedMessage := fmt.Errorf("cluster operator %s conditions: available=%v, progressing=%v, degraded=%v",
+			actual.Name, available, progressing, degraded)
+
+		if !available {
+			lastErr = &payload.UpdateError{
+				Nested:       nestedMessage,
+				UpdateEffect: payload.UpdateEffectFail,
+				Reason:       "ClusterOperatorNotAvailable",
+				Message:      fmt.Sprintf("Cluster operator %s is not available", actual.Name),
+				Name:         actual.Name,
+			}
+			return false, nil
+		}
+
 		condition := failingCondition
 		if degradedCondition != nil {
 			condition = degradedCondition
 		}
 		if condition != nil && condition.Status == configv1.ConditionTrue {
-			message := fmt.Sprintf("Cluster operator %s is reporting a failure", actual.Name)
 			if len(condition.Message) > 0 {
-				message = fmt.Sprintf("Cluster operator %s is reporting a failure: %s", actual.Name, condition.Message)
+				nestedMessage = fmt.Errorf("cluster operator %s is reporting a message: %s", actual.Name, condition.Message)
 			}
 			lastErr = &payload.UpdateError{
-				Nested:  errors.New(lowerFirst(message)),
-				Reason:  "ClusterOperatorDegraded",
-				Message: message,
-				Name:    actual.Name,
+				Nested:       nestedMessage,
+				UpdateEffect: payload.UpdateEffectFailAfterInterval,
+				Reason:       "ClusterOperatorDegraded",
+				Message:      fmt.Sprintf("Cluster operator %s is degraded", actual.Name),
+				Name:         actual.Name,
 			}
 			return false, nil
 		}
 
 		lastErr = &payload.UpdateError{
-			Nested: fmt.Errorf("cluster operator %s is not done; it is available=%v, progressing=%v, degraded=%v",
-				actual.Name, available, progressing, degraded,
-			),
-			Reason:  "ClusterOperatorNotAvailable",
-			Message: fmt.Sprintf("Cluster operator %s has not yet reported success", actual.Name),
-			Name:    actual.Name,
+			Nested:       nestedMessage,
+			UpdateEffect: payload.UpdateEffectNone,
+			Reason:       "ClusterOperatorNotAvailable",
+			Message:      fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
+			Name:         actual.Name,
 		}
 		return false, nil
 	}, ctx.Done())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,12 +23,42 @@ var (
 		Name: "cluster_operator_payload_errors",
 		Help: "Report the number of errors encountered applying the payload.",
 	}, []string{"version"})
+
+	clusterOperatorUpdateStartTimes = struct {
+		lock sync.RWMutex
+		m    map[string]time.Time
+	}{m: make(map[string]time.Time)}
 )
 
 func init() {
 	prometheus.MustRegister(
 		metricPayloadErrors,
 	)
+}
+
+// InitCOUpdateStartTimes creates the clusterOperatorUpdateStartTimes map thereby resulting
+// in an empty map.
+func InitCOUpdateStartTimes() {
+	clusterOperatorUpdateStartTimes.lock.Lock()
+	clusterOperatorUpdateStartTimes.m = make(map[string]time.Time)
+	clusterOperatorUpdateStartTimes.lock.Unlock()
+}
+
+// COUpdateStartTimesEnsureName adds name to clusterOperatorUpdateStartTimes map and sets to
+// current time if name does not already exist in map.
+func COUpdateStartTimesEnsureName(name string) {
+	clusterOperatorUpdateStartTimes.lock.Lock()
+	if _, ok := clusterOperatorUpdateStartTimes.m[name]; !ok {
+		clusterOperatorUpdateStartTimes.m[name] = time.Now()
+	}
+	clusterOperatorUpdateStartTimes.lock.Unlock()
+}
+
+// COUpdateStartTimesGet returns name's value from clusterOperatorUpdateStartTimes map.
+func COUpdateStartTimesGet(name string) time.Time {
+	clusterOperatorUpdateStartTimes.lock.Lock()
+	defer clusterOperatorUpdateStartTimes.lock.Unlock()
+	return clusterOperatorUpdateStartTimes.m[name]
 }
 
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
@@ -112,12 +143,28 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 	}
 }
 
+// UpdateEffectType defines the effect an update error has on the overall update state.
+type UpdateEffectType string
+
+const (
+	// "None" defines an error as having no affect on the update state.
+	UpdateEffectNone UpdateEffectType = "None"
+
+	// "Fail" defines an error as indicating the update is failing.
+	UpdateEffectFail UpdateEffectType = "Fail"
+
+	// "FailAfterInterval" defines an error as one which indicates the update is failing
+	// if the error continues for a defined interval.
+	UpdateEffectFailAfterInterval UpdateEffectType = "FailAfterInterval"
+)
+
 // UpdateError is a wrapper for errors that occur during a payload sync.
 type UpdateError struct {
-	Nested  error
-	Reason  string
-	Message string
-	Name    string
+	Nested       error
+	UpdateEffect UpdateEffectType
+	Reason       string
+	Message      string
+	Name         string
 
 	Task *Task
 }

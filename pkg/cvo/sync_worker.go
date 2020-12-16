@@ -548,6 +548,10 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 	}
 	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 
+	if work.Attempt == 0 {
+		payload.InitCOUpdateStartTimes()
+	}
+
 	// cache the payload until the release image changes
 	validPayload := w.payload
 	if validPayload != nil && validPayload.Release.Image == desired.Image {
@@ -985,6 +989,7 @@ func isClusterOperatorNotAvailable(err error) bool {
 // newClusterOperatorsNotAvailable unifies multiple ClusterOperatorNotAvailable errors into
 // a single error. It returns nil if the provided errors are not of the same type.
 func newClusterOperatorsNotAvailable(errs []error) error {
+	updateEffect := payload.UpdateEffectNone
 	names := make([]string, 0, len(errs))
 	for _, err := range errs {
 		uErr, ok := err.(*payload.UpdateError)
@@ -993,6 +998,15 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 		}
 		if len(uErr.Name) > 0 {
 			names = append(names, uErr.Name)
+		}
+		switch uErr.UpdateEffect {
+		case payload.UpdateEffectNone:
+		case payload.UpdateEffectFail:
+			updateEffect = payload.UpdateEffectFail
+		case payload.UpdateEffectFailAfterInterval:
+			if updateEffect != payload.UpdateEffectFail {
+				updateEffect = payload.UpdateEffectFailAfterInterval
+			}
 		}
 	}
 	if len(names) == 0 {
@@ -1006,10 +1020,11 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
 	return &payload.UpdateError{
-		Nested:  errors.NewAggregate(errs),
-		Reason:  "ClusterOperatorsNotAvailable",
-		Message: fmt.Sprintf("Some cluster operators are still updating: %s", name),
-		Name:    name,
+		Nested:       errors.NewAggregate(errs),
+		UpdateEffect: updateEffect,
+		Reason:       "ClusterOperatorsNotAvailable",
+		Message:      fmt.Sprintf("Some cluster operators are still updating: %s", name),
+		Name:         name,
 	}
 }
 
