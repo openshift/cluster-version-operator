@@ -28,6 +28,7 @@ spec:
           - "--enable-default-cluster-version=true"
           - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
           - "--serving-key-file=/etc/tls/serving-cert/tls.key"
+          - "--I-want-the-bootstrap-CVO-logs-so-crashloop-the-production-CVO"
           - "--v=5"
         resources:
           requests:

@@ -226,6 +226,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
 	if w.work == nil {
+klog.Errorf("initializing work state %s while pushing %v into a nil-state worker", state, work)
 		work.State = state
 		w.status = SyncWorkerStatus{
 			Generation:  generation,
@@ -315,6 +316,9 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 					//   much drift we found, and then we can turn down the timeout
 					syncTimeout = w.minimumReconcileInterval * 2
 				}
+if work.State != payload.InitializingPayload {
+	klog.Fatalf("I'm just trying to debug initializing, and we've transitioned to %s", work.State)
+}
 				ctx, cancelFn := context.WithTimeout(ctx, syncTimeout)
 
 				w.lock.Lock()
@@ -402,8 +406,10 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
+klog.Errorf("received empty work.  Preserving worker's previous state %s", w.work.State)
 		work.State = w.work.State
 	} else if changed {
+klog.Errorf("received different work, %#v updating to %#v", w.work, work)
 		work.State = payload.UpdatingPayload
 	}
 	// always clear the completed variable if we are not reconciling
@@ -466,8 +472,10 @@ func equalSyncWork(a, b *SyncWork) bool {
 		return true
 	}
 	if (a == nil && b != nil) || (a != nil && b == nil) {
+klog.Errorf("equalSyncWork nil change, %v vs. %v", a, b)
 		return false
 	}
+klog.Errorf("equalSyncWork desired %t, overrides %t", equalUpdate(a.Desired, b.Desired), reflect.DeepEqual(a.Overrides, b.Overrides))
 	return equalUpdate(a.Desired, b.Desired) && reflect.DeepEqual(a.Overrides, b.Overrides)
 }
 
