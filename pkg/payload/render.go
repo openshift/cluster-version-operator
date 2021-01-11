@@ -24,7 +24,7 @@ func Render(outputDir, releaseImage string) error {
 
 		renderConfig = manifestRenderConfig{
 			ReleaseImage:   releaseImage,
-			ClusterProfile: defaultClusterProfile,
+			ClusterProfile: DefaultClusterProfile,
 		}
 	)
 

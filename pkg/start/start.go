@@ -34,6 +34,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/crypto"
 )
 
@@ -70,6 +71,8 @@ type Options struct {
 	// exclude.release.openshift.io/<identifier>=true
 	Exclude string
 
+	ClusterProfile string
+
 	// for testing only
 	Name            string
 	Namespace       string
@@ -103,6 +106,7 @@ func NewOptions() *Options {
 		PayloadOverride: os.Getenv("PAYLOAD_OVERRIDE"),
 		ResyncInterval:  minResyncPeriod,
 		Exclude:         os.Getenv("EXCLUDE_MANIFESTS"),
+		ClusterProfile:  defaultEnv("CLUSTER_PROFILE", payload.DefaultClusterProfile),
 	}
 }
 
@@ -435,6 +439,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.Exclude,
+			o.ClusterProfile,
 		),
 	}
 	if o.EnableAutoUpdate {

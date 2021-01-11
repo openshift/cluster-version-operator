@@ -3,4 +3,5 @@ apiVersion: v1
 metadata:
   name: file-20-yml
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     exclude.release.openshift.io/exclude-test: "true"
