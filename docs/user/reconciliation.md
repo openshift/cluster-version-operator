@@ -37,7 +37,7 @@ $ cat /tmp/release/release-manifests/image-references
     "creationTimestamp": "2019-06-03T14:49:14Z",
     "annotations": {
       "release.openshift.io/from-image-stream": "ocp/4.1-art-latest-2019-05-31-174150",
-      "release.openshift.io/from-release": "registry.svc.ci.openshift.org/ocp/release:4.1.0-0.nightly-2019-05-31-174150"
+      "release.openshift.io/from-release": "registry.ci.openshift.org/ocp/release:4.1.0-0.nightly-2019-05-31-174150"
     }
   },
   "spec": {

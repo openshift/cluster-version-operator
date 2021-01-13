@@ -42,7 +42,7 @@ podman run --rm -ti \
         --release-image="<release image>"
 ```
 
-`<release image>` can be personal release image generated using [this](#building-release-image-using-local-cvo) or Origin's release image like `registry.svc.ci.openshift.org/openshift/origin-release:v4.0`.
+`<release image>` can be personal release image generated using [this](#building-release-image-using-local-cvo) or Origin's release image like `registry.ci.openshift.org/openshift/origin-release:v4.0`.
 
 ## Running CVO tests
 
