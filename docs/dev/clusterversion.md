@@ -9,7 +9,7 @@ You can extract the current update image from the `ClusterVersion` object:
 
 ```console
 $ oc get clusterversion -o jsonpath='{.status.desired.image}{"\n"}' version
-registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833
+registry.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833
 ```
 
 ## Setting objects unmanaged
@@ -18,7 +18,7 @@ For testing operators, it is sometimes helpful to disable CVO management so you 
 To get a list of objects managed by the CVO, run:
 
 ```console
-$ oc adm release extract --from=registry.svc.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833 --to=release-image
+$ oc adm release extract --from=registry.ci.openshift.org/openshift/origin-release@sha256:c1f11884c72458ffe91708a4f85283d591b42483c2325c3d379c3d32c6ac6833 --to=release-image
 $ ls release-image | head -n5
 0000_07_cluster-network-operator_00_namespace.yaml
 0000_07_cluster-network-operator_01_crd.yaml
