@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -88,7 +89,22 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	if index := strings.LastIndex(update.Image, "@"); index != -1 {
 		releaseDigest = update.Image[index+1:]
 	}
-	if err := r.verifier.Verify(ctx, releaseDigest); err != nil {
+	verifyCtx := ctx
+
+	// if 'force' specified, ensure call to verify payload signature times out well before parent context
+	// to allow time to perform forced update
+	if update.Force {
+		timeout := time.Minute * 2
+		if deadline, deadlineSet := ctx.Deadline(); deadlineSet {
+			timeout = time.Until(deadline) / 2
+		}
+		klog.V(4).Infof("Forced update so reducing payload signature verifcation timeout to %s", timeout)
+		var cancel context.CancelFunc
+		verifyCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	if err := r.verifier.Verify(verifyCtx, releaseDigest); err != nil {
 		vErr := &payload.UpdateError{
 			Reason:  "ImageVerificationFailed",
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
