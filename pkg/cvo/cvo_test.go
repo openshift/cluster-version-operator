@@ -651,10 +651,11 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "invalid image while progressing preserves progressing order and partial history",
 			syncStatus: &SyncWorkerStatus{
-				Step:     "Working",
-				Fraction: 0.6,
-				Failure:  os.ErrNotExist,
-				Actual:   configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Step:    "Working",
+				Done:    600,
+				Total:   1000,
+				Failure: os.ErrNotExist,
+				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -975,8 +976,9 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "after desired update is cancelled, revert to progressing",
 			syncStatus: &SyncWorkerStatus{
-				Actual:   configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
-				Fraction: 0.334,
+				Actual: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Done:   334,
+				Total:  1000,
 			},
 			optr: Operator{
 				release: configv1.Release{
@@ -1075,7 +1077,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 33% complete"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1: 334 of 1000 done (33% complete)"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},

@@ -89,7 +89,8 @@ type SyncWorkerStatus struct {
 	Step    string
 	Failure error
 
-	Fraction float32
+	Done  int
+	Total int
 
 	Completed   int
 	Reconciling bool
@@ -374,15 +375,23 @@ type statusWrapper struct {
 
 func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	p := w.previousStatus
+	var fractionComplete float32
+	if status.Total > 0 {
+		fractionComplete = float32(status.Done) / float32(status.Total)
+	}
+	var previousFractionComplete float32
+	if p.Total > 0 {
+		previousFractionComplete = float32(p.Done) / float32(p.Total)
+	}
 	if p.Failure != nil && status.Failure == nil {
 		if p.Actual.Image == status.Actual.Image {
-			if status.Fraction < p.Fraction {
+			if fractionComplete < previousFractionComplete {
 				klog.V(5).Infof("Dropping status report from earlier in sync loop")
 				return
 			}
 		}
 	}
-	if status.Fraction > p.Fraction || status.Completed > p.Completed || (status.Failure == nil && status.Actual.Image != p.Actual.Image) {
+	if fractionComplete > previousFractionComplete || status.Completed > p.Completed || (status.Failure == nil && status.Actual.Image != p.Actual.Image) {
 		status.LastProgress = time.Now()
 	}
 	if status.Generation == 0 {
@@ -821,7 +830,8 @@ func (r *consistentReporter) Update() {
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
 	copied.Step = "ApplyResources"
-	copied.Fraction = float32(r.done) / float32(r.total)
+	copied.Done = r.done
+	copied.Total = r.total
 	r.reporter.Report(copied)
 }
 
@@ -830,7 +840,8 @@ func (r *consistentReporter) Error(err error) {
 	defer r.lock.Unlock()
 	copied := r.status
 	copied.Step = "ApplyResources"
-	copied.Fraction = float32(r.done) / float32(r.total)
+	copied.Done = r.done
+	copied.Total = r.total
 	if !isContextError(err) {
 		copied.Failure = err
 	}
@@ -844,7 +855,8 @@ func (r *consistentReporter) Errors(errs []error) error {
 	defer r.lock.Unlock()
 	copied := r.status
 	copied.Step = "ApplyResources"
-	copied.Fraction = float32(r.done) / float32(r.total)
+	copied.Done = r.done
+	copied.Total = r.total
 	if err != nil {
 		copied.Failure = err
 	}
@@ -867,7 +879,8 @@ func (r *consistentReporter) Complete() {
 	copied.Completed = r.completed + 1
 	copied.Initial = false
 	copied.Reconciling = true
-	copied.Fraction = 1
+	copied.Done = r.done
+	copied.Total = r.total
 	r.reporter.Report(copied)
 }
 

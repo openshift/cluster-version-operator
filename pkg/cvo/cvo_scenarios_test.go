@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clientgotesting "k8s.io/client-go/testing"
@@ -228,6 +227,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -240,7 +240,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -254,7 +255,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Generation:  1,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Initial:     true,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
@@ -270,7 +272,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -335,6 +338,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		SyncWorkerStatus{
 			Generation:  1,
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -347,7 +351,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		SyncWorkerStatus{
 			Generation:  1,
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -360,7 +365,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		SyncWorkerStatus{
 			Generation:  1,
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -374,7 +380,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Reconciling: true,
 			Completed:   2,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -542,6 +549,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -554,7 +562,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -568,7 +577,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Initial:     true,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
@@ -584,7 +594,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -649,6 +660,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -661,7 +673,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -674,7 +687,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -688,7 +702,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -847,6 +862,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -859,7 +875,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			Initial:     true,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -873,7 +890,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Initial:     true,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
@@ -889,7 +907,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -954,6 +973,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -966,7 +986,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -979,7 +1000,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -993,7 +1015,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -1177,6 +1200,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	}
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1187,7 +1211,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1199,7 +1224,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1213,7 +1239,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
@@ -1424,6 +1451,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	}
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1434,7 +1462,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1446,7 +1475,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1460,7 +1490,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
@@ -1518,6 +1549,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1529,7 +1561,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1541,7 +1574,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1554,7 +1588,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
@@ -1722,6 +1757,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1732,7 +1768,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1744,7 +1781,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation:   1,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1758,7 +1796,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
@@ -1965,6 +2004,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Generation: 2,
 		},
 		SyncWorkerStatus{
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1976,7 +2016,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Generation: 2,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -1989,7 +2030,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Generation:   2,
 		},
 		SyncWorkerStatus{
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2004,7 +2046,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
@@ -2143,6 +2186,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2154,7 +2198,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2167,7 +2212,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2181,7 +2227,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   1,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -2210,6 +2257,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		// note that the image is not retrieved a second time
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2221,7 +2269,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2233,7 +2282,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2246,7 +2296,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Completed:   2,
-			Fraction:    1,
+			Done:        3,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
@@ -2349,6 +2400,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2384,7 +2436,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(1) / 3,
+			Done:        1,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2406,7 +2459,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
 			Actual: configv1.Release{
@@ -2440,7 +2494,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Step:        "ApplyResources",
-			Fraction:    float32(2) / 3,
+			Done:        2,
+			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=",
 			Failure: &payload.UpdateError{
 				Nested:  fmt.Errorf("unable to proceed"),
@@ -2578,6 +2633,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		},
 		SyncWorkerStatus{
 			Initial:     true,
+			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "Gyh2W6qcDO4=",
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -2592,13 +2648,15 @@ func TestCVO_ParallelError(t *testing.T) {
 	// verify we observe the remaining changes in the first sync
 	for status := range worker.StatusCh() {
 		if status.Failure == nil {
-			if status.Fraction == 0 || status.Fraction == 1/3 {
+			if status.Done == 0 || (status.Done == 1 && status.Total == 3) {
 				if !reflect.DeepEqual(status, SyncWorkerStatus{
-					Initial:     true,
-					Fraction:    status.Fraction,
-					Step:        "ApplyResources",
-					VersionHash: "Gyh2W6qcDO4=",
-					Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+					Initial:      true,
+					Done:         status.Done,
+					Total:        3,
+					Step:         "ApplyResources",
+					VersionHash:  "Gyh2W6qcDO4=",
+					Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+					LastProgress: status.LastProgress,
 				}) {
 					t.Fatalf("unexpected status: %v", status)
 				}
@@ -2616,7 +2674,8 @@ func TestCVO_ParallelError(t *testing.T) {
 		if !reflect.DeepEqual(status, SyncWorkerStatus{
 			Initial:      true,
 			Failure:      err,
-			Fraction:     float32(1) / 3,
+			Done:         1,
+			Total:        3,
 			Step:         "ApplyResources",
 			VersionHash:  "Gyh2W6qcDO4=",
 			Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
@@ -2658,7 +2717,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 33% complete, waiting on operator-1, operator-2"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 1 of 3 done (33% complete), waiting on operator-1, operator-2"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -2808,7 +2867,7 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 		}
 
 		if !reflect.DeepEqual(expect, actual) {
-			t.Fatalf("unexpected status item %d: %s", i, diff.ObjectReflectDiff(expect, actual))
+			t.Fatalf("unexpected status item %d\nExpected: %#v\nActual: %#v", i, expect, actual)
 		}
 	}
 }

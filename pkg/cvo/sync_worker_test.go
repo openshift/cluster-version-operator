@@ -22,12 +22,12 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 	}{
 		{
 			name:     "skip updates that clear an error and are at an earlier fraction",
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
 			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
 			want:     false,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
 			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing2"}},
 			want:         true,
 			wantProgress: true,
@@ -38,18 +38,18 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
 			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
 			want:     true,
 		},
 		{
-			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
+			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
 			want:     true,
 		},
 		{
-			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.1},
-			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Fraction: 0.2},
+			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
+			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 20, Total: 100},
 			want:         true,
 			wantProgress: true,
 		},
@@ -117,16 +117,16 @@ func Test_statusWrapper_ReportGeneration(t *testing.T) {
 		next     SyncWorkerStatus
 		want     int64
 	}{{
-		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Fraction: 0.1},
+		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Done: 10, Total: 100},
 		next:     SyncWorkerStatus{Step: "RetreivePayload"},
 		want:     1,
 	}, {
-		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Fraction: 0.1},
-		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Fraction: 0.5},
+		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Done: 10, Total: 100},
+		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Done: 50, Total: 100},
 		want:     2,
 	}, {
-		previous: SyncWorkerStatus{Generation: 5, Step: "Apply", Fraction: 0.7},
-		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Fraction: 0.5},
+		previous: SyncWorkerStatus{Generation: 5, Step: "Apply", Done: 70, Total: 100},
+		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Done: 50, Total: 100},
 		want:     2,
 	}}
 	for _, tt := range tests {
