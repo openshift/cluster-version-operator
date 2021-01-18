@@ -440,7 +440,42 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane", "id": ""})
+			},
+		},
+		{
+			name: "collects legacy openshift-install info with cluster id",
+			optr: &Operator{
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				releaseCreated: time.Unix(2, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{{
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: "4ade268a-3dec-49ec-8992-e4f36e230095",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+						},
+					}},
+				},
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{{
+						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
+						Data:       map[string]string{"version": "v0.0.2", "invoker": "jane"},
+					}},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 4 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane", "id": "4ade268a-3dec-49ec-8992-e4f36e230095"})
 			},
 		},
 		{
@@ -469,7 +504,48 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane", "id": ""})
+			},
+		},
+		{
+			name: "collects openshift-install info with cluster id",
+			optr: &Operator{
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				releaseCreated: time.Unix(3, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{{
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: "4ade268a-3dec-49ec-8992-230095e4f36e",
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+						},
+					}},
+				},
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
+							Data:       map[string]string{"version": "v0.0.2", "invoker": "jane"},
+						},
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "openshift-install-manifests"},
+							Data:       map[string]string{"version": "v0.0.1", "invoker": "bill"},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 4 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[2], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1", "from_version": ""})
+				expectMetric(t, metrics[3], 1, map[string]string{"type": "openshift-install", "version": "v0.0.2", "invoker": "jane", "id": "4ade268a-3dec-49ec-8992-230095e4f36e"})
 			},
 		},
 		{
@@ -492,7 +568,30 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "other", "version": "v0.0.1", "invoker": "bill"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "other", "version": "v0.0.1", "invoker": "bill", "id": ""})
+			},
+		},
+		{
+			name: "collects openshift-install-manifests info with cluster id",
+			optr: &Operator{
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				releaseCreated: time.Unix(3, 0),
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{{
+						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install-manifests"},
+						Data:       map[string]string{"version": "v0.0.1", "invoker": "bill"},
+					}},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "other", "version": "v0.0.1", "invoker": "bill", "id": ""})
 			},
 		},
 		{
@@ -514,7 +613,38 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
-				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "<missing>", "invoker": "<missing>"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "<missing>", "invoker": "<missing>", "id": ""})
+			},
+		},
+		{
+			name: "collects empty openshift-install info with cluster id",
+			optr: &Operator{
+				release: configv1.Release{
+					Version: "0.0.2",
+					Image:   "test/image:1",
+				},
+				releaseCreated: time.Unix(3, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{{
+						Spec: configv1.ClusterVersionSpec{},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:              "test",
+							CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+						},
+					}},
+				},
+				cmConfigLister: &cmConfigLister{
+					Items: []*corev1.ConfigMap{{
+						ObjectMeta: metav1.ObjectMeta{Name: "openshift-install"},
+					}},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 2 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 3, map[string]string{"type": "current", "version": "0.0.2", "image": "test/image:1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"type": "openshift-install", "version": "<missing>", "invoker": "<missing>", "id": ""})
 			},
 		},
 		{

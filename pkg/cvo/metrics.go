@@ -91,8 +91,8 @@ version for 'cluster', or empty for 'initial'.
 		}, []string{"name", "condition"}),
 		clusterInstaller: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_installer",
-			Help: "Reports info about the installation process and, if applicable, the install tool. The type is either 'openshift-install', indicating that openshift-install was used to install the cluster, or 'other', indicating that an unknown process installed the cluster. The invoker is 'user' by default, but it may be overridden by a consuming tool. The version reported is that of the openshift-install that was used to generate the manifests and, if applicable, provision the infrastructure.",
-		}, []string{"type", "version", "invoker"}),
+			Help: "Reports info about the installation process and, if applicable, the install tool. The type is either 'openshift-install', indicating that openshift-install was used to install the cluster, or 'other', indicating that an unknown process installed the cluster. The invoker is 'user' by default, but it may be overridden by a consuming tool. The version reported is that of the openshift-install that was used to generate the manifests and, if applicable, provision the infrastructure. The id is a unique identifier for the cluster.",
+		}, []string{"type", "version", "invoker", "id"}),
 		clusterVersionOperatorUpdateRetrievalTimestampSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
 			Help: "Reports when updates were last succesfully retrieved.",
@@ -243,13 +243,14 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
-	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
+	ch <- m.clusterInstaller.WithLabelValues("", "", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
+	clusterId := ""
 
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
@@ -351,6 +352,10 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- g
 		}
+
+		// Gets clusterID from cluster version
+		// returns the clusterID that uniquely identifies this cluster.
+		clusterId = string(cv.Spec.ClusterID)
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
@@ -400,12 +405,12 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	if installer, err := m.optr.cmConfigLister.Get(internal.InstallerConfigMap); err == nil {
-		ch <- gaugeFromInstallConfigMap(installer, m.clusterInstaller, "openshift-install")
+		ch <- gaugeFromInstallConfigMap(installer, m.clusterInstaller, "openshift-install", clusterId)
 	} else if !apierrors.IsNotFound(err) {
 	} else if manifests, err := m.optr.cmConfigLister.Get(internal.ManifestsConfigMap); err == nil {
-		ch <- gaugeFromInstallConfigMap(manifests, m.clusterInstaller, "other")
+		ch <- gaugeFromInstallConfigMap(manifests, m.clusterInstaller, "other", clusterId)
 	} else if apierrors.IsNotFound(err) {
-		g := m.clusterInstaller.WithLabelValues("", "", "")
+		g := m.clusterInstaller.WithLabelValues("", "", "", "")
 		g.Set(1.0)
 		ch <- g
 	}
@@ -420,7 +425,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec, installType string) prometheus.Gauge {
+func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec, installType, clusterId string) prometheus.Gauge {
 	version := "<missing>"
 	invoker := "<missing>"
 
@@ -431,7 +436,7 @@ func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec,
 		invoker = i
 	}
 
-	g := gauge.WithLabelValues(installType, version, invoker)
+	g := gauge.WithLabelValues(installType, version, invoker, clusterId)
 	g.Set(1.0)
 
 	return g
