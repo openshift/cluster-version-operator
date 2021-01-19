@@ -472,7 +472,20 @@ func equalSyncWork(a, b *SyncWork) bool {
 	if (a == nil && b != nil) || (a != nil && b == nil) {
 		return false
 	}
-	return equalUpdate(a.Desired, b.Desired) && reflect.DeepEqual(a.Overrides, b.Overrides)
+	sameVersion := equalUpdate(a.Desired, b.Desired)
+	overridesEqual := reflect.DeepEqual(a.Overrides, b.Overrides)
+
+	if !sameVersion && !overridesEqual {
+		klog.V(5).Info("Detected version and overrides changes")
+		return false
+	} else if !sameVersion {
+		klog.V(5).Info("Detected version change")
+		return false
+	} else if !overridesEqual {
+		klog.V(5).Info("Detected overrides change")
+		return false
+	}
+	return true
 }
 
 // updateStatus records the current status of the sync action for observation
