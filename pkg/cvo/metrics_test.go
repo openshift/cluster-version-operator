@@ -675,12 +675,12 @@ func expectMetric(t *testing.T, metric prometheus.Metric, value float64, labels 
 	}
 	if d.Gauge != nil {
 		if value != *d.Gauge.Value {
-			t.Fatalf("incorrect value for %s: %s", metric.Desc().String(), d.String())
+			t.Fatalf("incorrect gauge value for %s:  got: %v, expected: %v", metric.Desc().String(), *d.Gauge.Value, value)
 		}
 	}
 	for _, label := range d.Label {
 		if labels[*label.Name] != *label.Value {
-			t.Fatalf("unexpected labels for %s: %s=%v", metric.Desc().String(), *label.Name, *label.Value)
+			t.Fatalf("unexpected labels for %s: got: %s=%v, expected: %s=%v", metric.Desc().String(), *label.Name, *label.Value, *label.Name, labels[*label.Name])
 		}
 		delete(labels, *label.Name)
 	}
