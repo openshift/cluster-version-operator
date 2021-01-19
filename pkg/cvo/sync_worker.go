@@ -218,7 +218,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		return w.status.DeepCopy()
 	}
 
-	if equalSyncWork(w.work, work) {
+	if equalSyncWork(w.work, work, state) {
 		klog.V(5).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
@@ -397,7 +397,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	changed := !equalSyncWork(w.work, work)
+	changed := !equalSyncWork(w.work, work, w.work.State)
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
@@ -438,7 +438,7 @@ func equalUpdate(a, b configv1.Update) bool {
 }
 
 // equalSyncWork returns true if a and b are equal.
-func equalSyncWork(a, b *SyncWork) bool {
+func equalSyncWork(a, b *SyncWork, state payload.State) bool {
 	if a == b {
 		return true
 	}
@@ -448,14 +448,20 @@ func equalSyncWork(a, b *SyncWork) bool {
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	overridesEqual := reflect.DeepEqual(a.Overrides, b.Overrides)
 
+	var detected string
 	if !sameVersion && !overridesEqual {
-		klog.V(5).Info("Detected version and overrides changes")
-		return false
+		detected = "version and overrides changes"
 	} else if !sameVersion {
-		klog.V(5).Info("Detected version change")
-		return false
+		detected = "version change"
 	} else if !overridesEqual {
-		klog.V(5).Info("Detected overrides change")
+		detected = "overrides change"
+	}
+	if detected != "" {
+		if state == payload.InitializingPayload {
+			klog.Warning("Ignoring detected %s during payload initialization", detected)
+			return true
+		}
+		klog.V(5).Info("Detected %s", detected)
 		return false
 	}
 	return true
