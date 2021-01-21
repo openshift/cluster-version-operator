@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -296,14 +297,17 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			})
 		} else {
 			var message string
+			fractionComplete := float32(status.Done) / float32(status.Total)
 			switch {
 			case len(validationErrs) > 0:
 				message = fmt.Sprintf("Reconciling %s: the cluster version is invalid", version)
-			case status.Fraction > 0 && skipFailure:
+			case fractionComplete > 0 && skipFailure:
 				reason = progressReason
-				message = fmt.Sprintf("Working towards %s: %.0f%% complete, %s", version, status.Fraction*100, progressShortMessage)
-			case status.Fraction > 0:
-				message = fmt.Sprintf("Working towards %s: %.0f%% complete", version, status.Fraction*100)
+				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete), %s", version,
+					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)), progressShortMessage)
+			case fractionComplete > 0:
+				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete)", version,
+					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)))
 			case status.Step == "RetrievePayload":
 				if len(reason) == 0 {
 					reason = "DownloadingUpdate"
