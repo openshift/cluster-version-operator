@@ -458,10 +458,10 @@ func equalSyncWork(a, b *SyncWork, state payload.State) bool {
 	}
 	if detected != "" {
 		if state == payload.InitializingPayload {
-			klog.Warning("Ignoring detected %s during payload initialization", detected)
+			klog.Warningf("Ignoring detected %s during payload initialization", detected)
 			return true
 		}
-		klog.V(5).Info("Detected %s", detected)
+		klog.V(5).Infof("Detected %s", detected)
 		return false
 	}
 	return true
