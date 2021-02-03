@@ -2563,13 +2563,15 @@ func TestCVO_ParallelError(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	b := &errorResourceBuilder{errors: map[string]error{
 		"0000_10_a_file.yaml": &payload.UpdateError{
-			Reason: "ClusterOperatorNotAvailable",
-			Name:   "operator-1",
+			Reason:       "ClusterOperatorNotAvailable",
+			UpdateEffect: payload.UpdateEffectNone,
+			Name:         "operator-1",
 		},
 		"0000_20_a_file.yaml": nil,
 		"0000_20_b_file.yaml": &payload.UpdateError{
-			Reason: "ClusterOperatorNotAvailable",
-			Name:   "operator-2",
+			Reason:       "ClusterOperatorNotAvailable",
+			UpdateEffect: payload.UpdateEffectNone,
+			Name:         "operator-2",
 		},
 	}}
 	worker.builder = b
