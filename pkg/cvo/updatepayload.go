@@ -98,7 +98,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		if deadline, deadlineSet := ctx.Deadline(); deadlineSet {
 			timeout = time.Until(deadline) / 2
 		}
-		klog.V(4).Infof("Forced update so reducing payload signature verifcation timeout to %s", timeout)
+		klog.V(4).Infof("Forced update so reducing payload signature verification timeout to %s", timeout)
 		var cancel context.CancelFunc
 		verifyCtx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
