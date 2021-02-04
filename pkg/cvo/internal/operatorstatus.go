@@ -249,9 +249,9 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 		}
 
 		lastErr = &payload.UpdateError{
-			Nested:       nestedMessage,
+			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
+			Reason:       "ClusterOperatorUpdating",
 			Message:      fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
 			Name:         actual.Name,
 		}
