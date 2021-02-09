@@ -179,8 +179,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	// Step 3: Given an operator image, begin synchronizing
 	//
 	o.release.Image = "image/image:1"
-	o.release.Version = "4.0.1"
-	desired := configv1.Release{Version: "4.0.1", Image: "image/image:1"}
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"}
 	//
 	client.ClearActions()
 	err = o.sync(ctx, o.queueKey())
@@ -206,13 +206,13 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			ObservedGeneration: 1,
 			Desired:            desired,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -222,8 +222,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation: 1,
 			Step:       "RetrievePayload",
 			Initial:    true,
-			// the desired version is briefly incorrect (user provided) until we retrieve the image
-			Actual: configv1.Release{Version: "4.0.1", Image: "image/image:1"},
+			Actual:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -319,9 +318,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
-				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -502,8 +499,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// Step 3: Given an operator image, begin synchronizing
 	//
 	o.release.Image = "image/image:1"
-	o.release.Version = "4.0.1"
-	desired := configv1.Release{Version: "4.0.1", Image: "image/image:1"}
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"}
 	//
 	client.ClearActions()
 	err = o.sync(ctx, o.queueKey())
@@ -529,23 +526,22 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Initial: true,
-			// the desired version is briefly incorrect (user provided) until we retrieve the image
-			Actual:     configv1.Release{Version: "4.0.1", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Initial:    true,
+			Actual:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			Generation: 1,
 		},
 		SyncWorkerStatus{
@@ -642,9 +638,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
-				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -815,8 +809,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	// Step 3: Given an operator image, begin synchronizing
 	//
 	o.release.Image = "image/image:1"
-	o.release.Version = "4.0.1"
-	desired := configv1.Release{Version: "4.0.1", Image: "image/image:1"}
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"}
 	//
 	client.ClearActions()
 	err = o.sync(ctx, o.queueKey())
@@ -842,23 +836,22 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
 	})
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Initial: true,
-			// the desired version is briefly incorrect (user provided) until we retrieve the image
-			Actual:     configv1.Release{Version: "4.0.1", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Initial:    true,
+			Actual:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			Generation: 1,
 		},
 		SyncWorkerStatus{
@@ -955,9 +948,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
-				// Because image and operator had mismatched versions, we get two entries (which shouldn't happen unless there is a bug in the CVO)
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -2139,7 +2130,6 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			History: []configv1.UpdateHistory{
 				// TODO: this is wrong, should be single partial entry
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "4.0.1", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.PartialUpdate, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
