@@ -194,6 +194,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		}
 	}
 
+	klog.Infof("Graceful shutdown complete for metrics server: %s", loopError)
 	return loopError
 }
 
