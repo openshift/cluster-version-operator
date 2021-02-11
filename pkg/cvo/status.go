@@ -157,7 +157,8 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
-func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
+// If forceCVUpdate is true ClusterVersion will always be updated.
+func (optr *Operator) syncStatus(ctx context.Context, forceCVUpdate bool, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
@@ -341,6 +342,11 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			Status:             configv1.ConditionFalse,
 			LastTransitionTime: now,
 		})
+	}
+
+	// applyClusterVersionStatus will always update ClusterVersion when 'original' is nil
+	if forceCVUpdate {
+		original = nil
 	}
 
 	if klog.V(6).Enabled() {

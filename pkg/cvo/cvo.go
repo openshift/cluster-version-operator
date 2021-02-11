@@ -312,6 +312,11 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		return fmt.Errorf("caches never synchronized: %w", runContext.Err())
 	}
 
+	// ensure ClusterVersion gets updated when we first come up
+	if err := optr.sync(shutdownContext, true, optr.queueKey()); err != nil {
+		utilruntime.HandleError(fmt.Errorf("unable to perform forced sync: %v", err))
+	}
+
 	// trigger the first cluster version reconcile always
 	optr.queue.Add(optr.queueKey())
 
@@ -350,8 +355,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		defer utilruntime.HandleCrash()
 		wait.UntilWithContext(runContext, func(runContext context.Context) {
 			// run the worker, then when the queue is closed sync one final time to flush any pending status
-			optr.worker(runContext, optr.queue, func(runContext context.Context, key string) error { return optr.sync(runContext, key) })
-			if err := optr.sync(shutdownContext, optr.queueKey()); err != nil {
+			optr.worker(runContext, optr.queue,
+				func(runContext context.Context, key string) error { return optr.sync(runContext, false, key) })
+			if err := optr.sync(shutdownContext, false, optr.queueKey()); err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 			}
 		}, time.Second)
@@ -476,7 +482,8 @@ func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err e
 // 3. The configSync object is kept up to date maintaining the user's desired version
 //
 // It returns an error if it could not update the cluster version object.
-func (optr *Operator) sync(ctx context.Context, key string) error {
+// ClusterVersion will always be updated when forceCVUpdate is true.
+func (optr *Operator) sync(ctx context.Context, forceCVUpdate bool, key string) error {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
 	defer func() {
@@ -519,7 +526,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// handle the case of a misconfigured CVO by doing nothing
 	if len(desired.Image) == 0 {
-		return optr.syncStatus(ctx, original, config, &SyncWorkerStatus{
+		return optr.syncStatus(ctx, false, original, config, &SyncWorkerStatus{
 			Failure: &payload.UpdateError{
 				Reason:  "NoDesiredImage",
 				Message: "No configured operator version, unable to update cluster",
@@ -542,7 +549,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
 
 	// write cluster version status
-	return optr.syncStatus(ctx, original, config, status, errs)
+	return optr.syncStatus(ctx, forceCVUpdate, original, config, status, errs)
 }
 
 // availableUpdatesSync is triggered on cluster version change (and periodic requeues) to
@@ -597,6 +604,7 @@ func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) boo
 	if err != nil {
 		return false
 	}
+	klog.Infof("Cluster version: %d lastResourceVersion: %d", i, optr.lastResourceVersion)
 	optr.lastAtLock.Lock()
 	defer optr.lastAtLock.Unlock()
 	return i < optr.lastResourceVersion
@@ -624,6 +632,7 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
 		}
+		klog.Info("!!!! Not changed")
 		return obj, false, nil
 	}
 
@@ -632,6 +641,7 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 	}
 
 	if !enableDefault {
+		klog.Info("!!!! No default")
 		return nil, false, nil
 	}
 
@@ -656,8 +666,10 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 
 	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
 	if apierrors.IsAlreadyExists(err) {
+		klog.Info("!!!! ApplyClusterVersionFromCache IsAlreadyExists")
 		return nil, true, nil
 	}
+	klog.Infof("!!!! ApplyClusterVersionFromCache actual %v", actual)
 	return actual, true, err
 }
 

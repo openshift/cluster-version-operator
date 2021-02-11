@@ -2350,7 +2350,7 @@ func TestOperator_sync(t *testing.T) {
 			optr.eventRecorder = record.NewFakeRecorder(100)
 
 			ctx := context.Background()
-			err := optr.sync(ctx, optr.queueKey())
+			err := optr.sync(ctx, false, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
 			}
