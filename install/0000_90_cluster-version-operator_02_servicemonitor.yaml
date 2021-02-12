@@ -45,7 +45,7 @@ spec:
         absent(up{job="cluster-version-operator"} == 1)
       for: 10m
       labels:
-        severity: critical
+        severity: warning
     - alert: CannotRetrieveUpdates
       annotations:
         message: Cluster version operator has not retrieved updates in {{ "{{ $value | humanizeDuration }}" }}. Failure reason {{ "{{ with $cluster_operator_conditions := \"cluster_operator_conditions\" | query}}{{range $value := .}}{{if and (eq (label \"name\" $value) \"version\") (eq (label \"condition\" $value) \"RetrievedUpdates\") (eq (label \"endpoint\" $value) \"metrics\") (eq (value $value) 0.0)}}{{label \"reason\" $value}} {{end}}{{end}}{{end}}" }}. {{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} For more information refer to {{ label \"url\" (first $console_url ) }}/settings/cluster/.{{ end }}{{ end }}" }}
@@ -77,7 +77,7 @@ spec:
         cluster_operator_up{job="cluster-version-operator"} == 0
       for: 10m
       labels:
-        severity: critical
+        severity: warning
     - alert: ClusterOperatorDegraded
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 minutes. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
@@ -85,7 +85,7 @@ spec:
         cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"} == 1
       for: 10m
       labels:
-        severity: critical
+        severity: warning
     - alert: ClusterOperatorFlapping
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} up status is changing often. This might cause upgrades to be unstable.
