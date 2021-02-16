@@ -147,14 +147,14 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 type UpdateEffectType string
 
 const (
-	// "None" defines an error as having no affect on the update state.
+	// UpdateEffectNone defines an error as having no affect on the update state.
 	UpdateEffectNone UpdateEffectType = "None"
 
-	// "Fail" defines an error as indicating the update is failing.
+	// UpdateEffectFail defines an error as indicating the update is failing.
 	UpdateEffectFail UpdateEffectType = "Fail"
 
-	// "FailAfterInterval" defines an error as one which indicates the update is failing
-	// if the error continues for a defined interval.
+	// UpdateEffectFailAfterInterval defines an error as one which indicates the update
+	// is failing if the error continues for a defined interval.
 	UpdateEffectFailAfterInterval UpdateEffectType = "FailAfterInterval"
 )
 
