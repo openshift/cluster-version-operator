@@ -184,6 +184,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 	defer shutdownCancel()
 	postMainContext, postMainCancel := context.WithCancel(context.Background()) // extends beyond ctx
 	defer postMainCancel()
+	launchedMain := false
 
 	ch := make(chan os.Signal, 1)
 	defer func() { signal.Stop(ch) }()
@@ -234,6 +235,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			RetryPeriod:     retryPeriod,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
+					launchedMain = true
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
@@ -267,6 +269,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			case <-runContext.Done():
 				klog.Info("Run context completed; beginning two-minute graceful shutdown period.")
 				shutdownTimer = time.NewTimer(2 * time.Minute)
+				if !launchedMain { // no need to give post-main extra time if main never ran
+					postMainCancel()
+				}
 			case result := <-resultChannel:
 				resultChannelCount--
 				if result.error == nil {
@@ -282,6 +287,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		} else { // shutting down
 			select {
 			case <-shutdownTimer.C: // never triggers after the channel is stopped, although it would not matter much if it did because subsequent cancel calls do nothing.
+				postMainCancel()
 				shutdownCancel()
 				shutdownTimer.Stop()
 			case result := <-resultChannel:
