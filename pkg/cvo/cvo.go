@@ -312,11 +312,6 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		return fmt.Errorf("caches never synchronized: %w", runContext.Err())
 	}
 
-	// ensure ClusterVersion gets updated when we first come up
-	if err := optr.sync(shutdownContext, true, optr.queueKey()); err != nil {
-		utilruntime.HandleError(fmt.Errorf("unable to perform forced sync: %v", err))
-	}
-
 	// trigger the first cluster version reconcile always
 	optr.queue.Add(optr.queueKey())
 
@@ -604,7 +599,6 @@ func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) boo
 	if err != nil {
 		return false
 	}
-	klog.Infof("Cluster version: %d lastResourceVersion: %d", i, optr.lastResourceVersion)
 	optr.lastAtLock.Lock()
 	defer optr.lastAtLock.Unlock()
 	return i < optr.lastResourceVersion
@@ -628,20 +622,20 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
+		klog.V(4).Infof("getOrCreateClusterVersion obj: %v", obj)
 		// if we are waiting to see a newer cached version, just exit
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
 		}
-		klog.Info("!!!! Not changed")
 		return obj, false, nil
 	}
+	klog.V(4).Infof("getOrCreateClusterVersion Get error: %v", err)
 
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
 	}
 
 	if !enableDefault {
-		klog.Info("!!!! No default")
 		return nil, false, nil
 	}
 
@@ -665,11 +659,14 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 	}
 
 	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
+	if err == nil {
+		klog.V(4).Infof("getOrCreateClusterVersion actual: %v", actual)
+	} else {
+		klog.V(4).Infof("getOrCreateClusterVersion Apply error: %v", err)
+	}
 	if apierrors.IsAlreadyExists(err) {
-		klog.Info("!!!! ApplyClusterVersionFromCache IsAlreadyExists")
 		return nil, true, nil
 	}
-	klog.Infof("!!!! ApplyClusterVersionFromCache actual %v", actual)
 	return actual, true, err
 }
 
