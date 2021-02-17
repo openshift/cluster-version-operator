@@ -133,7 +133,7 @@ type metadata struct {
 }
 
 func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, error) {
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage)
+	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
 		return nil, err
 	}
@@ -256,7 +256,7 @@ type payloadTasks struct {
 	skipFiles  sets.String
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTasks, error) {
+func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Update, []payloadTasks, error) {
 	klog.V(4).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
@@ -281,7 +281,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 		return nil, nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
 	}
 
-	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage)
+	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile)
 
 	return &Update{
 		Release:  release,
@@ -289,13 +289,13 @@ func loadUpdatePayloadMetadata(dir, releaseImage string) (*Update, []payloadTask
 	}, tasks, nil
 }
 
-func getPayloadTasks(releaseDir, cvoDir, releaseImage string) []payloadTasks {
+func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []payloadTasks {
 	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 
 	mrc := manifestRenderConfig{
 		ReleaseImage:   releaseImage,
-		ClusterProfile: DefaultClusterProfile,
+		ClusterProfile: clusterProfile,
 	}
 
 	return []payloadTasks{{

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
@@ -39,7 +40,15 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.releaseImage == "" {
 		klog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage); err != nil {
+	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage, clusterProfile()); err != nil {
 		klog.Fatalf("Render command failed: %v", err)
 	}
+}
+
+func clusterProfile() string {
+	profile, ok := os.LookupEnv("CLUSTER_PROFILE")
+	if !ok {
+		return payload.DefaultClusterProfile
+	}
+	return profile
 }

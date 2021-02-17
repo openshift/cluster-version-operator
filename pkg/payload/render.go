@@ -15,7 +15,7 @@ import (
 )
 
 // Render renders all the manifests from /manifests to outputDir.
-func Render(outputDir, releaseImage string) error {
+func Render(outputDir, releaseImage, clusterProfile string) error {
 	var (
 		manifestsDir  = filepath.Join(DefaultPayloadDir, CVOManifestDir)
 		oManifestsDir = filepath.Join(outputDir, "manifests")
@@ -24,7 +24,7 @@ func Render(outputDir, releaseImage string) error {
 
 		renderConfig = manifestRenderConfig{
 			ReleaseImage:   releaseImage,
-			ClusterProfile: DefaultClusterProfile,
+			ClusterProfile: clusterProfile,
 		}
 	)
 
