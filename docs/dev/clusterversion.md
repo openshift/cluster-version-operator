@@ -23,7 +23,7 @@ $ ls release-image | head -n5
 0000_07_cluster-network-operator_00_namespace.yaml
 0000_07_cluster-network-operator_01_crd.yaml
 0000_07_cluster-network-operator_02_rbac.yaml
-0000_07_cluster-network-operator_03_daemonset.yaml
+0000_07_cluster-network-operator_03_deployment.yaml
 0000_08_cluster-dns-operator_00-cluster-role.yaml
 ```
 
@@ -41,15 +41,15 @@ $ oc get -o json clusterversion version | jq .spec.overrides
 ```
 
 To add an entry to that list, you can use a [JSON Patch][json-patch] to add a [`ComponentOverride`][ComponentOverride].
-For example, to set the network operator's daemonset unmanaged:
+For example, to set the network operator's deployment unmanaged:
 
 ```console
-$ head -n5 release-image/0000_07_cluster-network-operator_03_daemonset.yaml
+$ head -n5 release-image/0000_07_cluster-network-operator_03_deployment.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: cluster-network-operator
-  namespace: openshift-cluster-network-operator
+  name: network-operator
+  namespace: openshift-network-operator
 ```
 If there are currently no other overrides configured:
 ```console
@@ -57,10 +57,10 @@ $ cat <<EOF >version-patch-first-override.yaml
 - op: add
   path: /spec/overrides
   value:
-  - kind: DaemonSet
+  - kind: Deployment
     group: apps/v1
-    name: cluster-network-operator
-    namespace: openshift-cluster-network-operator
+    name: network-operator
+    namespace: openshift-network-operator
     unmanaged: true
 EOF
 ```
@@ -70,10 +70,10 @@ $ cat <<EOF >version-patch-add-override.yaml
 - op: add
   path: /spec/overrides/-
   value:
-    kind: DaemonSet
+    kind: Deployment
     group: apps/v1
-    name: cluster-network-operator
-    namespace: openshift-cluster-network-operator
+    name: network-operator
+    namespace: openshift-network-operator
     unmanaged: true
 EOF
 ```
@@ -92,9 +92,9 @@ $ oc get -o json clusterversion version | jq .spec.overrides
     "unmanaged": true
   },
   {
-    "kind": "DaemonSet",
-    "name": "cluster-network-operator",
-    "namespace": "openshift-cluster-network-operator",
+    "kind": "Deployment",
+    "name": "network-operator",
+    "namespace": "openshift-network-operator",
     "unmanaged": true
   }
 ]
