@@ -187,7 +187,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
-						err := controllerCtx.CVO.Run(runContext, 2)
+						err := controllerCtx.CVO.Run(runContext, shutdownContext, 2)
 						resultChannel <- asyncResult{name: "main operator", error: err}
 					}()
 
@@ -402,17 +402,4 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 		}
 	}
 	return ctx
-}
-
-// Start launches the controllers in the provided context and any supporting
-// infrastructure. When ch is closed the controllers will be shut down.
-func (c *Context) Start(ctx context.Context) {
-	ch := ctx.Done()
-	go c.CVO.Run(ctx, 2)
-	if c.AutoUpdate != nil {
-		go c.AutoUpdate.Run(ctx, 2)
-	}
-	c.CVInformerFactory.Start(ch)
-	c.OpenshiftConfigInformerFactory.Start(ch)
-	c.InformerFactory.Start(ch)
 }

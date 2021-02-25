@@ -314,17 +314,20 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 	return nil, nil, nil
 }
 
-// Run runs the cluster version operator until stopCh is completed. Workers is ignored for now.
-func (optr *Operator) Run(ctx context.Context, workers int) error {
+// Run runs the cluster version operator until runContext.Done() and
+// then attempts a clean shutdown limited by shutdownContext.Done().
+// Assumes runContext.Done() occurs before or simultaneously with
+// shutdownContext.Done().
+func (optr *Operator) Run(runContext context.Context, shutdownContext context.Context, workers int) error {
 	defer optr.queue.ShutDown()
-	stopCh := ctx.Done()
+	stopCh := runContext.Done()
 	workerStopCh := make(chan struct{})
 
 	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
 	defer klog.Info("Shutting down ClusterVersionOperator")
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
-		return fmt.Errorf("caches never synchronized: %w", ctx.Err())
+		return fmt.Errorf("caches never synchronized: %w", runContext.Err())
 	}
 
 	// trigger the first cluster version reconcile always
@@ -332,20 +335,22 @@ func (optr *Operator) Run(ctx context.Context, workers int) error {
 
 	// start the config sync loop, and have it notify the queue when new status is detected
 	go runThrottledStatusNotifier(stopCh, optr.statusInterval, 2, optr.configSync.StatusCh(), func() { optr.queue.Add(optr.queueKey()) })
-	go optr.configSync.Start(ctx, 16)
-	go wait.Until(func() { optr.worker(ctx, optr.availableUpdatesQueue, optr.availableUpdatesSync) }, time.Second, stopCh)
-	go wait.Until(func() { optr.worker(ctx, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second, stopCh)
-	go wait.Until(func() {
+	go optr.configSync.Start(runContext, 16)
+	go wait.UntilWithContext(runContext, func(runContext context.Context) {
+		optr.worker(runContext, optr.availableUpdatesQueue, optr.availableUpdatesSync)
+	}, time.Second)
+	go wait.UntilWithContext(runContext, func(runContext context.Context) { optr.worker(runContext, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second)
+	go wait.UntilWithContext(runContext, func(runContext context.Context) {
 		defer close(workerStopCh)
 
 		// run the worker, then when the queue is closed sync one final time to flush any pending status
-		optr.worker(ctx, optr.queue, func(key string) error { return optr.sync(ctx, key) })
-		if err := optr.sync(ctx, optr.queueKey()); err != nil {
+		optr.worker(runContext, optr.queue, func(key string) error { return optr.sync(runContext, key) })
+		if err := optr.sync(shutdownContext, optr.queueKey()); err != nil {
 			utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 		}
-	}, time.Second, stopCh)
+	}, time.Second)
 	if optr.signatureStore != nil {
-		go optr.signatureStore.Run(ctx, optr.minimumUpdateCheckInterval*2)
+		go optr.signatureStore.Run(runContext, optr.minimumUpdateCheckInterval*2)
 	}
 
 	<-stopCh
