@@ -5,6 +5,7 @@ metadata:
   namespace: openshift-cluster-version
   annotations:
     exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
