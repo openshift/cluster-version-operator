@@ -2,9 +2,9 @@ package internal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 	"unicode"
 
@@ -141,85 +141,66 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			return false, nil
 		}
 
-		// undone is map of operand to tuple of (expected version, actual version)
-		// for incomplete operands.
-		undone := map[string][]string{}
-		for _, expOp := range expected.Status.Versions {
-			undone[expOp.Name] = []string{expOp.Version}
-			for _, actOp := range actual.Status.Versions {
-				if actOp.Name == expOp.Name {
-					undone[expOp.Name] = append(undone[expOp.Name], actOp.Version)
-					if actOp.Version == expOp.Version {
-						delete(undone, expOp.Name)
-					}
-					break
-				}
-			}
-		}
-		if len(undone) > 0 {
-			var keys []string
-			for k := range undone {
-				keys = append(keys, k)
-			}
-			sort.Strings(keys)
-
-			message := fmt.Sprintf("Cluster operator %s is still updating", actual.Name)
+		if len(expected.Status.Versions) == 0 {
 			lastErr = &payload.UpdateError{
-				Nested:       errors.New(lowerFirst(message)),
-				UpdateEffect: payload.UpdateEffectNone,
+				UpdateEffect: payload.UpdateEffectFail,
 				Reason:       "ClusterOperatorNotAvailable",
-				Message:      message,
-				Name:         actual.Name,
+				Message:      fmt.Sprintf("Cluster operator %s does not declare expected versions", expected.Name),
+				Name:         expected.Name,
 			}
 			return false, nil
 		}
 
+		// undone is a sorted slice of transition messages for incomplete operands.
+		undone := make([]string, 0, len(expected.Status.Versions))
+		for _, expOp := range expected.Status.Versions {
+			current := ""
+			for _, actOp := range actual.Status.Versions {
+				if actOp.Name == expOp.Name {
+					current = actOp.Version
+					break
+				}
+			}
+			if current != expOp.Version {
+				if current == "" {
+					undone = append(undone, fmt.Sprintf("%s to %s", expOp.Name, expOp.Version))
+				} else {
+					undone = append(undone, fmt.Sprintf("%s from %s to %s", expOp.Name, current, expOp.Version))
+				}
+			}
+		}
+		sort.Strings(undone)
+
 		available := false
+		var availableCondition *configv1.ClusterOperatorStatusCondition
 		progressing := true
-		failing := true
-		var failingCondition *configv1.ClusterOperatorStatusCondition
-		degradedValue := true
+		degraded := true
 		var degradedCondition *configv1.ClusterOperatorStatusCondition
 		for i := range actual.Status.Conditions {
 			condition := &actual.Status.Conditions[i]
 			switch {
-			case condition.Type == configv1.OperatorAvailable && condition.Status == configv1.ConditionTrue:
-				available = true
+			case condition.Type == configv1.OperatorAvailable:
+				if condition.Status == configv1.ConditionTrue {
+					available = true
+				}
+				availableCondition = condition
 			case condition.Type == configv1.OperatorProgressing && condition.Status == configv1.ConditionFalse:
 				progressing = false
 			case condition.Type == configv1.OperatorDegraded:
 				if condition.Status == configv1.ConditionFalse {
-					degradedValue = false
+					degraded = false
 				}
 				degradedCondition = condition
 			}
 		}
 
-		// If degraded was an explicitly set condition, use that. If not, use the deprecated failing.
-		degraded := failing
-		if degradedCondition != nil {
-			degraded = degradedValue
-		}
-
-		switch mode {
-		case resourcebuilder.InitializingMode:
-			// during initialization we allow degraded as long as the component goes available
-			if available && (!progressing || len(expected.Status.Versions) > 0) {
-				return true, nil
-			}
-		default:
-			// if we're at the correct version, and available, and not degraded, we are done
-			// if we're available, not degraded, and not progressing, we're also done
-			// TODO: remove progressing once all cluster operators report expected versions
-			if available && (!progressing || len(expected.Status.Versions) > 0) && !degraded {
-				return true, nil
-			}
-		}
-
-		nestedMessage := fmt.Errorf("cluster operator %s conditions: available=%v, progressing=%v, degraded=%v",
-			actual.Name, available, progressing, degraded)
+		nestedMessage := fmt.Errorf("cluster operator %s: available=%v, progressing=%v, degraded=%v, undone=%s",
+			actual.Name, available, progressing, degraded, strings.Join(undone, ", "))
 
 		if !available {
+			if availableCondition != nil && len(availableCondition.Message) > 0 {
+				nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s: %s", actual.Name, availableCondition.Type, availableCondition.Status, availableCondition.Reason, availableCondition.Message)
+			}
 			lastErr = &payload.UpdateError{
 				Nested:       nestedMessage,
 				UpdateEffect: payload.UpdateEffectFail,
@@ -230,13 +211,10 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			return false, nil
 		}
 
-		condition := failingCondition
-		if degradedCondition != nil {
-			condition = degradedCondition
-		}
-		if condition != nil && condition.Status == configv1.ConditionTrue {
-			if len(condition.Message) > 0 {
-				nestedMessage = fmt.Errorf("cluster operator %s is reporting a message: %s", actual.Name, condition.Message)
+		// during initialization we allow degraded
+		if degraded && mode != resourcebuilder.InitializingMode {
+			if degradedCondition != nil && len(degradedCondition.Message) > 0 {
+				nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s, %s", actual.Name, degradedCondition.Type, degradedCondition.Status, degradedCondition.Reason, degradedCondition.Message)
 			}
 			lastErr = &payload.UpdateError{
 				Nested:       nestedMessage,
@@ -248,14 +226,20 @@ func waitForOperatorStatusToBeDone(ctx context.Context, interval time.Duration, 
 			return false, nil
 		}
 
-		lastErr = &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorUpdating",
-			Message:      fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
-			Name:         actual.Name,
+		// during initialization we allow undone versions
+		if len(undone) > 0 && mode != resourcebuilder.InitializingMode {
+			nestedMessage = fmt.Errorf("cluster operator %s is available and not degraded but has not finished updating to target version", actual.Name)
+			lastErr = &payload.UpdateError{
+				Nested:       nestedMessage,
+				UpdateEffect: payload.UpdateEffectNone,
+				Reason:       "ClusterOperatorUpdating",
+				Message:      fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
+				Name:         actual.Name,
+			}
+			return false, nil
 		}
-		return false, nil
+
+		return true, nil
 	}, ctx.Done())
 	if err != nil {
 		if err == wait.ErrWaitTimeout && lastErr != nil {

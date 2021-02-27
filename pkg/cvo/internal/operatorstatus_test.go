@@ -49,9 +49,15 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting no versions with no operands",
+		name: "cluster operator reporting available=true and degraded=false, but no versions",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
+			},
 		},
 		exp: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
@@ -62,16 +68,22 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting no versions",
+		name: "cluster operator reporting available=true, degraded=false, but no versions, while expecting an operator version",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
+			},
 		},
 		exp: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
@@ -84,17 +96,21 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting no versions for operand",
+		name: "cluster operator reporting available=true and degraded=false, but no versions for operand",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 				Versions: []configv1.OperandVersion{{
 					Name: "operator", Version: "v0",
 				}},
@@ -111,17 +127,21 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting old versions",
+		name: "cluster operator reporting available=true and degraded=false, but old versions",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 				Versions: []configv1.OperandVersion{{
 					Name: "operator", Version: "v0",
 				}, {
@@ -140,21 +160,25 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting mix of desired and old versions",
+		name: "cluster operator reporting available=true and degraded=false, but mix of desired and old versions",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 				Versions: []configv1.OperandVersion{{
-					Name: "operator", Version: "v1",
+					Name: "operator", Version: "v0",
 				}, {
-					Name: "operand-1", Version: "v0",
+					Name: "operand-1", Version: "v1",
 				}},
 			},
 		},
@@ -169,17 +193,21 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting desired operator and old versions for 2 operands",
+		name: "cluster operator reporting available=true, degraded=false, and desired operator, but old versions for 2 operands",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 				Versions: []configv1.OperandVersion{{
 					Name: "operator", Version: "v1",
 				}, {
@@ -202,17 +230,21 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting desired operator and mix of old and desired versions for 2 operands",
+		name: "cluster operator reporting available=true, degraded=false, and desired operator, but mix of old and desired versions for 2 operands",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+				},
 				Versions: []configv1.OperandVersion{{
 					Name: "operator", Version: "v1",
 				}, {
@@ -235,10 +267,10 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is still updating"),
+			Nested:       fmt.Errorf("cluster operator test-co is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co is still updating",
+			Reason:       "ClusterOperatorUpdating",
+			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
 	}, {
@@ -264,7 +296,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co conditions: available=false, progressing=true, degraded=true"),
+			Nested:       fmt.Errorf("cluster operator test-co: available=false, progressing=true, degraded=true, undone="),
 			UpdateEffect: payload.UpdateEffectFail,
 			Reason:       "ClusterOperatorNotAvailable",
 			Message:      "Cluster operator test-co is not available",
@@ -294,7 +326,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co conditions: available=false, progressing=true, degraded=true"),
+			Nested:       fmt.Errorf("cluster operator test-co: available=false, progressing=true, degraded=true, undone="),
 			UpdateEffect: payload.UpdateEffectFail,
 			Reason:       "ClusterOperatorNotAvailable",
 			Message:      "Cluster operator test-co is not available",
@@ -324,14 +356,14 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co conditions: available=false, progressing=true, degraded=true"),
+			Nested:       fmt.Errorf("cluster operator test-co: available=false, progressing=true, degraded=true, undone="),
 			UpdateEffect: payload.UpdateEffectFail,
 			Reason:       "ClusterOperatorNotAvailable",
 			Message:      "Cluster operator test-co is not available",
 			Name:         "test-co",
 		},
 	}, {
-		name: "cluster operator reporting available=true progressing=true",
+		name: "cluster operator reporting available=true, degraded=false, and progressing=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
 			Status: configv1.ClusterOperatorStatus{
@@ -340,7 +372,11 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionFalse},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -352,13 +388,6 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 					Name: "operand-1", Version: "v1",
 				}},
 			},
-		},
-		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorUpdating",
-			Message:      "Cluster operator test-co is updating versions",
-			Name:         "test-co",
 		},
 	}, {
 		name: "cluster operator reporting available=true degraded=true",
@@ -370,7 +399,10 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Reason: "RandomReason", Message: "random error"},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -384,7 +416,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is reporting a message: random error"),
+			Nested:       fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
 			UpdateEffect: payload.UpdateEffectFailAfterInterval,
 			Reason:       "ClusterOperatorDegraded",
 			Message:      "Cluster operator test-co is degraded",
@@ -400,7 +432,11 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				}, {
 					Name: "operand-1", Version: "v1",
 				}},
-				Conditions: []configv1.ClusterOperatorStatusCondition{{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue}, {Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue}, {Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Message: "random error"}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Reason: "RandomReason", Message: "random error"},
+				},
 			},
 		},
 		exp: &configv1.ClusterOperator{
@@ -414,7 +450,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co is reporting a message: random error"),
+			Nested:       fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
 			UpdateEffect: payload.UpdateEffectFailAfterInterval,
 			Reason:       "ClusterOperatorDegraded",
 			Message:      "Cluster operator test-co is degraded",
@@ -444,10 +480,10 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorUpdating",
-			Message:      "Cluster operator test-co is updating versions",
+			Nested:       fmt.Errorf("cluster operator test-co: available=true, progressing=true, degraded=true, undone="),
+			UpdateEffect: payload.UpdateEffectFailAfterInterval,
+			Reason:       "ClusterOperatorDegraded",
+			Message:      "Cluster operator test-co is degraded",
 			Name:         "test-co",
 		},
 	}, {

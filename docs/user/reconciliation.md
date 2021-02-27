@@ -117,7 +117,7 @@ Instead, the operators create ClusterOperator themselves.
 The ClusterOperator builder only monitors the in-cluster object and blocks until it is:
 
 * Available
-* Either not progressing or, when the release image manifest has `status.versions` entries, listing at least the versions given in that manifest.
+* The ClusterOperator contains at least the versions listed in the associated release image manifest.
     For example, an OpenShift API server ClusterOperator entry in the release image like:
 
     ```yaml
@@ -133,8 +133,6 @@ The ClusterOperator builder only monitors the in-cluster object and blocks until
     ```
 
     would block until the in-cluster ClusterOperator reported `operator` at version 4.1.0.
-
-    The progressing check is deprecated and will be removed once all operators are reporting versions.
 * Not degraded (except during initialization, where we ignore the degraded status)
 
 ### CustomResourceDefinition
