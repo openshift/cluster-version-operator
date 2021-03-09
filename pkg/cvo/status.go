@@ -346,7 +346,6 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
-	klog.V(4).Infof("orig: %v\nconf: %v", original, config)
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
@@ -456,11 +455,7 @@ func applyClusterVersionStatus(ctx context.Context, client configclientv1.Cluste
 	if original != nil && equality.Semantic.DeepEqual(&original.Status, &required.Status) {
 		return required, nil
 	}
-	klog.V(4).Info("applyClusterVersionStatus: updating status")
 	actual, err := client.ClusterVersions().UpdateStatus(ctx, required, metav1.UpdateOptions{})
-	if err != nil {
-		klog.V(4).Infof("applyClusterVersionStatus: error: %v", err)
-	}
 	if apierrors.IsConflict(err) {
 		existing, cErr := client.ClusterVersions().Get(ctx, required.Name, metav1.GetOptions{})
 		if err != nil {
