@@ -620,14 +620,12 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
-		klog.V(4).Infof("getOrCreateClusterVersion obj: %v", obj)
 		// if we are waiting to see a newer cached version, just exit
 		if optr.isOlderThanLastUpdate(obj) {
 			return nil, true, nil
 		}
 		return obj, false, nil
 	}
-	klog.V(4).Infof("getOrCreateClusterVersion Get error: %v", err)
 
 	if !apierrors.IsNotFound(err) {
 		return nil, false, err
@@ -657,11 +655,6 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 	}
 
 	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
-	if err == nil {
-		klog.V(4).Infof("getOrCreateClusterVersion actual: %v", actual)
-	} else {
-		klog.V(4).Infof("getOrCreateClusterVersion Apply error: %v", err)
-	}
 	if apierrors.IsAlreadyExists(err) {
 		return nil, true, nil
 	}
