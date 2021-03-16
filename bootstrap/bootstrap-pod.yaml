@@ -36,6 +36,8 @@ spec:
         valueFrom:
           fieldRef:
             fieldPath: spec.nodeName
+      - name: CLUSTER_PROFILE
+        value: {{ .ClusterProfile }}
   hostNetwork: true
   terminationGracePeriodSeconds: 130
   volumes:

@@ -54,6 +54,8 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+          - name: CLUSTER_PROFILE
+            value: {{ .ClusterProfile }}
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
