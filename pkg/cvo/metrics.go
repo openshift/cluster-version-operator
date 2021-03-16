@@ -406,6 +406,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	} else if manifests, err := m.optr.cmConfigLister.Get(internal.ManifestsConfigMap); err == nil {
 		ch <- gaugeFromInstallConfigMap(manifests, m.clusterInstaller, "other")
 	} else if apierrors.IsNotFound(err) {
+		klog.Warningf("ConfigMap %s not found api error: %v", internal.ManifestsConfigMap, err)
 		g := m.clusterInstaller.WithLabelValues("", "", "")
 		g.Set(1.0)
 		ch <- g

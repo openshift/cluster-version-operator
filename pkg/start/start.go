@@ -200,8 +200,8 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 
 	resultChannel := make(chan asyncResult, 1)
 	resultChannelCount := 0
+	var tlsConfig *tls.Config
 	if o.ListenAddr != "" {
-		var tlsConfig *tls.Config
 		if o.ServingCertFile != "" || o.ServingKeyFile != "" {
 			var err error
 			tlsConfig, err = o.makeTLSConfig()
@@ -209,12 +209,6 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 				klog.Fatalf("Failed to create TLS config: %v", err)
 			}
 		}
-		resultChannelCount++
-		go func() {
-			defer utilruntime.HandleCrash()
-			err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, tlsConfig)
-			resultChannel <- asyncResult{name: "metrics server", error: err}
-		}()
 	}
 
 	informersDone := postMainContext.Done()
@@ -236,6 +230,14 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
+					if o.ListenAddr != "" {
+						resultChannelCount++
+						go func() {
+							defer utilruntime.HandleCrash()
+							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, tlsConfig)
+							resultChannel <- asyncResult{name: "metrics server", error: err}
+						}()
+					}
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
