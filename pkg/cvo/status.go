@@ -334,7 +334,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 	}
 
-	if klog.V(6).Enabled() {
+	if klog.V(5).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
