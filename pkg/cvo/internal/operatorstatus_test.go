@@ -354,9 +354,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co conditions: available=true, progressing=true, degraded=true"),
+			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
+			Reason:       "ClusterOperatorUpdating",
 			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
@@ -444,9 +444,9 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 			},
 		},
 		expErr: &payload.UpdateError{
-			Nested:       fmt.Errorf("cluster operator test-co conditions: available=true, progressing=true, degraded=true"),
+			Nested:       fmt.Errorf("cluster operator is available and not degraded but has not finished updating to target version"),
 			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
+			Reason:       "ClusterOperatorUpdating",
 			Message:      "Cluster operator test-co is updating versions",
 			Name:         "test-co",
 		},
