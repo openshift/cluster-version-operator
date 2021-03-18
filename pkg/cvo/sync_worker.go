@@ -742,6 +742,10 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 					klog.V(4).Infof("Skipping precreation of %s as unmanaged", task)
 					continue
 				}
+				if task.Manifest.Obj.GetName() == "baremetal" {
+					klog.V(4).Infof("Skipping precreation of %s, https://bugzilla.redhat.com/show_bug.cgi?id=1929917", task)
+					continue
+				}
 				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
 					klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
 					continue
