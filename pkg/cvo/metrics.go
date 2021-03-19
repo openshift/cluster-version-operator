@@ -341,7 +341,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		for _, condition := range cv.Status.Conditions {
-			if condition.Status == configv1.ConditionUnknown {
+			if condition.Status != configv1.ConditionFalse && condition.Status != configv1.ConditionTrue {
+				klog.V(4).Infof("skipping metrics for ClusterVersion condition %s=%s (neither True nor False)", condition.Type, condition.Status)
 				continue
 			}
 			g := m.clusterOperatorConditions.WithLabelValues("version", string(condition.Type), string(condition.Reason))
@@ -381,7 +382,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 		ch <- g
 		for _, condition := range op.Status.Conditions {
-			if condition.Status == configv1.ConditionUnknown {
+			if condition.Status != configv1.ConditionFalse && condition.Status != configv1.ConditionTrue {
+				klog.V(4).Infof("skipping metrics for %s ClusterOperator condition %s=%s (neither True nor False)", op.Name, condition.Type, condition.Status)
 				continue
 			}
 			g := m.clusterOperatorConditions.WithLabelValues(op.Name, string(condition.Type), string(condition.Reason))
