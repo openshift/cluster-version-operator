@@ -366,13 +366,17 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	// output cluster operator version and condition info
 	operators, _ := m.optr.coLister.List(labels.Everything())
 	for _, op := range operators {
-		// TODO: when we define how version works, report the appropriate version
-		var firstVersion string
+		var version string
 		for _, v := range op.Status.Versions {
-			firstVersion = v.Version
-			break
+			if v.Name == "operator" {
+				version = v.Version
+				break
+			}
 		}
-		g := m.clusterOperatorUp.WithLabelValues(op.Name, firstVersion)
+		if version == "" {
+			klog.V(4).Infof("ClusterOperator %s is not setting the 'operator' version", op.Name)
+		}
+		g := m.clusterOperatorUp.WithLabelValues(op.Name, version)
 		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorDegraded)
 		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
 		if available && !failing {
