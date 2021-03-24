@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -534,7 +535,8 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !reflect.DeepEqual(test.expErr, err) {
-				t.Fatalf("Incorrect value returned -\nexpected: %#v\nreturned: %#v", test.expErr, err)
+				spew.Config.DisableMethods = true
+				t.Fatalf("Incorrect value returned -\nexpected: %s\nreturned: %s", spew.Sdump(test.expErr), spew.Sdump(err))
 			}
 		})
 	}
