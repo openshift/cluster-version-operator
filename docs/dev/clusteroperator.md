@@ -185,12 +185,13 @@ The progressing message is the first message a human will see when debugging an 
 Conditions determine when the CVO considers certain actions complete, the following table summarizes what it looks at and when.
 
 
-| operation | version | available | degraded | progressing |
-|-----------|---------|-----------|----------|-------------|
-| Install completion[1] | current(whatever was being installed) | true | any | any
-| Begin upgrade | any | any | any | any
-| Begin upgrade (w/ force) | any | any | any | any
-| Upgrade completion[2]| newVersion(target version for the upgrade) | true | false | false
+| operation | version | available | degraded | progressing | upgradeable
+|-----------|---------|-----------|----------|-------------|-------------|
+| Install completion[1] | any(but should be the current version) | true | any | any | any
+| Begin upgrade(patch) | any | any | any | any | any
+| Begin upgrade(minor) | any | any | any | any | not false
+| Begin upgrade (w/ force) | any | any | any | any | any
+| Upgrade completion[2]| newVersion(target version for the upgrade) | true | false | any | any
 
 [1] Install works on all components in parallel, it does not wait for any component to complete before starting another one.
 
