@@ -46,7 +46,9 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/verify"
-	"github.com/openshift/cluster-version-operator/pkg/verify/verifyconfigmap"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/configmap"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/serial"
 )
 
 const (
@@ -306,8 +308,8 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder v
 
 		// allow the verifier to consult the cluster for signature data, and also configure
 		// a process that writes signatures back to that store
-		signatureStore := verifyconfigmap.NewStore(configMapClient, nil)
-		verifier = verifier.WithStores(signatureStore)
+		signatureStore := configmap.NewStore(configMapClient, nil)
+		verifier.Store = &serial.Store{Stores: []store.Store{signatureStore, verifier.Store}}
 		persister := verify.NewSignatureStorePersister(signatureStore, verifier)
 		return verifier, persister, nil
 	}

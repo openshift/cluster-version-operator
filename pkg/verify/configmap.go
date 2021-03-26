@@ -9,6 +9,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/openpgp"
 	"k8s.io/klog"
+
+	"github.com/openshift/cluster-version-operator/pkg/verify/store"
+	"github.com/openshift/cluster-version-operator/pkg/verify/store/parallel"
 )
 
 // ReleaseAnnotationConfigMapVerifier is an annotation set on a config map in the
@@ -48,7 +51,7 @@ const ReleaseAnnotationConfigMapVerifier = "release.openshift.io/verification-co
 // store and the lookup order is internally defined.
 func NewFromConfigMapData(src string, data map[string]string, clientBuilder ClientBuilder) (*ReleaseVerifier, error) {
 	verifiers := make(map[string]openpgp.EntityList)
-	var stores []*url.URL
+	var stores []store.Store
 	for k, v := range data {
 		switch {
 		case strings.HasPrefix(k, "verifier-public-key-"):
@@ -63,7 +66,16 @@ func NewFromConfigMapData(src string, data map[string]string, clientBuilder Clie
 			if err != nil || (u.Scheme != "http" && u.Scheme != "https" && u.Scheme != "file") {
 				return nil, fmt.Errorf("%s has an invalid key %q: must be a valid URL with scheme file://, http://, or https://", src, k)
 			}
-			stores = append(stores, u)
+			if u.Scheme == "file" {
+				stores = append(stores, &fileStore{
+					directory: u.Path,
+				})
+			} else {
+				stores = append(stores, &httpStore{
+					uri:        u,
+					httpClient: clientBuilder.HTTPClient,
+				})
+			}
 		default:
 			klog.Warningf("An unexpected key was found in %s and will be ignored (expected store-* or verifier-public-key-*): %s", src, k)
 		}
@@ -75,7 +87,7 @@ func NewFromConfigMapData(src string, data map[string]string, clientBuilder Clie
 		return nil, fmt.Errorf("%s did not provide any GPG public keys to verify signatures from and cannot be used", src)
 	}
 
-	return NewReleaseVerifier(verifiers, stores, clientBuilder), nil
+	return NewReleaseVerifier(verifiers, &parallel.Store{Stores: stores}), nil
 }
 
 func loadArmoredOrUnarmoredGPGKeyRing(data []byte) (openpgp.EntityList, error) {
