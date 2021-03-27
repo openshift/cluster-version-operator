@@ -87,7 +87,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 	}
 
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	resourcemerge.EnsureServiceAccount(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
