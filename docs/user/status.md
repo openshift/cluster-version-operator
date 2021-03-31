@@ -120,9 +120,13 @@ It could also be caused by response corruption, e.g. if the configured `upstream
 The currently reconciling cluster version was not found in the configured `channel`.
 
 This usually means that the configured `channel` is known to Cincinnati, but the version the cluster is currently applying is not found in that channel's graph.
-Fix by setting `channel` to [a valid value][channels], e.g. `stable-4.3`.
+You have some options to fix:
 
-If this error occurs because you forced an update to a release that is not in any channel, fix by updating back to a release that occurs in a channel, although you are on your own to determine a safe update path.
+* Set `channel` to [a valid value][channels].
+    For example, `stable-4.7`.
+* Clear `channel` if you do not want the operator polling the configured `upstream` for recommended updates.
+    For example, if your operator is unable to reach any upstream update service, or if you updated to a release that is not in any channel.
+* Update back to a release that occurs in a channel, although you are on your own to determine a safe update path.
 
 ### Unknown
 
@@ -130,5 +134,5 @@ If this happens it is a CVO coding error.
 There is no mitigation short of updating to a new release image with a fixed CVO.
 
 [api-desired-update]: https://github.com/openshift/api/blob/34f54f12813aaed8822bb5bc56e97cbbfa92171d/config/v1/types_cluster_version.go#L40-L54
-[channels]: https://docs.openshift.com/container-platform/4.3/updating/updating-cluster-between-minor.html#understanding-upgrade-channels_updating-cluster-between-minor
+[channels]: https://docs.openshift.com/container-platform/4.7/updating/updating-cluster-between-minor.html#understanding-upgrade-channels_updating-cluster-between-minor
 [Cincinnati]: https://github.com/openshift/cincinnati/blob/master/docs/design/openshift.md
