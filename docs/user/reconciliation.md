@@ -4,9 +4,16 @@ This document describes the cluster-version operator's reconciliation logic and 
 
 ## Release image content
 
+Unpack a release image locally, so we can look at what's inside:
+
 ```console
 $ mkdir /tmp/release
 $ oc image extract quay.io/openshift-release-dev/ocp-release:4.5.1-x86_64 --path /:/tmp/release
+```
+
+Here are all the manifests supplied by images that set the `io.openshift.release.operator=true` label:
+
+```console
 $ ls /tmp/release/release-manifests
 0000_03_authorization-openshift_01_rolebindingrestriction.crd.yaml
 0000_03_quota-openshift_01_clusterresourcequota.crd.yaml
@@ -18,6 +25,11 @@ $ ls /tmp/release/release-manifests
 0000_90_openshift-controller-manager-operator_03_operand-servicemonitor.yaml
 image-references
 release-metadata
+```
+
+`release-metadata` holds information about the release image:
+
+```console
 $ cat /tmp/release/release-manifests/release-metadata
 {
   "kind": "cincinnati-metadata-v0",
@@ -28,6 +40,11 @@ $ cat /tmp/release/release-manifests/release-metadata
     "url": "https://access.redhat.com/errata/RHBA-2019:0758"
   }
 }
+```
+
+`image-references` holds references to all the images needed to run OpenShift's core (these are the images that `oc adm release mirror ...` will mirror, in addition to the release image itself):
+
+```console
 $ cat /tmp/release/release-manifests/image-references
 {
   "kind": "ImageStream",
