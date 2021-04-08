@@ -27,6 +27,10 @@ func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rb
 		*modified = true
 		existing.Rules = required.Rules
 	}
+	if !equality.Semantic.DeepEqual(existing.AggregationRule, required.AggregationRule) {
+		*modified = true
+		existing.AggregationRule = required.AggregationRule
+	}
 }
 
 // EnsureRoleBinding ensures that the existing matches the required.
