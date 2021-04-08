@@ -15,6 +15,8 @@ spec:
   template:
     metadata:
       name: cluster-version-operator
+      annotations:
+        workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
       labels:
         k8s-app: cluster-version-operator
     spec:

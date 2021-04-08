@@ -5,6 +5,7 @@ metadata:
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
     openshift.io/node-selector: ""
+    workload.openshift.io/allowed: "management"
   labels:
     name: openshift-cluster-version
     openshift.io/run-level: "1"
