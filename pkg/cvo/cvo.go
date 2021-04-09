@@ -522,14 +522,14 @@ func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 
 // isOlderThanLastUpdate returns true if the cluster version is older than
 // the last update we saw.
-func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) bool {
+func (optr *Operator) isOlderThanLastUpdate(config *configv1.ClusterVersion) (bool, int64) {
 	i, err := strconv.ParseInt(config.ResourceVersion, 10, 64)
 	if err != nil {
-		return false
+		return false, i
 	}
 	optr.lastAtLock.Lock()
 	defer optr.lastAtLock.Unlock()
-	return i < optr.lastResourceVersion
+	return i < optr.lastResourceVersion, i
 }
 
 // rememberLastUpdate records the most recent resource version we
@@ -551,7 +551,8 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
-		if optr.isOlderThanLastUpdate(obj) {
+		if older, currentVersion := optr.isOlderThanLastUpdate(obj); older {
+			klog.V(4).Infof("Version %d is older than last update version %d", currentVersion, optr.lastResourceVersion)
 			return nil, true, nil
 		}
 		return obj, false, nil
@@ -586,7 +587,11 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 
 	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
 	if apierrors.IsAlreadyExists(err) {
+		klog.V(4).Info("ApplyClusterVersionFromCache: version already exists")
 		return nil, true, nil
+	}
+	if err != nil {
+		klog.V(4).Infof("ApplyClusterVersionFromCache error: %v", err)
 	}
 	return actual, true, err
 }
