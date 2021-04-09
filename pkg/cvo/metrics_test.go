@@ -180,8 +180,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterOperatorStatus{
 								Versions: []configv1.OperandVersion{
-									{Version: "10.1.5-1"},
-									{Version: "10.1.5-2"},
+									{Name: "operator", Version: "10.1.5-1"},
+									{Name: "operand", Version: "10.1.5-2"},
 								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
