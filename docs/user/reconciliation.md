@@ -4,40 +4,64 @@ This document describes the cluster-version operator's reconciliation logic and 
 
 ## Release image content
 
+Unpack a release image locally, so we can look at what's inside:
+
 ```console
 $ mkdir /tmp/release
 $ oc image extract quay.io/openshift-release-dev/ocp-release:4.5.1-x86_64 --path /:/tmp/release
+```
+
+Here are all the manifests supplied by images that set the `io.openshift.release.operator=true` label:
+
+```console
 $ ls /tmp/release/release-manifests
 0000_03_authorization-openshift_01_rolebindingrestriction.crd.yaml
+0000_03_config-operator_01_operatorhub.crd.yaml
+0000_03_config-operator_01_proxy.crd.yaml
 0000_03_quota-openshift_01_clusterresourcequota.crd.yaml
 0000_03_security-openshift_01_scc.crd.yaml
 0000_05_config-operator_02_apiserver.cr.yaml
 0000_05_config-operator_02_authentication.cr.yaml
 ...
-0000_90_openshift-controller-manager-operator_02_servicemonitor.yaml
-0000_90_openshift-controller-manager-operator_03_operand-servicemonitor.yaml
+0000_90_service-ca-operator_02_prometheusrolebinding.yaml
+0000_90_service-ca-operator_03_servicemonitor.yaml
 image-references
 release-metadata
+```
+
+`release-metadata` holds information about the release image, including recommended update sources and an errata link:
+
+```console
 $ cat /tmp/release/release-manifests/release-metadata
 {
   "kind": "cincinnati-metadata-v0",
-  "version": "4.1.0",
-  "previous": [],
+  "version": "4.5.1",
+  "previous": [
+    "4.4.10",
+    ...
+    "4.5.0-rc.7",
+    "4.5.1-rc.0"
+  ],
   "metadata": {
     "description": "",
-    "url": "https://access.redhat.com/errata/RHBA-2019:0758"
+    "url": "https://access.redhat.com/errata/RHBA-2020:2409"
   }
 }
+```
+
+`image-references` holds references to all the images needed to run OpenShift's core (these are the images that `oc adm release mirror ...` will mirror, in addition to the release image itself):
+
+```console
 $ cat /tmp/release/release-manifests/image-references
 {
   "kind": "ImageStream",
   "apiVersion": "image.openshift.io/v1",
   "metadata": {
-    "name": "4.1.0",
-    "creationTimestamp": "2019-06-03T14:49:14Z",
+    "name": "4.5.1",
+    "creationTimestamp": "2020-07-11T00:40:39Z",
     "annotations": {
-      "release.openshift.io/from-image-stream": "ocp/4.1-art-latest-2019-05-31-174150",
-      "release.openshift.io/from-release": "registry.ci.openshift.org/ocp/release:4.1.0-0.nightly-2019-05-31-174150"
+      "release.openshift.io/from-image-stream": "ocp/4.5-art-latest-2020-07-10-055255",
+      "release.openshift.io/from-release": "registry.svc.ci.openshift.org/ocp/release:4.5.0-0.nightly-2020-07-10-055255"
     }
   },
   "spec": {
@@ -48,13 +72,13 @@ $ cat /tmp/release/release-manifests/image-references
       {
         "name": "aws-machine-controllers",
         "annotations": {
-          "io.openshift.build.commit.id": "d8d8e285fc19920c3311e791f4fe22db7003588f",
+          "io.openshift.build.commit.id": "cca9ed80024c9c63a218fd4e421fdde48dfdc4a2",
           "io.openshift.build.commit.ref": "",
           "io.openshift.build.source-location": "https://github.com/openshift/cluster-api-provider-aws"
         },
         "from": {
           "kind": "DockerImage",
-          "name": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:7483248489c918e0c65a6b391bd171da0565cb9995b2acc61a1e517b6551e037"
+          "name": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:7d29cf4dc690bfee58b9247bc7e67210ce9634139b15ce2bd56fbe905b246c83"
         },
         "generation": 2,
         "importPolicy": {},
