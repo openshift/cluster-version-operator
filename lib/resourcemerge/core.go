@@ -15,6 +15,13 @@ func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1
 	mergeMap(modified, &existing.Data, required.Data)
 }
 
+// EnsureServiceAccount ensures that the existing mathces the required.
+// modified is set to true when existing had to be updated with required.
+func EnsureServiceAccount(modified *bool, existing *corev1.ServiceAccount, required corev1.ServiceAccount) {
+	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	setBoolPtr(modified, &existing.AutomountServiceAccountToken, required.AutomountServiceAccountToken)
+}
+
 // ensurePodTemplateSpec ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, required corev1.PodTemplateSpec) {
