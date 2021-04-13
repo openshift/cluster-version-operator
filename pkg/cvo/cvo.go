@@ -223,7 +223,15 @@ func New(
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.clusterProfile)
+	includeTechPreview := func() (bool, error) {
+		gate, err := optr.client.ConfigV1().FeatureGates().Get(context.TODO(), "cluster", metav1.GetOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			return false, err
+		}
+		return gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade, nil
+	}
+
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, includeTechPreview, optr.clusterProfile)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
@@ -264,6 +272,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 			Steps:    3,
 		},
 		optr.exclude,
+		includeTechPreview,
 		optr.eventRecorder,
 		optr.clusterProfile,
 	)
