@@ -123,6 +123,15 @@ func (b *builder) checkDeploymentHealth(ctx context.Context, deployment *appsv1.
 		}
 	}
 
+	if progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse && progressingCondition.Reason == "ProgressDeadlineExceeded" {
+		return &payload.UpdateError{
+			Nested:  fmt.Errorf("deployment %s is %s=%s: %s: %s", iden, progressingCondition.Type, progressingCondition.Status, progressingCondition.Reason, progressingCondition.Message),
+			Reason:  "WorkloadNotProgressing",
+			Message: fmt.Sprintf("deployment %s is %s=%s: %s: %s", iden, progressingCondition.Type, progressingCondition.Status, progressingCondition.Reason, progressingCondition.Message),
+			Name:    iden,
+		}
+	}
+
 	if availableCondition == nil && progressingCondition == nil && replicaFailureCondition == nil {
 		klog.Warningf("deployment %s is not setting any expected conditions, and is therefore in an unknown state", iden)
 	}
