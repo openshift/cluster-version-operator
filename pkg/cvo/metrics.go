@@ -3,11 +3,11 @@ package cvo
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net"
 	"net/http"
 	"time"
 
-	"github.com/cockroachdb/cmux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	corev1 "k8s.io/api/core/v1"
@@ -106,12 +106,15 @@ type asyncResult struct {
 }
 
 // RunMetrics launches an server bound to listenAddress serving
-// Prometheus metrics at /metrics over HTTP, and, if tlsConfig is
-// non-nil, also over HTTPS.  Continues serving until runContext.Done()
-// and then attempts a clean shutdown limited by shutdownContext.Done().
-// Assumes runContext.Done() occurs before or simultaneously with
-// shutdownContext.Done().
+// Prometheus metrics at /metrics over HTTPS.  Continues serving
+// until runContext.Done() and then attempts a clean shutdown
+// limited by shutdownContext.Done().  Assumes runContext.Done()
+// occurs before or simultaneously with shutdownContext.Done().
 func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress string, tlsConfig *tls.Config) error {
+	if tlsConfig == nil {
+		return errors.New("TLS configuration is required to serve metrics")
+	}
+
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", promhttp.Handler())
 	server := &http.Server{
@@ -123,36 +126,14 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return err
 	}
 
-	// if a TLS connection was requested, set up a connection mux that will send TLS requests to
-	// the TLS server but send HTTP requests to the HTTP server. Preserves the ability for legacy
-	// HTTP, needed during upgrade, while still allowing TLS certs and end to end metrics protection.
-	mux := cmux.New(tcpListener)
-
 	resultChannel := make(chan asyncResult, 1)
 	resultChannelCount := 1
 
 	go func() {
-		// match HTTP first
-		httpListener := mux.Match(cmux.HTTP1())
-		klog.Infof("Metrics port listening for HTTP on %v", listenAddress)
-		err := server.Serve(httpListener)
-		resultChannel <- asyncResult{name: "HTTP server", error: err}
-	}()
-
-	if tlsConfig != nil {
-		resultChannelCount++
-		go func() {
-			tlsListener := tls.NewListener(mux.Match(cmux.Any()), tlsConfig)
-			klog.Infof("Metrics port listening for HTTPS on %v", listenAddress)
-			err := server.Serve(tlsListener)
-			resultChannel <- asyncResult{name: "HTTPS server", error: err}
-		}()
-	}
-
-	resultChannelCount++
-	go func() {
-		err := mux.Serve()
-		resultChannel <- asyncResult{name: "TCP muxer", error: err}
+		tlsListener := tls.NewListener(tcpListener, tlsConfig)
+		klog.Infof("Metrics port listening for HTTPS on %v", listenAddress)
+		err := server.Serve(tlsListener)
+		resultChannel <- asyncResult{name: "HTTPS server", error: err}
 	}()
 
 	shutdown := false

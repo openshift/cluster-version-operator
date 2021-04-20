@@ -4,7 +4,6 @@ go 1.15
 
 require (
 	github.com/blang/semver/v4 v4.0.0
-	github.com/cockroachdb/cmux v0.0.0-20170110192607-30d10be49292
 	github.com/davecgh/go-spew v1.1.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/uuid v1.1.2
