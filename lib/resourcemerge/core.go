@@ -141,9 +141,6 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 }
 
 func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.EnvVar) {
-	if required == nil {
-		return
-	}
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*existing = required
 		*modified = true
@@ -151,9 +148,6 @@ func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.E
 }
 
 func ensureEnvFromSource(modified *bool, existing *[]corev1.EnvFromSource, required []corev1.EnvFromSource) {
-	if required == nil {
-		return
-	}
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*existing = required
 		*modified = true
