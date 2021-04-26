@@ -170,7 +170,67 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 			},
 		},
 		{
-			name: "collects cluster operator status failure",
+			name: "collects cluster operator without conditions",
+			optr: &Operator{
+				coLister: &coLister{
+					Items: []*configv1.ClusterOperator{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Status: configv1.ClusterOperatorStatus{
+								Versions: []configv1.OperandVersion{
+									{Name: "operator", Version: "10.1.5-1"},
+									{Name: "operand", Version: "10.1.5-2"},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 3 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
+				expectMetric(t, metrics[2], 1, map[string]string{"type": ""})
+			},
+		},
+		{
+			name: "collects cluster operator unavailable",
+			optr: &Operator{
+				coLister: &coLister{
+					Items: []*configv1.ClusterOperator{
+						{
+							ObjectMeta: metav1.ObjectMeta{
+								Name: "test",
+							},
+							Status: configv1.ClusterOperatorStatus{
+								Versions: []configv1.OperandVersion{
+									{Name: "operator", Version: "10.1.5-1"},
+									{Name: "operand", Version: "10.1.5-2"},
+								},
+								Conditions: []configv1.ClusterOperatorStatusCondition{
+									{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 4 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
+				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
+				expectMetric(t, metrics[2], 0, map[string]string{"name": "test", "condition": "Available"})
+				expectMetric(t, metrics[3], 1, map[string]string{"type": ""})
+			},
+		},
+		{
+			name: "collects cluster operator degraded",
 			optr: &Operator{
 				coLister: &coLister{
 					Items: []*configv1.ClusterOperator{
@@ -197,7 +257,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
+				expectMetric(t, metrics[1], 1, map[string]string{"name": "test", "version": "10.1.5-1"})
 				expectMetric(t, metrics[2], 1, map[string]string{"name": "test", "condition": "Available"})
 				expectMetric(t, metrics[3], 1, map[string]string{"name": "test", "condition": "Degraded"})
 				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
