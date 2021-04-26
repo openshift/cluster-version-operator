@@ -375,9 +375,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			klog.V(4).Infof("ClusterOperator %s is not setting the 'operator' version", op.Name)
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, version)
-		failing := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorDegraded)
-		available := resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable)
-		if available && !failing {
+		if resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable) {
 			g.Set(1)
 		} else {
 			g.Set(0)
