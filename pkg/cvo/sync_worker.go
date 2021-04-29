@@ -617,6 +617,19 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Verified:    info.Verified,
 			})
 			return err
+		} else if !equalDigest(payloadUpdate.Release.Image, work.Desired.Image) {
+			err = fmt.Errorf("both release images %s and %s claim the same version %s", work.Desired.Image, payloadUpdate.Release.Image, work.Desired.Version)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", "verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
+			reporter.Report(SyncWorkerStatus{
+				Generation:  work.Generation,
+				Failure:     err,
+				Step:        "VerifyPayloadVersion",
+				Initial:     work.State.Initializing(),
+				Reconciling: work.State.Reconciling(),
+				Actual:      desired,
+				Verified:    info.Verified,
+			})
+			return err
 		}
 
 		// need to make sure the payload is only set when the preconditions have been successful
