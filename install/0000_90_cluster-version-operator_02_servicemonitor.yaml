@@ -82,7 +82,11 @@ spec:
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 minutes. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
       expr: |
-        cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"} == 1
+        (
+          cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"}
+          or on (name)
+          group by (name) (cluster_operator_up{job="cluster-version-operator"})
+        ) == 1
       for: 10m
       labels:
         severity: critical
