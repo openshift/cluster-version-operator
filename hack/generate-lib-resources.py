@@ -95,9 +95,9 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
 
     imports = {}
     for import_name in [
-            'github.com/openshift/cluster-version-operator/lib',
             'github.com/openshift/cluster-version-operator/lib/resourceapply',
             'github.com/openshift/cluster-version-operator/lib/resourceread',
+            'github.com/openshift/library-go/pkg/manifest',
             'k8s.io/client-go/rest',
             ]:
         imports[import_name] = '\t"{}"'.format(import_name)
@@ -149,7 +149,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
     lines.extend([
         '}',
         '',
-        'func newBuilder(config *rest.Config, m lib.Manifest) Interface {',
+        'func newBuilder(config *rest.Config, m manifest.Manifest) Interface {',
         '\treturn &builder{',
         '\t\traw: m.Raw,',
         '',
