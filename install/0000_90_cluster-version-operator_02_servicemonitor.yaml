@@ -80,12 +80,12 @@ spec:
         severity: critical
     - alert: ClusterOperatorDegraded
       annotations:
-        message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 10 minutes. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
+        message: Cluster operator {{ "{{ $labels.name }}" }} has been degraded for 30 minutes. Operator is degraded because {{ "{{ $labels.reason }}" }} and cluster upgrades will be unstable.
       expr: |
         cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"} == 1
-      for: 10m
+      for: 30m
       labels:
-        severity: critical
+        severity: warning
     - alert: ClusterOperatorFlapping
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} up status is changing often. This might cause upgrades to be unstable.
