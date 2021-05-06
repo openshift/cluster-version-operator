@@ -87,9 +87,9 @@ spec:
           or on (name)
           group by (name) (cluster_operator_up{job="cluster-version-operator"})
         ) == 1
-      for: 10m
+      for: 30m
       labels:
-        severity: critical
+        severity: warning
     - alert: ClusterOperatorFlapping
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} up status is changing often. This might cause upgrades to be unstable.
