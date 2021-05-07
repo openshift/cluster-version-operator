@@ -2,22 +2,54 @@ package resourceapply
 
 import (
 	"context"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/utils/pointer"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
+func getRequiredAnnotations() []string {
+	return []string{
+		"openshift.io/sa.scc.mcs",
+		"openshift.io/sa.scc.supplemental-groups",
+		"openshift.io/sa.scc.uid-range",
+	}
+}
+
+func waitForNamespaceAnnotationsSet(ctx context.Context, client coreclientv1.NamespacesGetter, ns string) error {
+	return wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
+		existing, err := client.Namespaces().Get(ctx, ns, metav1.GetOptions{})
+		if errors.IsNotFound(err) {
+			return false, nil
+		}
+		annotationsMap := existing.GetAnnotations()
+		for _, key := range getRequiredAnnotations() {
+			if _, ok := annotationsMap[key]; !ok {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
 // ApplyNamespacev1 merges objectmeta, does not worry about anything else
 func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
 	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Namespaces().Create(ctx, required, metav1.CreateOptions{})
+		if err != nil {
+			return actual, true, err
+		}
+		// Wait for namespace to get necessary annotations set before proceeding
+		err = waitForNamespaceAnnotationsSet(ctx, client, required.Name)
 		return actual, true, err
 	}
 	if err != nil {
