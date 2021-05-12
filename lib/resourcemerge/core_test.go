@@ -855,3 +855,112 @@ func TestEnsureServicePorts(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureServiceType(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing corev1.Service
+		input    corev1.Service
+
+		expectedModified bool
+		expected         corev1.Service
+	}{
+		{
+			name:     "required not set, empty existing",
+			existing: corev1.Service{},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+		},
+		{
+			name: "required not set, existing set to default",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			expectedModified: false,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+		},
+		{
+			name: "required not set, existing set to non-default",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "NodePort",
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+		},
+		{
+			name: "required matches existing",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+			expectedModified: false,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+		},
+		{
+			name: "required doesn't match existing",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "ClusterIP",
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "NodePort",
+				},
+			},
+			expectedModified: true,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Type: "NodePort",
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modified := pointer.BoolPtr(false)
+			EnsureServiceType(modified, &test.existing.Spec.Type, test.input.Spec.Type)
+			if *modified != test.expectedModified {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
+			}
+			if test.existing.Spec.Type != test.expected.Spec.Type {
+				t.Errorf("mismatch Spec.Type got: %s want: %s", test.existing.Spec.Type, test.expected.Spec.Type)
+			}
+		})
+	}
+}

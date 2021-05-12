@@ -253,6 +253,18 @@ func EnsureServicePorts(modified *bool, existing *[]corev1.ServicePort, required
 	}
 }
 
+func EnsureServiceType(modified *bool, existing *corev1.ServiceType, required corev1.ServiceType) {
+	// if we have no required ensure existing is set to default
+	if required == "" {
+		required = corev1.ServiceTypeClusterIP
+	}
+
+	if !equality.Semantic.DeepEqual(required, *existing) {
+		*modified = true
+		*existing = required
+	}
+}
+
 func ensureServicePort(modified *bool, existing *corev1.ServicePort, required corev1.ServicePort) {
 	ensureServicePortDefaults(&required)
 	if !equality.Semantic.DeepEqual(required, *existing) {
