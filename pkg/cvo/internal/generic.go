@@ -49,11 +49,24 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		return nil, false, nil
 	}
 
-	existing.SetAnnotations(required.GetAnnotations())
-	existing.SetLabels(required.GetLabels())
-	existing.SetOwnerReferences(required.GetOwnerReferences())
-
 	skipKeys := sets.NewString("apiVersion", "kind", "metadata", "status")
+
+	// create a copy of required, but copy skipKeys from existing
+	// this would copy skipKeys data into expected from existing
+	expected := required.DeepCopy()
+	for k, v := range existing.Object {
+		if skipKeys.Has(k) {
+			expected.Object[k] = v
+		}
+	}
+
+	objDiff := diff.ObjectDiff(expected, existing)
+	if objDiff == "" {
+		// Skip update, as no changes found
+		return existing, false, nil
+	}
+
+	// copy all keys from required in existing except skipKeys
 	for k, v := range required.Object {
 		if skipKeys.Has(k) {
 			continue
@@ -61,7 +74,11 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		existing.Object[k] = v
 	}
 
-	klog.V(2).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), diff.ObjectDiff(existing, required))
+	existing.SetAnnotations(required.GetAnnotations())
+	existing.SetLabels(required.GetLabels())
+	existing.SetOwnerReferences(required.GetOwnerReferences())
+
+	klog.V(2).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), objDiff)
 
 	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
