@@ -7,6 +7,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
@@ -33,6 +34,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterRoleBindings().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -59,6 +61,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating ClusterRole %s/%s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -85,6 +88,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating RoleBinding %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -111,6 +115,7 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating Role %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Roles(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
