@@ -17,6 +17,7 @@ import (
 func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclientv1beta1.CustomResourceDefinitionsGetter, required *apiextv1beta1.CustomResourceDefinition) (*apiextv1beta1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("CRD %s not found, creating", required.Name)
 		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -43,6 +44,7 @@ func ApplyCustomResourceDefinitionv1beta1(ctx context.Context, client apiextclie
 func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition) (*apiextv1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("CRD %s not found, creating", required.Name)
 		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
