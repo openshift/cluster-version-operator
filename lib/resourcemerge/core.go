@@ -5,6 +5,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // EnsureConfigMap ensures that the existing matches the required.
@@ -276,6 +277,9 @@ func ensureServicePort(modified *bool, existing *corev1.ServicePort, required co
 func ensureServicePortDefaults(servicePort *corev1.ServicePort) {
 	if servicePort.Protocol == "" {
 		servicePort.Protocol = corev1.ProtocolTCP
+	}
+	if servicePort.TargetPort == intstr.FromInt(0) || servicePort.TargetPort == intstr.FromString("") {
+		servicePort.TargetPort = intstr.FromInt(int(servicePort.Port))
 	}
 }
 
