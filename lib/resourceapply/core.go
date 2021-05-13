@@ -58,14 +58,13 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	resourcemerge.EnsureServicePorts(modified, &existing.Spec.Ports, required.Spec.Ports)
+	resourcemerge.EnsureServiceType(modified, &existing.Spec.Type, required.Spec.Type)
 	selectorSame := equality.Semantic.DeepEqual(existing.Spec.Selector, required.Spec.Selector)
-	typeSame := equality.Semantic.DeepEqual(existing.Spec.Type, required.Spec.Type)
 
-	if selectorSame && typeSame && !*modified {
+	if selectorSame && !*modified {
 		return nil, false, nil
 	}
 	existing.Spec.Selector = required.Spec.Selector
-	existing.Spec.Type = required.Spec.Type // if this is different, the update will fail.  Status will indicate it.
 
 	actual, err := client.Services(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
