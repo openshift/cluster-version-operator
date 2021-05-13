@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/klog/v2"
@@ -34,6 +35,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -61,6 +63,7 @@ func ApplyDeploymentFromCache(ctx context.Context, lister appslisterv1.Deploymen
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -88,6 +91,8 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 		return existing, false, nil
 	}
 
+	klog.V(2).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
+
 	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
@@ -114,6 +119,8 @@ func ApplyDaemonSetFromCache(ctx context.Context, lister appslisterv1.DaemonSetL
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

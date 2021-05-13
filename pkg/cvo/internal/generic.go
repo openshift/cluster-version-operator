@@ -11,9 +11,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -35,6 +37,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 	}
 	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("%s %s/%s not found, creating", required.GetKind(), required.GetNamespace(), required.GetName())
 		actual, err := client.Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -49,6 +52,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 	existing.SetAnnotations(required.GetAnnotations())
 	existing.SetLabels(required.GetLabels())
 	existing.SetOwnerReferences(required.GetOwnerReferences())
+
 	skipKeys := sets.NewString("apiVersion", "kind", "metadata", "status")
 	for k, v := range required.Object {
 		if skipKeys.Has(k) {
@@ -56,6 +60,8 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		}
 		existing.Object[k] = v
 	}
+
+	klog.V(2).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), diff.ObjectDiff(existing, required))
 
 	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
