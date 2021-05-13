@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,7 +19,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
-func Test_waitForOperatorStatusToBeDone(t *testing.T) {
+func Test_checkOperatorHealth(t *testing.T) {
+	ctx := context.Background()
 	tests := []struct {
 		name   string
 		actual *configv1.ClusterOperator
@@ -528,9 +528,7 @@ func Test_waitForOperatorStatusToBeDone(t *testing.T) {
 				return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 			})
 
-			ctxWithTimeout, cancel := context.WithTimeout(context.TODO(), 1*time.Millisecond)
-			defer cancel()
-			err := waitForOperatorStatusToBeDone(ctxWithTimeout, 1*time.Millisecond, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode)
+			err := checkOperatorHealth(ctx, clientClusterOperatorsGetter{getter: client.ConfigV1().ClusterOperators()}, test.exp, test.mode)
 			if (test.expErr == nil) != (err == nil) {
 				t.Fatalf("unexpected error: %v", err)
 			}
