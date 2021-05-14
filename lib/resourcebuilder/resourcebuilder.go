@@ -19,7 +19,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -28,7 +27,6 @@ import (
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
-	rbacclientv1beta1 "k8s.io/client-go/kubernetes/typed/rbac/v1beta1"
 	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
@@ -52,7 +50,6 @@ type builder struct {
 	coreClientv1                 *coreclientv1.CoreV1Client
 	imageClientv1                *imageclientv1.ImageV1Client
 	rbacClientv1                 *rbacclientv1.RbacV1Client
-	rbacClientv1beta1            *rbacclientv1beta1.RbacV1beta1Client
 	securityClientv1             *securityclientv1.SecurityV1Client
 }
 
@@ -70,7 +67,6 @@ func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 		coreClientv1:                 coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		imageClientv1:                imageclientv1.NewForConfigOrDie(config),
 		rbacClientv1:                 rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
-		rbacClientv1beta1:            rbacclientv1beta1.NewForConfigOrDie(withProtobuf(config)),
 		securityClientv1:             securityclientv1.NewForConfigOrDie(config),
 	}
 }
@@ -189,34 +185,6 @@ func (b *builder) Do(ctx context.Context) error {
 		if _, _, err := resourceapply.ApplyRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
 			return err
 		}
-	case *rbacv1beta1.ClusterRole:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyClusterRolev1beta1(ctx, b.rbacClientv1beta1, typedObject); err != nil {
-			return err
-		}
-	case *rbacv1beta1.ClusterRoleBinding:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyClusterRoleBindingv1beta1(ctx, b.rbacClientv1beta1, typedObject); err != nil {
-			return err
-		}
-	case *rbacv1beta1.Role:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyRolev1beta1(ctx, b.rbacClientv1beta1, typedObject); err != nil {
-			return err
-		}
-	case *rbacv1beta1.RoleBinding:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyRoleBindingv1beta1(ctx, b.rbacClientv1beta1, typedObject); err != nil {
-			return err
-		}
 	case *apiextensionsv1.CustomResourceDefinition:
 		if b.modifier != nil {
 			b.modifier(typedObject)
@@ -270,10 +238,6 @@ func init() {
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("Role"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"), newBuilder)
-	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("ClusterRole"), newBuilder)
-	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newBuilder)
-	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("Role"), newBuilder)
-	rm.RegisterGVK(rbacv1beta1.SchemeGroupVersion.WithKind("RoleBinding"), newBuilder)
 	rm.RegisterGVK(securityv1.SchemeGroupVersion.WithKind("SecurityContextConstraints"), newBuilder)
 	rm.AddToMap(Mapper)
 }
