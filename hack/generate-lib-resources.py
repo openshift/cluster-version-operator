@@ -265,7 +265,6 @@ if __name__ == '__main__':
         'k8s.io/api/core/v1': {'ConfigMap', 'Namespace', 'Service', 'ServiceAccount'},
         'k8s.io/api/rbac/v1': {'ClusterRole', 'ClusterRoleBinding', 'Role', 'RoleBinding'},
         'k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1': {'CustomResourceDefinition'},
-        'k8s.io/kube-aggregator/pkg/apis/apiregistration/v1': {'APIService'},
     }
 
     types['k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1'] = types['k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1']

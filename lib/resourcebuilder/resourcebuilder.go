@@ -28,8 +28,6 @@ import (
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/client-go/rest"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
-	apiregistrationv1beta1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1"
 	apiregistrationclientv1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 	apiregistrationclientv1beta1 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1"
 )
@@ -199,20 +197,6 @@ func (b *builder) Do(ctx context.Context) error {
 		if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1beta1(ctx, b.apiextensionsClientv1beta1, typedObject); err != nil {
 			return err
 		}
-	case *apiregistrationv1.APIService:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyAPIServicev1(ctx, b.apiregistrationClientv1, typedObject); err != nil {
-			return err
-		}
-	case *apiregistrationv1beta1.APIService:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if _, _, err := resourceapply.ApplyAPIServicev1beta1(ctx, b.apiregistrationClientv1beta1, typedObject); err != nil {
-			return err
-		}
 	default:
 		return fmt.Errorf("unrecognized manifest type: %T", obj)
 	}
@@ -224,8 +208,6 @@ func init() {
 	rm := NewResourceMapper()
 	rm.RegisterGVK(apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newBuilder)
 	rm.RegisterGVK(apiextensionsv1beta1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newBuilder)
-	rm.RegisterGVK(apiregistrationv1.SchemeGroupVersion.WithKind("APIService"), newBuilder)
-	rm.RegisterGVK(apiregistrationv1beta1.SchemeGroupVersion.WithKind("APIService"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("DaemonSet"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newBuilder)
 	rm.RegisterGVK(batchv1.SchemeGroupVersion.WithKind("Job"), newBuilder)
