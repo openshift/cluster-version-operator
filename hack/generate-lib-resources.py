@@ -268,7 +268,6 @@ if __name__ == '__main__':
         'k8s.io/kube-aggregator/pkg/apis/apiregistration/v1': {'APIService'},
     }
 
-    types['k8s.io/api/rbac/v1beta1'] = types['k8s.io/api/rbac/v1']
     types['k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1'] = types['k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1']
     types['k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1'] = types['k8s.io/kube-aggregator/pkg/apis/apiregistration/v1']
 
@@ -279,7 +278,6 @@ if __name__ == '__main__':
         'k8s.io/api/batch/v1': {'package': 'k8s.io/client-go/kubernetes/typed/batch/v1', 'type': 'BatchV1Client'},
         'k8s.io/api/core/v1': {'package': 'k8s.io/client-go/kubernetes/typed/core/v1', 'type': 'CoreV1Client'},
         'k8s.io/api/rbac/v1': {'package': 'k8s.io/client-go/kubernetes/typed/rbac/v1', 'type': 'RbacV1Client'},
-        'k8s.io/api/rbac/v1beta1': {'package': 'k8s.io/client-go/kubernetes/typed/rbac/v1beta1', 'type': 'RbacV1beta1Client'},
         'k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1': {'package': 'k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1', 'type': 'ApiextensionsV1Client'},
         'k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1': {'package': 'k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1', 'type': 'ApiextensionsV1beta1Client'},
         'k8s.io/kube-aggregator/pkg/apis/apiregistration/v1': {'package': 'k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1', 'type': 'ApiregistrationV1Client'},

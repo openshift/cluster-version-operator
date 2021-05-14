@@ -10,7 +10,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,9 +52,6 @@ func init() {
 	if err := rbacv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
-	if err := rbacv1beta1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
 	if err := securityv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
@@ -69,7 +65,6 @@ func init() {
 		corev1.SchemeGroupVersion,
 		imagev1.SchemeGroupVersion,
 		rbacv1.SchemeGroupVersion,
-		rbacv1beta1.SchemeGroupVersion,
 		securityv1.SchemeGroupVersion,
 	)
 }
