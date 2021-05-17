@@ -504,8 +504,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Protocol: corev1.ProtocolUDP,
-							Port:     8282,
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8282,
+							TargetPort: intstr.FromInt(0),
 						},
 					},
 				},
@@ -608,9 +609,10 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "test",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8282,
+							Name:       "test",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8282,
+							TargetPort: intstr.FromInt(8282),
 						},
 					},
 				},
@@ -642,8 +644,9 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Protocol: corev1.ProtocolUDP,
-							Port:     8282,
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8282,
+							TargetPort: intstr.FromInt(8282),
 						},
 					},
 				},
@@ -686,14 +689,16 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8282,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8282,
+							TargetPort: intstr.FromInt(8282),
 						},
 						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8283,
+							Name:       "bar",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8283,
+							TargetPort: intstr.FromInt(8283),
 						},
 					},
 				},
@@ -705,14 +710,16 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8080,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
 						},
 						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8081,
+							Name:       "bar",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
 						},
 					},
 				},
@@ -721,14 +728,16 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8081,
+							Name:       "bar",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
 						},
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8080,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
 						},
 					},
 				},
@@ -738,14 +747,16 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8080,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
 						},
 						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolUDP,
-							Port:     8081,
+							Name:       "bar",
+							Protocol:   corev1.ProtocolUDP,
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
 						},
 					},
 				},
@@ -757,14 +768,66 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Port:     8080,
-							Protocol: corev1.ProtocolTCP,
+							Name:       "foo",
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
+							Protocol:   corev1.ProtocolTCP,
 						},
 						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolTCP,
-							Port:     8081,
+							Name:       "bar",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
+						},
+					},
+				},
+			},
+			input: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name:       "foo",
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
+						},
+						{
+							Name:       "bar",
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
+						},
+					},
+				},
+			},
+			expectedModified: false,
+			expected: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name:       "foo",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
+						},
+						{
+							Name:       "bar",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8081,
+							TargetPort: intstr.FromInt(8081),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "equal (TargetPort defaults to Port)",
+			existing: corev1.Service{
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{
+						{
+							Name:       "foo",
+							Port:       8080,
+							Protocol:   corev1.ProtocolTCP,
+							TargetPort: intstr.FromInt(8080),
 						},
 					},
 				},
@@ -776,10 +839,6 @@ func TestEnsureServicePorts(t *testing.T) {
 							Name: "foo",
 							Port: 8080,
 						},
-						{
-							Name: "bar",
-							Port: 8081,
-						},
 					},
 				},
 			},
@@ -788,14 +847,10 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolTCP,
-							Port:     8080,
-						},
-						{
-							Name:     "bar",
-							Protocol: corev1.ProtocolTCP,
-							Port:     8081,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
 						},
 					},
 				},
@@ -831,9 +886,10 @@ func TestEnsureServicePorts(t *testing.T) {
 				Spec: corev1.ServiceSpec{
 					Ports: []corev1.ServicePort{
 						{
-							Name:     "foo",
-							Protocol: corev1.ProtocolTCP,
-							Port:     8080,
+							Name:       "foo",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8080,
+							TargetPort: intstr.FromInt(8080),
 						},
 					},
 				},
