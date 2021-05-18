@@ -12,6 +12,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -81,10 +82,16 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	}
 	req.Header.Add("Accept", GraphMediaType)
 	if c.tlsConfig != nil {
+		if c.tlsConfig.ClientCAs == nil {
+			klog.V(5).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)
+		} else {
+			klog.V(5).Infof("Using a root CA pool with %n root CA subjects to request updates from %s", len(c.tlsConfig.RootCAs.Subjects()), uri)
+		}
 		transport.TLSClientConfig = c.tlsConfig
 	}
 
 	if c.proxyURL != nil {
+		klog.V(5).Infof("Using proxy %s to request updates from %s", c.proxyURL.Host, uri)
 		transport.Proxy = http.ProxyURL(c.proxyURL)
 	}
 
