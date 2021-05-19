@@ -73,7 +73,7 @@ type SyncWork struct {
 	// Completed is the number of times in a row we have synced this payload
 	Completed int
 	// Attempt is incremented each time we attempt to sync a payload and reset
-	// when we change Generation/Desired.
+	// when we change Generation/Desired or successfully synchronize.
 	Attempt int
 }
 
@@ -349,7 +349,8 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 					}
 				}
 				next = time.After(wait.Jitter(interval, 0.2))
-
+				work.Completed = 0
+				work.Attempt++
 				utilruntime.HandleError(fmt.Errorf("unable to synchronize image (waiting %s): %v", interval, err))
 				continue
 			}
@@ -358,6 +359,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 			}
 
 			work.Completed++
+			work.Attempt = 0
 			work.State = payload.ReconcilingPayload
 			next = time.After(w.minimumReconcileInterval)
 		}
@@ -416,20 +418,10 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
+		work.Attempt = 0
 	} else if changed {
 		work.State = payload.UpdatingPayload
-	}
-	// always clear the completed variable if we are not reconciling
-	if work.State != payload.ReconcilingPayload {
-		work.Completed = 0
-	}
-
-	// track how many times we have tried the current payload in the current
-	// state
-	if changed || w.work.State != work.State {
 		work.Attempt = 0
-	} else {
-		work.Attempt++
 	}
 
 	if w.work != nil {
