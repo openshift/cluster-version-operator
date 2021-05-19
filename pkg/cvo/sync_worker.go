@@ -413,17 +413,16 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	defer w.lock.Unlock()
 
 	changed := !equalSyncWork(w.work, work, w.work.State)
-
+	if changed {
+		work.State = payload.UpdatingPayload
+		work.Attempt = 0
+	}
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
 		work.Attempt = 0
-	} else if changed {
-		work.State = payload.UpdatingPayload
-		work.Attempt = 0
 	}
-
 	if w.work != nil {
 		work.Desired = w.work.Desired
 		work.Overrides = w.work.Overrides
