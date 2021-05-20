@@ -207,6 +207,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 					NodeSelector: map[string]string{
 						nodeSelectorKey: "",
 					},
+					PriorityClassName: "openshift-user-critical",
 					Tolerations: []corev1.Toleration{{
 						Key: nodeSelectorKey,
 					}},
