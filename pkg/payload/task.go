@@ -100,51 +100,46 @@ func (st *Task) String() string {
 	return fmt.Sprintf("%s (%d of %d)", manId, st.Index, st.Total)
 }
 
-// Run attempts to create the provided object until it succeeds or context is cancelled. It returns the
-// last error if context is cancelled.
+// Run attempts to create the provided object until it:
+//
+// * Succeeds, or
+// * Fails with an UpdateError, because these are unlikely to improve quickly on retry, or
+// * The context is canceled, in which case it returns the most recent error.
 func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder, state State) error {
 	var lastErr error
 	backoff := st.Backoff
-	maxDuration := 15 * time.Second // TODO: fold back into Backoff in 1.13
-	for {
-		// attempt the apply, waiting as long as necessary
-		err := builder.Apply(ctx, st.Manifest, state)
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func() (done bool, err error) {
+		err = builder.Apply(ctx, st.Manifest, state)
 		if err == nil {
-			return nil
+			return true, nil
 		}
-
 		lastErr = err
 		utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 		metricPayloadErrors.WithLabelValues(version).Inc()
-
-		// TODO: this code will become easier in Kube 1.13 because Backoff now supports max
-		d := time.Duration(float64(backoff.Duration) * backoff.Factor)
-		if d > maxDuration {
-			d = maxDuration
+		if updateErr, ok := err.(*UpdateError); ok {
+			updateErr.Task = st.Copy()
+			return false, updateErr // failing fast for UpdateError
 		}
-		d = wait.Jitter(d, backoff.Jitter)
-
-		// sleep or wait for cancellation
-		select {
-		case <-time.After(d):
-			continue
-		case <-ctx.Done():
-			if uerr, ok := lastErr.(*UpdateError); ok {
-				uerr.Task = st.Copy()
-				return uerr
-			}
-			reason, cause := reasonForPayloadSyncError(lastErr)
-			if len(cause) > 0 {
-				cause = ": " + cause
-			}
-			return &UpdateError{
-				Nested:  lastErr,
-				Reason:  reason,
-				Message: fmt.Sprintf("Could not update %s%s", st, cause),
-
-				Task: st.Copy(),
-			}
-		}
+		return false, nil
+	})
+	if err == nil {
+		return nil
+	}
+	if lastErr != nil {
+		err = lastErr
+	}
+	if _, ok := err.(*UpdateError); ok {
+		return err
+	}
+	reason, cause := reasonForPayloadSyncError(err)
+	if len(cause) > 0 {
+		cause = ": " + cause
+	}
+	return &UpdateError{
+		Nested:  err,
+		Reason:  reason,
+		Message: fmt.Sprintf("Could not update %s%s", st, cause),
+		Task:    st.Copy(),
 	}
 }
 
@@ -192,7 +187,7 @@ func (e *UpdateError) Unwrap() error {
 	return e.Nested
 }
 
-// reasonForUpdateError provides a succint explanation of a known error type for use in a human readable
+// reasonForPayloadSyncError provides a succint explanation of a known error type for use in a human readable
 // message during update. Since all objects in the image should be successfully applied, messages
 // should direct the reader (likely a cluster administrator) to a possible cause in their own config.
 func reasonForPayloadSyncError(err error) (string, string) {

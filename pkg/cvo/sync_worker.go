@@ -873,8 +873,11 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	var tasks []*payload.Task
 	backoff := w.backoff
+	if backoff.Steps == 0 {
+		return fmt.Errorf("SyncWorker requires at least one backoff step to apply any manifests")
+	}
 	if backoff.Steps > 1 && work.State == payload.InitializingPayload {
-		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second}
+		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second, Cap: 15 * time.Second}
 	}
 
 	for i := range payloadUpdate.Manifests {

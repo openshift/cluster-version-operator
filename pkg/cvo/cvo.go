@@ -281,6 +281,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 			Duration: time.Second * 10,
 			Factor:   1.3,
 			Steps:    3,
+			Cap:      time.Second * 15,
 		},
 		optr.exclude,
 		optr.includeTechPreview,
