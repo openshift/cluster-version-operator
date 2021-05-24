@@ -2662,9 +2662,6 @@ func TestCVO_ParallelError(t *testing.T) {
 
 	// Step 3: Cancel after we've accumulated 2/3 errors
 	//
-	time.Sleep(100 * time.Millisecond)
-	cancel()
-	//
 	// verify we observe the remaining changes in the first sync
 	for status := range worker.StatusCh() {
 		if status.Failure == nil {
@@ -2707,6 +2704,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		}
 		break
 	}
+	cancel()
 	verifyAllStatus(t, worker.StatusCh())
 
 	client.ClearActions()

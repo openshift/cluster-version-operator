@@ -99,13 +99,16 @@ func Test_SyncWorker_apply(t *testing.T) {
 		cancelAfter: 2,
 		wantErr:     true,
 		check: func(t *testing.T, actions []action) {
-			if len(actions) != 3 {
+			if len(actions) != 2 {
 				spew.Dump(actions)
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
+			exp := newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")
+			for i, got := range actions {
+				if !reflect.DeepEqual(got, exp) {
+					t.Fatalf("unexpected action %d: %s", i, diff.ObjectReflectDiff(exp, got))
+				}
 			}
 		},
 	}}
@@ -134,6 +137,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
+			worker.backoff.Steps = 2
 			worker.builder = NewResourceBuilder(nil, nil, nil, nil)
 
 			ctx, cancel := context.WithCancel(context.Background())

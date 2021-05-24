@@ -42,13 +42,7 @@ func Test_checkOperatorHealth(t *testing.T) {
 				}},
 			},
 		},
-		expErr: &payload.UpdateError{
-			Nested:       apierrors.NewNotFound(schema.GroupResource{Resource: "clusteroperator"}, "test-co"),
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      "Cluster operator test-co has not yet reported success",
-			Name:         "test-co",
-		},
+		expErr: apierrors.NewNotFound(schema.GroupResource{Resource: "clusteroperator"}, "test-co"),
 	}, {
 		name: "cluster operator reporting available=true and degraded=false, but no versions",
 		actual: &configv1.ClusterOperator{
