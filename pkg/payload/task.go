@@ -264,6 +264,11 @@ func SummaryForReason(reason, name string) string {
 			return fmt.Sprintf("the workload %s cannot roll out", name)
 		}
 		return "a workload cannot roll out"
+	case "MultipleErrors":
+		if len(name) > 0 {
+			return fmt.Sprintf("the workload %s cannot roll out", name)
+		}
+		return "multiple errors reconciling the payload"
 	}
 
 	if strings.HasPrefix(reason, "UpdatePayload") {
