@@ -160,11 +160,14 @@ const (
 
 // UpdateError is a wrapper for errors that occur during a payload sync.
 type UpdateError struct {
-	Nested       error
-	UpdateEffect UpdateEffectType
-	Reason       string
-	Message      string
-	Name         string
+	Nested              error
+	UpdateEffect        UpdateEffectType
+	Reason              string
+	PluralReason        string
+	Message             string
+	PluralMessageFormat string
+	Name                string
+	Names               []string
 
 	Task *Task
 }
