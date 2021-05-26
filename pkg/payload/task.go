@@ -259,11 +259,16 @@ func SummaryForReason(reason, name string) string {
 		return "a cluster operator is degraded"
 	case "ClusterOperatorNotAvailable":
 		if len(name) > 0 {
-			return fmt.Sprintf("the cluster operator %s has not yet successfully rolled out", name)
+			return fmt.Sprintf("the cluster operator %s is not available", name)
 		}
-		return "a cluster operator has not yet rolled out"
+		return "a cluster operator is not available"
 	case "ClusterOperatorsNotAvailable":
-		return "some cluster operators have not yet rolled out"
+		return "some cluster operators are not available"
+	case "ClusterOperatorNoVersions":
+		if len(name) > 0 {
+			return fmt.Sprintf("the cluster operator %s does not declare expected versions", name)
+		}
+		return "a cluster operator does not declare expected versions"
 	case "WorkloadNotAvailable":
 		if len(name) > 0 {
 			return fmt.Sprintf("the workload %s has not yet successfully rolled out", name)

@@ -127,7 +127,7 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 	if len(expected.Status.Versions) == 0 {
 		return &payload.UpdateError{
 			UpdateEffect: payload.UpdateEffectFail,
-			Reason:       "ClusterOperatorNotAvailable",
+			Reason:       "ClusterOperatorNoVersions",
 			Message:      fmt.Sprintf("Cluster operator %s does not declare expected versions", expected.Name),
 			Name:         expected.Name,
 		}
