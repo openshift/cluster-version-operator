@@ -2,10 +2,12 @@ package resourcemerge
 
 import (
 	"reflect"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/pointer"
 )
 
 // EnsureConfigMap ensures that the existing matches the required.
@@ -32,8 +34,8 @@ func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, req
 }
 
 func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.PodSpec) {
-	ensureContainers(modified, &existing.InitContainers, required.InitContainers)
-	ensureContainers(modified, &existing.Containers, required.Containers)
+	ensureContainers(modified, &existing.InitContainers, required.InitContainers, required.HostNetwork)
+	ensureContainers(modified, &existing.Containers, required.Containers, required.HostNetwork)
 
 	// any volume we specify, we require.
 	for _, required := range required.Volumes {
@@ -69,17 +71,17 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
 	setBoolPtr(modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
 	ensureDNSPolicy(modified, &existing.DNSPolicy, required.DNSPolicy)
-	setInt64Ptr(modified, &existing.TerminationGracePeriodSeconds, required.TerminationGracePeriodSeconds)
+	ensureTerminationGracePeriod(modified, &existing.TerminationGracePeriodSeconds, required.TerminationGracePeriodSeconds)
 }
 
-func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
+func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container, hostNetwork bool) {
 	for i := len(*existing) - 1; i >= 0; i-- {
 		existingContainer := &(*existing)[i]
 		var existingCurr *corev1.Container
 		for _, requiredContainer := range required {
 			if existingContainer.Name == requiredContainer.Name {
 				existingCurr = &(*existing)[i]
-				ensureContainer(modified, existingCurr, requiredContainer)
+				ensureContainer(modified, existingCurr, requiredContainer, hostNetwork)
 				break
 			}
 		}
@@ -104,7 +106,7 @@ func ensureContainers(modified *bool, existing *[]corev1.Container, required []c
 	}
 }
 
-func ensureContainer(modified *bool, existing *corev1.Container, required corev1.Container) {
+func ensureContainer(modified *bool, existing *corev1.Container, required corev1.Container, hostNetwork bool) {
 	setStringIfSet(modified, &existing.Name, required.Name)
 	setStringIfSet(modified, &existing.Image, required.Image)
 
@@ -115,7 +117,7 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 	ensureEnvFromSource(modified, &existing.EnvFrom, required.EnvFrom)
 	setStringIfSet(modified, &existing.WorkingDir, required.WorkingDir)
 	ensureResourceRequirements(modified, &existing.Resources, required.Resources)
-	ensureContainerPorts(modified, &existing.Ports, required.Ports)
+	ensureContainerPorts(modified, &existing.Ports, required.Ports, hostNetwork)
 
 	// any volume mount we specify, we require
 	for _, required := range required.VolumeMounts {
@@ -142,9 +144,35 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 }
 
 func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.EnvVar) {
+	for envidx := range required {
+		// Currently only CVO deployment uses this variable to inject internal LB host.
+		// This may result in an IP address being returned by API so assuming the
+		// returned value is correct.
+		if required[envidx].Name == "KUBERNETES_SERVICE_HOST" {
+			ensureEnvVarKubeService(*existing, &required[envidx])
+		}
+
+		if required[envidx].ValueFrom != nil {
+			ensureEnvVarSourceFieldRefDefault(required[envidx].ValueFrom.FieldRef)
+		}
+	}
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*existing = required
 		*modified = true
+	}
+}
+
+func ensureEnvVarKubeService(existing []corev1.EnvVar, required *corev1.EnvVar) {
+	for envidx := range existing {
+		if existing[envidx].Name == required.Name {
+			required.Value = existing[envidx].Value
+		}
+	}
+}
+
+func ensureEnvVarSourceFieldRefDefault(required *corev1.ObjectFieldSelector) {
+	if required != nil && required.APIVersion == "" {
+		required.APIVersion = "v1"
 	}
 }
 
@@ -164,7 +192,23 @@ func ensureProbePtr(modified *bool, existing **corev1.Probe, required *corev1.Pr
 		*existing = required
 		return
 	}
+	ensureProbeDefaults(required)
 	ensureProbe(modified, *existing, *required)
+}
+
+func ensureProbeDefaults(required *corev1.Probe) {
+	if required.TimeoutSeconds == 0 {
+		required.TimeoutSeconds = 1
+	}
+	if required.PeriodSeconds == 0 {
+		required.PeriodSeconds = 10
+	}
+	if required.SuccessThreshold == 0 {
+		required.SuccessThreshold = 1
+	}
+	if required.FailureThreshold == 0 {
+		required.FailureThreshold = 3
+	}
 }
 
 func ensureProbe(modified *bool, existing *corev1.Probe, required corev1.Probe) {
@@ -178,20 +222,27 @@ func ensureProbe(modified *bool, existing *corev1.Probe, required corev1.Probe) 
 }
 
 func ensureProbeHandler(modified *bool, existing *corev1.Handler, required corev1.Handler) {
+	ensureProbeHandlerDefaults(&required)
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
 	}
 }
 
-func ensureContainerPorts(modified *bool, existing *[]corev1.ContainerPort, required []corev1.ContainerPort) {
+func ensureProbeHandlerDefaults(handler *corev1.Handler) {
+	if handler.HTTPGet != nil && handler.HTTPGet.Scheme == "" {
+		handler.HTTPGet.Scheme = corev1.URISchemeHTTP
+	}
+}
+
+func ensureContainerPorts(modified *bool, existing *[]corev1.ContainerPort, required []corev1.ContainerPort, hostNetwork bool) {
 	for i := len(*existing) - 1; i >= 0; i-- {
 		existingContainerPort := &(*existing)[i]
 		var existingCurr *corev1.ContainerPort
 		for _, requiredContainerPort := range required {
 			if existingContainerPort.Name == requiredContainerPort.Name {
 				existingCurr = &(*existing)[i]
-				ensureContainerPort(modified, existingCurr, requiredContainerPort)
+				ensureContainerPort(modified, existingCurr, requiredContainerPort, hostNetwork)
 				break
 			}
 		}
@@ -215,10 +266,23 @@ func ensureContainerPorts(modified *bool, existing *[]corev1.ContainerPort, requ
 	}
 }
 
-func ensureContainerPort(modified *bool, existing *corev1.ContainerPort, required corev1.ContainerPort) {
+func ensureContainerPort(modified *bool, existing *corev1.ContainerPort, required corev1.ContainerPort, hostNetwork bool) {
+	ensureContainerPortDefaults(&required, hostNetwork)
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
+	}
+}
+
+func ensureContainerPortDefaults(containerPort *corev1.ContainerPort, hostNetwork bool) {
+	// If HostNetwork is specified and port set to 0, set to match ContainerPort
+	if hostNetwork {
+		if containerPort.HostPort == 0 {
+			containerPort.HostPort = containerPort.ContainerPort
+		}
+	}
+	if containerPort.Protocol == "" {
+		containerPort.Protocol = corev1.ProtocolTCP
 	}
 }
 
@@ -291,9 +355,86 @@ func ensureVolumeMount(modified *bool, existing *corev1.VolumeMount, required co
 }
 
 func ensureVolume(modified *bool, existing *corev1.Volume, required corev1.Volume) {
+	if pointer.AllPtrFieldsNil(&required.VolumeSource) {
+		required.VolumeSource = corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		}
+	}
+	ensureVolumeSourceDefaults(&required.VolumeSource)
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
+	}
+}
+
+func ensureVolumeSourceDefaults(required *corev1.VolumeSource) {
+	if required.HostPath != nil {
+		typeVol := corev1.HostPathUnset
+		if required.HostPath.Type == nil {
+			required.HostPath.Type = &typeVol
+		}
+	}
+	if required.Secret != nil && required.Secret.DefaultMode == nil {
+		perm := int32(corev1.SecretVolumeSourceDefaultMode)
+		required.Secret.DefaultMode = &perm
+	}
+	if required.ISCSI != nil && required.ISCSI.ISCSIInterface == "" {
+		required.ISCSI.ISCSIInterface = "default"
+	}
+	if required.RBD != nil {
+		if required.RBD.RBDPool == "" {
+			required.RBD.RBDPool = "rbd"
+		}
+		if required.RBD.RadosUser == "" {
+			required.RBD.RadosUser = "admin"
+		}
+		if required.RBD.Keyring == "" {
+			required.RBD.Keyring = "/etc/ceph/keyring"
+		}
+	}
+	if required.ConfigMap != nil && required.ConfigMap.DefaultMode == nil {
+		perm := int32(corev1.ConfigMapVolumeSourceDefaultMode)
+		required.ConfigMap.DefaultMode = &perm
+	}
+	if required.AzureDisk != nil {
+		if required.AzureDisk.CachingMode == nil {
+			required.AzureDisk.CachingMode = new(corev1.AzureDataDiskCachingMode)
+			*required.AzureDisk.CachingMode = corev1.AzureDataDiskCachingReadWrite
+		}
+		if required.AzureDisk.Kind == nil {
+			required.AzureDisk.Kind = new(corev1.AzureDataDiskKind)
+			*required.AzureDisk.Kind = corev1.AzureSharedBlobDisk
+		}
+		if required.AzureDisk.FSType == nil {
+			required.AzureDisk.FSType = new(string)
+			*required.AzureDisk.FSType = "ext4"
+		}
+		if required.AzureDisk.ReadOnly == nil {
+			required.AzureDisk.ReadOnly = new(bool)
+			*required.AzureDisk.ReadOnly = false
+		}
+	}
+	if required.DownwardAPI != nil && required.DownwardAPI.DefaultMode == nil {
+		perm := int32(corev1.DownwardAPIVolumeSourceDefaultMode)
+		required.DownwardAPI.DefaultMode = &perm
+	}
+	if required.Projected != nil && required.Projected.DefaultMode == nil {
+		perm := int32(corev1.ProjectedVolumeSourceDefaultMode)
+		required.Projected.DefaultMode = &perm
+		hour := int64(time.Hour.Seconds())
+		for idx := range required.Projected.Sources {
+			if required.Projected.Sources[idx].ServiceAccountToken.ExpirationSeconds == nil {
+				required.Projected.Sources[idx].ServiceAccountToken.ExpirationSeconds = &hour
+			}
+		}
+	}
+	if required.ScaleIO != nil {
+		if required.ScaleIO.StorageMode == "" {
+			required.ScaleIO.StorageMode = "ThinProvisioned"
+		}
+		if required.ScaleIO.FSType == "" {
+			required.ScaleIO.FSType = "xfs"
+		}
 	}
 }
 
@@ -551,10 +692,21 @@ func ensureResourceList(modified *bool, existing *corev1.ResourceList, required 
 }
 
 func ensureDNSPolicy(modified *bool, existing *corev1.DNSPolicy, required corev1.DNSPolicy) {
+	if required == "" {
+		required = corev1.DNSClusterFirst
+	}
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
 	}
+}
+
+func ensureTerminationGracePeriod(modified *bool, existing **int64, required *int64) {
+	if required == nil {
+		period := int64(corev1.DefaultTerminationGracePeriodSeconds)
+		required = &period
+	}
+	setInt64Ptr(modified, existing, required)
 }
 
 func setBool(modified *bool, existing *bool, required bool) {

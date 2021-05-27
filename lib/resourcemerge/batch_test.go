@@ -77,6 +77,8 @@ func TestEnsureJob(t *testing.T) {
 					}
 				}
 			}()
+			defaultJob(&test.existing, test.existing)
+			defaultJob(&test.expected, test.expected)
 			modified := pointer.BoolPtr(false)
 			EnsureJob(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
@@ -88,4 +90,10 @@ func TestEnsureJob(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Ensures the structure contains any defaults not explicitly set by the test
+func defaultJob(in *batchv1.Job, from batchv1.Job) {
+	modified := pointer.BoolPtr(false)
+	EnsureJob(modified, in, from)
 }
