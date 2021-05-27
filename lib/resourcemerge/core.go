@@ -401,21 +401,32 @@ func mergeStringSlice(modified *bool, existing *[]string, required []string) {
 }
 
 func ensureTolerations(modified *bool, existing *[]corev1.Toleration, required []corev1.Toleration) {
+	exists := struct{}{}
+	found := make(map[int]struct{}, len(required))
+	dups := make(map[int]struct{}, len(*existing))
 	for ridx := range required {
-		found := false
+		foundAlready := false
 		for eidx := range *existing {
-			if required[ridx].Key == (*existing)[eidx].Key {
-				found = true
-				if !equality.Semantic.DeepEqual((*existing)[eidx], required[ridx]) {
-					*modified = true
-					(*existing)[eidx] = required[ridx]
+			if equality.Semantic.DeepEqual((*existing)[eidx], required[ridx]) {
+				if foundAlready {
+					dups[eidx] = exists
 				}
-				break
+				foundAlready = true
+				found[ridx] = exists
 			}
 		}
-		if !found {
+	}
+	for eidx := len(*existing) - 1; eidx >= 0; eidx-- { // drop duplicates
+		if _, ok := dups[eidx]; ok {
 			*modified = true
-			*existing = append(*existing, required[ridx])
+			*existing = append((*existing)[:eidx], (*existing)[eidx+1:]...)
+		}
+	}
+
+	for ridx := range required { // append missing
+		if _, ok := found[ridx]; !ok {
+			*modified = true
+			*existing = append((*existing), required[ridx])
 		}
 	}
 }

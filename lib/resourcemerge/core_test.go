@@ -1020,3 +1020,181 @@ func TestEnsureServiceType(t *testing.T) {
 		})
 	}
 }
+
+func TestEnsureTolerations(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing []corev1.Toleration
+		input    []corev1.Toleration
+
+		expectedModified bool
+		expected         []corev1.Toleration
+	}{
+		{
+			name:             "required not set, empty existing",
+			expectedModified: false,
+		},
+		{
+			name: "required not set, existing has content",
+			existing: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			expectedModified: false,
+			expected: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		},
+		{
+			name: "required matches existing",
+			existing: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			input: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			expectedModified: false,
+			expected: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		},
+		{
+			name: "required matches existing except for order",
+			existing: []corev1.Toleration{{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			input: []corev1.Toleration{{
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			expectedModified: false,
+			expected: []corev1.Toleration{{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		},
+		{
+			name: "required does not match existing",
+			existing: []corev1.Toleration{{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/network-unavailable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:               "node.kubernetes.io/not-ready",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}, {
+				Key:               "node.kubernetes.io/unreachable",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}, {
+				Key:               "node.kubernetes.io/not-ready",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}},
+			input: []corev1.Toleration{{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/network-unavailable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/not-ready",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:               "node.kubernetes.io/unreachable",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}, {
+				Key:               "node.kubernetes.io/not-ready",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}},
+			expectedModified: true,
+			expected: []corev1.Toleration{{
+				Key:      "node-role.kubernetes.io/master",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/unschedulable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:      "node.kubernetes.io/network-unavailable",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}, {
+				Key:               "node.kubernetes.io/not-ready",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}, {
+				Key:               "node.kubernetes.io/unreachable",
+				Operator:          corev1.TolerationOpExists,
+				Effect:            corev1.TaintEffectNoExecute,
+				TolerationSeconds: pointer.Int64Ptr(120),
+			}, {
+				Key:      "node.kubernetes.io/not-ready",
+				Operator: corev1.TolerationOpExists,
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modified := pointer.BoolPtr(false)
+			ensureTolerations(modified, &test.existing, test.input)
+			if *modified != test.expectedModified {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
+			}
+			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
+				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+			}
+		})
+	}
+}
