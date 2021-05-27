@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,12 +36,12 @@ func main() {
 			if err != nil {
 				log.Fatalf("Unable to read %s: %v", path, err)
 			}
-			var crd v1beta1.CustomResourceDefinition
+			var crd v1.CustomResourceDefinition
 			if err := yaml.Unmarshal(data, &crd); err != nil {
 				log.Fatalf("Unable to parse CRD %s: %v", path, err)
 			}
 			name = crd.Name
-			_, err = client.ApiextensionsV1beta1().CustomResourceDefinitions().Create(ctx, &crd, metav1.CreateOptions{})
+			_, err = client.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, &crd, metav1.CreateOptions{})
 			if errors.IsAlreadyExists(err) {
 				return true, nil
 			}
