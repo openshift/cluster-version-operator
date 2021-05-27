@@ -17,11 +17,11 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/spf13/cobra v1.1.1
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	k8s.io/api v0.21.0-rc.0
-	k8s.io/apiextensions-apiserver v0.20.0
-	k8s.io/apimachinery v0.21.0-rc.0
-	k8s.io/client-go v0.21.0-rc.0
+	k8s.io/api v0.21.1
+	k8s.io/apiextensions-apiserver v0.21.1
+	k8s.io/apimachinery v0.21.1
+	k8s.io/client-go v0.21.1
 	k8s.io/klog/v2 v2.8.0
-	k8s.io/kube-aggregator v0.20.0
+	k8s.io/kube-aggregator v0.21.1
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 )
