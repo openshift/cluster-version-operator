@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 
+	imagev1 "github.com/openshift/api/image/v1"
 	securityv1 "github.com/openshift/api/security/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
@@ -48,6 +50,7 @@ type builder struct {
 	batchClientv1                *batchclientv1.BatchV1Client
 	configClientv1               *configclientv1.ConfigV1Client
 	coreClientv1                 *coreclientv1.CoreV1Client
+	imageClientv1                *imageclientv1.ImageV1Client
 	rbacClientv1                 *rbacclientv1.RbacV1Client
 	rbacClientv1beta1            *rbacclientv1beta1.RbacV1beta1Client
 	securityClientv1             *securityclientv1.SecurityV1Client
@@ -65,6 +68,7 @@ func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 		batchClientv1:                batchclientv1.NewForConfigOrDie(withProtobuf(config)),
 		configClientv1:               configclientv1.NewForConfigOrDie(config),
 		coreClientv1:                 coreclientv1.NewForConfigOrDie(withProtobuf(config)),
+		imageClientv1:                imageclientv1.NewForConfigOrDie(config),
 		rbacClientv1:                 rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		rbacClientv1beta1:            rbacclientv1beta1.NewForConfigOrDie(withProtobuf(config)),
 		securityClientv1:             securityclientv1.NewForConfigOrDie(config),
@@ -85,6 +89,13 @@ func (b *builder) Do(ctx context.Context) error {
 	obj := resourceread.ReadOrDie(b.raw)
 
 	switch typedObject := obj.(type) {
+	case *imagev1.ImageStream:
+		if b.modifier != nil {
+			b.modifier(typedObject)
+		}
+		if _, _, err := resourceapply.ApplyImageStreamv1(ctx, b.imageClientv1, typedObject); err != nil {
+			return err
+		}
 	case *securityv1.SecurityContextConstraints:
 		if b.modifier != nil {
 			b.modifier(typedObject)
@@ -254,6 +265,7 @@ func init() {
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Namespace"), newBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Service"), newBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ServiceAccount"), newBuilder)
+	rm.RegisterGVK(imagev1.SchemeGroupVersion.WithKind("ImageStream"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("Role"), newBuilder)
