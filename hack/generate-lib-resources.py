@@ -274,6 +274,7 @@ if __name__ == '__main__':
     clients = {
         'github.com/openshift/api/security/v1': {'package': 'github.com/openshift/client-go/security/clientset/versioned/typed/security/v1', 'type': 'SecurityV1Client'},
         'github.com/openshift/api/config/v1': {'package': 'github.com/openshift/client-go/config/clientset/versioned/typed/config/v1', 'type': 'ConfigV1Client'},
+        'github.com/openshift/api/image/v1': {'package': 'github.com/openshift/client-go/image/clientset/versioned/typed/image/v1', 'type': 'ImageV1Client'},
         'k8s.io/api/apps/v1': {'package': 'k8s.io/client-go/kubernetes/typed/apps/v1', 'type': 'AppsV1Client'},
         'k8s.io/api/batch/v1': {'package': 'k8s.io/client-go/kubernetes/typed/batch/v1', 'type': 'BatchV1Client'},
         'k8s.io/api/core/v1': {'package': 'k8s.io/client-go/kubernetes/typed/core/v1', 'type': 'CoreV1Client'},
