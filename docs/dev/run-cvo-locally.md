@@ -37,6 +37,7 @@ $ export NODE_NAME=foobar
 
 # Set to release extracted above
 $ export PAYLOAD_OVERRIDE=/tmp/release/
+```
 
 Run the CVO executable specifying `start`, the appropriate release image and, optionally, logging verbosity:
 
