@@ -22,7 +22,7 @@ func TestEnsurePodSpec(t *testing.T) {
 		expected         corev1.PodSpec
 	}{
 		{
-			name:     "empty inputs",
+			name:     "empty inputs/defaults",
 			existing: corev1.PodSpec{},
 			input:    corev1.PodSpec{},
 
@@ -455,8 +455,15 @@ func TestEnsurePodSpec(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			defaultPodSpec(&test.existing, test.existing)
+			defaultPodSpec(&test.expected, test.expected)
 			modified := pointer.BoolPtr(false)
 			ensurePodSpec(modified, &test.existing, test.input)
+
+			// This has to be done again to get defaults set on structures that didn't exixt before
+			// running ensurePodSpec (e.g. ContainerPort)
+			defaultPodSpec(&test.existing, test.existing)
+
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
 			}
@@ -1197,4 +1204,51 @@ func TestEnsureTolerations(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEnsureEnvVar(t *testing.T) {
+	fieldRef := corev1.ObjectFieldSelector{
+		APIVersion: "v1",
+	}
+	existingValueFrom := corev1.EnvVarSource{
+		FieldRef: &fieldRef,
+	}
+	inputFieldRef := corev1.ObjectFieldSelector{}
+	inputValueFrom := corev1.EnvVarSource{
+		FieldRef: &inputFieldRef,
+	}
+	tests := []struct {
+		name     string
+		existing []corev1.EnvVar
+		input    []corev1.EnvVar
+
+		expectedModified bool
+	}{
+		{
+			name: "required FieldRef not set",
+			existing: []corev1.EnvVar{
+				{ValueFrom: &existingValueFrom},
+			},
+			input: []corev1.EnvVar{
+				{ValueFrom: &inputValueFrom},
+			},
+			expectedModified: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			modified := pointer.BoolPtr(false)
+
+			ensureEnvVar(modified, &test.existing, test.input)
+			if *modified != test.expectedModified {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
+			}
+		})
+	}
+}
+
+// Ensures the structure contains any defaults not explicitly set by the test
+func defaultPodSpec(in *corev1.PodSpec, from corev1.PodSpec) {
+	modified := pointer.BoolPtr(false)
+	ensurePodSpec(modified, in, from)
 }
