@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -17,6 +18,12 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 	existing, err := client.Deployments(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		/*
+			resourcemerge.SetResourceId(actual,
+				resourcemerge.Resource{Kind: "deployment",
+					Namespace: required.Namespace,
+					Name:      required.Name})
+		*/
 		return actual, true, err
 	}
 	if err != nil {
@@ -27,13 +34,38 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return nil, false, nil
 	}
 
+	resource := resourcemerge.Resource{Kind: "deployment",
+		Namespace: required.Namespace,
+		Name:      required.Name}
+
+	/*
+		var id resourcemerge.ResourceId
+		var idExists bool
+		if id, idExists = resourcemerge.GetResourceId(resource); !idExists {
+			resourcemerge.SetResourceId(existing, resource)
+			id = resourcemerge.ResourceId{ResourceVersion: existing.GetResourceVersion(),
+			Generation: existing.GetGeneration()}
+		}
+	*/
+
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureDeployment(modified, existing, *required)
+	if id, idExists := resourcemerge.GetResourceId(resource); idExists {
+		if resourcemerge.ResourceModified(id, existing) {
+			klog.V(4).Infof("!!!! %s: resource %s modified", resource, id)
+			*modified = true
+		} else {
+			klog.V(4).Infof("!!!! %s: resource %s NOT modified", resource, id)
+		}
+	} else {
+		resourcemerge.EnsureDeployment(modified, existing, *required)
+	}
 	if !*modified {
+		resourcemerge.SetResourceId(existing, resource)
 		return existing, false, nil
 	}
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	resourcemerge.SetResourceId(actual, resource)
 	return actual, true, err
 }
 
