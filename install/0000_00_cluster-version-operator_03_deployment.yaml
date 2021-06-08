@@ -20,6 +20,10 @@ spec:
       labels:
         k8s-app: cluster-version-operator
     spec:
+      # prevents circular dependency with OpenShift service-ca CM volume injection by
+      # KAS and creation of the CM by KCM
+      # TODO: remove in 4.9
+      automountServiceAccountToken: false
       containers:
       - name: cluster-version-operator
         image: {{.ReleaseImage}}
@@ -47,6 +51,9 @@ spec:
             readOnly: true
           - mountPath: /etc/tls/serving-cert
             name: serving-cert
+            readOnly: true
+          - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+            name: kube-api-access
             readOnly: true
         env:
           - name: KUBERNETES_SERVICE_PORT # allows CVO to communicate with apiserver directly on same host.  Is substituted with port from infrastructures.status.apiServerInternalURL if available.
@@ -95,3 +102,21 @@ spec:
         - name: serving-cert
           secret:
             secretName: cluster-version-operator-serving-cert
+        - name: kube-api-access
+          projected:
+            defaultMode: 420
+            sources:
+            - serviceAccountToken:
+                expirationSeconds: 3600
+                path: token
+            - configMap:
+                items:
+                - key: ca.crt
+                  path: ca.crt
+                name: kube-root-ca.crt
+            - downwardAPI:
+                items:
+                - fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.namespace
+                  path: namespace
