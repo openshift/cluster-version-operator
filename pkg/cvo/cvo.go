@@ -539,7 +539,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
+	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state, optr.cvLister, optr.name)
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)

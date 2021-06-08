@@ -188,12 +188,12 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -508,12 +508,12 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -532,7 +532,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc: downloading update", Reason: "DownloadingUpdate"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -818,12 +818,12 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -842,7 +842,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc: downloading update", Reason: "DownloadingUpdate"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
@@ -1098,7 +1098,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1120,12 +1120,12 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1138,8 +1138,9 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
-			VersionHash: "DL-FFQ2Uem8=",
+			ObservedGeneration: 1,
+			Desired:            desired,
+			VersionHash:        "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1180,7 +1181,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("never saw expected sync event")
 		}
-		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) && status.Failure == nil {
 			break
 		}
 		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
@@ -1190,6 +1191,23 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		}
 	}
 	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Step:    "RetrievePayload",
+			Failure: payloadErr,
+			Actual: configv1.Release{
+				Version: "1.0.1-abc",
+				Image:   "image/image:1",
+			},
+			Generation: 1,
+		},
+		SyncWorkerStatus{
+			Step: "RetrievePayload",
+			Actual: configv1.Release{
+				Version: "1.0.1-abc",
+				Image:   "image/image:1",
+			},
+			Generation: 1,
+		},
 		SyncWorkerStatus{
 			Total:       3,
 			Step:        "ApplyResources",
@@ -1202,7 +1220,6 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Done:        1,
 			Total:       3,
 			Step:        "ApplyResources",
 			VersionHash: "DL-FFQ2Uem8=",
@@ -1213,6 +1230,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
+			Done:         1,
 		},
 		SyncWorkerStatus{
 			Done:        2,
@@ -1349,7 +1367,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1371,12 +1389,12 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1388,6 +1406,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
 		},
 		Status: configv1.ClusterVersionStatus{
+			ObservedGeneration: 1,
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -1441,6 +1460,23 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		}
 	}
 	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Step:    "RetrievePayload",
+			Failure: payloadErr,
+			Actual: configv1.Release{
+				Version: "1.0.1-abc",
+				Image:   "image/image:1",
+			},
+			Generation: 1,
+		},
+		SyncWorkerStatus{
+			Step: "RetrievePayload",
+			Actual: configv1.Release{
+				Version: "1.0.1-abc",
+				Image:   "image/image:1",
+			},
+			Generation: 1,
+		},
 		SyncWorkerStatus{
 			Total:       3,
 			Step:        "ApplyResources",
@@ -1647,7 +1683,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1673,12 +1709,12 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1690,6 +1726,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
 		},
 		Status: configv1.ClusterVersionStatus{
+			ObservedGeneration: 1,
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
 			Desired:     desired,
 			VersionHash: "DL-FFQ2Uem8=",
@@ -1700,7 +1737,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
 				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 2 will succeed after 3 attempt"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpgradePreconditionCheckFailed", Message: "Unable to apply 1.0.1-abc: it may not be safe to apply this update"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
@@ -1732,7 +1769,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("never saw expected sync event")
 		}
-		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+		if status.Step == "RetrievePayload" && reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) && status.Failure == nil {
 			break
 		}
 		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
@@ -1742,6 +1779,22 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		}
 	}
 	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Step:       "PreconditionChecks",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
+		},
+		SyncWorkerStatus{
+			Step:       "PreconditionChecks",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Failure:    &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 2 will succeed after 3 attempt", Name: "PreconditionCheck"},
+			Generation: 1,
+		},
+		SyncWorkerStatus{
+			Step:       "RetrievePayload",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
+		},
 		SyncWorkerStatus{
 			Step:       "PreconditionChecks",
 			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -1906,10 +1959,6 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -1925,18 +1974,14 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		},
 	)
 
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
-	if len(actions) != 2 {
+	actions := client.Actions()
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
+
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1983,7 +2028,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 1 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2064,7 +2109,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
-			Generation:      2,
+			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     actual.Spec.ClusterID,
@@ -2150,7 +2195,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 1 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2367,7 +2412,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 1 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2598,7 +2643,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 3 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2845,6 +2890,7 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 	}
 	var lastTime time.Time
 	count := int64(1)
+	var unequal bool
 	for i, expect := range items {
 		actual, ok := <-ch
 		if !ok {
