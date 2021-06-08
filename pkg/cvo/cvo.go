@@ -32,6 +32,11 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/verify"
+	"github.com/openshift/library-go/pkg/verify/store/configmap"
+	"github.com/openshift/library-go/pkg/verify/store/sigstore"
+
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
@@ -41,10 +46,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
-	"github.com/openshift/library-go/pkg/manifest"
-	"github.com/openshift/library-go/pkg/verify"
-	"github.com/openshift/library-go/pkg/verify/store/configmap"
-	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
 const (
@@ -539,7 +540,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state, optr.cvLister, optr.name)
+	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state, config)
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)

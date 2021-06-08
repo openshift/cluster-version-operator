@@ -33,7 +33,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, lister configlistersv1.ClusterVersionLister, name string) *SyncWorkerStatus
+	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, config *configv1.ClusterVersion) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -209,7 +209,7 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvLister configlistersv1.ClusterVersionLister, name string) *SyncWorkerStatus {
+func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, config *configv1.ClusterVersion) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -240,11 +240,6 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		return w.status.DeepCopy()
 	}
 
-	config, err := cvLister.Get(name)
-	if err != nil {
-		// TODO: fix this error
-		return nil
-	}
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
 	if w.work == nil {
@@ -264,7 +259,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		previousStatus: &w.status,
 	}
 
-	go func(ctx context.Context, w *SyncWorker, reporter StatusReporter) {
+	go func(ctx context.Context, w *SyncWorker, reporter StatusReporter, config *configv1.ClusterVersion) {
 		err, verifiedPayload, status := w.verifyPayload(ctx, work.DeepCopy(), configv1.Release{Version: desired.Version, Image: desired.Image}, config)
 		if err != nil {
 			reporter.Report(*status)
@@ -286,7 +281,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		default:
 			klog.V(5).Info("The sync worker has already been notified that new work is available")
 		}
-	}(context.Background(), w, reporter)
+	}(context.Background(), w, reporter, config)
 	return w.status.DeepCopy()
 }
 

@@ -26,11 +26,12 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
+	"github.com/openshift/library-go/pkg/manifest"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func Test_SyncWorker_apply(t *testing.T) {
@@ -405,7 +406,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
 }
 
-func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, lister configlistersv1.ClusterVersionLister, name string) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, config *configv1.ClusterVersion) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }

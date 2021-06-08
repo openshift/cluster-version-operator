@@ -25,9 +25,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
+	"github.com/openshift/library-go/pkg/manifest"
+
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
@@ -188,12 +189,12 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -508,12 +509,12 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -818,12 +819,12 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual = cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
 			Generation: 1,
@@ -1098,7 +1099,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1120,12 +1121,12 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1367,7 +1368,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1389,12 +1390,12 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1683,7 +1684,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
@@ -1709,12 +1710,12 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -1975,13 +1976,13 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	)
 
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
@@ -2195,7 +2196,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 1 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2890,7 +2891,6 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 	}
 	var lastTime time.Time
 	count := int64(1)
-	var unequal bool
 	for i, expect := range items {
 		actual, ok := <-ch
 		if !ok {
