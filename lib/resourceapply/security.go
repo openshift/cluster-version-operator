@@ -8,6 +8,8 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -15,6 +17,7 @@ import (
 func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
 	existing, err := client.SecurityContextConstraints().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("SCC %s not found, creating", required.Name)
 		actual, err := client.SecurityContextConstraints().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -31,6 +34,8 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating SCC %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

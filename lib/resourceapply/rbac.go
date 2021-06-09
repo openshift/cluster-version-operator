@@ -7,7 +7,9 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -15,6 +17,7 @@ import (
 func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, bool, error) {
 	existing, err := client.ClusterRoleBindings().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("ClusterRoleBinding %s not found, creating", required.Name)
 		actual, err := client.ClusterRoleBindings().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -31,6 +34,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterRoleBindings().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -40,6 +44,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole) (*rbacv1.ClusterRole, bool, error) {
 	existing, err := client.ClusterRoles().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("ClusterRole %s not found, creating", required.Name)
 		actual, err := client.ClusterRoles().Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -56,6 +61,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating ClusterRole %s/%s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -65,6 +71,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding) (*rbacv1.RoleBinding, bool, error) {
 	existing, err := client.RoleBindings(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("RoleBinding %s/%s not found, creating", required.Namespace, required.Name)
 		actual, err := client.RoleBindings(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -81,6 +88,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating RoleBinding %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -90,6 +98,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.Role, bool, error) {
 	existing, err := client.Roles(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("Role %s/%s not found, creating", required.Namespace, required.Name)
 		actual, err := client.Roles(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -106,6 +115,7 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 	if !*modified {
 		return existing, false, nil
 	}
+	klog.V(2).Infof("Updating Role %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Roles(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
