@@ -99,8 +99,9 @@ type SyncWorkerStatus struct {
 
 	LastProgress time.Time
 
-	Actual   configv1.Release
-	Verified bool
+	Actual       configv1.Release
+	Verified     bool
+	IgnoreUpdate bool
 }
 
 // DeepCopy copies the worker status.
@@ -244,10 +245,15 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 
 	// notify the sync loop that we changed config
 	w.work = work
+
 	if w.cancelFn != nil {
-		klog.V(5).Info("Cancel the sync worker's current loop")
-		w.cancelFn()
-		w.cancelFn = nil
+		if !w.status.IgnoreUpdate {
+			klog.V(5).Info("Cancel the sync worker's current loop")
+			w.cancelFn()
+			w.cancelFn = nil
+		} else {
+			klog.V(5).Info("Don't cancel the sync worker's current loop; ignoring update")
+		}
 	}
 	select {
 	case w.notify <- struct{}{}:
@@ -562,6 +568,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		})
 		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
 		if err != nil {
+			w.status.IgnoreUpdate = true
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", "retrieving payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -571,84 +578,86 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Reconciling: work.State.Reconciling(),
 				Actual:      desired,
 			})
-			return err
-		}
-
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "VerifyPayload", "verifying payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.clusterProfile)
-		if err != nil {
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", "verifying payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "VerifyPayload",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			return err
-		}
-
-		payloadUpdate.VerifiedImage = info.Verified
-		payloadUpdate.LoadedAt = time.Now()
-
-		if work.Desired.Version == "" {
-			work.Desired.Version = payloadUpdate.Release.Version
-			desired.Version = payloadUpdate.Release.Version
-		} else if payloadUpdate.Release.Version != work.Desired.Version {
-			err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", "verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "VerifyPayloadVersion",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			return err
-		}
-
-		// need to make sure the payload is only set when the preconditions have been successful
-		if len(w.preconditions) == 0 {
-			klog.V(4).Info("No preconditions configured.")
-		} else if info.Local {
-			klog.V(4).Info("Skipping preconditions for a local operator image payload.")
+			//return err
 		} else {
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Step:        "PreconditionChecks",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
-				if work.Desired.Force {
-					klog.V(4).Infof("Forcing past precondition failures: %s", err)
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
-				} else {
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
-					reporter.Report(SyncWorkerStatus{
-						Generation:  work.Generation,
-						Failure:     err,
-						Step:        "PreconditionChecks",
-						Initial:     work.State.Initializing(),
-						Reconciling: work.State.Reconciling(),
-						Actual:      desired,
-						Verified:    info.Verified,
-					})
-					return err
-				}
-			}
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
-		}
 
-		w.payload = payloadUpdate
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", "payload loaded version=%q image=%q", desired.Version, desired.Image)
-		klog.V(4).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "VerifyPayload", "verifying payload version=%q image=%q", desired.Version, desired.Image)
+			payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.clusterProfile)
+			if err != nil {
+				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", "verifying payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+				reporter.Report(SyncWorkerStatus{
+					Generation:  work.Generation,
+					Failure:     err,
+					Step:        "VerifyPayload",
+					Initial:     work.State.Initializing(),
+					Reconciling: work.State.Reconciling(),
+					Actual:      desired,
+					Verified:    info.Verified,
+				})
+				return err
+			}
+
+			payloadUpdate.VerifiedImage = info.Verified
+			payloadUpdate.LoadedAt = time.Now()
+
+			if work.Desired.Version == "" {
+				work.Desired.Version = payloadUpdate.Release.Version
+				desired.Version = payloadUpdate.Release.Version
+			} else if payloadUpdate.Release.Version != work.Desired.Version {
+				err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
+				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", "verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
+				reporter.Report(SyncWorkerStatus{
+					Generation:  work.Generation,
+					Failure:     err,
+					Step:        "VerifyPayloadVersion",
+					Initial:     work.State.Initializing(),
+					Reconciling: work.State.Reconciling(),
+					Actual:      desired,
+					Verified:    info.Verified,
+				})
+				return err
+			}
+
+			// need to make sure the payload is only set when the preconditions have been successful
+			if len(w.preconditions) == 0 {
+				klog.V(4).Info("No preconditions configured.")
+			} else if info.Local {
+				klog.V(4).Info("Skipping preconditions for a local operator image payload.")
+			} else {
+				reporter.Report(SyncWorkerStatus{
+					Generation:  work.Generation,
+					Step:        "PreconditionChecks",
+					Initial:     work.State.Initializing(),
+					Reconciling: work.State.Reconciling(),
+					Actual:      desired,
+					Verified:    info.Verified,
+				})
+				if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
+					if work.Desired.Force {
+						klog.V(4).Infof("Forcing past precondition failures: %s", err)
+						w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
+					} else {
+						w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
+						reporter.Report(SyncWorkerStatus{
+							Generation:  work.Generation,
+							Failure:     err,
+							Step:        "PreconditionChecks",
+							Initial:     work.State.Initializing(),
+							Reconciling: work.State.Reconciling(),
+							Actual:      desired,
+							Verified:    info.Verified,
+						})
+						return err
+					}
+				}
+				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
+			}
+
+			w.status.Verified = payloadUpdate.VerifiedImage
+			w.payload = payloadUpdate
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", "payload loaded version=%q image=%q", desired.Version, desired.Image)
+			klog.V(4).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
+		}
 	}
 
 	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
