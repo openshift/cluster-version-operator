@@ -424,11 +424,8 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 		work.Attempt = 0
 	}
 
-	if w.work != nil {
-		work.Desired = w.work.Desired
-		work.Overrides = w.work.Overrides
-	}
-
+	work.Desired = w.work.Desired
+	work.Overrides = w.work.Overrides
 	work.Generation = w.work.Generation
 
 	return changed
