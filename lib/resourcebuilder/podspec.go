@@ -70,7 +70,7 @@ func updatePodSpecWithInternalLoadBalancerKubeService(podSpec *corev1.PodSpec, c
 			}
 			found = true
 
-			podSpec.InitContainers[i].Env = setKubeServiceValue(podSpec.Containers[i].Env, internalLoadBalancerHost, internalLoadBalancerPort)
+			podSpec.InitContainers[i].Env = setKubeServiceValue(podSpec.InitContainers[i].Env, internalLoadBalancerHost, internalLoadBalancerPort)
 		}
 
 		if !found {
