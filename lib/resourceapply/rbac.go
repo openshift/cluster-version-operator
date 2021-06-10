@@ -61,7 +61,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 	if !*modified {
 		return existing, false, nil
 	}
-	klog.V(2).Infof("Updating ClusterRole %s/%s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
+	klog.V(2).Infof("Updating ClusterRole %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
