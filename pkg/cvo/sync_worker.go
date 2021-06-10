@@ -467,12 +467,15 @@ func splitDigest(pullspec string) string {
 
 // equalSyncWork returns true if a and b are equal.
 func equalSyncWork(a, b *SyncWork, state payload.State) bool {
+	// if both `a` and `b` are the same then simply return true
 	if a == b {
 		return true
 	}
-	if (a == nil && b != nil) || (a != nil && b == nil) {
+	// if either `a` or `b` are nil then return false
+	if a == nil || b == nil {
 		return false
 	}
+
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	overridesEqual := reflect.DeepEqual(a.Overrides, b.Overrides)
 
