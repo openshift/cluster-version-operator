@@ -25,7 +25,7 @@ oc adm release new -n origin \
 
 ## Installing CVO and operators in cluster.
 
-1. Use CVO `render` to render all the manifests from release-payload to a directory. Refer the [Using CVO to render the release-image locally](#using-cvo-to-render-the-release-payload-locally) section for more information.
+1. Use CVO `render` to render all the manifests from release-payload to a directory. Refer the [Using CVO to render the release-image locally](#using-cvo-to-render-the-release-image-locally) section for more information.
 
 2. Create the operators from the manifests by using `oc create -f <directory when CVO rendered manifests>`.
 
