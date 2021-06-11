@@ -7,7 +7,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -15,6 +17,7 @@ import (
 func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *batchv1.Job) (*batchv1.Job, bool, error) {
 	existing, err := client.Jobs(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
+		klog.V(2).Infof("Job %s/%s not found, creating", required.Namespace, required.Name)
 		actual, err := client.Jobs(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
 		return actual, true, err
 	}
@@ -31,6 +34,8 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating Job %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Jobs(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

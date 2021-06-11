@@ -9,6 +9,8 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -31,6 +33,8 @@ func ApplyClusterVersionv1(ctx context.Context, client configclientv1.ClusterVer
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
@@ -57,6 +61,8 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 	if !*modified {
 		return existing, false, nil
 	}
+
+	klog.V(2).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
