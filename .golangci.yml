@@ -69,6 +69,7 @@ linters:
   enable:
     - deadcode
     - errcheck
+    - gofmt
     - gosimple
     - govet
     - ineffassign

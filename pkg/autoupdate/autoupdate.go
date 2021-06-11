@@ -39,7 +39,7 @@ type Controller struct {
 	client        clientset.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler       func(ctx context.Context, key string) error
+	syncHandler func(ctx context.Context, key string) error
 
 	cvLister    configlistersv1.ClusterVersionLister
 	coLister    configlistersv1.ClusterOperatorLister

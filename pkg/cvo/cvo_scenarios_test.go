@@ -1744,8 +1744,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	}
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:       "PreconditionChecks",
-			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:   "PreconditionChecks",
+			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
 		SyncWorkerStatus{
 			Total:       3,
