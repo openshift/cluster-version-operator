@@ -60,3 +60,11 @@ TEST_INTEGRATION=1 go test ./... -test.run=^TestIntegration
 
 [Contributions welcome](CONTRIBUTING.md)!
 
+## Documentation
+
+For all documentation around CVO, refer to the [docs](./docs) directory.
+
+Here are some pointers to start with the documentation
+- [Update workflow](./docs/user/update-workflow.md)
+- [Reconcilation logic](./docs/user/reconciliation.md)
+- [Runlevels](./docs/dev/upgrades.md)
