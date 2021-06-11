@@ -17,7 +17,7 @@ var (
 
 func init() {
 	klog.InitFlags(flag.CommandLine)
-	flag.CommandLine.Set("alsologtostderr", "true")
+	_ = flag.CommandLine.Set("alsologtostderr", "true")
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 }
 

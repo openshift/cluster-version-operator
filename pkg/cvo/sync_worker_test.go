@@ -85,25 +85,21 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 			w.Report(tt.next)
 			close(w.w.report)
 			if tt.want {
-				select {
-				case evt, ok := <-w.w.report:
-					if !ok {
-						t.Fatalf("no event")
-					}
-					if tt.wantProgress != (!evt.LastProgress.IsZero()) {
-						t.Errorf("unexpected progress timestamp: %#v", evt)
-					}
-					evt.LastProgress = time.Time{}
-					if !reflect.DeepEqual(evt, tt.next) {
-						t.Fatalf("unexpected: %#v", evt)
-					}
+				evt, ok := <-w.w.report
+				if !ok {
+					t.Fatalf("no event")
+				}
+				if tt.wantProgress != (!evt.LastProgress.IsZero()) {
+					t.Errorf("unexpected progress timestamp: %#v", evt)
+				}
+				evt.LastProgress = time.Time{}
+				if !reflect.DeepEqual(evt, tt.next) {
+					t.Fatalf("unexpected: %#v", evt)
 				}
 			} else {
-				select {
-				case evt, ok := <-w.w.report:
-					if ok {
-						t.Fatalf("unexpected event: %#v", evt)
-					}
+				evt, ok := <-w.w.report
+				if ok {
+					t.Fatalf("unexpected event: %#v", evt)
 				}
 			}
 		})
@@ -138,11 +134,9 @@ func Test_statusWrapper_ReportGeneration(t *testing.T) {
 			w.Report(tt.next)
 			close(w.w.report)
 
-			select {
-			case evt := <-w.w.report:
-				if tt.want != evt.Generation {
-					t.Fatalf("mismatch: expected generation: %d, got generation: %d", tt.want, evt.Generation)
-				}
+			evt := <-w.w.report
+			if tt.want != evt.Generation {
+				t.Fatalf("mismatch: expected generation: %d, got generation: %d", tt.want, evt.Generation)
 			}
 		})
 	}

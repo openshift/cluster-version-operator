@@ -386,15 +386,6 @@ func (g *TaskGraph) Tree() string {
 	return strings.Join(out, "\n")
 }
 
-func covers(all []int, some []int) bool {
-	for _, i := range some {
-		if all[i] == 0 {
-			return false
-		}
-	}
-	return true
-}
-
 func (g *TaskGraph) bulkAdd(nodes []*TaskNode, inNodes []int) []int {
 	from := len(g.Nodes)
 	g.Nodes = append(g.Nodes, nodes...)

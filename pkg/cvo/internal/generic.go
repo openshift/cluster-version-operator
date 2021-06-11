@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
@@ -10,10 +9,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/v2"
 
@@ -119,16 +116,4 @@ func (b *genericBuilder) Do(ctx context.Context) error {
 
 	_, _, err := applyUnstructured(ctx, b.client, ud)
 	return err
-}
-
-func createPatch(original, modified runtime.Object) ([]byte, error) {
-	originalData, err := json.Marshal(original)
-	if err != nil {
-		return nil, err
-	}
-	modifiedData, err := json.Marshal(modified)
-	if err != nil {
-		return nil, err
-	}
-	return strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, original)
 }

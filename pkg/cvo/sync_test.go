@@ -67,10 +67,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
-			if got, exp := actions[1], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[1], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
@@ -94,7 +94,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}`,
 		},
 		reactors: map[action]error{
-			newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
+			newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
 		},
 		cancelAfter: 2,
 		wantErr:     true,
@@ -104,7 +104,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 			}
 		},
@@ -129,8 +129,8 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 			r := &recorder{}
 			testMapper := resourcebuilder.NewResourceMapper()
-			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestA"}, newTestBuilder(r, test.reactors))
-			testMapper.RegisterGVK(schema.GroupVersionKind{"test.cvo.io", "v1", "TestB"}, newTestBuilder(r, test.reactors))
+			testMapper.RegisterGVK(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, newTestBuilder(r, test.reactors))
+			testMapper.RegisterGVK(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, newTestBuilder(r, test.reactors))
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
@@ -144,7 +144,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 				remainingErrors: test.cancelAfter,
 			}
 
-			worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			_ = worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			test.check(t, r.actions)
 		})
 	}
@@ -408,16 +408,6 @@ func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrNam
 func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
-}
-
-type fakeResourceBuilder struct {
-	M   []*manifest.Manifest
-	Err error
-}
-
-func (b *fakeResourceBuilder) Apply(m *manifest.Manifest) error {
-	b.M = append(b.M, m)
-	return b.Err
 }
 
 type fakeDirectoryRetriever struct {

@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -23,7 +22,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
-	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	"github.com/openshift/library-go/pkg/manifest"
@@ -1000,10 +998,6 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 		return nil
 	}
 
-	nested := make([]error, 0, len(errs))
-	for _, err := range errs {
-		nested = append(nested, err)
-	}
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
 	return &payload.UpdateError{
@@ -1071,16 +1065,6 @@ func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *ma
 		}
 	}
 	return configv1.ComponentOverride{}, false
-}
-
-// ownerKind contains the schema.GroupVersionKind for type that owns objects managed by CVO.
-var ownerKind = configv1.SchemeGroupVersion.WithKind("ClusterVersion")
-
-func ownerRefModifier(config *configv1.ClusterVersion) resourcebuilder.MetaV1ObjectModifierFunc {
-	oref := metav1.NewControllerRef(config, ownerKind)
-	return func(obj metav1.Object) {
-		obj.SetOwnerReferences([]metav1.OwnerReference{*oref})
-	}
 }
 
 // runThrottledStatusNotifier invokes fn every time ch is updated, but no more often than once

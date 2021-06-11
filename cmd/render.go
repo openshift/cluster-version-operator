@@ -31,7 +31,7 @@ func init() {
 }
 
 func runRenderCmd(cmd *cobra.Command, args []string) {
-	flag.Set("logtostderr", "true")
+	_ = flag.Set("logtostderr", "true")
 	flag.Parse()
 
 	if renderOpts.outputDir == "" {

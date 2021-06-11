@@ -40,7 +40,6 @@ type Controller struct {
 	eventRecorder record.EventRecorder
 
 	syncHandler       func(ctx context.Context, key string) error
-	statusSyncHandler func(key string) error
 
 	cvLister    configlistersv1.ClusterVersionLister
 	coLister    configlistersv1.ClusterOperatorLister

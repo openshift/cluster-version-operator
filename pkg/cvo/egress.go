@@ -21,14 +21,12 @@ func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
 		return nil, err
 	}
 
-	if &proxy.Spec != nil {
-		if proxy.Spec.HTTPSProxy != "" {
-			proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
-			if err != nil {
-				return nil, err
-			}
-			return proxyURL, nil
+	if proxy.Spec.HTTPSProxy != "" {
+		proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
+		if err != nil {
+			return nil, err
 		}
+		return proxyURL, nil
 	}
 	return nil, nil
 }
