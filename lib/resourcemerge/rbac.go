@@ -9,6 +9,7 @@ import (
 // modified is set to true when existing had to be updated with required.
 func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBinding, required rbacv1.ClusterRoleBinding) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	ensureRoleRefDefaultsv1(&required.RoleRef)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
 		*modified = true
 		existing.Subjects = required.Subjects
@@ -33,6 +34,7 @@ func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rb
 // modified is set to true when existing had to be updated with required.
 func EnsureRoleBinding(modified *bool, existing *rbacv1.RoleBinding, required rbacv1.RoleBinding) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	ensureRoleRefDefaultsv1(&required.RoleRef)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
 		*modified = true
 		existing.Subjects = required.Subjects
@@ -40,6 +42,12 @@ func EnsureRoleBinding(modified *bool, existing *rbacv1.RoleBinding, required rb
 	if !equality.Semantic.DeepEqual(existing.RoleRef, required.RoleRef) {
 		*modified = true
 		existing.RoleRef = required.RoleRef
+	}
+}
+
+func ensureRoleRefDefaultsv1(roleRef *rbacv1.RoleRef) {
+	if roleRef.APIGroup == "" {
+		roleRef.APIGroup = rbacv1.GroupName
 	}
 }
 
