@@ -71,7 +71,7 @@ linters:
     # - errcheck
     # - gofmt
     - gosimple
-    # - govet
+    - govet
     - ineffassign
     # - staticcheck
     # - structcheck
