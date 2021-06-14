@@ -1122,7 +1122,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	verifySingleUpdate(t, actions)
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -1375,7 +1375,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	verifySingleUpdate(t, actions)
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -1676,7 +1676,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	verifySingleUpdate(t, actions)
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -1938,7 +1938,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	verifySingleUpdate(t, actions)
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -2871,9 +2871,13 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 	}
 }
 
-func verifySingleUpdate(t *testing.T, actions []clientgotesting.Action) {
+// verifyCVSingleUpdate ensures that the only object to be updated is a ClusterVersion type and it is updated only once
+func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
 	var count int
 	for _, a := range actions {
+		if a.GetResource().Resource != "clusterversions" {
+			t.Fatalf("an resource of type %s was accessed/updated", a.GetResource().Resource)
+		}
 		if a.GetVerb() != "get" {
 			count++
 		}
