@@ -69,20 +69,6 @@ func countPayloadsForVersion(config *configv1.ClusterVersion, version string) in
 	return 0
 }
 
-func hasAmbiguousPayloadForVersion(config *configv1.ClusterVersion, version string) bool {
-	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version {
-			return len(update.Image) > 0
-		}
-	}
-	for _, history := range config.Status.History {
-		if history.Version == version {
-			return len(history.Image) > 0
-		}
-	}
-	return false
-}
-
 func ClearInvalidFields(config *configv1.ClusterVersion, errs field.ErrorList) *configv1.ClusterVersion {
 	if len(errs) == 0 {
 		return config
