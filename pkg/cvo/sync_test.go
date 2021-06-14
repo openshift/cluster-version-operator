@@ -410,16 +410,6 @@ func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, ove
 	return r.Returns
 }
 
-type fakeResourceBuilder struct {
-	M   []*manifest.Manifest
-	Err error
-}
-
-func (b *fakeResourceBuilder) Apply(m *manifest.Manifest) error {
-	b.M = append(b.M, m)
-	return b.Err
-}
-
 type fakeDirectoryRetriever struct {
 	lock sync.Mutex
 
