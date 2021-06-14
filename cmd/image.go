@@ -31,5 +31,5 @@ func runImageCmd(cmd *cobra.Command, args []string) {
 	if err != nil {
 		klog.Fatalf("error: %v", err)
 	}
-	fmt.Printf(image)
+	fmt.Print(image)
 }
