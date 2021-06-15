@@ -33,4 +33,4 @@ lint: $(GOLANGCI_LINT_BIN)
 	$(GOLANGCI_LINT_BIN) run -c .golangci.yaml --deadline=30m
 
 $(GOLANGCI_LINT_BIN):
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b ${BIN_DIR} ${GOLANGCI_LINT_VERSION}
+	hack/golangci-lint.sh -b ${BIN_DIR} ${GOLANGCI_LINT_VERSION}
