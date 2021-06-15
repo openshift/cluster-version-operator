@@ -125,6 +125,11 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 		{
 			name: "no lbhost val",
 			input: &corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					{
+						Name: "init-foo",
+					},
+				},
 				Containers: []corev1.Container{
 					{
 						Name: "foo",
@@ -135,6 +140,11 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 				Containers: []corev1.Container{
 					{
 						Name: "foo",
+					},
+				},
+				InitContainers: []corev1.Container{
+					{
+						Name: "init-foo",
 					},
 				},
 			},
@@ -148,10 +158,6 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 				InitContainers: []corev1.Container{
 					{
 						Name: "init-foo",
-						Env: []corev1.EnvVar{
-							{Name: "KUBERNETES_SERVICE_PORT", Value: "oldport-val"},
-							{Name: "KUBERNETES_SERVICE_HOST", Value: "oldhost-val"},
-						},
 					},
 					{
 						Name: "init-bar",
@@ -201,10 +207,7 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 				InitContainers: []corev1.Container{
 					{
 						Name: "init-foo",
-						Env: []corev1.EnvVar{
-							{Name: "KUBERNETES_SERVICE_PORT", Value: "oldport-val"},
-							{Name: "KUBERNETES_SERVICE_HOST", Value: "oldhost-val"},
-						}},
+					},
 					{
 						Name: "init-bar",
 					},
