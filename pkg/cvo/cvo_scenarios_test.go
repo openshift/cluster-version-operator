@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,22 +37,19 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 	})
 	cvs := make(map[string]runtime.Object)
 	client.AddReactor("*", "clusterversions", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
-		switch strings.ToLower(action.GetVerb()) {
-		case "get":
-			a := action.(clientgotesting.GetAction)
+		switch a := action.(type) {
+		case clientgotesting.GetActionImpl:
 			obj, ok := cvs[a.GetName()]
 			if !ok {
 				return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
 			}
 			return true, obj.DeepCopyObject(), nil
-		case "create":
-			a := action.(clientgotesting.CreateAction)
+		case clientgotesting.CreateActionImpl:
 			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
 			obj.Generation = 1
 			cvs[obj.Name] = obj
 			return true, obj, nil
-		case "update":
-			a := action.(clientgotesting.UpdateAction)
+		case clientgotesting.UpdateActionImpl:
 			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
 			existing := cvs[obj.Name].DeepCopyObject().(*configv1.ClusterVersion)
 			rv, _ := strconv.Atoi(existing.ResourceVersion)
@@ -2866,14 +2862,14 @@ func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
 	var count int
 	for _, a := range actions {
 		if a.GetResource().Resource != "clusterversions" {
-			t.Fatalf("an resource of type %s was accessed/updated", a.GetResource().Resource)
+			t.Fatalf("found an action which accesses/updates resource other than clusterversion: %#v", a)
 		}
 		if a.GetVerb() != "get" {
 			count++
 		}
 	}
 	if count != 1 {
-		t.Fatalf("Expected only one update. Actual update count %d", count)
+		t.Fatalf("Expected only single update to clusterversion resource. Actual update count %d", count)
 	}
 }
 
