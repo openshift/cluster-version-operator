@@ -1,5 +1,5 @@
 BIN_DIR?=./bin
-GOLANGCI_LINT_BIN?=$(BIN_DIR)/golangci-lint
+GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.40.1
 
 all: build
@@ -15,6 +15,7 @@ test:
 
 clean:
 	rm -rf _output/
+	rm -rf bin
 .PHONY: clean
 
 update-codegen-crds:
@@ -33,4 +34,5 @@ lint: $(GOLANGCI_LINT_BIN)
 	$(GOLANGCI_LINT_BIN) run -c .golangci.yaml --deadline=30m
 
 $(GOLANGCI_LINT_BIN):
-	hack/golangci-lint.sh -b ${BIN_DIR} ${GOLANGCI_LINT_VERSION}
+	mkdir -p $(BIN_DIR)
+	hack/golangci-lint.sh $(GOLANGCI_LINT_BIN)
