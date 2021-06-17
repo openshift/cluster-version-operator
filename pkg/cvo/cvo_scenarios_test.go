@@ -38,18 +38,18 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 	cvs := make(map[string]runtime.Object)
 	client.AddReactor("*", "clusterversions", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
 		switch a := action.(type) {
-		case clientgotesting.GetAction:
+		case clientgotesting.GetActionImpl:
 			obj, ok := cvs[a.GetName()]
 			if !ok {
 				return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
 			}
 			return true, obj.DeepCopyObject(), nil
-		case clientgotesting.CreateAction:
+		case clientgotesting.CreateActionImpl:
 			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
 			obj.Generation = 1
 			cvs[obj.Name] = obj
 			return true, obj, nil
-		case clientgotesting.UpdateAction:
+		case clientgotesting.UpdateActionImpl:
 			obj := a.GetObject().DeepCopyObject().(*configv1.ClusterVersion)
 			existing := cvs[obj.Name].DeepCopyObject().(*configv1.ClusterVersion)
 			rv, _ := strconv.Atoi(existing.ResourceVersion)
@@ -59,7 +59,11 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 			} else {
 				existing.Spec = obj.Spec
 				existing.ObjectMeta = obj.ObjectMeta
-				obj.Generation++
+				if existing.Generation > obj.Generation {
+					existing.Generation = existing.Generation + 1
+				} else {
+					existing.Generation = obj.Generation + 1
+				}
 			}
 			existing.ResourceVersion = nextRV
 			cvs[existing.Name] = existing
@@ -195,8 +199,9 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "1",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -300,8 +305,9 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "2",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -415,7 +421,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	// make the image report unverified
 	payloadErr := &payload.UpdateError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: "The update cannot be verified: some random error",
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -515,8 +521,9 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "1",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -620,8 +627,9 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "2",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -825,8 +833,9 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "1",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -930,8 +939,9 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:       "version",
-			Generation: 1,
+			Name:            "version",
+			Generation:      1,
+			ResourceVersion: "2",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: actual.Spec.ClusterID,
@@ -1048,6 +1058,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
+			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
@@ -1078,7 +1089,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	// make the image report unverified
 	payloadErr := &payload.UpdateError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: "The update cannot be verified: some random error",
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -1098,19 +1109,19 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:   "RetrievePayload",
-			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Failure: payloadErr,
-			Actual:  configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Failure:    payloadErr,
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 	)
 
@@ -1128,7 +1139,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "2",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1138,8 +1149,9 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
-			VersionHash: "DL-FFQ2Uem8=",
+			ObservedGeneration: 1,
+			Desired:            desired,
+			VersionHash:        "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1255,7 +1267,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "3",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1299,6 +1311,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
+			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
@@ -1329,7 +1342,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	// make the image report unverified
 	payloadErr := &payload.UpdateError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: "The update cannot be verified: some random error",
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -1349,19 +1362,19 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:   "RetrievePayload",
-			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Step:    "RetrievePayload",
-			Failure: payloadErr,
-			Actual:  configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Failure:    payloadErr,
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 	)
 
@@ -1379,7 +1392,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "2",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1389,8 +1402,9 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
-			VersionHash: "DL-FFQ2Uem8=",
+			ObservedGeneration: 1,
+			Desired:            desired,
+			VersionHash:        "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1503,10 +1517,11 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
+
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "3",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1607,6 +1622,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
+			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID:     clusterUID,
@@ -1647,23 +1663,24 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Step:   "RetrievePayload",
-			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "RetrievePayload",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Step:   "PreconditionChecks",
-			Actual: configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "PreconditionChecks",
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 		SyncWorkerStatus{
-			Step:    "PreconditionChecks",
-			Failure: &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
-			Actual:  configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Step:       "PreconditionChecks",
+			Failure:    &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 	)
 
@@ -1681,7 +1698,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "2",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1691,8 +1708,9 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     desired,
-			VersionHash: "DL-FFQ2Uem8=",
+			ObservedGeneration: 1,
+			Desired:            desired,
+			VersionHash:        "DL-FFQ2Uem8=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1812,7 +1830,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "3",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -1887,7 +1905,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	// make the image report unverified
 	payloadErr := &payload.UpdateError{
 		Reason:  "ImageVerificationFailed",
-		Message: fmt.Sprintf("The update cannot be verified: some random error"),
+		Message: "The update cannot be verified: some random error",
 		Nested:  fmt.Errorf("some random error"),
 	}
 	if !isImageVerificationError(payloadErr) {
@@ -1907,9 +1925,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
+	verifyCVSingleUpdate(t, actions)
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -1939,7 +1955,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "2",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -2063,7 +2079,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "1",
+			ResourceVersion: "3",
 			Generation:      2,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -2577,6 +2593,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
+			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
@@ -2619,9 +2636,10 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Initial: true,
-			Step:    "RetrievePayload",
-			Actual:  configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			Initial:    true,
+			Step:       "RetrievePayload",
+			Actual:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			Generation: 1,
 		},
 		SyncWorkerStatus{
 			Initial:     true,
@@ -2629,6 +2647,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Step:        "ApplyResources",
 			VersionHash: "Gyh2W6qcDO4=",
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			Generation:  1,
 		},
 	)
 
@@ -2649,6 +2668,7 @@ func TestCVO_ParallelError(t *testing.T) {
 					VersionHash:  "Gyh2W6qcDO4=",
 					Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 					LastProgress: status.LastProgress,
+					Generation:   1,
 				}) {
 					t.Fatalf("unexpected status: %v", status)
 				}
@@ -2672,6 +2692,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			VersionHash:  "Gyh2W6qcDO4=",
 			Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			LastProgress: status.LastProgress,
+			Generation:   1,
 		}) {
 			t.Fatalf("unexpected final: %v", status)
 		}
@@ -2693,7 +2714,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			Generation:      1,
-			ResourceVersion: "1",
+			ResourceVersion: "2",
 		},
 		Spec: configv1.ClusterVersionSpec{
 			ClusterID: clusterUID,
@@ -2701,8 +2722,9 @@ func TestCVO_ParallelError(t *testing.T) {
 		},
 		Status: configv1.ClusterVersionStatus{
 			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			Desired:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
-			VersionHash: "Gyh2W6qcDO4=",
+			ObservedGeneration: 1,
+			Desired:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			VersionHash:        "Gyh2W6qcDO4=",
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
@@ -2835,6 +2857,22 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 	}
 }
 
+// verifyCVSingleUpdate ensures that the only object to be updated is a ClusterVersion type and it is updated only once
+func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
+	var count int
+	for _, a := range actions {
+		if a.GetResource().Resource != "clusterversions" {
+			t.Fatalf("found an action which accesses/updates resource other than clusterversion: %#v", a)
+		}
+		if a.GetVerb() != "get" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("Expected only single update to clusterversion resource. Actual update count %d", count)
+	}
+}
+
 func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWorkerStatus) {
 	t.Helper()
 	if len(items) == 0 {
@@ -2861,19 +2899,6 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 		if !reflect.DeepEqual(expect, actual) {
 			t.Fatalf("unexpected status item %d\nExpected: %#v\nActual: %#v", i, expect, actual)
 		}
-	}
-}
-
-func waitFor(t *testing.T, fn func() bool) {
-	t.Helper()
-	err := wait.PollImmediate(100*time.Millisecond, 1*time.Second, func() (bool, error) {
-		return fn(), nil
-	})
-	if err == wait.ErrWaitTimeout {
-		t.Fatalf("Worker condition was not reached within timeout")
-	}
-	if err != nil {
-		t.Fatal(err)
 	}
 }
 
