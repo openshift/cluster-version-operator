@@ -197,6 +197,7 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 		for _, cond := range notup {
 			msgs = append(msgs, fmt.Sprintf("Cluster operator %s should not be upgraded between minor versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
 		}
+		sort.Strings(msgs)
 		msg = fmt.Sprintf("Multiple cluster operators should not be upgraded between minor versions:\n* %s", strings.Join(msgs, "\n* "))
 	}
 	cond.Reason = reason
