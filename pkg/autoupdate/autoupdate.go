@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -92,13 +93,17 @@ func (ctrl *Controller) Run(ctx context.Context, workers int) error {
 	if !cache.WaitForCacheSync(ctx.Done(), ctrl.cacheSynced...) {
 		return fmt.Errorf("caches never synchronized: %w", ctx.Err())
 	}
-
+	var wg sync.WaitGroup
+	wg.Add(workers)
 	for i := 0; i < workers; i++ {
-		// FIXME: actually wait until these complete if the Context is canceled.  And possibly add utilruntime.HandleCrash.
-		go wait.UntilWithContext(ctx, ctrl.worker, time.Second)
+		go func() {
+			defer wg.Done()
+			defer utilruntime.HandleCrash()
+			wait.UntilWithContext(ctx, ctrl.worker, time.Second)
+		}()
 	}
 
-	<-ctx.Done()
+	wg.Wait()
 	return nil
 }
 
