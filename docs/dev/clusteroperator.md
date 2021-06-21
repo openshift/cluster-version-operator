@@ -78,36 +78,36 @@ Here are the guarantees components can get when they follow the rules we define:
 3. Prevent a user from clicking the upgrade button because components have one or more preflight criteria that are not met (e.g. nodes are at version 4.0 so the control plane can't be upgraded to 4.2 and break N-1 compat)
 4. Ensure other components are upgraded *after* your component (guarantee "happens before" in upgrades, such as kube-apiserver being updated before kube-controller-manager)
 
-There are a set of guarantees components are expected to honor in return:
+### There are a set of guarantees components are expected to honor in return:
 
-1. A operator doesn't report the `Available` status condition the first time
+- An operator shoould not report the `Available` status condition the first time
    until they are completely rolled out (or within some reasonable percentage if
    the component must be installed to all nodes)
-2. An operator reports `Degraded` when its current state does not match its
-   desired state over a period of time resulting in a lower quality of service.
+- An operator reports `Degraded` when its current state does not match its
+   desired state over a period of time resulting in a reduced quality of service.
    The period of time may vary by component, but a `Degraded` state represents
    persistent observation of a condition.  As a result, a component should not
-   oscillate in and out of `Degraded` state. A service may be `Available` even
-   if its degraded.  For example, your service may desire 3 running pods, but 1
-   pod is crash-looping. The service is `Available` but `Degraded` because it
-   may have a lower quality of service.  A component may be `Progressing` but
-   not `Degraded` because the transition from one state to another does not
-   persist over a long enough period to report `Degraded`.  A service should not
-   report `Degraded` during the course of a normal upgrade. A service may report
+   oscillate in and out of `Degraded` state.
+   - A service may be `Available` even if its degraded.  For example, your service
+    may desire three running pods, but one pod is crash-looping. The service is `Available`
+     but `Degraded` because it may have a lower quality of service.
+   - A component may be `Progressing` but not `Degraded` because the transition from one state to another
+    does not persist over a long enough period to report `Degraded`.
+- A service should not report `Degraded` during the course of a normal upgrade. A service may report
    `Degraded` in response to a persistent infrastructure failure that requires
    administrator intervention. For example, if a control plane host is unhealthy
    and must be replaced.  An operator should report `Degraded` if unexpected
    errors occur over a period, but the expectation is that all unexpected errors
    are handled as operators mature.
-3. An operator reports `Progressing` when it is rolling out new code,
+- An operator reports `Progressing` when it is rolling out new code,
    propagating config changes, or otherwise moving from one steady state to
    another. It should not report progressing when it is reconciling a previously
    known state. If it is progressing to a new version, it should include the
    version in the message for the condition like "Moving to v1.0.1".
-4. An operator reports `Upgradeable` as `false` when it wishes to prevent an
+- An operator reports `Upgradeable` as `false` when it wishes to prevent an
    upgrade for an admin-correctable condition. The component should include a
    message that describes what must be fixed.
-5. An operator reports a new version when it has rolled out the new version to
+- An operator reports a new version when it has rolled out the new version to
    all of its operands.
 
 ### Status
