@@ -30,12 +30,12 @@ components that have the same run level - for instance, `0000_70_cluster-monitor
 preserving the order of tasks within the component.
 
 Ordering is only applied during upgrades, where some components rely on another component
-being updated first. As a convenience, the CVO guarantees that components at an earlier
-run level will be created or updated before your component is invoked. Note however that
-components without `ClusterOperator` objects defined may not be fully deployed when your
-component is executed, so always ensure your prerequisites know that they must correctly
-obey the `ClusterOperator` protocol to be available. More sophisticated components should
-observe the prerequisite `ClusterOperator`s directly and use the `versions` field to
+being updated or deleted first. As a convenience, the CVO guarantees that components at an
+earlier run level will be created, updated, or deleted before your component is invoked. Note
+however that components without `ClusterOperator` objects defined may not be fully deployed
+when your component is executed, so always ensure your prerequisites know that they must
+correctly obey the `ClusterOperator` protocol to be available. More sophisticated components
+should observe the prerequisite `ClusterOperator`s directly and use the `versions` field to
 enforce safety.
 
 ## How do I get added to the release image?
@@ -67,6 +67,8 @@ You need the following:
 - An image-references file (See below)
 
 In your deployment you can reference the latest development version of your operator image (quay.io/openshift/origin-machine-api-operator:latest).  If you have other hard-coded image strings, try to put them as environment variables on your deployment or as a config map.
+
+Manifest files may also be used to delete your object [more info here](object-deletion.md).
 
 ### Names of manifest files
 

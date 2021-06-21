@@ -13,6 +13,7 @@ import (
 	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/library-go/pkg/manifest"
 	appsv1 "k8s.io/api/apps/v1"
@@ -74,6 +75,7 @@ func (b *builder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 
 func (b *builder) Do(ctx context.Context) error {
 	obj := resourceread.ReadOrDie(b.raw)
+	updatingMode := (b.mode == UpdatingMode)
 
 	switch typedObject := obj.(type) {
 	case *imagev1.ImageStream:
@@ -87,101 +89,166 @@ func (b *builder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplySecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteSecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplySecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *appsv1.DaemonSet:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if err := b.modifyDaemonSet(ctx, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteDaemonSetv1(ctx, b.appsClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if err := b.modifyDaemonSet(ctx, typedObject); err != nil {
+				return err
+			}
+			if _, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject); err != nil {
+				return err
+			}
+			return b.checkDaemonSetHealth(ctx, typedObject)
 		}
-		if _, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject); err != nil {
-			return err
-		}
-		return b.checkDaemonSetHealth(ctx, typedObject)
 	case *appsv1.Deployment:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if err := b.modifyDeployment(ctx, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteDeploymentv1(ctx, b.appsClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if err := b.modifyDeployment(ctx, typedObject); err != nil {
+				return err
+			}
+			if _, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject); err != nil {
+				return err
+			}
+			return b.checkDeploymentHealth(ctx, typedObject)
 		}
-		if _, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject); err != nil {
-			return err
-		}
-		return b.checkDeploymentHealth(ctx, typedObject)
 	case *batchv1.Job:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteJobv1(ctx, b.batchClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject); err != nil {
+				return err
+			}
+			return b.checkJobHealth(ctx, typedObject)
 		}
-		return b.checkJobHealth(ctx, typedObject)
 	case *corev1.ConfigMap:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteConfigMapv1(ctx, b.coreClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *corev1.Namespace:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyNamespacev1(ctx, b.coreClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteNamespacev1(ctx, b.coreClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyNamespacev1(ctx, b.coreClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *corev1.Service:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyServicev1(ctx, b.coreClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteServicev1(ctx, b.coreClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyServicev1(ctx, b.coreClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *corev1.ServiceAccount:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyServiceAccountv1(ctx, b.coreClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteServiceAccountv1(ctx, b.coreClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyServiceAccountv1(ctx, b.coreClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *rbacv1.ClusterRole:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyClusterRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteClusterRolev1(ctx, b.rbacClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyClusterRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *rbacv1.ClusterRoleBinding:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyClusterRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteClusterRoleBindingv1(ctx, b.rbacClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyClusterRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *rbacv1.Role:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteRolev1(ctx, b.rbacClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *rbacv1.RoleBinding:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteRoleBindingv1(ctx, b.rbacClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *apiextensionsv1.CustomResourceDefinition:
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	default:
 		return fmt.Errorf("unrecognized manifest type: %T", obj)
