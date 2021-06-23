@@ -103,8 +103,6 @@ type Operator struct {
 	payloadDir string
 	// defaultUpstreamServer is intended for testing.
 	defaultUpstreamServer string
-	// syncBackoff allows the tests to use a quicker backoff
-	syncBackoff wait.Backoff
 
 	cvLister              configlistersv1.ClusterVersionLister
 	coLister              configlistersv1.ClusterOperatorLister

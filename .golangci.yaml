@@ -74,7 +74,7 @@ linters:
     # - govet
     - ineffassign
     # - staticcheck
-    # - structcheck
+    - structcheck
     - typecheck
     # - unused
     - varcheck
