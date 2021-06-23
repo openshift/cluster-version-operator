@@ -41,8 +41,8 @@ import (
 
 func init() {
 	klog.InitFlags(flag.CommandLine)
-	flag.CommandLine.Lookup("v").Value.Set("5")
-	flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
+	_ = flag.CommandLine.Lookup("v").Value.Set("5")
+	_ = flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
 }
 
 var (
@@ -685,7 +685,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 
 	id, _ := uuid.NewRandom()
 
-	client.ConfigV1().ClusterVersions().Create(
+	_, err = client.ConfigV1().ClusterVersions().Create(
 		ctx,
 		&configv1.ClusterVersion{
 			ObjectMeta: metav1.ObjectMeta{
@@ -699,6 +699,10 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 		},
 		metav1.CreateOptions{},
 	)
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	dir, err := ioutil.TempDir("", "cvo-test")
 	if err != nil {

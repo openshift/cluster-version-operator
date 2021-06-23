@@ -144,7 +144,13 @@ func Test_SyncWorker_apply(t *testing.T) {
 				remainingErrors: test.cancelAfter,
 			}
 
-			worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			if !test.wantErr && err != nil {
+				t.Fatal(err)
+			}
+			if test.wantErr && err == nil {
+				t.Fatal("expected error but apply was successful")
+			}
 			test.check(t, r.actions)
 		})
 	}

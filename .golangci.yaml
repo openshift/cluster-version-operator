@@ -68,7 +68,7 @@ linters:
   disable-all: true
   enable:
     # - deadcode
-    # - errcheck
+    - errcheck
     # - gofmt
     - gosimple
     # - govet
