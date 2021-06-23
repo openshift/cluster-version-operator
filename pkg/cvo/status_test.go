@@ -15,8 +15,6 @@ import (
 )
 
 func Test_mergeEqualVersions(t *testing.T) {
-	type args struct {
-	}
 	tests := []struct {
 		name    string
 		current *configv1.UpdateHistory
@@ -144,8 +142,6 @@ func Test_pruneStatusHistory(t *testing.T) {
 
 func TestOperator_syncFailingStatus(t *testing.T) {
 	ctx := context.Background()
-	type args struct {
-	}
 	tests := []struct {
 		name        string
 		optr        Operator

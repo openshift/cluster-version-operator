@@ -17,19 +17,13 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
-	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/apimachinery/pkg/watch"
-	"k8s.io/client-go/discovery"
 	kfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/rest"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -92,23 +86,6 @@ func (c *clientCVLister) List(selector labels.Selector) (ret []*configv1.Cluster
 		items = append(items, &list.Items[i])
 	}
 	return items, nil
-}
-
-type proxyLister struct {
-	Err   error
-	Items []*configv1.Proxy
-}
-
-func (r *proxyLister) List(selector labels.Selector) (ret []*configv1.Proxy, err error) {
-	return r.Items, r.Err
-}
-func (r *proxyLister) Get(name string) (*configv1.Proxy, error) {
-	for _, s := range r.Items {
-		if s.Name == name {
-			return s, nil
-		}
-	}
-	return nil, errors.NewNotFound(schema.GroupResource{}, name)
 }
 
 type clientCOLister struct {
@@ -187,67 +164,6 @@ func (l *cmConfigLister) Get(name string) (*corev1.ConfigMap, error) {
 		}
 	}
 	return nil, errors.NewNotFound(schema.GroupResource{}, name)
-}
-
-type crdLister struct {
-	Err   error
-	Items []*apiextv1.CustomResourceDefinition
-}
-
-func (r *crdLister) Get(name string) (*apiextv1.CustomResourceDefinition, error) {
-	for _, s := range r.Items {
-		if s.Name == name {
-			return s, nil
-		}
-	}
-	return nil, errors.NewNotFound(schema.GroupResource{Resource: "customresourcedefinitions"}, name)
-}
-
-func (r *crdLister) List(selector labels.Selector) (ret []*apiextv1.CustomResourceDefinition, err error) {
-	return r.Items, r.Err
-}
-
-type fakeApiExtClient struct{}
-
-func (c *fakeApiExtClient) Discovery() discovery.DiscoveryInterface {
-	panic("not implemented")
-}
-
-func (c *fakeApiExtClient) Apiextensions() apiextclientv1.ApiextensionsV1Interface {
-	return c
-}
-
-func (c *fakeApiExtClient) RESTClient() rest.Interface { panic("not implemented") }
-
-func (c *fakeApiExtClient) CustomResourceDefinitions() apiextclientv1.CustomResourceDefinitionInterface {
-	return c
-}
-func (c *fakeApiExtClient) Create(ctx context.Context, crd *apiextv1.CustomResourceDefinition, createOptions metav1.CreateOptions) (*apiextv1.CustomResourceDefinition, error) {
-	return crd, nil
-}
-func (c *fakeApiExtClient) Update(ctx context.Context, crd *apiextv1.CustomResourceDefinition, updateOptions metav1.UpdateOptions) (*apiextv1.CustomResourceDefinition, error) {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) UpdateStatus(ctx context.Context, crd *apiextv1.CustomResourceDefinition, updateOptions metav1.UpdateOptions) (*apiextv1.CustomResourceDefinition, error) {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) Delete(ctx context.Context, name string, options metav1.DeleteOptions) error {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) DeleteCollection(ctx context.Context, options metav1.DeleteOptions, listOptions metav1.ListOptions) error {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) Get(ctx context.Context, name string, options metav1.GetOptions) (*apiextv1.CustomResourceDefinition, error) {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) List(ctx context.Context, opts metav1.ListOptions) (*apiextv1.CustomResourceDefinitionList, error) {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	panic("not implemented")
-}
-func (c *fakeApiExtClient) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, patchOptions metav1.PatchOptions, subresources ...string) (result *apiextv1.CustomResourceDefinition, err error) {
-	panic("not implemented")
 }
 
 func TestOperator_sync(t *testing.T) {
