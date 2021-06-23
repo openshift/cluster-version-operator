@@ -125,7 +125,7 @@ func TestUpgradeableRun(t *testing.T) {
 					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
 				})
 			}
-			cvLister := fakeClusterVersionLister(clusterVersion)
+			cvLister := fakeClusterVersionLister(t, clusterVersion)
 			instance := NewUpgradeable(cvLister)
 
 			err := instance.Run(context.TODO(), precondition.ReleaseContext{DesiredVersion: tc.desiredVersion}, clusterVersion)
@@ -144,12 +144,15 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 }
 
-func fakeClusterVersionLister(clusterVersion *configv1.ClusterVersion) configv1listers.ClusterVersionLister {
+func fakeClusterVersionLister(t *testing.T, clusterVersion *configv1.ClusterVersion) configv1listers.ClusterVersionLister {
 	indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 	if clusterVersion == nil {
 		return configv1listers.NewClusterVersionLister(indexer)
 	}
 
-	indexer.Add(clusterVersion)
+	err := indexer.Add(clusterVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return configv1listers.NewClusterVersionLister(indexer)
 }
