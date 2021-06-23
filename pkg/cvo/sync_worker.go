@@ -1003,10 +1003,6 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 		return nil
 	}
 
-	nested := make([]error, 0, len(errs))
-	for _, err := range errs {
-		nested = append(nested, err)
-	}
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
 	return &payload.UpdateError{
