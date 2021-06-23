@@ -128,7 +128,7 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 	if len(expected.Status.Versions) == 0 {
 		return &payload.UpdateError{
 			UpdateEffect: payload.UpdateEffectFail,
-			Reason:       "ClusterOperatorNotAvailable",
+			Reason:       "ClusterOperatorNoVersions",
 			Message:      fmt.Sprintf("Cluster operator %s does not declare expected versions", expected.Name),
 			Name:         expected.Name,
 		}
@@ -136,13 +136,7 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 
 	actual, err := client.Get(ctx, expected.Name)
 	if err != nil {
-		return &payload.UpdateError{
-			Nested:       err,
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
-			Name:         expected.Name,
-		}
+		return err
 	}
 
 	// undone is a sorted slice of transition messages for incomplete operands.
