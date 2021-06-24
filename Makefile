@@ -32,7 +32,7 @@ verify: verify-codegen
 ## Checks the code with golangci-lint
 lint: $(GOLANGCI_LINT_BIN)
 	ls .
-	$(GOLANGCI_LINT_BIN) run -c .golangci.yaml --deadline=30m ./...
+	$(GOLANGCI_LINT_BIN) run -v -c .golangci.yaml --deadline=30m ./...
 	exit 1
 
 $(GOLANGCI_LINT_BIN):
