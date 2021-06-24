@@ -33,24 +33,24 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "remove regular containers from existing",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"},
-					corev1.Container{Name: "to-be-removed"}}},
+					{Name: "test"},
+					{Name: "to-be-removed"}}},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 		},
 		{
 			name: "remove regular and init containers from existing",
 			existing: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init"}},
+					{Name: "test-init"}},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 			input: corev1.PodSpec{},
 
 			expectedModified: true,
@@ -60,7 +60,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "remove init containers from existing",
 			existing: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init"}}},
+					{Name: "test-init"}}},
 			input: corev1.PodSpec{},
 
 			expectedModified: true,
@@ -70,29 +70,29 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "append regular and init containers",
 			existing: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init-a"}},
+					{Name: "test-init-a"}},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-a"}}},
+					{Name: "test-a"}}},
 			input: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init-a"},
-					corev1.Container{Name: "test-init-b"},
+					{Name: "test-init-a"},
+					{Name: "test-init-b"},
 				},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-a"},
-					corev1.Container{Name: "test-b"},
+					{Name: "test-a"},
+					{Name: "test-b"},
 				},
 			},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init-a"},
-					corev1.Container{Name: "test-init-b"},
+					{Name: "test-init-a"},
+					{Name: "test-init-b"},
 				},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-a"},
-					corev1.Container{Name: "test-b"},
+					{Name: "test-a"},
+					{Name: "test-b"},
 				},
 			},
 		},
@@ -100,27 +100,27 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "match regular and init containers",
 			existing: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init"}},
+					{Name: "test-init"}},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 			input: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init"}},
+					{Name: "test-init"}},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 
 			expectedModified: false,
 			expected: corev1.PodSpec{
 				InitContainers: []corev1.Container{
-					corev1.Container{Name: "test-init"}},
+					{Name: "test-init"}},
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 		},
 		{
 			name: "remove limits and requests on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -131,12 +131,12 @@ func TestEnsurePodSpec(t *testing.T) {
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"}}},
+					{Name: "test"}}},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"},
+					{Name: "test"},
 				},
 			},
 		},
@@ -144,7 +144,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "modify limits and requests on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -155,7 +155,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
@@ -168,7 +168,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4m")},
@@ -182,7 +182,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "match limits and requests on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -193,7 +193,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -206,7 +206,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: false,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -220,12 +220,12 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "add limits and requests on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"},
+					{Name: "test"},
 				},
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -238,7 +238,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Resources: corev1.ResourceRequirements{
 							Limits:   corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("2m")},
@@ -252,20 +252,20 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "remove a container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-A"},
-					corev1.Container{Name: "test-B"},
+					{Name: "test-A"},
+					{Name: "test-B"},
 				},
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-B"},
+					{Name: "test-B"},
 				},
 			},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test-B"},
+					{Name: "test-B"},
 				},
 			},
 		},
@@ -273,15 +273,15 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "add ports on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"},
+					{Name: "test"},
 				},
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 8080},
+							{ContainerPort: 8080},
 						},
 					},
 				},
@@ -289,10 +289,10 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 8080},
+							{ContainerPort: 8080},
 						},
 					},
 				},
@@ -302,20 +302,20 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "replace ports on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 8080},
+							{ContainerPort: 8080},
 						},
 					},
 				},
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 9191},
+							{ContainerPort: 9191},
 						},
 					},
 				},
@@ -323,10 +323,10 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 9191},
+							{ContainerPort: 9191},
 						},
 					},
 				},
@@ -336,23 +336,23 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "remove container ports",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name: "test",
 						Ports: []corev1.ContainerPort{
-							corev1.ContainerPort{ContainerPort: 8080},
+							{ContainerPort: 8080},
 						},
 					},
 				},
 			},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{Name: "test"},
+					{Name: "test"},
 				},
 			},
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					corev1.Container{
+					{
 						Name:  "test",
 						Ports: []corev1.ContainerPort{},
 					},
