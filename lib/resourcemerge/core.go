@@ -508,16 +508,6 @@ func ensureCapabilities(modified *bool, existing *corev1.Capabilities, required 
 	}
 }
 
-func setStringSliceIfSet(modified *bool, existing *[]string, required []string) {
-	if required == nil {
-		return
-	}
-	if !equality.Semantic.DeepEqual(required, *existing) {
-		*existing = required
-		*modified = true
-	}
-}
-
 func setStringSlice(modified *bool, existing *[]string, required []string) {
 	if !reflect.DeepEqual(required, *existing) {
 		*existing = required

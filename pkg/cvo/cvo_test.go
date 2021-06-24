@@ -3229,11 +3229,6 @@ func expectCreate(t *testing.T, a ktesting.Action, resource, namespace string, o
 	expectMutation(t, a, "create", resource, "", namespace, obj)
 }
 
-func expectUpdate(t *testing.T, a ktesting.Action, resource, namespace string, obj interface{}) {
-	t.Helper()
-	expectMutation(t, a, "update", resource, "", namespace, obj)
-}
-
 func expectUpdateStatus(t *testing.T, a ktesting.Action, resource, namespace string, obj interface{}) {
 	t.Helper()
 	expectMutation(t, a, "update", resource, "status", namespace, obj)
