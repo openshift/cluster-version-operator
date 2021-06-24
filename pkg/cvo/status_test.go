@@ -144,7 +144,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name        string
-		optr        Operator
+		optr        *Operator
 		init        func(optr *Operator)
 		wantErr     func(*testing.T, error)
 		wantActions func(*testing.T, *Operator)
@@ -155,7 +155,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 	}{
 		{
 			ierr: fmt.Errorf("bad"),
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -234,7 +234,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			optr := &tt.optr
+			optr := tt.optr
 			if tt.init != nil {
 				tt.init(optr)
 			}

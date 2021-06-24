@@ -173,7 +173,7 @@ func TestOperator_sync(t *testing.T) {
 		name        string
 		key         string
 		syncStatus  *SyncWorkerStatus
-		optr        Operator
+		optr        *Operator
 		init        func(optr *Operator)
 		want        bool
 		wantErr     func(*testing.T, error)
@@ -182,7 +182,7 @@ func TestOperator_sync(t *testing.T) {
 	}{
 		{
 			name: "create version and status",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -221,7 +221,7 @@ func TestOperator_sync(t *testing.T) {
 					Message: "unable to apply object",
 				},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -285,7 +285,7 @@ func TestOperator_sync(t *testing.T) {
 		},
 		{
 			name: "progressing and previously failed, reconciling",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -360,7 +360,7 @@ func TestOperator_sync(t *testing.T) {
 		},
 		{
 			name: "progressing and previously failed, reconciling and multiple completions",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -436,7 +436,7 @@ func TestOperator_sync(t *testing.T) {
 		},
 		{
 			name: "progressing and encounters error during image sync",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -512,7 +512,7 @@ func TestOperator_sync(t *testing.T) {
 				Failure: os.ErrNotExist,
 				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -569,7 +569,7 @@ func TestOperator_sync(t *testing.T) {
 				Failure: os.ErrNotExist,
 				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -615,7 +615,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						History: []configv1.UpdateHistory{
 							// we populate state, but not startedTime
-							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{time.Unix(0, 0)}},
+							{State: configv1.PartialUpdate, Version: "4.0.1", Image: "image/image:v4.0.1", StartedTime: metav1.Time{Time: time.Unix(0, 0)}},
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -634,7 +634,7 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Actual: configv1.Release{Image: "image/image:v4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -694,7 +694,7 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Actual: configv1.Release{Image: "image/image:v4.0.2", Version: "4.0.2"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.2",
 					Image:   "image/image:v4.0.2",
@@ -786,7 +786,7 @@ func TestOperator_sync(t *testing.T) {
 				// one).
 				Actual: configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -892,7 +892,7 @@ func TestOperator_sync(t *testing.T) {
 				Done:   334,
 				Total:  1000,
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -1002,7 +1002,7 @@ func TestOperator_sync(t *testing.T) {
 				Actual: configv1.Release{Image: "image/image:v4.0.1"},
 				Step:   "RetrievePayload",
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -1103,7 +1103,7 @@ func TestOperator_sync(t *testing.T) {
 				VersionHash: "xyz",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1180,7 +1180,7 @@ func TestOperator_sync(t *testing.T) {
 				VersionHash: "xyz",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "0.0.1-abc",
 					Image:   "image/image:v4.0.1",
@@ -1240,7 +1240,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1345,7 +1345,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1423,7 +1423,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1500,7 +1500,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1574,7 +1574,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1659,7 +1659,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1739,7 +1739,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1803,7 +1803,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1878,7 +1878,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -1956,7 +1956,7 @@ func TestOperator_sync(t *testing.T) {
 				VersionHash: "y_Kc5IQiIyU=",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "0.0.1-abc",
 					Image:   "image/image:v4.0.1",
@@ -2018,7 +2018,7 @@ func TestOperator_sync(t *testing.T) {
 				VersionHash: "y_Kc5IQiIyU=",
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "0.0.1-abc",
 					Image:   "image/image:v4.0.1",
@@ -2085,7 +2085,7 @@ func TestOperator_sync(t *testing.T) {
 								Image:          "image/image:v4.0.1",
 								Version:        "0.0.1-abc",
 								CompletionTime: &defaultCompletionTime,
-								StartedTime:    metav1.Time{time.Unix(0, 0)},
+								StartedTime:    metav1.Time{Time: time.Unix(0, 0)},
 							},
 						},
 						Desired:            configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
@@ -2109,7 +2109,7 @@ func TestOperator_sync(t *testing.T) {
 				Completed:   1,
 				Actual:      configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2170,7 +2170,7 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Actual: configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2245,7 +2245,7 @@ func TestOperator_sync(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			optr := &tt.optr
+			optr := tt.optr
 			if tt.init != nil {
 				tt.init(optr)
 			}
@@ -2292,13 +2292,13 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		name        string
 		key         string
 		handler     http.HandlerFunc
-		optr        Operator
+		optr        *Operator
 		wantErr     func(*testing.T, error)
 		wantUpdates *availableUpdates
 	}{
 		{
 			name: "when version is missing, do nothing (other loops should create it)",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2313,7 +2313,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2352,7 +2352,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2393,7 +2393,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
@@ -2433,7 +2433,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "4.0.1",
@@ -2493,7 +2493,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 				`)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "4.0.1",
@@ -2557,7 +2557,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 				`)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "4.0.1",
@@ -2607,7 +2607,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer:      "http://localhost:8080/graph",
 				minimumUpdateCheckInterval: 1 * time.Minute,
 				availableUpdates: &availableUpdates{
@@ -2710,13 +2710,13 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	tests := []struct {
 		name    string
 		key     string
-		optr    Operator
+		optr    *Operator
 		wantErr func(*testing.T, error)
 		want    *upgradeable
 	}{
 		{
 			name: "when version is missing, do nothing (other loops should create it)",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2728,7 +2728,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when overrides is set for version",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2765,7 +2765,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when the single clusteroperator is not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2814,7 +2814,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another has no conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2871,7 +2871,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another is upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2931,7 +2931,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when two clusteroperators are not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2993,7 +2993,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when clusteroperators and version are not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3068,7 +3068,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "no error conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3098,7 +3098,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "no error conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3130,7 +3130,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "no error conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
