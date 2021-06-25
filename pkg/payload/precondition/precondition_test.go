@@ -20,7 +20,7 @@ func TestSummarize(t *testing.T) {
 		input: []error{&Error{
 			Nested:  nil,
 			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
+			Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 			Name:    "FeatureGate",
 		}},
 		exp: `Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
@@ -33,12 +33,12 @@ func TestSummarize(t *testing.T) {
 		input: []error{&Error{
 			Nested:  nil,
 			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
+			Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 			Name:    "FeatureGate",
 		}, &Error{
 			Nested:  nil,
 			Reason:  "NotAllowedFeatureGateSet",
-			Message: fmt.Sprintf("Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
+			Message: "Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 			Name:    "FeatureGate",
 		}},
 		exp: `Multiple precondition checks failed:
@@ -50,7 +50,7 @@ func TestSummarize(t *testing.T) {
 			&Error{
 				Nested:  nil,
 				Reason:  "NotAllowedFeatureGateSet",
-				Message: fmt.Sprintf("Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform."),
+				Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 				Name:    "FeatureGate",
 			}},
 		exp: `Multiple precondition checks failed:

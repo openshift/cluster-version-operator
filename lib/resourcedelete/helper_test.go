@@ -80,7 +80,7 @@ func TestDeletesInProgress(t *testing.T) {
 				{Kind: "service",
 					Namespace: "foo",
 					Name:      "bar"},
-				Resource{Kind: "deployment",
+				{Kind: "deployment",
 					Namespace: "openshift-cluster-version",
 					Name:      "cvo"}},
 			delTime: deleteTimes{
@@ -92,7 +92,7 @@ func TestDeletesInProgress(t *testing.T) {
 				{Kind: "service",
 					Namespace: "foo",
 					Name:      "bar"},
-				Resource{Kind: "deployment",
+				{Kind: "deployment",
 					Namespace: "openshift-cluster-version",
 					Name:      "cvo"}},
 			delTime: deleteTimes{
