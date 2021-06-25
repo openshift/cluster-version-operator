@@ -286,7 +286,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "ignored")
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -448,7 +448,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ResyncInterval = 3 * time.Second
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -563,7 +563,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.NodeName = "test-node"
 	controllers := options.NewControllerContext(cb)
 
-	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -754,7 +754,7 @@ metadata:
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
