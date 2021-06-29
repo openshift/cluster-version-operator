@@ -82,8 +82,13 @@ func (b *builder) Do(ctx context.Context) error {
 		if b.modifier != nil {
 			b.modifier(typedObject)
 		}
-		if _, _, err := resourceapply.ApplyImageStreamv1(ctx, b.imageClientv1, typedObject); err != nil {
+		if deleteReq, err := resourcedelete.DeleteImageStreamv1(ctx, b.imageClientv1, typedObject,
+			updatingMode); err != nil {
 			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyImageStreamv1(ctx, b.imageClientv1, typedObject); err != nil {
+				return err
+			}
 		}
 	case *securityv1.SecurityContextConstraints:
 		if b.modifier != nil {
