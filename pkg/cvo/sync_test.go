@@ -134,7 +134,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			testMapper.AddToMap(resourcebuilder.Mapper)
 
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
-			worker.builder = NewResourceBuilder(nil, nil, nil)
+			worker.builder = NewResourceBuilder(nil, nil, nil, nil)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()

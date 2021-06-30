@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
@@ -148,6 +149,7 @@ type Operator struct {
 	exclude string
 
 	clusterProfile string
+	uid            types.UID
 }
 
 // New returns a new cluster version operator.
@@ -253,7 +255,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	// which will consume the verifier
 	optr.configSync = NewSyncWorkerWithPreconditions(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(restConfig, burstRestConfig, &dummyContextOperatorGetter{wrapped: optr.coLister}),
+		NewResourceBuilder(restConfig, burstRestConfig, &dummyContextOperatorGetter{wrapped: optr.coLister}, optr.ownerReferenceModifier),
 		optr.defaultPreconditionChecks(),
 		optr.minimumUpdateCheckInterval,
 		wait.Backoff{
@@ -267,6 +269,32 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 	)
 
 	return nil
+}
+
+// ownerReferenceModifier sets the owner reference to the current CV resource if no other reference exists. It also resets
+// the owner references of existing resources if non CV resources are explicitly added as owners.
+func (optr *Operator) ownerReferenceModifier(object metav1.Object) {
+	var nonCVORefs []metav1.OwnerReference
+	// find any existing owner references which are not ClusterVersion resource types
+	for _, ownerRef := range object.GetOwnerReferences() {
+		if ownerRef.Kind != "ClusterVersion" {
+			nonCVORefs = append(nonCVORefs, ownerRef)
+		}
+	}
+	if len(nonCVORefs) > 0 {
+		// If there are any non CV owner references then set them as the owner reference
+		object.SetOwnerReferences(nonCVORefs)
+	} else {
+		// otherwise set the current CV as the owner reference
+		object.SetOwnerReferences([]metav1.OwnerReference{
+			{
+				APIVersion: configv1.GroupVersion.Identifier(),
+				Kind:       "ClusterVersion",
+				Name:       optr.name,
+				UID:        optr.uid,
+			},
+		})
+	}
 }
 
 // loadConfigMapVerifierDataFromUpdate fetches the first config map in the payload with the correct annotation.
@@ -496,6 +524,8 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 		return nil
 	}
 
+	optr.uid = original.UID
+
 	// ensure that the object we do have is valid
 	errs := validation.ValidateClusterVersion(original)
 	// for fields that have meaning that are incomplete, clear them
@@ -652,10 +682,17 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 		},
 	}
 
-	actual, _, err := resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
+	_, _, err = resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
 	if apierrors.IsAlreadyExists(err) {
 		return nil, true, nil
 	}
+
+	// refetch the ClusterVersion so that the UID is present
+	actual, err := optr.cvLister.Get(optr.name)
+	if err != nil {
+		return nil, false, err
+	}
+
 	return actual, true, err
 }
 
@@ -741,11 +778,12 @@ type resourceBuilder struct {
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter) payload.ResourceBuilder {
+func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter, modifier resourcebuilder.MetaV1ObjectModifierFunc) payload.ResourceBuilder {
 	return &resourceBuilder{
 		config:           config,
 		burstConfig:      burstConfig,
 		clusterOperators: clusterOperators,
+		modifier:         modifier,
 	}
 }
 

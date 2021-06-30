@@ -123,7 +123,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 4 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	// read from lister
@@ -141,6 +141,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Channel:   "fast",
 		},
 	})
+
+	// read after create
+	expectGet(t, actions[3], "clusterversions", "", "version")
+
 	verifyAllStatus(t, worker.StatusCh())
 
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
@@ -445,7 +449,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 4 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	// read from lister
@@ -463,6 +467,9 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Channel:   "fast",
 		},
 	})
+	// read after create
+	expectGet(t, actions[3], "clusterversions", "", "version")
+
 	verifyAllStatus(t, worker.StatusCh())
 
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
@@ -757,7 +764,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 4 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	// read from lister
@@ -775,6 +782,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Channel:   "fast",
 		},
 	})
+	// read after create
+	expectGet(t, actions[3], "clusterversions", "", "version")
 	verifyAllStatus(t, worker.StatusCh())
 
 	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
