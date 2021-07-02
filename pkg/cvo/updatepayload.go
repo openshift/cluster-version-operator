@@ -245,7 +245,7 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 	var deleteJobs []batchv1.Job
 	for _, job := range jobs.Items {
 		switch {
-		// Ignore jobs not begining with operatorName
+		// Ignore jobs not beginning with operatorName
 		case !strings.HasPrefix(job.Name, r.operatorName+"-"):
 			break
 		// Ignore jobs that have not yet started
