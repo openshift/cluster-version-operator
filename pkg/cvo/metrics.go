@@ -95,7 +95,7 @@ version for 'cluster', or empty for 'initial'.
 		}, []string{"type", "version", "invoker"}),
 		clusterVersionOperatorUpdateRetrievalTimestampSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
-			Help: "Reports when updates were last succesfully retrieved.",
+			Help: "Reports when updates were last successfully retrieved.",
 		}, []string{"name"}),
 	}
 }

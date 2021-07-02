@@ -73,6 +73,7 @@ linters:
     - gosimple
     - govet
     - ineffassign
+    - misspell
     - staticcheck
     - structcheck
     - typecheck

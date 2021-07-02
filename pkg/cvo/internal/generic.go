@@ -117,7 +117,7 @@ type genericBuilder struct {
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
 }
 
-// NewGenericBuilder returns an implentation of resourcebuilder.Interface that
+// NewGenericBuilder returns an implementation of resourcebuilder.Interface that
 // uses dynamic clients for applying.
 func NewGenericBuilder(client dynamic.ResourceInterface, m manifest.Manifest) (resourcebuilder.Interface, error) {
 	return &genericBuilder{

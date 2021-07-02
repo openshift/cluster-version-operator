@@ -371,7 +371,7 @@ func (t *testBuilder) Do(_ context.Context) error {
 	return t.reactors[a]
 }
 
-func newTestBuilder(r *recorder, rts map[action]error) resourcebuilder.NewInteraceFunc {
+func newTestBuilder(r *recorder, rts map[action]error) resourcebuilder.NewInterfaceFunc {
 	return func(_ *rest.Config, m manifest.Manifest) resourcebuilder.Interface {
 		return &testBuilder{recorder: r, reactors: rts, m: &m}
 	}
