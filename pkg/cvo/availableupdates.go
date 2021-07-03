@@ -2,8 +2,8 @@ package cvo
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
+	"net/http"
 	"net/url"
 	"runtime"
 	"sort"
@@ -43,12 +43,12 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		return nil
 	}
 
-	proxyURL, tlsConfig, err := optr.getTransportOpts()
+	transport, err := optr.getTransport()
 	if err != nil {
 		return err
 	}
 
-	current, updates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), proxyURL, tlsConfig, upstream, arch, channel, optr.release.Version)
+	current, updates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -144,7 +144,7 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	return optr.availableUpdates
 }
 
-func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, proxyURL *url.URL, tlsConfig *tls.Config, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, configv1.ClusterOperatorStatusCondition) {
 	var cvoCurrent configv1.Release
 	if len(upstream) == 0 {
 		return cvoCurrent, nil, configv1.ClusterOperatorStatusCondition{
@@ -199,7 +199,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, prox
 		}
 	}
 
-	current, updates, err := cincinnati.NewClient(uuid, proxyURL, tlsConfig).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
+	current, updates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {
