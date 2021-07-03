@@ -2,10 +2,8 @@ package cvo
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -865,13 +863,9 @@ func (optr *Operator) defaultPreconditionChecks() precondition.List {
 // HTTPClient provides a method for generating an HTTP client
 // with the proxy and trust settings, if set in the cluster.
 func (optr *Operator) HTTPClient() (*http.Client, error) {
-	proxyURL, tlsConfig, err := optr.getTransportOpts()
+	transportOption, err := optr.getTransport()
 	if err != nil {
 		return nil, err
-	}
-	transportOption := &http.Transport{
-		Proxy:           http.ProxyURL(proxyURL),
-		TLSClientConfig: tlsConfig,
 	}
 	transportConfig := &transport.Config{Transport: transportOption}
 	transport, err := transport.New(transportConfig)
@@ -881,20 +875,4 @@ func (optr *Operator) HTTPClient() (*http.Client, error) {
 	return &http.Client{
 		Transport: transport,
 	}, nil
-}
-
-// getTransportOpts retrieves the URL of the cluster proxy and the CA
-// trust, if they exist.
-func (optr *Operator) getTransportOpts() (*url.URL, *tls.Config, error) {
-	proxyURL, err := optr.getHTTPSProxyURL()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var tlsConfig *tls.Config
-	tlsConfig, err = optr.getTLSConfig()
-	if err != nil {
-		return nil, nil, err
-	}
-	return proxyURL, tlsConfig, nil
 }
