@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -813,6 +815,9 @@ func (b *resourceBuilder) builderFor(m *manifest.Manifest, state payload.State) 
 func (b *resourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state payload.State) error {
 	builder, err := b.builderFor(m, state)
 	if err != nil {
+		if meta.IsNoMatchError(errors.Cause(err)) {
+			return nil
+		}
 		return err
 	}
 	if b.modifier != nil {
