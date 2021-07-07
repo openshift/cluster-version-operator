@@ -97,8 +97,11 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	// add cluster operator's start time if not already there
 	payload.COUpdateStartTimesEnsureName(os.Name)
 
+	os.Annotations["cvo.openshift.io/ownerref-added"] = "true"
 	if b.modifier != nil {
 		b.modifier(os)
+	} else {
+		os.Annotations["cvo.openshift.io/ownerref-added"] = "false"
 	}
 
 	// create the object, and if we successfully created, update the status
