@@ -3,37 +3,65 @@ package cvo
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 
-	"k8s.io/apimachinery/pkg/api/errors"
+	"golang.org/x/net/http/httpproxy"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
-// getHTTPSProxyURL returns a url.URL object for the configured
-// https proxy only. It can be nil if does not exist or there is an error.
-func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
+// getTransport constructs an HTTP transport configuration, including
+// any custom proxy configuration.
+func (optr *Operator) getTransport() (*http.Transport, error) {
+	transport := &http.Transport{}
+
+	proxyConfig, err := optr.getProxyConfig()
+	if err != nil {
+		return transport, err
+	} else if proxyConfig != nil {
+		proxyFunc := proxyConfig.ProxyFunc()
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
+			if req == nil {
+				return nil, errors.New("cannot calculate proxy URI for nil request")
+			}
+			return proxyFunc(req.URL)
+		}
+	}
+
+	tlsConfig, err := optr.getTLSConfig()
+	if err != nil {
+		return transport, err
+	} else if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
+	}
+
+	return transport, err
+}
+
+// getProxyConfig returns a proxy configuration.  It can be nil if
+// does not exist or there is an error.
+func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
 	proxy, err := optr.proxyLister.Get("cluster")
 
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if proxy.Status.HTTPSProxy != "" {
-		proxyURL, err := url.Parse(proxy.Status.HTTPSProxy)
-		if err != nil {
-			return nil, err
-		}
-		return proxyURL, nil
-	}
-	return nil, nil
+	return &httpproxy.Config{
+		HTTPProxy:  proxy.Status.HTTPProxy,
+		HTTPSProxy: proxy.Status.HTTPSProxy,
+		NoProxy:    proxy.Status.NoProxy,
+	}, nil
 }
 
 func (optr *Operator) getTLSConfig() (*tls.Config, error) {
 	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
-	if errors.IsNotFound(err) {
+	if apierrors.IsNotFound(err) {
 		return nil, nil
 	}
 	if err != nil {
