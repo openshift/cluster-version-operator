@@ -31,10 +31,7 @@ func TestCreateOnlyCreate(t *testing.T) {
 	}
 
 	fakeClient := fake.NewSimpleDynamicClient(runtime.NewScheme())
-	_, modified, err := applyUnstructured(
-		ctx,
-		fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}),
-		obj.(*unstructured.Unstructured))
+	_, modified, err := applyUnstructured(ctx, fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}), obj.(*unstructured.Unstructured), false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,10 +73,7 @@ func TestCreateOnlyUpdate(t *testing.T) {
 	}
 
 	fakeClient := fake.NewSimpleDynamicClient(runtime.NewScheme(), existingObj)
-	_, modified, err := applyUnstructured(
-		ctx,
-		fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}),
-		obj.(*unstructured.Unstructured))
+	_, modified, err := applyUnstructured(ctx, fakeClient.Resource(schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "featuregates"}), obj.(*unstructured.Unstructured), false)
 	if err != nil {
 		t.Fatal(err)
 	}

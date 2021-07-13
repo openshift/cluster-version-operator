@@ -4,8 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/diff"
-
+	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -105,7 +104,7 @@ func TestUpdatePodSpecWithProxy(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(test.input, test.expected) {
-				t.Error(diff.ObjectDiff(test.input, test.expected))
+				t.Error(cmp.Diff(test.input, test.expected))
 			}
 		})
 	}
@@ -264,7 +263,7 @@ func TestUpdatePodSpecWithInternalLoadBalancerKubeService(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(test.input, test.expected) {
-				t.Error(diff.ObjectDiff(test.input, test.expected))
+				t.Error(cmp.Diff(test.input, test.expected))
 			}
 		})
 	}
