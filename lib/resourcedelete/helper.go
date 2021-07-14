@@ -6,6 +6,7 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
@@ -107,7 +108,8 @@ func GetDeleteProgress(resource Resource, getError error) (bool, error) {
 				klog.Warningf("%s has reappeared after having been deleted at %s.", resource, deletionTimes.Verified)
 			}
 		} else {
-			if apierrors.IsNotFound(getError) {
+			// if the resource is not found or there is not match for its type then the resource has been deleted.
+			if apierrors.IsNotFound(getError) || meta.IsNoMatchError(getError) {
 				SetDeleteVerified(resource)
 			} else {
 				if deletionTimes.Expected != nil {
@@ -119,9 +121,9 @@ func GetDeleteProgress(resource Resource, getError error) (bool, error) {
 		}
 		return true, nil
 	}
-	// During an upgrade CVO restarts one or more times. The resource may have been deleted during one of the
+	// During an upgrade CVO restarts one or more times. The resource or its definition may have been deleted during one of the
 	// previous CVO life cycles. Simply set the resource as delete verified and log warning.
-	if apierrors.IsNotFound(getError) {
+	if apierrors.IsNotFound(getError) || meta.IsNoMatchError(getError) {
 		setDeleteRequestedAndVerified(resource)
 		return true, nil
 	}

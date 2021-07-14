@@ -101,7 +101,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			cancelAfter: 2,
 			wantErr:     true,
 			check: func(t *testing.T, actions []action) {
-				if len(actions) != 3 {
+				if len(actions) != 1 {
 					spew.Dump(actions)
 					t.Fatalf("unexpected %d actions", len(actions))
 				}

@@ -2,15 +2,16 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"k8s.io/apimachinery/pkg/runtime"
-
+	"github.com/openshift/library-go/pkg/manifest"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic/fake"
+	clientgotesting "k8s.io/client-go/testing"
 )
 
 func TestCreateOnlyCreate(t *testing.T) {
@@ -85,5 +86,78 @@ func TestCreateOnlyUpdate(t *testing.T) {
 	}
 	if modified {
 		t.Error("should not have updated")
+	}
+}
+
+func TestBuilderDoNoMatchError(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		resource  string
+		expectErr bool
+	}{
+		{
+			name: "basic",
+			resource: `{
+  "kind": "UnknownType",
+  "apiVersion": "config.openshift.io/v1",
+  "metadata": {
+     "name": "cluster"
+  }
+}`,
+			expectErr: true,
+		},
+
+		{
+			name: "delete annotation",
+			resource: `{
+  "kind": "UnknownType",
+  "apiVersion": "config.openshift.io/v1",
+  "metadata": {
+     "name": "cluster",
+     "annotations": {
+        "release.openshift.io/delete": "true"
+     }
+  }
+}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			var m manifest.Manifest
+			err := json.Unmarshal([]byte(tc.resource), &m)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			fakeClient := &fake.FakeDynamicClient{}
+			// client always returns a NoKindMatchError
+			fakeClient.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+				return true, nil, &meta.NoKindMatchError{
+					GroupKind: schema.GroupKind{
+						Group: action.GetResource().Group,
+						Kind:  "UnknownType",
+					},
+				}
+			})
+			builder, err := NewGenericBuilder(fakeClient.Resource(schema.GroupVersionResource{
+				Group:    m.GVK.Group,
+				Version:  m.GVK.Version,
+				Resource: "UnknownType",
+			}), m)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = builder.Do(ctx)
+			if tc.expectErr {
+				if err == nil {
+					t.Fatal("expected error, got none")
+				}
+				if !meta.IsNoMatchError(err) {
+					t.Fatalf("expected error of type IsNoMatchError, instead got: %T", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

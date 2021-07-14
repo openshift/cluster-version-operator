@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
