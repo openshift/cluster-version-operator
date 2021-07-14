@@ -41,74 +41,77 @@ func Test_SyncWorker_apply(t *testing.T) {
 
 		check   func(*testing.T, []action)
 		wantErr bool
-	}{{
-		manifests: []string{
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestA",
-				"metadata": {
-					"namespace": "default",
-					"name": "testa"
+	}{
+		{
+			manifests: []string{
+				`{
+					"apiVersion": "test.cvo.io/v1",
+					"kind": "TestA",
+					"metadata": {
+						"namespace": "default",
+						"name": "testa"
+					}
+				}`,
+				`{
+					"apiVersion": "test.cvo.io/v1",
+					"kind": "TestB",
+					"metadata": {
+						"namespace": "default",
+						"name": "testb"
+					}
+				}`,
+			},
+			reactors: map[action]error{},
+			check: func(t *testing.T, actions []action) {
+				if len(actions) != 2 {
+					spew.Dump(actions)
+					t.Fatalf("unexpected %d actions", len(actions))
 				}
-			}`,
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestB",
-				"metadata": {
-					"namespace": "default",
-					"name": "testb"
-				}
-			}`,
-		},
-		reactors: map[action]error{},
-		check: func(t *testing.T, actions []action) {
-			if len(actions) != 2 {
-				spew.Dump(actions)
-				t.Fatalf("unexpected %d actions", len(actions))
-			}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
-			}
-			if got, exp := actions[1], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
-			}
-		},
-	}, {
-		manifests: []string{
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestA",
-				"metadata": {
-					"namespace": "default",
-					"name": "testa"
+				if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+					t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 				}
-			}`,
-			`{
-				"apiVersion": "test.cvo.io/v1",
-				"kind": "TestB",
-				"metadata": {
-					"namespace": "default",
-					"name": "testb"
+				if got, exp := actions[1], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
+					t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
 				}
-			}`,
+			},
 		},
-		reactors: map[action]error{
-			newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
-		},
-		cancelAfter: 2,
-		wantErr:     true,
-		check: func(t *testing.T, actions []action) {
-			if len(actions) != 3 {
-				spew.Dump(actions)
-				t.Fatalf("unexpected %d actions", len(actions))
-			}
+		{
+			manifests: []string{
+				`{
+					"apiVersion": "test.cvo.io/v1",
+					"kind": "TestA",
+					"metadata": {
+						"namespace": "default",
+						"name": "testa"
+					}
+				}`,
+				`{
+					"apiVersion": "test.cvo.io/v1",
+					"kind": "TestB",
+					"metadata": {
+						"namespace": "default",
+						"name": "testb"
+					}
+				}`,
+			},
+			reactors: map[action]error{
+				newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa"): &meta.NoResourceMatchError{},
+			},
+			cancelAfter: 2,
+			wantErr:     true,
+			check: func(t *testing.T, actions []action) {
+				if len(actions) != 3 {
+					spew.Dump(actions)
+					t.Fatalf("unexpected %d actions", len(actions))
+				}
 
-			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
-			}
+				if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
+					t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
+				}
+			},
 		},
-	}}
+	}
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
 			var manifests []manifest.Manifest
