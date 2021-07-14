@@ -112,6 +112,11 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 		utilruntime.HandleError(errors.Wrapf(err, "error running apply for %s", st))
 		metricPayloadErrors.WithLabelValues(version).Inc()
 
+		// fail fast when there is a NoMatchError because the backing CRD is missing
+		if meta.IsNoMatchError(err) || meta.IsNoMatchError(errors.Cause(err)) {
+			return makeUpdateError(err, st)
+		}
+
 		// TODO: this code will become easier in Kube 1.13 because Backoff now supports max
 		d := time.Duration(float64(backoff.Duration) * backoff.Factor)
 		if d > maxDuration {
@@ -128,18 +133,21 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 				uerr.Task = st.Copy()
 				return uerr
 			}
-			reason, cause := reasonForPayloadSyncError(lastErr)
-			if len(cause) > 0 {
-				cause = ": " + cause
-			}
-			return &UpdateError{
-				Nested:  lastErr,
-				Reason:  reason,
-				Message: fmt.Sprintf("Could not update %s%s", st, cause),
-
-				Task: st.Copy(),
-			}
+			return makeUpdateError(lastErr, st)
 		}
+	}
+}
+
+func makeUpdateError(err error, t *Task) error {
+	reason, cause := reasonForPayloadSyncError(err)
+	if len(cause) > 0 {
+		cause = ": " + cause
+	}
+	return &UpdateError{
+		Nested:  err,
+		Reason:  reason,
+		Message: fmt.Sprintf("Could not update %s%s", t, cause),
+		Task:    t.Copy(),
 	}
 }
 
