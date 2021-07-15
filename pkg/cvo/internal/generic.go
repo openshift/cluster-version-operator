@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	"k8s.io/apimachinery/pkg/api/meta"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +43,12 @@ func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, r
 		Name:      required.GetName(),
 	}
 	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
+
+	// If there is a NoMatchError then, it's guaranteed that the resource does not exist.
+	if err != nil && meta.IsNoMatchError(err) {
+		return false, err
+	}
+
 	if deleteRequested, err := resourcedelete.GetDeleteProgress(resource, err); err == nil {
 		if !deleteRequested {
 			if err := client.Delete(ctx, required.GetName(), metav1.DeleteOptions{}); err != nil {
