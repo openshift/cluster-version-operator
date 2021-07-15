@@ -75,7 +75,8 @@ func (b *builder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 
 func (b *builder) Do(ctx context.Context) error {
 	obj := resourceread.ReadOrDie(b.raw)
-	updatingMode := (b.mode == UpdatingMode)
+	updatingMode := b.mode == UpdatingMode
+	reconcilingMode := b.mode == ReconcilingMode
 
 	switch typedObject := obj.(type) {
 	case *imagev1.ImageStream:
@@ -86,7 +87,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyImageStreamv1(ctx, b.imageClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyImageStreamv1(ctx, b.imageClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -98,7 +99,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplySecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplySecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -113,7 +114,7 @@ func (b *builder) Do(ctx context.Context) error {
 			if err := b.modifyDaemonSet(ctx, typedObject); err != nil {
 				return err
 			}
-			if _, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 			return b.checkDaemonSetHealth(ctx, typedObject)
@@ -129,7 +130,7 @@ func (b *builder) Do(ctx context.Context) error {
 			if err := b.modifyDeployment(ctx, typedObject); err != nil {
 				return err
 			}
-			if _, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 			return b.checkDeploymentHealth(ctx, typedObject)
@@ -142,7 +143,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 			return b.checkJobHealth(ctx, typedObject)
@@ -155,7 +156,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -167,7 +168,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyNamespacev1(ctx, b.coreClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyNamespacev1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -179,7 +180,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyServicev1(ctx, b.coreClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyServicev1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -191,7 +192,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyServiceAccountv1(ctx, b.coreClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyServiceAccountv1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -203,7 +204,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyClusterRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyClusterRolev1(ctx, b.rbacClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -215,7 +216,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyClusterRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyClusterRoleBindingv1(ctx, b.rbacClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -227,7 +228,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyRolev1(ctx, b.rbacClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyRolev1(ctx, b.rbacClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -239,7 +240,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyRoleBindingv1(ctx, b.rbacClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyRoleBindingv1(ctx, b.rbacClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -251,7 +252,7 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject); err != nil {
+			if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
