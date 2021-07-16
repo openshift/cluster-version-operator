@@ -20,6 +20,12 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 	if apierrors.IsNotFound(err) {
 		klog.V(2).Infof("Deployment %s/%s not found, creating", required.Namespace, required.Name)
 		actual, err := client.Deployments(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		/*
+			resourcemerge.SetResourceId(actual,
+				resourcemerge.Resource{Kind: "deployment",
+					Namespace: required.Namespace,
+					Name:      required.Name})
+		*/
 		return actual, true, err
 	}
 	if err != nil {
@@ -30,14 +36,39 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return nil, false, nil
 	}
 
+	resource := resourcemerge.Resource{Kind: "deployment",
+		Namespace: required.Namespace,
+		Name:      required.Name}
+
+	/*
+		var id resourcemerge.ResourceId
+		var idExists bool
+		if id, idExists = resourcemerge.GetResourceId(resource); !idExists {
+			resourcemerge.SetResourceId(existing, resource)
+			id = resourcemerge.ResourceId{ResourceVersion: existing.GetResourceVersion(),
+			Generation: existing.GetGeneration()}
+		}
+	*/
+
 	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureDeployment(modified, existing, *required)
+	if id, idExists := resourcemerge.GetResourceId(resource); idExists {
+		if resourcemerge.ResourceModified(id, existing) {
+			klog.V(4).Infof("!!!! %s: resource %s modified", resource, id)
+			*modified = true
+		} else {
+			klog.V(4).Infof("!!!! %s: resource %s NOT modified", resource, id)
+		}
+	} else {
+		resourcemerge.EnsureDeployment(modified, existing, *required)
+	}
 	if !*modified {
+		resourcemerge.SetResourceId(existing, resource)
 		return existing, false, nil
 	}
 	klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, diff.ObjectDiff(existing, required))
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
+	resourcemerge.SetResourceId(actual, resource)
 	return actual, true, err
 }
 
