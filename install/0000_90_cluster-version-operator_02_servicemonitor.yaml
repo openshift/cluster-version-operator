@@ -46,7 +46,7 @@ spec:
         absent(up{job="cluster-version-operator"} == 1)
       for: 10m
       labels:
-        severity: critical
+        severity: warning
     - alert: CannotRetrieveUpdates
       annotations:
         summary: Cluster version operator has not retrieved updates in {{ "{{ $value | humanizeDuration }}" }}.
@@ -82,7 +82,7 @@ spec:
         cluster_operator_up{job="cluster-version-operator"} == 0
       for: 10m
       labels:
-        severity: critical
+        severity: warning
     - alert: ClusterOperatorDegraded
       annotations:
         summary: Cluster operator has been degraded for 30 minutes.
