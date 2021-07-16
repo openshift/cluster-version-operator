@@ -18,17 +18,16 @@ func DeleteImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsG
 
 	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
 		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
 	}
+	existing, err := client.ImageStreams(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	resource := Resource{
 		Kind:      "imagestream",
 		Namespace: required.Namespace,
 		Name:      required.Name,
 	}
-	existing, err := client.ImageStreams(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.ImageStreams(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}

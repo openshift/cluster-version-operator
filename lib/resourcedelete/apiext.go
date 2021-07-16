@@ -16,19 +16,21 @@ import (
 func DeleteCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter,
 	required *apiextv1.CustomResourceDefinition, updateMode bool) (bool, error) {
 
-	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
-		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
-	}
 	resource := Resource{
 		Kind:      "customresourcedefinition",
 		Namespace: "",
 		Name:      required.Name,
 	}
+
+	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
+		return delAnnoFound, err
+	} else if !updateMode && !DeleteInProgress(resource) {
+		return true, nil
+	}
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.CustomResourceDefinitions().Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}

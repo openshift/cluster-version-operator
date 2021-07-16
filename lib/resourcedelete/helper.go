@@ -97,6 +97,14 @@ func setDeleteRequestedAndVerified(resource Resource) {
 	klog.Warningf("%s has already been removed.", resource)
 }
 
+// DeleteInProgress returns whether resource deletion has been requested but not yet verified.
+func DeleteInProgress(resource Resource) bool {
+	if deletionTimes, ok := getDeleteTimes(resource); ok && deletionTimes.Verified.IsZero() {
+		return true
+	}
+	return false
+}
+
 // GetDeleteProgress checks if resource deletion has been requested. If it has it checks if the deletion has completed
 // and if not logs deletion progress. This method returns an indication of whether resource deletion has already been
 // requested and any error that occurs.
