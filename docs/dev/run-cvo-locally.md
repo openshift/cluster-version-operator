@@ -15,6 +15,8 @@ Start an OCP cluster of the appropriate version. One that is compatiable with th
 
 Login to the cluster using `oc`.
 
+**Note**: Before proceeding, ensure you have a pull secret locally that contains the requisite permissions to the quay.io/openshift-release-dev container repository. If missing, navigate to [cloud.redhat.com][pull-secret] and follow the instructions to download the pull secret.
+
 Extract and download the OCP cluster release:
 
 ```console
@@ -48,3 +50,5 @@ $ ./_output/linux/amd64/cluster-version-operator -v5 start --release-image 4.4.0
 ## Limitations
 
 If the CVO is running locally using a binary it will not be able to handle upgrades since the upgrade process relies on starting another pod that mounts the same hostpath as the original CVO pod.
+
+[pull-secret]: <https://cloud.redhat.com/openshift/install/pull-secret>
