@@ -3,18 +3,18 @@ package resourceapply
 import (
 	"context"
 
+	"github.com/google/go-cmp/cmp"
 	securityv1 "github.com/openshift/api/security/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
 // ApplySecurityContextConstraintsv1 applies the required SecurityContextConstraints to the cluster.
-func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool, error) {
+func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter, required *securityv1.SecurityContextConstraints, reconciling bool) (*securityv1.SecurityContextConstraints, bool, error) {
 	existing, err := client.SecurityContextConstraints().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		klog.V(2).Infof("SCC %s not found, creating", required.Name)
@@ -35,7 +35,9 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 		return existing, false, nil
 	}
 
-	klog.V(2).Infof("Updating SCC %s due to diff: %v", required.Name, diff.ObjectDiff(existing, required))
+	if reconciling {
+		klog.V(4).Infof("Updating SCC %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+	}
 
 	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

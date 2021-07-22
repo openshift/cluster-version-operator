@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/klog/v2"
@@ -55,7 +55,7 @@ func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, r
 	return true, nil
 }
 
-func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (*unstructured.Unstructured, bool, error) {
+func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured, reconciling bool) (*unstructured.Unstructured, bool, error) {
 	if required.GetName() == "" {
 		return nil, false, fmt.Errorf("invalid object: name cannot be empty")
 	}
@@ -84,7 +84,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		}
 	}
 
-	objDiff := diff.ObjectDiff(expected, existing)
+	objDiff := cmp.Diff(expected, existing)
 	if objDiff == "" {
 		// Skip update, as no changes found
 		return existing, false, nil
@@ -102,7 +102,9 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 	existing.SetLabels(required.GetLabels())
 	existing.SetOwnerReferences(required.GetOwnerReferences())
 
-	klog.V(2).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), objDiff)
+	if reconciling {
+		klog.V(4).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), objDiff)
+	}
 
 	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})
 	if err != nil {
@@ -115,6 +117,7 @@ type genericBuilder struct {
 	client   dynamic.ResourceInterface
 	raw      []byte
 	modifier resourcebuilder.MetaV1ObjectModifierFunc
+	mode     resourcebuilder.Mode
 }
 
 // NewGenericBuilder returns an implementation of resourcebuilder.Interface that
@@ -127,6 +130,7 @@ func NewGenericBuilder(client dynamic.ResourceInterface, m manifest.Manifest) (r
 }
 
 func (b *genericBuilder) WithMode(m resourcebuilder.Mode) resourcebuilder.Interface {
+	b.mode = m
 	return b
 }
 
@@ -136,6 +140,7 @@ func (b *genericBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModifierFunc
 }
 
 func (b *genericBuilder) Do(ctx context.Context) error {
+	reconciling := b.mode == resourcebuilder.ReconcilingMode
 	ud := readUnstructuredV1OrDie(b.raw)
 	if b.modifier != nil {
 		b.modifier(ud)
@@ -145,7 +150,7 @@ func (b *genericBuilder) Do(ctx context.Context) error {
 	if err != nil {
 		return err
 	} else if !deleteReq {
-		_, _, err = applyUnstructured(ctx, b.client, ud)
+		_, _, err = applyUnstructured(ctx, b.client, ud, reconciling)
 	}
 	return err
 }
