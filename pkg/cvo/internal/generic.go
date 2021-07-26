@@ -29,21 +29,24 @@ func readUnstructuredV1OrDie(objBytes []byte) *unstructured.Unstructured {
 	return udi.(*unstructured.Unstructured)
 }
 
-func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured) (bool, error) {
+func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, required *unstructured.Unstructured,
+	updateMode bool) (bool, error) {
+
 	if required.GetName() == "" {
 		return false, fmt.Errorf("Error running delete, invalid object: name cannot be empty")
 	}
 	if delAnnoFound, err := resourcedelete.ValidDeleteAnnotation(required.GetAnnotations()); !delAnnoFound || err != nil {
 		return delAnnoFound, err
 	}
+	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
 	resource := resourcedelete.Resource{
 		Kind:      required.GetKind(),
 		Namespace: required.GetNamespace(),
 		Name:      required.GetName(),
 	}
-	existing, err := client.Get(ctx, required.GetName(), metav1.GetOptions{})
 	if deleteRequested, err := resourcedelete.GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.Delete(ctx, required.GetName(), metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}
@@ -116,8 +119,8 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 type genericBuilder struct {
 	client   dynamic.ResourceInterface
 	raw      []byte
-	modifier resourcebuilder.MetaV1ObjectModifierFunc
 	mode     resourcebuilder.Mode
+	modifier resourcebuilder.MetaV1ObjectModifierFunc
 }
 
 // NewGenericBuilder returns an implementation of resourcebuilder.Interface that
@@ -146,7 +149,8 @@ func (b *genericBuilder) Do(ctx context.Context) error {
 		b.modifier(ud)
 	}
 
-	deleteReq, err := deleteUnstructured(ctx, b.client, ud)
+	updatingMode := (b.mode == resourcebuilder.UpdatingMode)
+	deleteReq, err := deleteUnstructured(ctx, b.client, ud, updatingMode)
 	if err != nil {
 		return err
 	} else if !deleteReq {

@@ -10,25 +10,23 @@ import (
 )
 
 // DeleteNamespacev1 checks the given resource for a valid delete annotation. If found
-// and in UpdatingMode it will issue a delete request or provide status of a previousily issued delete request.
-// If not in UpdatingMode it simply returns an indication that the delete annotation was found. An error is
-// returned if an invalid annotation is found or an error occurs during delete processing.
+// it checks the status of a previousily issued delete request. If delete has not been
+// requested and in UpdatingMode it will issue a delete request.
 func DeleteNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace,
 	updateMode bool) (bool, error) {
 
 	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
 		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
 	}
+	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	resource := Resource{
 		Kind:      "namespace",
 		Namespace: "",
 		Name:      required.Name,
 	}
-	existing, err := client.Namespaces().Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.Namespaces().Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}
@@ -41,25 +39,23 @@ func DeleteNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter
 }
 
 // DeleteServicev1 checks the given resource for a valid delete annotation. If found
-// and in UpdatingMode it will issue a delete request or provide status of a previousily issued delete request.
-// If not in UpdatingMode it simply returns an indication that the delete annotation was found. An error is
-// returned if an invalid annotation is found or an error occurs during delete processing.
+// it checks the status of a previousily issued delete request. If delete has not been
+// requested and in UpdatingMode it will issue a delete request.
 func DeleteServicev1(ctx context.Context, client coreclientv1.ServicesGetter, required *corev1.Service,
 	updateMode bool) (bool, error) {
 
 	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
 		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
 	}
+	existing, err := client.Services(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	resource := Resource{
 		Kind:      "service",
 		Namespace: required.Namespace,
 		Name:      required.Name,
 	}
-	existing, err := client.Services(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.Services(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}
@@ -72,25 +68,23 @@ func DeleteServicev1(ctx context.Context, client coreclientv1.ServicesGetter, re
 }
 
 // DeleteServiceAccountv1 checks the given resource for a valid delete annotation. If found
-// and in UpdatingMode it will issue a delete request or provide status of a previousily issued delete request.
-// If not in UpdatingMode it simply returns an indication that the delete annotation was found. An error is
-// returned if an invalid annotation is found or an error occurs during delete processing.
+// it checks the status of a previousily issued delete request. If delete has not been
+// requested and in UpdatingMode it will issue a delete request.
 func DeleteServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount,
 	updateMode bool) (bool, error) {
 
 	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
 		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
 	}
+	existing, err := client.ServiceAccounts(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	resource := Resource{
 		Kind:      "serviceaccount",
 		Namespace: required.Namespace,
 		Name:      required.Name,
 	}
-	existing, err := client.ServiceAccounts(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.ServiceAccounts(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}
@@ -103,25 +97,23 @@ func DeleteServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAcco
 }
 
 // DeleteConfigMapv1 checks the given resource for a valid delete annotation. If found
-// and in UpdatingMode it will issue a delete request or provide status of a previousily issued delete request.
-// If not in UpdatingMode it simply returns an indication that the delete annotation was found. An error is
-// returned if an invalid annotation is found or an error occurs during delete processing.
+// it checks the status of a previousily issued delete request. If delete has not been
+// requested and in UpdatingMode it will issue a delete request.
 func DeleteConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap,
 	updateMode bool) (bool, error) {
 
 	if delAnnoFound, err := ValidDeleteAnnotation(required.Annotations); !delAnnoFound || err != nil {
 		return delAnnoFound, err
-	} else if !updateMode {
-		return true, nil
 	}
+	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	resource := Resource{
 		Kind:      "configmap",
 		Namespace: required.Namespace,
 		Name:      required.Name,
 	}
-	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		if !deleteRequested {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
 			if err := client.ConfigMaps(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
 				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
 			}
