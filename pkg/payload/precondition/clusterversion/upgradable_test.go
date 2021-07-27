@@ -45,7 +45,7 @@ func TestGetEffectiveMinor(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := getEffectiveMinor(tc.input)
+			actual := GetEffectiveMinor(tc.input)
 			if tc.expected != actual {
 				t.Error(actual)
 			}
