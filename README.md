@@ -62,9 +62,9 @@ TEST_INTEGRATION=1 go test ./... -test.run=^TestIntegration
 
 ## Documentation
 
-For all documentation around CVO, refer to the [docs](./docs) directory.
+The documentation around CVO is split between two code repositories i.e. [enhancements/dev-guide/cluster-version-operator](https://github.com/openshift/enhancements/tree/master/dev-guide/cluster-version-operator) and [cluster-version-operator/docs](./docs).
 
 Here are some pointers to start with the documentation
-- [Update workflow](./docs/user/update-workflow.md)
-- [Reconcilation logic](./docs/user/reconciliation.md)
-- [Runlevels](./docs/dev/upgrades.md)
+- [Update workflow](https://github.com/openshift/enhancements/blob/master/dev-guide/cluster-version-operator/user/update-workflow.md)
+- [Reconcilation logic](https://github.com/openshift/enhancements/blob/master/dev-guide/cluster-version-operator/user/reconciliation.md)
+- [Runlevels](https://github.com/openshift/enhancements/blob/master/dev-guide/cluster-version-operator/dev/upgrades.md)
