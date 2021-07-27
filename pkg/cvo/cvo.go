@@ -202,6 +202,8 @@ func New(
 	}
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
+	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
+	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
 
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
@@ -587,7 +589,7 @@ func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 		return nil
 	}
 
-	return optr.syncUpgradeable(config)
+	return optr.syncUpgradeable()
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than
