@@ -2,6 +2,8 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -13,6 +15,8 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
+
+const backupConditionType = "RecentBackup"
 
 // Upgradeable checks if clusterversion is upgradeable currently.
 type Upgradeable struct {
@@ -111,6 +115,80 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 // Name returns Name for the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }
 
+//  RecentEtcdBackup checks if a recent etcd backup has been taken.
+type RecentEtcdBackup struct {
+	key      string
+	cvLister configv1listers.ClusterVersionLister
+	coLister configv1listers.ClusterOperatorLister
+}
+
+// NewRecentEtcdBackup returns a new RecentEtcdBackup precondition check.
+func NewRecentEtcdBackup(cvLister configv1listers.ClusterVersionLister, coLister configv1listers.ClusterOperatorLister) *RecentEtcdBackup {
+	return &RecentEtcdBackup{
+		key:      "version",
+		cvLister: cvLister,
+		coLister: coLister,
+	}
+}
+
+func recentEtcdBackupCondition(lister configv1listers.ClusterOperatorLister) (reason string, message string) {
+	var msgDetail string
+	ops, err := lister.Get("etcd")
+	if err == nil {
+		backupCondition := resourcemerge.FindOperatorStatusCondition(ops.Status.Conditions, backupConditionType)
+		if backupCondition == nil {
+			reason = "EtcdRecentBackupNotSet"
+			msgDetail = "etcd backup condition is not set."
+		} else if backupCondition.Status != configv1.ConditionTrue {
+			reason = backupCondition.Reason
+			msgDetail = backupCondition.Message
+		}
+	} else {
+		reason = "UnableToGetEtcdOperator"
+		msgDetail = fmt.Sprintf("Unable to get etcd operator, err=%v.", err)
+	}
+	if len(msgDetail) > 0 {
+		message = fmt.Sprintf("%s: %s", backupConditionType, msgDetail)
+	}
+	return reason, message
+}
+
+// Run runs the RecentEtcdBackup precondition. It returns a PreconditionError until Etcd indicates that a
+// recent etcd backup has been taken.
+func (pf *RecentEtcdBackup) Run(ctx context.Context, releaseContext precondition.ReleaseContext, clusterVersion *configv1.ClusterVersion) error {
+	cv, err := pf.cvLister.Get(pf.key)
+	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+		return nil
+	}
+	if err != nil {
+		return &precondition.Error{
+			Nested:  err,
+			Reason:  "UnknownError",
+			Message: err.Error(),
+			Name:    pf.Name(),
+		}
+	}
+
+	currentVersion := GetCurrentVersion(cv.Status.History)
+	currentMinor := GetEffectiveMinor(currentVersion)
+	desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
+
+	if minorVersionUpgrade(currentMinor, desiredMinor) {
+		reason, message := recentEtcdBackupCondition(pf.coLister)
+		if len(reason) > 0 {
+			return &precondition.Error{
+				Reason:  reason,
+				Message: message,
+				Name:    pf.Name(),
+			}
+		}
+	}
+	return nil
+}
+
+// Name returns Name for the precondition.
+func (pf *RecentEtcdBackup) Name() string { return "EtcdRecentBackup" }
+
 // GetCurrentVersion determines and returns the cluster's current version by iterating through the
 // provided update history until it finds the first version with update State of Completed. If a
 // Completed version is not found the version of the oldest history entry, which is the originally
@@ -137,4 +215,18 @@ func GetEffectiveMinor(version string) string {
 		return ""
 	}
 	return splits[1]
+}
+
+// minorVersionUpgrade returns true if the the desired update minor version number is greater
+// than the current version minor version number. Errors resulting from either version
+// number being unset or NaN are ignored simply resulting in false returned.
+func minorVersionUpgrade(currentMinor string, desiredMinor string) bool {
+	if currentMinorNum, err := strconv.Atoi(currentMinor); err == nil {
+		if desiredMinorNum, err := strconv.Atoi(desiredMinor); err == nil {
+			if desiredMinorNum > currentMinorNum {
+				return true
+			}
+		}
+	}
+	return false
 }
