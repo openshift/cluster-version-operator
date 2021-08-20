@@ -32,6 +32,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	if len(upstream) == 0 {
 		usedDefaultUpstream = true
 		upstream = optr.defaultUpstreamServer
+		// set the default upstream URI in the clusterversion resource
+		config.Spec.Upstream = configv1.URL(optr.defaultUpstreamServer)
 	}
 	arch := runtime.GOARCH
 	channel := config.Spec.Channel
