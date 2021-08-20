@@ -236,9 +236,10 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 	}
 
 	return cvoCurrent, cvoUpdates, configv1.ClusterOperatorStatusCondition{
-		Type:   configv1.RetrievedUpdates,
-		Status: configv1.ConditionTrue,
-
+		Type:               configv1.RetrievedUpdates,
+		Status:             configv1.ConditionTrue,
+		Reason:             "AsExpected",
+		Message:            fmt.Sprintf("Successfully retrieved updates from %s", upstream),
 		LastTransitionTime: metav1.Now(),
 	}
 }

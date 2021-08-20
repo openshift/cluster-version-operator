@@ -2540,6 +2540,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
+					Reason: "AsExpected",
 				},
 			},
 		},
@@ -2603,6 +2604,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
+					Reason: "AsExpected",
 				},
 			},
 		},
@@ -2670,6 +2672,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 				if optr.availableUpdates != nil && optr.availableUpdates.Upstream == "http://localhost:8080/graph" {
 					optr.availableUpdates.Upstream = s.URL
+				}
+				if tt.wantUpdates != nil && tt.wantUpdates.Condition.Status == configv1.ConditionTrue {
+					tt.wantUpdates.Condition.Message = fmt.Sprintf("Successfully retrieved updates from %s", s.URL)
 				}
 			}
 			old := optr.availableUpdates
