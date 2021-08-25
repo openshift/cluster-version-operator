@@ -94,7 +94,7 @@ func setDeleteRequestedAndVerified(resource Resource) {
 	deletedResources.lock.Lock()
 	deletedResources.m[resource] = times
 	deletedResources.lock.Unlock()
-	klog.Warningf("%s has already been removed.", resource)
+	klog.Warningf("%s not found. It either has already been removed or it has never been installed on this cluster.", resource)
 }
 
 // GetDeleteProgress checks if resource deletion has been requested. If it has it checks if the deletion has completed
