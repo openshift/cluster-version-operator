@@ -361,10 +361,14 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 	return nil
 }
 
-// Since there are no admin ack gates in this initial release the Upgradeable check
-// clusterAdminAcksCompletedUpgradeable is not included.
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
+		&clusterAdminAcksCompletedUpgradeable{
+			adminGatesLister: optr.cmConfigManagedLister,
+			adminAcksLister:  optr.cmConfigLister,
+			cvLister:         optr.cvLister,
+			cvoName:          optr.name,
+		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
 	}
@@ -374,8 +378,7 @@ func (optr *Operator) addFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		klog.V(4).Infof("ConfigMap %s/%s added.", cm.Namespace, cm.Name)
-		// When clusterAdminAcksCompletedUpgradeable upgardeable check added we will call
-		// optr.setUpgradeableConditions() here
+		optr.setUpgradeableConditions()
 	}
 }
 
@@ -385,8 +388,7 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 		oldCm := oldObj.(*corev1.ConfigMap)
 		if !equality.Semantic.DeepEqual(cm, oldCm) {
 			klog.V(4).Infof("ConfigMap %s/%s updated.", cm.Namespace, cm.Name)
-			// When clusterAdminAcksCompletedUpgradeable upgardeable check added we will call
-			// optr.setUpgradeableConditions() here
+			optr.setUpgradeableConditions()
 		}
 	}
 }
@@ -395,8 +397,7 @@ func (optr *Operator) deleteFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		klog.V(4).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
-		// When clusterAdminAcksCompletedUpgradeable upgardeable check added we will call
-		// optr.setUpgradeableConditions() here
+		optr.setUpgradeableConditions()
 	}
 }
 

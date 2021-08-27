@@ -3839,12 +3839,6 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				optr.cmConfigLister = cmInformerLister.Lister().ConfigMaps("test")
 
 				optr.upgradeableChecks = optr.defaultUpgradeableChecks()
-
-				// This Upgradeable check must be added here since it is not active in 4.9 but present to allow
-				// back port to 4.8 where it will first become active.
-				optr.upgradeableChecks = append(optr.upgradeableChecks,
-					&clusterAdminAcksCompletedUpgradeable{optr.cmConfigManagedLister, optr.cmConfigLister, optr.cvLister, optr.name})
-
 				optr.eventRecorder = record.NewFakeRecorder(100)
 
 				if tt.gateCm != nil {
