@@ -59,6 +59,7 @@ spec:
                 fieldPath: spec.nodeName
           - name: CLUSTER_PROFILE
             value: {{ .ClusterProfile }}
+      dnsPolicy: ClusterFirstWithHostNet
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""

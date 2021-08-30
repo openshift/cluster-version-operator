@@ -39,6 +39,7 @@ spec:
             fieldPath: spec.nodeName
       - name: CLUSTER_PROFILE
         value: {{ .ClusterProfile }}
+  dnsPolicy: ClusterFirstWithHostNet
   hostNetwork: true
   terminationGracePeriodSeconds: 130
   volumes:
