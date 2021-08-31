@@ -110,9 +110,6 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
 			Nested:  err,
 		}
-		if !update.Force {
-			return PayloadInfo{}, vErr
-		}
 		klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
 		info.VerificationError = vErr
 	} else {
