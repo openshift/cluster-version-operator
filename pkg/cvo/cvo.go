@@ -663,11 +663,6 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 		return nil, false, nil
 	}
 
-	var upstream configv1.URL
-	if len(optr.defaultUpstreamServer) > 0 {
-		u := configv1.URL(optr.defaultUpstreamServer)
-		upstream = u
-	}
 	id, _ := uuid.NewRandom()
 
 	// XXX: generate ClusterVersion from options calculated above.
@@ -676,7 +671,6 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 			Name: optr.name,
 		},
 		Spec: configv1.ClusterVersionSpec{
-			Upstream:  upstream,
 			Channel:   "fast",
 			ClusterID: configv1.ClusterID(id.String()),
 		},
