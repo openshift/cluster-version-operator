@@ -36,23 +36,7 @@ func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, req
 func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.PodSpec) {
 	ensureContainers(modified, &existing.InitContainers, required.InitContainers, required.HostNetwork)
 	ensureContainers(modified, &existing.Containers, required.Containers, required.HostNetwork)
-
-	// any volume we specify, we require.
-	for _, required := range required.Volumes {
-		var existingCurr *corev1.Volume
-		for j, curr := range existing.Volumes {
-			if curr.Name == required.Name {
-				existingCurr = &existing.Volumes[j]
-				break
-			}
-		}
-		if existingCurr == nil {
-			*modified = true
-			existing.Volumes = append(existing.Volumes, corev1.Volume{})
-			existingCurr = &existing.Volumes[len(existing.Volumes)-1]
-		}
-		ensureVolume(modified, existingCurr, required)
-	}
+	ensureVolumes(modified, &existing.Volumes, required.Volumes)
 
 	if len(required.RestartPolicy) > 0 {
 		if existing.RestartPolicy != required.RestartPolicy {
@@ -118,24 +102,7 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 	setStringIfSet(modified, &existing.WorkingDir, required.WorkingDir)
 	ensureResourceRequirements(modified, &existing.Resources, required.Resources)
 	ensureContainerPorts(modified, &existing.Ports, required.Ports, hostNetwork)
-
-	// any volume mount we specify, we require
-	for _, required := range required.VolumeMounts {
-		var existingCurr *corev1.VolumeMount
-		for j, curr := range existing.VolumeMounts {
-			if curr.Name == required.Name {
-				existingCurr = &existing.VolumeMounts[j]
-				break
-			}
-		}
-		if existingCurr == nil {
-			*modified = true
-			existing.VolumeMounts = append(existing.VolumeMounts, corev1.VolumeMount{})
-			existingCurr = &existing.VolumeMounts[len(existing.VolumeMounts)-1]
-		}
-		ensureVolumeMount(modified, existingCurr, required)
-	}
-
+	ensureVolumeMounts(modified, &existing.VolumeMounts, required.VolumeMounts)
 	ensureProbePtr(modified, &existing.LivenessProbe, required.LivenessProbe)
 	ensureProbePtr(modified, &existing.ReadinessProbe, required.ReadinessProbe)
 
@@ -347,10 +314,70 @@ func ensureServicePortDefaults(servicePort *corev1.ServicePort) {
 	}
 }
 
+func ensureVolumeMounts(modified *bool, existing *[]corev1.VolumeMount, required []corev1.VolumeMount) {
+	// any volume mount we specify, we require
+	exists := struct{}{}
+	requiredNames := make(map[string]struct{}, len(required))
+	for _, requiredVolumeMount := range required {
+		requiredNames[requiredVolumeMount.Name] = exists
+		var existingCurr *corev1.VolumeMount
+		for j, curr := range *existing {
+			if curr.Name == requiredVolumeMount.Name {
+				existingCurr = &(*existing)[j]
+				break
+			}
+		}
+		if existingCurr == nil {
+			*modified = true
+			*existing = append(*existing, corev1.VolumeMount{})
+			existingCurr = &(*existing)[len(*existing)-1]
+		}
+		ensureVolumeMount(modified, existingCurr, requiredVolumeMount)
+	}
+
+	// any unrecognized volume mount, we remove
+	for eidx := len(*existing) - 1; eidx >= 0; eidx-- {
+		if _, ok := requiredNames[(*existing)[eidx].Name]; !ok {
+			*modified = true
+			*existing = append((*existing)[:eidx], (*existing)[eidx+1:]...)
+		}
+	}
+}
+
 func ensureVolumeMount(modified *bool, existing *corev1.VolumeMount, required corev1.VolumeMount) {
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*modified = true
 		*existing = required
+	}
+}
+
+func ensureVolumes(modified *bool, existing *[]corev1.Volume, required []corev1.Volume) {
+	// any volume we specify, we require.
+	exists := struct{}{}
+	requiredNames := make(map[string]struct{}, len(required))
+	for _, requiredVolume := range required {
+		requiredNames[requiredVolume.Name] = exists
+		var existingCurr *corev1.Volume
+		for j, curr := range *existing {
+			if curr.Name == requiredVolume.Name {
+				existingCurr = &(*existing)[j]
+				break
+			}
+		}
+		if existingCurr == nil {
+			*modified = true
+			*existing = append(*existing, corev1.Volume{})
+			existingCurr = &(*existing)[len(*existing)-1]
+		}
+		ensureVolume(modified, existingCurr, requiredVolume)
+	}
+
+	// any unrecognized volume mount, we remove
+	for eidx := len(*existing) - 1; eidx >= 0; eidx-- {
+		if _, ok := requiredNames[(*existing)[eidx].Name]; !ok {
+			*modified = true
+			*existing = append((*existing)[:eidx], (*existing)[eidx+1:]...)
+		}
 	}
 }
 
