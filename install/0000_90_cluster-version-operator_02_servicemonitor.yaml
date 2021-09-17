@@ -69,7 +69,7 @@ spec:
         max by (name, condition, endpoint) (cluster_operator_conditions{name="version", condition="Upgradeable", endpoint="metrics"} == 0)
       for: 60m
       labels:
-        severity: warning
+        severity: info
     - alert: ClusterOperatorDown
       annotations:
         message: Cluster operator {{ "{{ $labels.name }}" }} has not been available for 10 minutes. Operator may be down or disabled, cluster will not be kept up to date and upgrades will not be possible.
