@@ -201,14 +201,20 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 		}
 	}
 
-	// during initialization we allow degraded
-	if degraded && mode != resourcebuilder.InitializingMode {
+	if degraded {
 		if degradedCondition != nil && len(degradedCondition.Message) > 0 {
 			nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s, %s", actual.Name, degradedCondition.Type, degradedCondition.Status, degradedCondition.Reason, degradedCondition.Message)
 		}
+		var updateEffect payload.UpdateEffectType
+
+		if mode == resourcebuilder.InitializingMode {
+			updateEffect = payload.UpdateEffectReport
+		} else {
+			updateEffect = payload.UpdateEffectFailAfterInterval
+		}
 		return &payload.UpdateError{
 			Nested:              nestedMessage,
-			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			UpdateEffect:        updateEffect,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             fmt.Sprintf("Cluster operator %s is degraded", actual.Name),

@@ -147,6 +147,10 @@ func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder
 type UpdateEffectType string
 
 const (
+	// UpdateEffectReport defines an error that requires reporting but does not
+	// block reconciliation from completing.
+	UpdateEffectReport UpdateEffectType = "Report"
+
 	// UpdateEffectNone defines an error as having no affect on the update state.
 	UpdateEffectNone UpdateEffectType = "None"
 
