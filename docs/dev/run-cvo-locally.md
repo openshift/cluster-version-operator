@@ -42,7 +42,7 @@ $ export PAYLOAD_OVERRIDE=/tmp/release/
 Run the CVO executable specifying `start`, the appropriate release image and, optionally, logging verbosity:
 
 ```console
-$ ./_output/linux/amd64/cluster-version-operator -v5 start --release-image 4.4.0-rc.4
+$ ./_output/linux/amd64/cluster-version-operator -v5 start --release-image 4.4.0-rc.4 --listen=""
 ```
 
 ## Limitations
