@@ -21,9 +21,9 @@ func (optr *Operator) getHTTPSProxyURL() (*url.URL, error) {
 		return nil, err
 	}
 
-	if &proxy.Spec != nil {
-		if proxy.Spec.HTTPSProxy != "" {
-			proxyURL, err := url.Parse(proxy.Spec.HTTPSProxy)
+	if &proxy.Status != nil {
+		if proxy.Status.HTTPSProxy != "" {
+			proxyURL, err := url.Parse(proxy.Status.HTTPSProxy)
 			if err != nil {
 				return nil, err
 			}
