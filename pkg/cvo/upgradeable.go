@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -9,26 +10,45 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	listerscorev1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 )
+
+const (
+	adminAckGateFmt             string = "^ack-[4-5][.]([0-9]{1,})-[^-]"
+	upgradeableAdminAckRequired        = configv1.ClusterStatusConditionType("UpgradeableAdminAckRequired")
+)
+
+var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 
 // syncUpgradeable. The status is only checked if it has been more than
 // the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
+func (optr *Operator) syncUpgradeable() error {
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getUpgradeable()
 	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(4).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
+	optr.setUpgradeableConditions()
 
+	// requeue
+	optr.queue.Add(optr.queueKey())
+	return nil
+}
+
+func (optr *Operator) setUpgradeableConditions() {
 	now := metav1.Now()
 	var conds []configv1.ClusterOperatorStatusCondition
 	var reasons []string
@@ -60,9 +80,6 @@ func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
 	optr.setUpgradeable(&upgradeable{
 		Conditions: conds,
 	})
-	// requeue
-	optr.queue.Add(optr.queueKey())
-	return nil
 }
 
 type upgradeable struct {
@@ -215,9 +232,191 @@ func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperat
 	return cond
 }
 
+func gateApplicableToCurrentVersion(gateName string, currentVersion string) (bool, error) {
+	var applicable bool
+	if ackVersion := adminAckGateRegexp.FindString(gateName); ackVersion == "" {
+		return false, fmt.Errorf("%s configmap gate name %s has invalid format; must comply with %q.",
+			internal.AdminGatesConfigMap, gateName, adminAckGateFmt)
+	} else {
+		parts := strings.Split(ackVersion, "-")
+		ackMinor := clusterversion.GetEffectiveMinor(parts[1])
+		cvMinor := clusterversion.GetEffectiveMinor(currentVersion)
+		if ackMinor == cvMinor {
+			applicable = true
+		}
+	}
+	return applicable, nil
+}
+
+func checkAdminGate(gateName string, gateValue string, currentVersion string,
+	ackConfigmap *corev1.ConfigMap) (string, string) {
+
+	if applies, err := gateApplicableToCurrentVersion(gateName, currentVersion); err == nil {
+		if !applies {
+			return "", ""
+		}
+	} else {
+		klog.Error(err)
+		return "AdminAckConfigMapGateNameError", err.Error()
+	}
+	if gateValue == "" {
+		message := fmt.Sprintf("%s configmap gate %s must contain a non-empty value.", internal.AdminGatesConfigMap, gateName)
+		klog.Error(message)
+		return "AdminAckConfigMapGateValueError", message
+	}
+	if val, ok := ackConfigmap.Data[gateName]; !ok || val != "true" {
+		return "AdminAckRequired", gateValue
+	}
+	return "", ""
+}
+
+type clusterAdminAcksCompletedUpgradeable struct {
+	adminGatesLister listerscorev1.ConfigMapNamespaceLister
+	adminAcksLister  listerscorev1.ConfigMapNamespaceLister
+	cvLister         configlistersv1.ClusterVersionLister
+	cvoName          string
+}
+
+func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
+	cv, err := check.cvLister.Get(check.cvoName)
+	if meta.IsNoMatchError(err) || apierrors.IsNotFound(err) {
+		message := fmt.Sprintf("Unable to get ClusterVersion, err=%v.", err)
+		klog.Error(message)
+		return &configv1.ClusterOperatorStatusCondition{
+			Type:    upgradeableAdminAckRequired,
+			Status:  configv1.ConditionFalse,
+			Reason:  "UnableToGetClusterVersion",
+			Message: message,
+		}
+	}
+	currentVersion := clusterversion.GetCurrentVersion(cv.Status.History)
+
+	// This can occur in early start up when the configmap is first added and version history
+	// has not yet been populated.
+	if currentVersion == "" {
+		return nil
+	}
+
+	var gateCm *corev1.ConfigMap
+	if gateCm, err = check.adminGatesLister.Get(internal.AdminGatesConfigMap); err != nil {
+		var message string
+		if apierrors.IsNotFound(err) {
+			message = fmt.Sprintf("%s configmap not found.", internal.AdminGatesConfigMap)
+		} else if err != nil {
+			message = fmt.Sprintf("Unable to access configmap %s, err=%v.", internal.AdminGatesConfigMap, err)
+		}
+		klog.Error(message)
+		return &configv1.ClusterOperatorStatusCondition{
+			Type:    upgradeableAdminAckRequired,
+			Status:  configv1.ConditionFalse,
+			Reason:  "UnableToAccessAdminGatesConfigMap",
+			Message: message,
+		}
+	}
+	var ackCm *corev1.ConfigMap
+	if ackCm, err = check.adminAcksLister.Get(internal.AdminAcksConfigMap); err != nil {
+		var message string
+		if apierrors.IsNotFound(err) {
+			message = fmt.Sprintf("%s configmap not found.", internal.AdminAcksConfigMap)
+		} else if err != nil {
+			message = fmt.Sprintf("Unable to access configmap %s, err=%v.", internal.AdminAcksConfigMap, err)
+		}
+		klog.Error(message)
+		return &configv1.ClusterOperatorStatusCondition{
+			Type:    upgradeableAdminAckRequired,
+			Status:  configv1.ConditionFalse,
+			Reason:  "UnableToAccessAdminAcksConfigMap",
+			Message: message,
+		}
+	}
+	reasons := make(map[string][]string)
+	for k, v := range gateCm.Data {
+		if reason, message := checkAdminGate(k, v, currentVersion, ackCm); reason != "" {
+			reasons[reason] = append(reasons[reason], message)
+		}
+	}
+	var reason string
+	var messages []string
+	for k, v := range reasons {
+		reason = k
+		sort.Strings(v)
+		messages = append(messages, strings.Join(v, " "))
+	}
+	if len(reasons) == 1 {
+		return &configv1.ClusterOperatorStatusCondition{
+			Type:    upgradeableAdminAckRequired,
+			Status:  configv1.ConditionFalse,
+			Reason:  reason,
+			Message: messages[0],
+		}
+	} else if len(reasons) > 1 {
+		sort.Strings(messages)
+		return &configv1.ClusterOperatorStatusCondition{
+			Type:    upgradeableAdminAckRequired,
+			Status:  configv1.ConditionFalse,
+			Reason:  "MultipleReasons",
+			Message: strings.Join(messages, " "),
+		}
+	}
+	return nil
+}
+
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
+		&clusterAdminAcksCompletedUpgradeable{
+			adminGatesLister: optr.cmConfigManagedLister,
+			adminAcksLister:  optr.cmConfigLister,
+			cvLister:         optr.cvLister,
+			cvoName:          optr.name,
+		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
+	}
+}
+
+func (optr *Operator) addFunc(obj interface{}) {
+	cm := obj.(*corev1.ConfigMap)
+	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
+		klog.V(4).Infof("ConfigMap %s/%s added.", cm.Namespace, cm.Name)
+		optr.setUpgradeableConditions()
+	}
+}
+
+func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
+	cm := newObj.(*corev1.ConfigMap)
+	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
+		oldCm := oldObj.(*corev1.ConfigMap)
+		if !equality.Semantic.DeepEqual(cm, oldCm) {
+			klog.V(4).Infof("ConfigMap %s/%s updated.", cm.Namespace, cm.Name)
+			optr.setUpgradeableConditions()
+		}
+	}
+}
+
+func (optr *Operator) deleteFunc(obj interface{}) {
+	cm := obj.(*corev1.ConfigMap)
+	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
+		klog.V(4).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
+		optr.setUpgradeableConditions()
+	}
+}
+
+// adminAcksEventHandler handles changes to the admin-acks configmap by re-assessing all
+// Upgradeable conditions.
+func (optr *Operator) adminAcksEventHandler() cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc:    optr.addFunc,
+		UpdateFunc: optr.updateFunc,
+		DeleteFunc: optr.deleteFunc,
+	}
+}
+
+// adminGatesEventHandler handles changes to the admin-gates configmap by re-assessing all
+// Upgradeable conditions.
+func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc:    optr.addFunc,
+		UpdateFunc: optr.updateFunc,
+		DeleteFunc: optr.deleteFunc,
 	}
 }

@@ -26,11 +26,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/informers"
 	kfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	clienttesting "k8s.io/client-go/testing"
 	ktesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
@@ -2792,19 +2796,40 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 	}
 }
 
+// waits for admin ack configmap changes
+func waitForCm(t *testing.T, cmChan chan *corev1.ConfigMap) {
+	select {
+	case cm := <-cmChan:
+		t.Logf("Got configmap from channel: %s/%s", cm.Namespace, cm.Name)
+	case <-time.After(wait.ForeverTestTimeout):
+		t.Error("Informer did not get the configmap")
+	}
+}
+
 func TestOperator_upgradeableSync(t *testing.T) {
 	id := uuid.Must(uuid.NewRandom()).String()
 
+	var defaultGateCm = corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+			Namespace: "test"},
+	}
+	var defaultAckCm = corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: "admin-acks",
+			Namespace: "test"},
+	}
 	tests := []struct {
-		name    string
-		key     string
-		optr    Operator
-		wantErr func(*testing.T, error)
-		want    *upgradeable
+		name           string
+		key            string
+		optr           *Operator
+		cm             corev1.ConfigMap
+		gateCm         *corev1.ConfigMap
+		ackCm          *corev1.ConfigMap
+		wantErr        func(*testing.T, error)
+		expectedResult *upgradeable
 	}{
 		{
 			name: "when version is missing, do nothing (other loops should create it)",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2813,10 +2838,14 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				name:      "default",
 				client:    fake.NewSimpleClientset(),
 			},
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
 		},
 		{
 			name: "report error condition when overrides is set for version",
-			optr: Operator{
+			optr: &Operator{
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2842,7 +2871,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -2853,7 +2886,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when the single clusteroperator is not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2891,7 +2924,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -2902,7 +2939,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another has no conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -2948,7 +2985,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -2959,7 +3000,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another is upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3008,7 +3049,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -3019,7 +3064,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when two clusteroperators are not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3070,7 +3115,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -3081,7 +3130,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "report error condition when clusteroperators and version are not upgradeable",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3135,7 +3184,11 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{
 				Conditions: []configv1.ClusterOperatorStatusCondition{{
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
@@ -3156,7 +3209,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		},
 		{
 			name: "no error conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3182,11 +3235,15 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{},
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{},
 		},
 		{
 			name: "no error conditions",
-			optr: Operator{
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
@@ -3214,15 +3271,19 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{},
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{},
 		},
 		{
-			name: "no error conditions",
-			optr: Operator{
+			name: "no error conditions and admin ack gate does not apply to version",
+			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
 				release: configv1.Release{
-					Version: "v4.0.0",
-					Image:   "image/image:v4.0.1",
+					Version: "v4.9.0",
+					Image:   "image/image:v4.9.1",
 				},
 				namespace: "test",
 				name:      "default",
@@ -3240,7 +3301,8 @@ func TestOperator_upgradeableSync(t *testing.T) {
 						},
 						Status: configv1.ClusterVersionStatus{
 							History: []configv1.UpdateHistory{
-								{Image: "image/image:v4.0.1"},
+								{Version: "4.9.0"},
+								{Image: "image/image:v4.9.1"},
 							},
 						},
 					},
@@ -3257,42 +3319,691 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					},
 				),
 			},
-			want: &upgradeable{},
+			cm: corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+			},
+			expectedResult: &upgradeable{},
+		},
+		{
+			name: "admin-gates configmap gate does not have value",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": ""},
+			},
+			ackCm: &defaultAckCm,
+			expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "AdminAckConfigMapGateValueError",
+					Message: "admin-gates configmap gate ack-4.8-kube-122-api-removals-in-4.9 must contain a non-empty value."}},
+			},
+		},
+		{
+			name: "admin ack required",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description."},
+			},
+			ackCm: &defaultAckCm,
+			expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "AdminAckRequired",
+					Message: "Description."}},
+			},
+		},
+		{
+			name: "admin ack required and admin ack gate does not apply to version",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description.",
+					"ack-4.9-kube-122-api-removals-in-4.9": "Description 2."},
+			},
+			ackCm: &defaultAckCm, expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "AdminAckRequired",
+					Message: "Description."}},
+			},
+		},
+		{
+			name: "admin ack required and configmap gate does not have value",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description.",
+					"ack-4.8-foo": ""},
+			},
+			ackCm: &defaultAckCm, expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "MultipleReasons",
+					Message: "Description. admin-gates configmap gate ack-4.8-foo must contain a non-empty value."}},
+			},
+		},
+		{
+			name: "multiple admin acks required",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description 2.",
+					"ack-4.8-foo": "Description 1.",
+					"ack-4.8-bar": "Description 3."},
+			},
+			ackCm: &defaultAckCm, expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "AdminAckRequired",
+					Message: "Description 1. Description 2. Description 3."}},
+			},
+		},
+		{
+			name: "admin ack found",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description."},
+			},
+			ackCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-acks",
+					Namespace: "test"}, Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "true"},
+			},
+			expectedResult: &upgradeable{},
+		},
+		{
+			name: "admin ack 2 of 3 found",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description.",
+					"ack-4.8-foo": "Description foo.",
+					"ack-4.8-bar": "Description bar."},
+			},
+			ackCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-acks",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "true",
+					"ack-4.8-bar": "true"}},
+			expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "AdminAckRequired",
+					Message: "Description foo."}},
+			},
+		},
+		{
+			name: "multiple admin acks found",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description.",
+					"ack-4.8-foo": "Description foo.",
+					"ack-4.8-bar": "Description bar."},
+			},
+			ackCm: &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "admin-acks",
+				Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "true",
+					"ack-4.8-bar": "true",
+					"ack-4.8-foo": "true"}},
+			expectedResult: &upgradeable{},
+		},
+		// delete tests are last so we don't have to re-create the config map for other tests
+		{
+			name: "admin-acks configmap not found",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description."},
+			},
+			// Name triggers deletion of config map
+			ackCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "delete",
+					Namespace: "test"}, Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "true"},
+			},
+			expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "UnableToAccessAdminAcksConfigMap",
+					Message: "admin-acks configmap not found."}},
+			},
+		},
+		// delete tests are last so we don't have to re-create the config map for other tests
+		{
+			name: "admin-gates configmap not found",
+			optr: &Operator{
+				defaultUpstreamServer: "http://localhost:8080/graph",
+				release: configv1.Release{
+					Version: "v4.8.0",
+					Image:   "image/image:v4.8.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Channel:   "",
+							Overrides: []configv1.ComponentOverride{{
+								Unmanaged: false,
+							}},
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Version: "4.8.0"},
+							},
+						},
+					},
+				),
+			},
+			// Name triggers deletion of config map
+			gateCm: &corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{Name: "delete",
+					Namespace: "test"},
+				Data: map[string]string{"ack-4.8-kube-122-api-removals-in-4.9": "Description."},
+			},
+			ackCm: nil,
+			expectedResult: &upgradeable{
+				Conditions: []configv1.ClusterOperatorStatusCondition{{
+					Type:    configv1.OperatorUpgradeable,
+					Status:  configv1.ConditionFalse,
+					Reason:  "UnableToAccessAdminGatesConfigMap",
+					Message: "admin-gates configmap not found."}},
+			},
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	watcherStarted := make(chan struct{})
+	f := kfake.NewSimpleClientset()
+
+	// A catch-all watch reactor that allows us to inject the watcherStarted channel.
+	f.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+		gvr := action.GetResource()
+		ns := action.GetNamespace()
+		watch, err := f.Tracker().Watch(gvr, ns)
+		if err != nil {
+			return false, nil, err
+		}
+		close(watcherStarted)
+		return true, watch, nil
+	})
+	cms := make(chan *corev1.ConfigMap, 1)
+	configManagedInformer := informers.NewSharedInformerFactory(f, 0)
+	cmInformerLister := configManagedInformer.Core().V1().ConfigMaps()
+	cmInformer := configManagedInformer.Core().V1().ConfigMaps().Informer()
+	cmInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			cm := obj.(*corev1.ConfigMap)
+			t.Logf("cm added: %s/%s", cm.Namespace, cm.Name)
+			cms <- cm
+		},
+		DeleteFunc: func(obj interface{}) {
+			cm := obj.(*corev1.ConfigMap)
+			t.Logf("cm deleted: %s/%s", cm.Namespace, cm.Name)
+			cms <- cm
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			cm := newObj.(*corev1.ConfigMap)
+			t.Logf("cm updated: %s/%s", cm.Namespace, cm.Name)
+			cms <- cm
+		},
+	})
+	configManagedInformer.Start(ctx.Done())
+
+	_, err := f.CoreV1().ConfigMaps("test").Create(ctx, &defaultGateCm, metav1.CreateOptions{})
+	if err != nil {
+		t.Errorf("error injecting admin-gates configmap: %v", err)
+	}
+	waitForCm(t, cms)
+	_, err = f.CoreV1().ConfigMaps("test").Create(ctx, &defaultAckCm, metav1.CreateOptions{})
+	if err != nil {
+		t.Errorf("error injecting admin-acks configmap: %v", err)
+	}
+	waitForCm(t, cms)
+
+	for _, tt := range tests {
+		{
+			t.Run(tt.name, func(t *testing.T) {
+				optr := tt.optr
+				optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+				optr.proxyLister = &clientProxyLister{client: optr.client}
+				optr.coLister = &clientCOLister{client: optr.client}
+				optr.cvLister = &clientCVLister{client: optr.client}
+				optr.cmConfigManagedLister = cmInformerLister.Lister().ConfigMaps("test")
+				optr.cmConfigLister = cmInformerLister.Lister().ConfigMaps("test")
+
+				optr.upgradeableChecks = optr.defaultUpgradeableChecks()
+				optr.eventRecorder = record.NewFakeRecorder(100)
+
+				if tt.gateCm != nil {
+					if tt.gateCm.Name == "delete" {
+						err := f.CoreV1().ConfigMaps("test").Delete(ctx, "admin-gates", metav1.DeleteOptions{})
+						if err != nil {
+							t.Errorf("error deleting configmap admin-gates: %v", err)
+						}
+					} else {
+						_, err = f.CoreV1().ConfigMaps("test").Update(ctx, tt.gateCm, metav1.UpdateOptions{})
+						if err != nil {
+							t.Errorf("error updating configmap admin-gates: %v", err)
+						}
+					}
+					waitForCm(t, cms)
+				}
+				if tt.ackCm != nil {
+					if tt.ackCm.Name == "delete" {
+						err := f.CoreV1().ConfigMaps("test").Delete(ctx, "admin-acks", metav1.DeleteOptions{})
+						if err != nil {
+							t.Errorf("error deleting configmap admin-acks: %v", err)
+						}
+					} else {
+						_, err = f.CoreV1().ConfigMaps("test").Update(ctx, tt.ackCm, metav1.UpdateOptions{})
+						if err != nil {
+							t.Errorf("error updating configmap admin-acks: %v", err)
+						}
+					}
+					waitForCm(t, cms)
+				}
+
+				err = optr.upgradeableSync(ctx, optr.queueKey())
+				if err != nil && tt.wantErr == nil {
+					t.Fatalf("Operator.sync() unexpected error: %v", err)
+				}
+				if err != nil {
+					return
+				}
+
+				if optr.upgradeable != nil {
+					optr.upgradeable.At = time.Time{}
+					for i := range optr.upgradeable.Conditions {
+						optr.upgradeable.Conditions[i].LastTransitionTime = metav1.Time{}
+					}
+				}
+
+				if !reflect.DeepEqual(optr.upgradeable, tt.expectedResult) {
+					t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.expectedResult, optr.upgradeable))
+				}
+				if (optr.queue.Len() > 0) != (optr.upgradeable != nil) {
+					t.Fatalf("unexpected queue")
+				}
+			})
+		}
+	}
+}
+
+func Test_gateApplicableToCurrentVersion(t *testing.T) {
+	tests := []struct {
+		name           string
+		gateName       string
+		cv             string
+		wantErr        bool
+		expectedResult bool
+	}{
+		{
+			name:           "gate name invalid format no dot",
+			gateName:       "ack-4>8-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format 2 dots",
+			gateName:       "ack-4..8-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format does not start with ack",
+			gateName:       "ck-4.8-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format major version must be 4 or 5",
+			gateName:       "ack-3.8-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format minor version must be a number",
+			gateName:       "ack-4.x-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format no following dash",
+			gateName:       "ack-4.8.1-foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format 2 following dashes",
+			gateName:       "ack-4.x--foo",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name invalid format no description following dash",
+			gateName:       "ack-4.x-",
+			cv:             "4.8.1",
+			wantErr:        true,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name match",
+			gateName:       "ack-4.8-foo",
+			cv:             "4.8.1",
+			wantErr:        false,
+			expectedResult: true,
+		},
+		{
+			name:           "gate name match big minor version",
+			gateName:       "ack-4.123456-foo",
+			cv:             "4.123456",
+			wantErr:        false,
+			expectedResult: true,
+		},
+		{
+			name:           "gate name no match",
+			gateName:       "ack-4.8-foo",
+			cv:             "4.9.1",
+			wantErr:        false,
+			expectedResult: false,
+		},
+		{
+			name:           "gate name no match multi digit minor",
+			gateName:       "ack-4.8-foo",
+			cv:             "4.80.1",
+			wantErr:        false,
+			expectedResult: false,
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			optr := tt.optr
-			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
-			optr.proxyLister = &clientProxyLister{client: optr.client}
-			optr.coLister = &clientCOLister{client: optr.client}
-			optr.cvLister = &clientCVLister{client: optr.client}
-			optr.upgradeableChecks = optr.defaultUpgradeableChecks()
-			optr.eventRecorder = record.NewFakeRecorder(100)
-
-			ctx := context.Background()
-			err := optr.upgradeableSync(ctx, optr.queueKey())
-			if err != nil && tt.wantErr == nil {
-				t.Fatalf("Operator.sync() unexpected error: %v", err)
-			}
-			if err != nil {
-				return
-			}
-
-			if optr.upgradeable != nil {
-				optr.upgradeable.At = time.Time{}
-				for i := range optr.upgradeable.Conditions {
-					optr.upgradeable.Conditions[i].LastTransitionTime = metav1.Time{}
+		{
+			t.Run(tt.name, func(t *testing.T) {
+				isApplicable, err := gateApplicableToCurrentVersion(tt.gateName, tt.cv)
+				if err != nil && !tt.wantErr {
+					t.Fatalf("gateApplicableToCurrentVersion() unexpected error: %v", err)
 				}
-			}
-
-			if !reflect.DeepEqual(optr.upgradeable, tt.want) {
-				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.want, optr.upgradeable))
-			}
-			if (optr.queue.Len() > 0) != (optr.upgradeable != nil) {
-				t.Fatalf("unexpected queue")
-			}
-		})
+				if err != nil {
+					return
+				}
+				if isApplicable && !tt.expectedResult {
+					t.Fatalf("gateApplicableToCurrentVersion() %s should not apply", tt.gateName)
+				}
+			})
+		}
 	}
 }
 
