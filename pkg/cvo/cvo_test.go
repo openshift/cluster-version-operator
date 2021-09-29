@@ -2602,8 +2602,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Channel:  "fast",
 				Current:  configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 				Updates: []configv1.Release{
-					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
+					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
 				},
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,

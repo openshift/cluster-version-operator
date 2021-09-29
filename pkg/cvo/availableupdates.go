@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"sort"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -124,6 +125,18 @@ func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
 		} else {
 			klog.Warningf("Unrecognized condition %s=%s (%s: %s): cannot judge update retrieval success", u.Condition.Type, u.Condition.Status, u.Condition.Reason, u.Condition.Message)
 		}
+
+		sort.Slice(u.Updates, func(i, j int) bool {
+			vi := semver.MustParse(u.Updates[i].Version)
+			vj := semver.MustParse(u.Updates[j].Version)
+			return vi.GTE(vj)
+		})
+
+		sort.Slice(u.ConditionalUpdates, func(i, j int) bool {
+			vi := semver.MustParse(u.ConditionalUpdates[i].Release.Version)
+			vj := semver.MustParse(u.ConditionalUpdates[j].Release.Version)
+			return vi.GTE(vj)
+		})
 	}
 
 	optr.statusLock.Lock()
