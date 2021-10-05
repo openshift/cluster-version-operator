@@ -7,17 +7,20 @@ import (
 	"net/url"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 )
 
 const noChannel string = "NoChannel"
@@ -52,14 +55,19 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	if usedDefaultUpstream {
 		upstream = ""
 	}
-	optr.setAvailableUpdates(&availableUpdates{
+
+	au := &availableUpdates{
 		Upstream:           upstream,
 		Channel:            config.Spec.Channel,
 		Current:            current,
 		Updates:            updates,
 		ConditionalUpdates: conditionalUpdates,
 		Condition:          condition,
-	})
+	}
+
+	au.evaluateConditionalUpdates(ctx)
+	optr.setAvailableUpdates(au)
+
 	// requeue
 	optr.queue.Add(optr.queueKey())
 	return nil
@@ -237,4 +245,68 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 
 		LastTransitionTime: metav1.Now(),
 	}
+}
+
+func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
+	if u == nil {
+		return
+	}
+
+	for i, conditionalUpdate := range u.ConditionalUpdates {
+		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate); errorCondition != nil {
+			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
+			u.removeUpdate(ctx, conditionalUpdate.Release.Image)
+		} else {
+			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
+				Type:   "Recommended",
+				Status: metav1.ConditionTrue,
+				// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
+				Reason:  "AsExpected",
+				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
+			})
+			u.Updates = append(u.Updates, conditionalUpdate.Release)
+		}
+		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
+	}
+}
+
+func (u *availableUpdates) removeUpdate(ctx context.Context, image string) {
+	for i, update := range u.Updates {
+		if update.Image == image {
+			u.Updates = append(u.Updates[:i], u.Updates[i+1:]...)
+		}
+	}
+}
+
+func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate) *metav1.Condition {
+	recommended := &metav1.Condition{
+		Type: "Recommended",
+	}
+	messages := []string{}
+	for _, risk := range conditionalUpdate.Risks {
+		if match, err := clusterconditions.Match(ctx, risk.MatchingRules); err != nil {
+			if recommended.Status != metav1.ConditionFalse {
+				recommended.Status = metav1.ConditionUnknown
+			}
+			if recommended.Reason == "" || recommended.Reason == "EvaluationFailed" {
+				recommended.Reason = "EvaluationFailed"
+			} else {
+				recommended.Reason = "MultipleReasons"
+			}
+			messages = append(messages, fmt.Sprintf("Exposure to %s is unknown due to an evaluation failure: %v\n%s %s", risk.Name, err, risk.Message, risk.URL))
+		} else if match {
+			recommended.Status = metav1.ConditionFalse
+			if recommended.Reason == "" {
+				recommended.Reason = risk.Name
+			} else {
+				recommended.Reason = "MultipleReasons"
+			}
+			messages = append(messages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
+		}
+	}
+	if recommended.Status == "" {
+		return nil
+	}
+	recommended.Message = strings.Join(messages, "\n\n")
+	return recommended
 }
