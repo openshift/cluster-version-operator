@@ -3110,7 +3110,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					Type:    configv1.OperatorUpgradeable,
 					Status:  configv1.ConditionFalse,
 					Reason:  "MultipleReasons",
-					Message: "Cluster should not be upgraded between minor versions for multiple reasons: ClusterOperatorsNotUpgradeable,ClusterVersionOverridesSet",
+					Message: "Cluster should not be upgraded between minor versions for multiple reasons: ClusterVersionOverridesSet,ClusterOperatorsNotUpgradeable\n* Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing.\n* Multiple cluster operators should not be upgraded between minor versions:\n* Cluster operator default-operator-1 should not be upgraded between minor versions: RandomReason: some random reason why upgrades are not safe.\n* Cluster operator default-operator-2 should not be upgraded between minor versions: RandomReason2: some random reason 2 why upgrades are not safe.",
 				}, {
 					Type:    "UpgradeableClusterOperators",
 					Status:  configv1.ConditionFalse,
