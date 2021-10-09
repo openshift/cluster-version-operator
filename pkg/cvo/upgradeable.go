@@ -52,9 +52,11 @@ func (optr *Operator) setUpgradeableConditions() {
 	now := metav1.Now()
 	var conds []configv1.ClusterOperatorStatusCondition
 	var reasons []string
+	var msgs []string
 	for _, check := range optr.upgradeableChecks {
 		if cond := check.Check(); cond != nil {
 			reasons = append(reasons, cond.Reason)
+			msgs = append(msgs, cond.Message)
 			cond.LastTransitionTime = now
 			conds = append(conds, *cond)
 		}
@@ -72,7 +74,7 @@ func (optr *Operator) setUpgradeableConditions() {
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionFalse,
 			Reason:             "MultipleReasons",
-			Message:            fmt.Sprintf("Cluster cannot be upgraded between minor versions for multiple reasons: %s", strings.Join(reasons, ",")),
+			Message:            fmt.Sprintf("Cluster should not be upgraded between minor versions for multiple reasons: %s\n* %s", strings.Join(reasons, ","), strings.Join(msgs, "\n* ")),
 			LastTransitionTime: now,
 		})
 	}
@@ -187,14 +189,14 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	reason := ""
 	if len(notup) == 1 {
 		reason = notup[0].condition.Reason
-		msg = fmt.Sprintf("Cluster operator %s cannot be upgraded between minor versions: %s", notup[0].name, notup[0].condition.Message)
+		msg = fmt.Sprintf("Cluster operator %s should not be upgraded between minor versions: %s", notup[0].name, notup[0].condition.Message)
 	} else {
 		reason = "ClusterOperatorsNotUpgradeable"
 		var msgs []string
 		for _, cond := range notup {
-			msgs = append(msgs, fmt.Sprintf("Cluster operator %s cannot be upgraded between minor versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
+			msgs = append(msgs, fmt.Sprintf("Cluster operator %s should not be upgraded between minor versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
 		}
-		msg = fmt.Sprintf("Multiple cluster operators cannot be upgraded between minor versions:\n* %s", strings.Join(msgs, "\n* "))
+		msg = fmt.Sprintf("Multiple cluster operators should not be upgraded between minor versions:\n* %s", strings.Join(msgs, "\n* "))
 	}
 	cond.Reason = reason
 	cond.Message = msg
@@ -363,6 +365,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 
 func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	return []upgradeableCheck{
+		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
 		&clusterAdminAcksCompletedUpgradeable{
 			adminGatesLister: optr.cmConfigManagedLister,
 			adminAcksLister:  optr.cmConfigLister,
@@ -370,7 +373,6 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 			cvoName:          optr.name,
 		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
-		&clusterVersionOverridesUpgradeable{name: optr.name, cvLister: optr.cvLister},
 	}
 }
 
