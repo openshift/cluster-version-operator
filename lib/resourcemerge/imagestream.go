@@ -21,10 +21,16 @@ func EnsureImagestreamv1(modified *bool, existing *imagev1.ImageStream, required
 		}
 		if existingCurr == nil {
 			*modified = true
-			existing.Spec.Tags = append(existing.Spec.Tags, imagev1.TagReference{})
-			existingCurr = &existing.Spec.Tags[len(existing.Spec.Tags)-1]
+			existing.Spec.Tags = append(existing.Spec.Tags,
+				imagev1.TagReference{Name: required.Name,
+					From:            required.From,
+					Annotations:     required.Annotations,
+					Generation:      required.Generation,
+					ImportPolicy:    required.ImportPolicy,
+					ReferencePolicy: required.ReferencePolicy})
+		} else {
+			ensureTagReferencev1(modified, existingCurr, required)
 		}
-		ensureTagReferencev1(modified, existingCurr, required)
 	}
 }
 
