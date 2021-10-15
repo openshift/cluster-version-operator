@@ -24,6 +24,11 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 		existing.Spec.Selector = required.Spec.Selector
 	}
 
+	if !equality.Semantic.DeepEqual(existing.Spec.Strategy, required.Spec.Strategy) {
+		*modified = true
+		existing.Spec.Strategy = required.Spec.Strategy
+	}
+
 	ensurePodTemplateSpec(modified, &existing.Spec.Template, required.Spec.Template)
 }
 
