@@ -21,13 +21,8 @@ func EnsureImagestreamv1(modified *bool, existing *imagev1.ImageStream, required
 		}
 		if existingCurr == nil {
 			*modified = true
-			existing.Spec.Tags = append(existing.Spec.Tags,
-				imagev1.TagReference{Name: required.Name,
-					From:            required.From,
-					Annotations:     required.Annotations,
-					Generation:      required.Generation,
-					ImportPolicy:    required.ImportPolicy,
-					ReferencePolicy: required.ReferencePolicy})
+			existing.Spec.Tags = append(existing.Spec.Tags, imagev1.TagReference{})
+			required.DeepCopyInto(&existing.Spec.Tags[len(existing.Spec.Tags)-1])
 		} else {
 			ensureTagReferencev1(modified, existingCurr, required)
 		}
