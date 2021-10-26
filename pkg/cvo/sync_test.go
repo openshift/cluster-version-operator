@@ -43,6 +43,7 @@ func init() {
 
 func Test_SyncWorker_apply(t *testing.T) {
 	tests := []struct {
+		name        string
 		manifests   []string
 		reactors    map[action]error
 		cancelAfter int
@@ -50,6 +51,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 		check   func(*testing.T, []action)
 		wantErr bool
 	}{{
+		name: "successful creation",
 		manifests: []string{
 			`{
 				"apiVersion": "test.cvo.io/v1",
@@ -89,6 +91,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 		},
 	}, {
+		name: "unknown resource failures",
 		manifests: []string{
 			`{
 				"apiVersion": "test.cvo.io/v1",
@@ -154,8 +157,8 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 		},
 	}}
-	for idx, test := range tests {
-		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			var manifests []manifest.Manifest
 			for _, s := range test.manifests {
 				m := manifest.Manifest{}
