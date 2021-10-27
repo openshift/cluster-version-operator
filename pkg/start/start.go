@@ -59,8 +59,8 @@ type Options struct {
 	NodeName   string
 	ListenAddr string
 
-	EnableAutoUpdate            bool
-	EnableDefaultClusterVersion bool
+	EnableAutoUpdate      bool
+	WaitForClusterVersion bool
 
 	// Exclude is used to determine whether to exclude
 	// certain manifests based on an annotation:
@@ -430,7 +430,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
 			o.NodeName,
 			o.Namespace, o.Name,
 			o.ReleaseImage,
-			o.EnableDefaultClusterVersion,
+			o.WaitForClusterVersion,
 			o.PayloadOverride,
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),

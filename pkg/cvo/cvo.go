@@ -87,9 +87,9 @@ type Operator struct {
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
-	// enableDefaultClusterVersion allows the operator to create a
-	// ClusterVersion object if one does not already exist.
-	enableDefaultClusterVersion bool
+	// waitForClusterVersion blocks manifest reconciliation until
+	// the ClusterVersion resource exists.
+	waitForClusterVersion bool
 
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
@@ -155,7 +155,7 @@ func New(
 	nodename string,
 	namespace, name string,
 	releaseImage string,
-	enableDefaultClusterVersion bool,
+	waitForClusterVersion bool,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
@@ -180,7 +180,7 @@ func New(
 			Image: releaseImage,
 		},
 
-		enableDefaultClusterVersion: enableDefaultClusterVersion,
+		waitForClusterVersion: waitForClusterVersion,
 
 		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
@@ -511,7 +511,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// ensure the cluster version exists, that the object is valid, and that
 	// all initial conditions are set.
-	original, changed, err := optr.getOrCreateClusterVersion(ctx, optr.enableDefaultClusterVersion)
+	original, changed, err := optr.getOrCreateClusterVersion(ctx, optr.waitForClusterVersion)
 	if err != nil {
 		return err
 	}
@@ -645,7 +645,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
+func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, waitForGet bool) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		// if we are waiting to see a newer cached version, just exit
@@ -655,12 +655,8 @@ func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefau
 		return obj, false, nil
 	}
 
-	if !apierrors.IsNotFound(err) {
+	if !apierrors.IsNotFound(err) || waitForGet {
 		return nil, false, err
-	}
-
-	if !enableDefault {
-		return nil, false, nil
 	}
 
 	id, _ := uuid.NewRandom()

@@ -29,7 +29,6 @@ spec:
           - "start"
           - "--release-image={{.ReleaseImage}}"
           - "--enable-auto-update=false"
-          - "--enable-default-cluster-version=true"
           - "--listen=0.0.0.0:9099"
           - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
           - "--serving-key-file=/etc/tls/serving-cert/tls.key"

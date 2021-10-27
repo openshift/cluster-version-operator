@@ -14,7 +14,7 @@ spec:
       - "start"
       - "--release-image={{.ReleaseImage}}"
       - "--enable-auto-update=false"
-      - "--enable-default-cluster-version=false"
+      - "--wait-for-cluster-version"
       - "--listen="
       - "--v=5"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"

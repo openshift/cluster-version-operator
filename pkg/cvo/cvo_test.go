@@ -195,10 +195,9 @@ func TestOperator_sync(t *testing.T) {
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
 				},
-				enableDefaultClusterVersion: true,
-				namespace:                   "test",
-				name:                        "default",
-				client:                      fake.NewSimpleClientset(),
+				namespace: "test",
+				name:      "default",
+				client:    fake.NewSimpleClientset(),
 			},
 			wantActions: func(t *testing.T, optr *Operator) {
 				f := optr.client.(*fake.Clientset)
@@ -4379,14 +4378,12 @@ func TestOperator_getOrCreateClusterVersion(t *testing.T) {
 		cvName         string
 		expectedResult *configv1.ClusterVersion
 		cvs            []configv1.ClusterVersion
-		enableDefault  bool
 		changed        bool
 	}{
 		{
 			name:           "no existing cluster version",
 			cvName:         "version",
 			expectedResult: &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
-			enableDefault:  true,
 			changed:        true,
 		},
 		{
@@ -4396,7 +4393,6 @@ func TestOperator_getOrCreateClusterVersion(t *testing.T) {
 				{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
 			},
 			expectedResult: &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
-			enableDefault:  true,
 		},
 	}
 	for _, tt := range tests {
@@ -4407,7 +4403,7 @@ func TestOperator_getOrCreateClusterVersion(t *testing.T) {
 				cvLister: &clientCVLister{client: client},
 				client:   client,
 			}
-			cv, changed, err := optr.getOrCreateClusterVersion(context.Background(), tt.enableDefault)
+			cv, changed, err := optr.getOrCreateClusterVersion(context.Background(), false)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
