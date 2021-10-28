@@ -113,16 +113,15 @@ func Test_statusWrapper_ReportGeneration(t *testing.T) {
 		next     SyncWorkerStatus
 		want     int64
 	}{{
-		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Done: 10, Total: 100},
-		next:     SyncWorkerStatus{Step: "RetreivePayload"},
+		previous: SyncWorkerStatus{Generation: 1, Done: 10, Total: 100},
 		want:     1,
 	}, {
-		previous: SyncWorkerStatus{Generation: 1, Step: "Apply", Done: 10, Total: 100},
-		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Done: 50, Total: 100},
+		previous: SyncWorkerStatus{Generation: 1, Done: 10, Total: 100},
+		next:     SyncWorkerStatus{Generation: 2, Done: 50, Total: 100},
 		want:     2,
 	}, {
-		previous: SyncWorkerStatus{Generation: 5, Step: "Apply", Done: 70, Total: 100},
-		next:     SyncWorkerStatus{Generation: 2, Step: "Apply", Done: 50, Total: 100},
+		previous: SyncWorkerStatus{Generation: 5, Done: 70, Total: 100},
+		next:     SyncWorkerStatus{Generation: 2, Done: 50, Total: 100},
 		want:     2,
 	}}
 	for _, tt := range tests {

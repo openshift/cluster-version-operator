@@ -99,7 +99,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 		cancelAfter: 2,
 		wantErr:     true,
 		check: func(t *testing.T, actions []action) {
-			if len(actions) != 3 {
+			if len(actions) < 1 {
 				spew.Dump(actions)
 				t.Fatalf("unexpected %d actions", len(actions))
 			}
@@ -143,8 +143,9 @@ func Test_SyncWorker_apply(t *testing.T) {
 				cancel:          cancel,
 				remainingErrors: test.cancelAfter,
 			}
+			worker.payload = up
 
-			err := worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			if !test.wantErr && err != nil {
 				t.Fatal(err)
 			}
@@ -337,8 +338,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 				client:    dynamicClient,
 				modifiers: test.modifiers,
 			}
+			worker.payload = up
 			ctx := context.Background()
-			err := worker.apply(ctx, up, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -411,7 +413,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
 }
 
-func (r *fakeSyncRecorder) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string, lister configlistersv1.ClusterVersionLister) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }
