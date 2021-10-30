@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"math/rand"
+	"time"
 
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
@@ -19,6 +21,9 @@ func init() {
 		Run: func(cmd *cobra.Command, args []string) {
 			// To help debugging, immediately log version
 			klog.Info(version.String)
+
+			//Setting seed for all the calls to rand methods in the code
+			rand.Seed(time.Now().UnixNano())
 
 			if err := opts.Run(context.Background()); err != nil {
 				klog.Fatalf("error: %v", err)
