@@ -306,8 +306,7 @@ func copyPayloadCmd(tdir string) string {
 }
 
 // findUpdateFromConfig identifies a desired update from user input or returns false. It will
-// resolve payload if the user specifies a version and a matching available update or previous
-// update is in the history.
+// resolve payload if the user specifies a version and a matching available update.
 func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
@@ -325,15 +324,6 @@ func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string
 			return configv1.Update{
 				Version: version,
 				Image:   update.Image,
-				Force:   force,
-			}, true
-		}
-	}
-	for _, history := range config.Status.History {
-		if history.Version == version && len(history.Image) > 0 {
-			return configv1.Update{
-				Version: version,
-				Image:   history.Image,
 				Force:   force,
 			}, true
 		}
