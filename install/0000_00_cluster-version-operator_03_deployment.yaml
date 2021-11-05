@@ -49,6 +49,9 @@ spec:
           - mountPath: /etc/tls/serving-cert
             name: serving-cert
             readOnly: true
+          - mountPath: /etc/tls/service-ca
+            name: service-ca
+            readOnly: true
           - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
             name: kube-api-access
             readOnly: true
@@ -97,6 +100,9 @@ spec:
         - name: serving-cert
           secret:
             secretName: cluster-version-operator-serving-cert
+        - name: service-ca
+          configMap:
+            name: openshift-service-ca.crt
         - name: kube-api-access
           projected:
             defaultMode: 420
