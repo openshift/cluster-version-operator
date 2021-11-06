@@ -6,6 +6,7 @@ metadata:
   name: cluster-version-operator
   namespace: openshift-cluster-version
   annotations:
+    kubernetes.io/description: Configure Prometheus to monitor cluster-version operator metrics.
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
 spec:
@@ -32,6 +33,7 @@ metadata:
   name: cluster-version-operator
   namespace: openshift-cluster-version
   annotations:
+    kubernetes.io/description: Alerting rules for when cluster-version operator metrics call for administrator attention.
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
 spec:

@@ -4,5 +4,6 @@ metadata:
   name: admin-gates
   namespace: openshift-config-managed
   annotations:
+    kubernetes.io/description: Define update gates for the administrator to acknowledge in the admin-acks ConfigMap in the openshift-config namespace.
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"

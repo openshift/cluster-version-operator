@@ -4,6 +4,7 @@ metadata:
   name: cluster-version-operator
   namespace: openshift-cluster-version
   annotations:
+    kubernetes.io/description: The cluster-version operator manages OpenShift updates and reconciles core resources and cluster operators.
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
 spec:
