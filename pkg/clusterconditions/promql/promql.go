@@ -17,6 +17,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/cache"
 )
 
 // PromQL implements a cluster condition that matches based on PromQL.
@@ -28,17 +29,22 @@ type PromQL struct {
 	HTTPClientConfig config.HTTPClientConfig
 }
 
-var promql = &PromQL{
-	Address: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
-	HTTPClientConfig: config.HTTPClientConfig{
-		Authorization: &config.Authorization{
-			Type:            "Bearer",
-			CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-		},
-		TLSConfig: config.TLSConfig{
-			CAFile: "/etc/tls/service-ca/service-ca.crt",
+var promql = &cache.Cache{
+	Condition: &PromQL{
+		Address: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
+		HTTPClientConfig: config.HTTPClientConfig{
+			Authorization: &config.Authorization{
+				Type:            "Bearer",
+				CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+			},
+			TLSConfig: config.TLSConfig{
+				CAFile: "/etc/tls/service-ca/service-ca.crt",
+			},
 		},
 	},
+	MinBetweenMatches: 10 * time.Minute,
+	MinForCondition:   time.Hour,
+	Expiration:        24 * time.Hour,
 }
 
 // Valid returns an error if the condition contains any properties
