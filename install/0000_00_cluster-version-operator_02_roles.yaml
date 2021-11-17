@@ -3,6 +3,7 @@ kind: ClusterRoleBinding
 metadata:
   name: cluster-version-operator
   annotations:
+    kubernetes.io/description: Grant the cluster-version operator permission to perform cluster-admin actions while managing the OpenShift core.
     include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
   kind: ClusterRole

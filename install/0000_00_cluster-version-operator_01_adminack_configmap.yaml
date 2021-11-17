@@ -4,6 +4,7 @@ metadata:
   name: admin-acks
   namespace: openshift-config
   annotations:
+    kubernetes.io/description: Record administrator acknowledgments of update gates defined in the admin-gates ConfigMap in the openshift-config-managed namespace.
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/create-only: "true"

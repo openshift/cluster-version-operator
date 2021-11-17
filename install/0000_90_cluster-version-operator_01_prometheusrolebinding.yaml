@@ -4,6 +4,7 @@ metadata:
   name: prometheus-k8s
   namespace: openshift-cluster-version
   annotations:
+    kubernetes.io/description: Grant Prometheus access to monitor the cluster-version operator's metrics.
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
