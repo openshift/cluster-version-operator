@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -131,13 +132,26 @@ func (o *Options) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error creating clients: %v", err)
 	}
+	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
+	// to be off.  If this value changes, the binary will shutdown and expect the pod lifecycle to restart it.
+	includeTechPreview := false
+	gate, err := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
+	switch {
+	case apierrors.IsNotFound(err):
+		includeTechPreview = false // if we have no featuregates, then we aren't tech preview
+	case err != nil:
+		return fmt.Errorf("error getting featuregate value: %v", err)
+	default:
+		includeTechPreview = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
+	}
+
 	lock, err := createResourceLock(cb, o.Namespace, o.Name)
 	if err != nil {
 		return err
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx := o.NewControllerContext(cb)
+	controllerCtx := o.NewControllerContext(cb, includeTechPreview)
 	if err := controllerCtx.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		return err
 	}
@@ -407,7 +421,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder) *Context {
+func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview bool) *Context {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 

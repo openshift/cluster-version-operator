@@ -146,6 +146,10 @@ type Operator struct {
 	// via annotation
 	exclude string
 
+	// includeTechPreview is set to true when the CVO should create resources with the `release.openshift.io/feature-gate=TechPreviewNoUpgrade`
+	// label set.  This is set based on whether the featuregates.config.openshift.io|.spec.featureSet is set to "TechPreviewNoUpgrade".
+	includeTechPreview bool
+
 	clusterProfile string
 	uid            types.UID
 }
@@ -199,6 +203,12 @@ func New(
 		clusterProfile: clusterProfile,
 	}
 
+	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
+	// to be off.  If this value changes, the CVO will shutdown and expect the pod lifecycle to restart it.
+	if gate, err := optr.client.ConfigV1().FeatureGates().Get(context.TODO(), "cluster", metav1.GetOptions{}); err == nil {
+		optr.includeTechPreview = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
+	}
+
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())
 	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
 	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
@@ -223,15 +233,7 @@ func New(
 // controller that loads and applies content to the cluster. It returns an error if the payload appears to
 // be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
-	includeTechPreview := func() (bool, error) {
-		gate, err := optr.client.ConfigV1().FeatureGates().Get(context.TODO(), "cluster", metav1.GetOptions{})
-		if err != nil && !apierrors.IsNotFound(err) {
-			return false, err
-		}
-		return gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade, nil
-	}
-
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, includeTechPreview, optr.clusterProfile)
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.includeTechPreview, optr.clusterProfile)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
@@ -272,7 +274,7 @@ func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestCo
 			Steps:    3,
 		},
 		optr.exclude,
-		includeTechPreview,
+		optr.includeTechPreview,
 		optr.eventRecorder,
 		optr.clusterProfile,
 	)

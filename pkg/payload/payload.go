@@ -132,18 +132,10 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview func() (bool, error), profile string) (*Update, error) {
+func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string) (*Update, error) {
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
 		return nil, err
-	}
-
-	techPreviews := false
-	if includeTechPreview != nil {
-		techPreviews, err = includeTechPreview()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	var manifests []manifest.Manifest
@@ -190,7 +182,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if shouldExclude(excludeIdentifier, profile, &manifest, techPreviews) {
+				if shouldExclude(excludeIdentifier, includeTechPreview, profile, &manifest) {
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
@@ -221,7 +213,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 	return payload, nil
 }
 
-func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifest, includeTechPreview bool) bool {
+func shouldExclude(excludeIdentifier string, includeTechPreview bool, profile string, manifest *manifest.Manifest) bool {
 	annotations := manifest.Obj.GetAnnotations()
 	if annotations == nil {
 		return true
@@ -232,8 +224,12 @@ func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifes
 		return true
 	}
 
-	techPreviewAnnotation := "featuregate.release.openshift.io/tech-preview"
-	if annotations[techPreviewAnnotation] == "true" && !includeTechPreview {
+	featureGateAnnotationValue, featureGateAnnotationExists := annotations["release.openshift.io/feature-gate"]
+	if featureGateAnnotationValue == "TechPreviewNoUpgrade" && !includeTechPreview {
+		return true
+	}
+	// never include the manifest if the feature-gate annotation is outside of allowed values (only TechPreviewNoUpgrade is currently allowed)
+	if featureGateAnnotationExists && featureGateAnnotationValue != "TechPreviewNoUpgrade" {
 		return true
 	}
 

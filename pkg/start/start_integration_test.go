@@ -284,9 +284,10 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
-	controllers := options.NewControllerContext(cb)
+	includeTechPreview := false
+	controllers := options.NewControllerContext(cb, includeTechPreview)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", nil, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", includeTechPreview, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -446,9 +447,10 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
 	options.ResyncInterval = 3 * time.Second
-	controllers := options.NewControllerContext(cb)
+	includeTechPreview := false
+	controllers := options.NewControllerContext(cb, includeTechPreview)
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", nil, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Duration: time.Second, Factor: 1.2}, "", includeTechPreview, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -561,9 +563,10 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.Name = ns
 	options.ListenAddr = ""
 	options.NodeName = "test-node"
-	controllers := options.NewControllerContext(cb)
+	includeTechPreview := false
+	controllers := options.NewControllerContext(cb, includeTechPreview)
 
-	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", nil, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(&mapPayloadRetriever{}, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", includeTechPreview, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -749,12 +752,13 @@ metadata:
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = payloadDir
-	controllers := options.NewControllerContext(cb)
+	includeTechPreview := false
+	controllers := options.NewControllerContext(cb, includeTechPreview)
 	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", nil, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", includeTechPreview, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)

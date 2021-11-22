@@ -30,7 +30,7 @@ func newTaskGraphCmd() *cobra.Command {
 
 func runTaskGraphCmd(cmd *cobra.Command, args []string) error {
 	manifestDir := args[0]
-	release, err := payload.LoadUpdate(manifestDir, "", "", nil, payload.DefaultClusterProfile)
+	release, err := payload.LoadUpdate(manifestDir, "", "", false, payload.DefaultClusterProfile)
 	if err != nil {
 		return err
 	}

@@ -155,14 +155,15 @@ type SyncWorker struct {
 	// of the form exclude.release.openshift.io/<identifier>=true
 	exclude string
 
-	includeTechPreview func() (bool, error)
+	// includeTechPreview is set to true when the CVO should create resources with the `release.openshift.io/feature-gate=TechPreviewNoUpgrade`
+	includeTechPreview bool
 
 	clusterProfile string
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, includeTechPreview func() (bool, error), eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, includeTechPreview bool, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
 	return &SyncWorker{
 		retriever:     retriever,
 		builder:       builder,
@@ -187,7 +188,7 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, includeTechPreview func() (bool, error), eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, includeTechPreview bool, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
 	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, includeTechPreview, eventRecorder, clusterProfile)
 	worker.preconditions = preconditions
 	return worker
