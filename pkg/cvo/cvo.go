@@ -170,6 +170,7 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	exclude string,
+	includeTechPreview bool,
 	clusterProfile string,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -199,14 +200,9 @@ func New(
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
-		exclude:        exclude,
-		clusterProfile: clusterProfile,
-	}
-
-	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
-	// to be off.  If this value changes, the CVO will shutdown and expect the pod lifecycle to restart it.
-	if gate, err := optr.client.ConfigV1().FeatureGates().Get(context.TODO(), "cluster", metav1.GetOptions{}); err == nil {
-		optr.includeTechPreview = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
+		exclude:            exclude,
+		includeTechPreview: includeTechPreview,
+		clusterProfile:     clusterProfile,
 	}
 
 	cvInformer.Informer().AddEventHandler(optr.eventHandler())

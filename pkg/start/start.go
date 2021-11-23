@@ -30,10 +30,12 @@ import (
 	"k8s.io/client-go/util/flowcontrol"
 	"k8s.io/klog/v2"
 
+	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	externalversions "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/featurechangestopper"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/crypto"
@@ -253,6 +255,13 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 						resultChannel <- asyncResult{name: "main operator", error: err}
 					}()
 
+					resultChannelCount++
+					go func() {
+						defer utilruntime.HandleCrash()
+						controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
+						resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: nil}
+					}()
+
 					if controllerCtx.AutoUpdate != nil {
 						resultChannelCount++
 						go func() {
@@ -410,8 +419,9 @@ func useProtobuf(config *rest.Config) {
 
 // Context holds the controllers for this operator and exposes a unified start command.
 type Context struct {
-	CVO        *cvo.Operator
-	AutoUpdate *autoupdate.Controller
+	CVO                     *cvo.Operator
+	AutoUpdate              *autoupdate.Controller
+	StopOnFeatureGateChange *featurechangestopper.TechPreviewChangeStopper
 
 	CVInformerFactory                     externalversions.SharedInformerFactory
 	OpenshiftConfigInformerFactory        informers.SharedInformerFactory
@@ -455,9 +465,13 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview boo
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.Exclude,
+			includeTechPreview,
 			o.ClusterProfile,
 		),
+
+		StopOnFeatureGateChange: featurechangestopper.New(includeTechPreview, cvInformer.Config().V1().FeatureGates()),
 	}
+
 	if o.EnableAutoUpdate {
 		ctx.AutoUpdate = autoupdate.New(
 			o.Namespace, o.Name,
