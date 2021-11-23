@@ -1060,8 +1060,9 @@ func newMultipleError(errs []error) error {
 // getOverrideForManifest returns the override and true when override exists for manifest.
 func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *manifest.Manifest) (configv1.ComponentOverride, bool) {
 	for idx, ov := range overrides {
-		kind, namespace, name := manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName()
-		if ov.Kind == kind &&
+		group, kind, namespace, name := manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName()
+		if ov.Group == group &&
+			ov.Kind == kind &&
 			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
 			ov.Name == name {
 			return overrides[idx], true
