@@ -15,6 +15,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.26.0
 	github.com/spf13/cobra v1.1.3
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
