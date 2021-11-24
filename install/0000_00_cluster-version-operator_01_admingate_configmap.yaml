@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 data:
-  ack-4.8-kube-1.22-api-removals-in-4.9: |
+  ack-4.8-kube-1.22-api-removals-in-4.9: >
       Kubernetes 1.22 and therefore OpenShift 4.9 remove several APIs which require admin consideration. Please see
       the knowledge article https://access.redhat.com/articles/6329921 for details and instructions.
 metadata:
