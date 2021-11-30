@@ -497,6 +497,63 @@ func TestGetUpdates(t *testing.T) {
 			Channels: []string{"channel-a", "test-channel"},
 		},
 	}, {
+		name:    "condition with risks after invalid risk",
+		version: "4.1.0",
+		graph: `{
+  "nodes": [
+    {
+      "version": "4.1.0",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.0",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.0",
+	"io.openshift.upgrades.graph.release.channels": "test-channel,channel-a"
+      }
+    },
+    {
+      "version": "4.1.1",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.1",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.1",
+	"io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    }
+  ],
+  "conditionalEdges": [
+    {
+      "edges": [{"from": "4.1.0", "to": "4.1.1"}],
+      "risks": [
+        {
+          "url": "https://example.com/bug/123",
+          "name": "BugA",
+          "message": "This risk has no recognized rules, and so the conditional update to 4.1.1 will be dropped to avoid rejections when pushing to the Kubernetes API server.",
+          "matchingRules": [
+            {
+              "type": "does-not-exist"
+            }
+          ]
+        },
+        {
+          "url": "https://example.com/bug/456",
+          "name": "BugB",
+          "message": "All 4.1.0 clusters are incompatible with 4.1.1.",
+          "matchingRules": [
+            {
+              "type": "Always"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}`,
+		expectedQuery: "arch=test-arch&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.1.0",
+		current: configv1.Release{
+			Version:  "4.1.0",
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.0",
+			URL:      "https://example.com/errata/4.1.0",
+			Channels: []string{"channel-a", "test-channel"},
+		},
+	}, {
 		name:    "unknown version",
 		version: "4.1.0",
 		graph: `{

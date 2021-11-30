@@ -219,6 +219,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 			if len(conditionalUpdates[i].Risks[j].MatchingRules) == 0 {
 				klog.Warningf("Conditional update to %s, risk %q, has empty pruned matchingRules; dropping this target to avoid rejections when pushing to the Kubernetes API server. Pruning results: %s", conditionalUpdates[i].Release.Version, risk.Name, err)
 				conditionalUpdates = append(conditionalUpdates[:i], conditionalUpdates[i+1:]...)
+				break
 			} else if err != nil {
 				klog.Warningf("Conditional update to %s, risk %q, has pruned matchingRules (although other valid, recognized matchingRules were given, and are sufficient to keep the conditional update): %s", conditionalUpdates[i].Release.Version, risk.Name, err)
 			}
