@@ -23,29 +23,39 @@ func TestEnsureDeployment(t *testing.T) {
 			name: "different replica count",
 			existing: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(2)}},
+					Replicas: pointer.Int32(2)}},
 			required: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(3)}},
+					Replicas: pointer.Int32(3)}},
 
 			expectedModified: true,
 			expected: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(3)}},
+					Replicas: pointer.Int32(3)}},
 		},
 		{
 			name: "same replica count",
 			existing: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(2)}},
+					Replicas: pointer.Int32(2)}},
 			required: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(2)}},
+					Replicas: pointer.Int32(2)}},
 
 			expectedModified: false,
 			expected: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
-					Replicas: int32Pointer(2)}},
+					Replicas: pointer.Int32(2)}},
+		},
+		{
+			name: "implicit replica count",
+			existing: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Replicas: pointer.Int32(2)}},
+			expectedModified: true,
+			expected: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Replicas: pointer.Int32(1)}},
 		},
 		{
 			name:     "existing-selector-nil-required-selector-non-nil",
@@ -82,8 +92,4 @@ func TestEnsureDeployment(t *testing.T) {
 func defaultDeployment(in *appsv1.Deployment, from appsv1.Deployment) {
 	modified := pointer.BoolPtr(false)
 	EnsureDeployment(modified, in, from)
-}
-
-func int32Pointer(i int32) *int32 {
-	return &i
 }
