@@ -10,7 +10,8 @@ import (
 func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required appsv1.Deployment) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
-	if required.Spec.Replicas != nil && *required.Spec.Replicas != *existing.Spec.Replicas {
+	ensureReplicasDefault(&required)
+	if existing.Spec.Replicas == nil || *required.Spec.Replicas != *existing.Spec.Replicas {
 		*modified = true
 		existing.Spec.Replicas = required.Spec.Replicas
 	}
@@ -25,6 +26,12 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 	}
 
 	ensurePodTemplateSpec(modified, &existing.Spec.Template, required.Spec.Template)
+}
+
+func ensureReplicasDefault(required *appsv1.Deployment) {
+	if required.Spec.Replicas == nil {
+		required.Spec.Replicas = int32Pointer(1)
+	}
 }
 
 // EnsureDaemonSet ensures that the existing matches the required.
@@ -42,4 +49,8 @@ func EnsureDaemonSet(modified *bool, existing *appsv1.DaemonSet, required appsv1
 	}
 
 	ensurePodTemplateSpec(modified, &existing.Spec.Template, required.Spec.Template)
+}
+
+func int32Pointer(i int32) *int32 {
+	return &i
 }
