@@ -3,6 +3,7 @@ package resourcemerge
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/utils/pointer"
 )
 
 // EnsureDeployment ensures that the existing matches the required.
@@ -10,7 +11,8 @@ import (
 func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required appsv1.Deployment) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
-	if required.Spec.Replicas != nil && *required.Spec.Replicas != *existing.Spec.Replicas {
+	ensureReplicasDefault(&required)
+	if existing.Spec.Replicas == nil || *required.Spec.Replicas != *existing.Spec.Replicas {
 		*modified = true
 		existing.Spec.Replicas = required.Spec.Replicas
 	}
@@ -30,6 +32,12 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 	}
 
 	ensurePodTemplateSpec(modified, &existing.Spec.Template, required.Spec.Template)
+}
+
+func ensureReplicasDefault(required *appsv1.Deployment) {
+	if required.Spec.Replicas == nil {
+		required.Spec.Replicas = pointer.Int32(1)
+	}
 }
 
 // EnsureDaemonSet ensures that the existing matches the required.
