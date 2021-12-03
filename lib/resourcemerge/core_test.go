@@ -503,7 +503,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			},
 		},
 		{
-			name: "modify volumes on container",
+			name: "modify volume path on container",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{
@@ -578,6 +578,81 @@ func TestEnsurePodSpec(t *testing.T) {
 			},
 		},
 		{
+			name: "modify volume name on container",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume-a",
+								MountPath: "/mnt",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume-a",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume-b",
+								MountPath: "/mnt",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume-b",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "test-config-map",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume-b",
+								MountPath: "/mnt",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume-b",
+						VolumeSource: corev1.VolumeSource{
+							ConfigMap: &corev1.ConfigMapVolumeSource{
+								LocalObjectReference: corev1.LocalObjectReference{
+									Name: "test-config-map",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "remove container volumes",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -609,6 +684,77 @@ func TestEnsurePodSpec(t *testing.T) {
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{Name: "test"},
+				},
+			},
+		},
+		{
+			name: "remove container volumes with masking name",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume",
+								MountPath: "/mnt/a",
+							},
+							{
+								Name:      "test-volume",
+								MountPath: "/mnt/b",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume",
+								MountPath: "/mnt/a",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
+				},
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name: "test",
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "test-volume",
+								MountPath: "/mnt/a",
+							},
+						},
+					},
+				},
+				Volumes: []corev1.Volume{
+					{
+						Name: "test-volume",
+						VolumeSource: corev1.VolumeSource{
+							EmptyDir: &corev1.EmptyDirVolumeSource{},
+						},
+					},
 				},
 			},
 		},
