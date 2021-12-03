@@ -132,7 +132,7 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, error) {
+func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string) (*Update, error) {
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if shouldExclude(excludeIdentifier, profile, &manifest) {
+				if shouldExclude(excludeIdentifier, includeTechPreview, profile, &manifest) {
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
@@ -213,7 +213,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, 
 	return payload, nil
 }
 
-func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifest) bool {
+func shouldExclude(excludeIdentifier string, includeTechPreview bool, profile string, manifest *manifest.Manifest) bool {
 	annotations := manifest.Obj.GetAnnotations()
 	if annotations == nil {
 		return true
@@ -221,6 +221,15 @@ func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifes
 
 	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
 	if annotations[excludeAnnotation] == "true" {
+		return true
+	}
+
+	featureGateAnnotationValue, featureGateAnnotationExists := annotations["release.openshift.io/feature-gate"]
+	if featureGateAnnotationValue == "TechPreviewNoUpgrade" && !includeTechPreview {
+		return true
+	}
+	// never include the manifest if the feature-gate annotation is outside of allowed values (only TechPreviewNoUpgrade is currently allowed)
+	if featureGateAnnotationExists && featureGateAnnotationValue != "TechPreviewNoUpgrade" {
 		return true
 	}
 

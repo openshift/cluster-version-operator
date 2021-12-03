@@ -71,6 +71,13 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		}
 		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 	})
+	client.AddReactor("get", "featuregates", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+		switch a := action.(type) {
+		case clientgotesting.GetAction:
+			return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
+		}
+		return false, nil, nil
+	})
 
 	o := &Operator{
 		namespace:                   "test",
@@ -97,6 +104,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 			Steps: 1,
 		},
 		"exclude-test",
+		false,
 		record.NewFakeRecorder(100),
 		o.clusterProfile,
 	)
