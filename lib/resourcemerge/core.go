@@ -317,12 +317,12 @@ func ensureServicePortDefaults(servicePort *corev1.ServicePort) {
 func ensureVolumeMounts(modified *bool, existing *[]corev1.VolumeMount, required []corev1.VolumeMount) {
 	// any volume mount we specify, we require
 	exists := struct{}{}
-	requiredNames := make(map[string]struct{}, len(required))
+	requiredMountPaths := make(map[string]struct{}, len(required))
 	for _, requiredVolumeMount := range required {
-		requiredNames[requiredVolumeMount.Name] = exists
+		requiredMountPaths[requiredVolumeMount.MountPath] = exists
 		var existingCurr *corev1.VolumeMount
 		for j, curr := range *existing {
-			if curr.Name == requiredVolumeMount.Name {
+			if curr.MountPath == requiredVolumeMount.MountPath {
 				existingCurr = &(*existing)[j]
 				break
 			}
@@ -337,7 +337,7 @@ func ensureVolumeMounts(modified *bool, existing *[]corev1.VolumeMount, required
 
 	// any unrecognized volume mount, we remove
 	for eidx := len(*existing) - 1; eidx >= 0; eidx-- {
-		if _, ok := requiredNames[(*existing)[eidx].Name]; !ok {
+		if _, ok := requiredMountPaths[(*existing)[eidx].MountPath]; !ok {
 			*modified = true
 			*existing = append((*existing)[:eidx], (*existing)[eidx+1:]...)
 		}
