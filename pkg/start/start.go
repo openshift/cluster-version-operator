@@ -258,8 +258,8 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
-						controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
-						resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: nil}
+						err := controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
+						resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: err}
 					}()
 
 					if controllerCtx.AutoUpdate != nil {

@@ -75,7 +75,9 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 			c := New(tt.startingTechPreviewState, featureGates)
 			informerFactory.Start(ctx.Done())
 
-			c.Run(ctx, shutdownFn)
+			if err := c.Run(ctx, shutdownFn); err != nil {
+				t.Fatal(err)
+			}
 
 			if actualShutdownCalled != tt.expectedShutdownCalled {
 				t.Errorf("shutdown called %t, but expected %t", actualShutdownCalled, tt.expectedShutdownCalled)
