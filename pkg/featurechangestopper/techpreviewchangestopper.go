@@ -2,6 +2,7 @@ package featurechangestopper
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -23,7 +24,8 @@ type TechPreviewChangeStopper struct {
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
 
-	queue workqueue.RateLimitingInterface
+	queue      workqueue.RateLimitingInterface
+	shutdownFn context.CancelFunc
 }
 
 // New returns a new TechPreviewChangeStopper.
@@ -53,74 +55,93 @@ func New(
 	return c
 }
 
-func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context, shutdownFn context.CancelFunc) error {
+// syncHandler processes a single work entry, with the
+// processNextWorkItem caller handling the queue management.  It returns
+// done when there will be no more work (because the feature gate changed).
+func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, err error) {
 	featureGates, err := c.featureGateLister.Get("cluster")
 	if err != nil {
-		return err
+		return false, err
 	}
 	techPreviewNowSet := featureGates.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
 	if techPreviewNowSet != c.startingTechPreviewState {
-		klog.Infof("TechPreviewNoUpgrade status changed from %v to %v, shutting down.", c.startingTechPreviewState, techPreviewNowSet)
-		if shutdownFn != nil {
-			shutdownFn()
+		var action string
+		if c.shutdownFn == nil {
+			action = "no shutdown function configured"
+		} else {
+			action = "requesting shutdown"
 		}
+		klog.Infof("TechPreviewNoUpgrade was %t, but the current feature set is %q; %s.", c.startingTechPreviewState, featureGates.Spec.FeatureSet, action)
+		if c.shutdownFn != nil {
+			c.shutdownFn()
+		}
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
-func (c *TechPreviewChangeStopper) Run(runContext context.Context, shutdownFn context.CancelFunc) {
+// Run launches the controller and blocks until it is canceled or work completes.
+func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.CancelFunc) error {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
+	childCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() { // queue.Get does not take a Context, so the only way to unblock processNextWorkItem if we are canceled is to close the queue
+		<-childCtx.Done()
+		c.queue.ShutDown()
+	}()
+	c.shutdownFn = shutdownFn
 
 	klog.Infof("Starting stop-on-techpreview-change controller")
 
 	// wait for your secondary caches to fill before starting your work
-	if !cache.WaitForCacheSync(runContext.Done(), c.cacheSynced...) {
-		return
+	if !cache.WaitForCacheSync(ctx.Done(), c.cacheSynced...) {
+		return errors.New("feature gate cache failed to sync")
 	}
 
-	// runWorker will loop until "something bad" happens.  The .Until will
-	// then rekick the worker after one second
-	go wait.UntilWithContext(runContext, func(ctx context.Context) {
-		c.runWorker(ctx, shutdownFn)
-	}, time.Second)
-
-	// wait until we're told to stop
-	<-runContext.Done()
+	err := wait.PollImmediateUntilWithContext(ctx, 30*time.Second, c.runWorker)
 	klog.Infof("Shutting down stop-on-techpreview-change controller")
+	return err
 }
 
-func (c *TechPreviewChangeStopper) runWorker(ctx context.Context, shutdownFn context.CancelFunc) {
+// runWorker handles a single worker poll round, processing as many
+// work items as possible, and returning done when there will be no
+// more work.
+func (c *TechPreviewChangeStopper) runWorker(ctx context.Context) (done bool, err error) {
 	// hot loop until we're told to stop.  processNextWorkItem will
 	// automatically wait until there's work available, so we don't worry
 	// about secondary waits
-	for c.processNextWorkItem(ctx, shutdownFn) {
+	for {
+		if done, err := c.processNextWorkItem(ctx); done || err != nil {
+			return done, err
+		}
 	}
 }
 
-// processNextWorkItem deals with one key off the queue.  It returns false
-// when it's time to quit.
-func (c *TechPreviewChangeStopper) processNextWorkItem(ctx context.Context, shutdownFn context.CancelFunc) bool {
+// processNextWorkItem deals with one key off the queue.  It returns
+// done when there will be no more work.
+func (c *TechPreviewChangeStopper) processNextWorkItem(ctx context.Context) (done bool, err error) {
 	// pull the next work item from queue.  It should be a key we use to lookup
 	// something in a cache
 	key, quit := c.queue.Get()
 	if quit {
-		return false
+		return true, nil
 	}
+
 	// you always have to indicate to the queue that you've completed a piece of
 	// work
 	defer c.queue.Done(key)
 
 	// do your work on the key.  This method will contains your "do stuff" logic
-	err := c.syncHandler(ctx, shutdownFn)
+	done, err = c.syncHandler(ctx)
 	if err == nil {
 		// if you had no error, tell the queue to stop tracking history for your
 		// key. This will reset things like failure counts for per-item rate
 		// limiting
 		c.queue.Forget(key)
-		return true
+		return done, nil
 	}
 
 	// there was a failure so be sure to report it.  This method allows for
@@ -135,5 +156,5 @@ func (c *TechPreviewChangeStopper) processNextWorkItem(ctx context.Context, shut
 	// needs to calm down or it can starve other useful work) cases.
 	c.queue.AddRateLimited(key)
 
-	return true
+	return done, nil
 }
