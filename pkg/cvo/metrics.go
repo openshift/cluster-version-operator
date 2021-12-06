@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
@@ -55,6 +56,7 @@ type operatorMetrics struct {
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
+	unknownConditionalUpdateCondition                     *prometheus.GaugeVec
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
@@ -111,6 +113,10 @@ version for 'cluster', or empty for 'initial'.
 		clusterVersionOperatorUpdateRetrievalTimestampSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
 			Help: "Reports when updates were last successfully retrieved.",
+		}, []string{"name"}),
+		unknownConditionalUpdateCondition: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_unknown_conditional_update_condition",
+			Help: "Report about the evaluation state of the available conditional updates",
 		}, []string{"name"}),
 	}
 }
@@ -344,6 +350,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
+	ch <- m.unknownConditionalUpdateCondition.WithLabelValues("").Desc()
 }
 
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
@@ -466,6 +473,15 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- g
 		}
+
+		// check the status of conditional updates for recommended="Unknown" and capture the LastTransitionTime
+		for _, conditionalUpdates := range cv.Status.ConditionalUpdates {
+			if c := findCondition(conditionalUpdates.Conditions, "Recommended"); c != nil && c.Status == metav1.ConditionUnknown {
+				g := m.unknownConditionalUpdateCondition.WithLabelValues("")
+				g.Set(float64(c.LastTransitionTime.Unix()))
+			}
+			ch <- g
+		}
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
@@ -537,6 +553,15 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	} else {
 		klog.Warningf("availableUpdates is nil")
 	}
+}
+
+func findCondition(conditions []metav1.Condition, name string) *metav1.Condition {
+	for i := range conditions {
+		if conditions[i].Type == name {
+			return &conditions[i]
+		}
+	}
+	return nil
 }
 
 func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec, installType string) prometheus.Gauge {
