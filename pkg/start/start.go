@@ -142,7 +142,7 @@ func (o *Options) Run(ctx context.Context) error {
 	case apierrors.IsNotFound(err):
 		includeTechPreview = false // if we have no featuregates, then we aren't tech preview
 	case err != nil:
-		return fmt.Errorf("error getting featuregate value: %v", err)
+		klog.Warningf("Error getting featuregate value: %v", err)
 	default:
 		includeTechPreview = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
 	}

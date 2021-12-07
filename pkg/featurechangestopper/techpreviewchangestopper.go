@@ -94,7 +94,7 @@ func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.C
 	}()
 	c.shutdownFn = shutdownFn
 
-	klog.Infof("Starting stop-on-techpreview-change controller")
+	klog.Infof("Starting stop-on-techpreview-change controller with %s %t.", configv1.TechPreviewNoUpgrade, c.startingTechPreviewState)
 
 	// wait for your secondary caches to fill before starting your work
 	if !cache.WaitForCacheSync(ctx.Done(), c.cacheSynced...) {
@@ -102,7 +102,7 @@ func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.C
 	}
 
 	err := wait.PollImmediateUntilWithContext(ctx, 30*time.Second, c.runWorker)
-	klog.Infof("Shutting down stop-on-techpreview-change controller")
+	klog.Info("Shutting down stop-on-techpreview-change controller")
 	return err
 }
 
