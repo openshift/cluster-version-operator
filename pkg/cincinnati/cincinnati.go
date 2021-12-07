@@ -205,6 +205,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 			if conditionalUpdate.Release.Image == updates[i].Image {
 				klog.Warningf("Update to %s listed as both a conditional and unconditional update; preferring the conditional update.", conditionalUpdate.Release.Version)
 				updates = append(updates[:i], updates[i+1:]...)
+				break
 			}
 		}
 	}
