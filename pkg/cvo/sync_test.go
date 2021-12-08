@@ -465,7 +465,7 @@ func (pf *testPrecondition) Name() string {
 	return fmt.Sprintf("TestPrecondition SuccessAfter: %d", pf.SuccessAfter)
 }
 
-func (pf *testPrecondition) Run(_ context.Context, _ precondition.ReleaseContext, cv *configv1.ClusterVersion) error {
+func (pf *testPrecondition) Run(_ context.Context, _ precondition.ReleaseContext) error {
 	if pf.SuccessAfter == 0 {
 		return nil
 	}
