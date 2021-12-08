@@ -64,9 +64,11 @@ func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext) []
 }
 
 // Summarize summarizes all the precondition.Error from errs.
-func Summarize(errs []error) error {
+// Returns the consolidated error and a boolean for whether the error
+// is blocking (true) or a warning (false).
+func Summarize(errs []error, force bool) (bool, error) {
 	if len(errs) == 0 {
-		return nil
+		return false, nil
 	}
 	var msgs []string
 	for _, e := range errs {
@@ -82,7 +84,12 @@ func Summarize(errs []error) error {
 	} else {
 		msg = fmt.Sprintf("Multiple precondition checks failed:\n* %s", strings.Join(msgs, "\n* "))
 	}
-	return &payload.UpdateError{
+
+	if force {
+		msg = fmt.Sprintf("Forced through blocking failures: %s", msg)
+	}
+
+	return !force, &payload.UpdateError{
 		Nested:  nil,
 		Reason:  "UpgradePreconditionCheckFailed",
 		Message: msg,
