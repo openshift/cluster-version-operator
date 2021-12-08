@@ -630,7 +630,9 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Actual:      desired,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
+			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
+				DesiredVersion: payloadUpdate.Release.Version,
+			})); err != nil {
 				if work.Desired.Force {
 					klog.V(4).Infof("Forcing past precondition failures: %s", err)
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
