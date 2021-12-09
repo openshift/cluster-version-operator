@@ -1,5 +1,7 @@
 # Cluster Version Operator (CVO)
 
+poke
+
 ## Building and Publishing CVO
 
 ```sh
