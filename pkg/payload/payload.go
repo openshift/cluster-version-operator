@@ -179,19 +179,21 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 				errs = append(errs, fmt.Errorf("parse %s: %w", file.Name(), err))
 				continue
 			}
+			originalFilename := filepath.Base(file.Name())
+			for i := range ms {
+				ms[i].OriginalFilename = originalFilename
+			}
+
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if shouldExclude(excludeIdentifier, includeTechPreview, profile, &manifest) {
+				if err := include(excludeIdentifier, includeTechPreview, profile, &manifest); err != nil {
+					klog.V(5).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
 			}
-			ms = filteredMs
-			for i := range ms {
-				ms[i].OriginalFilename = filepath.Base(file.Name())
-			}
-			manifests = append(manifests, ms...)
+			manifests = append(manifests, filteredMs...)
 		}
 	}
 
@@ -213,31 +215,34 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 	return payload, nil
 }
 
-func shouldExclude(excludeIdentifier string, includeTechPreview bool, profile string, manifest *manifest.Manifest) bool {
+func include(excludeIdentifier string, includeTechPreview bool, profile string, manifest *manifest.Manifest) error {
 	annotations := manifest.Obj.GetAnnotations()
 	if annotations == nil {
-		return true
+		return errors.New("no annotations")
 	}
 
 	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	if annotations[excludeAnnotation] == "true" {
-		return true
+	if v := annotations[excludeAnnotation]; v == "true" {
+		return fmt.Errorf("%s=%s", excludeAnnotation, v)
 	}
 
-	featureGateAnnotationValue, featureGateAnnotationExists := annotations["release.openshift.io/feature-gate"]
+	featureGateAnnotation := "release.openshift.io/feature-gate"
+	featureGateAnnotationValue, featureGateAnnotationExists := annotations[featureGateAnnotation]
 	if featureGateAnnotationValue == "TechPreviewNoUpgrade" && !includeTechPreview {
-		return true
+		return fmt.Errorf("tech-preview excluded, and %s=%s", featureGateAnnotation, featureGateAnnotationValue)
 	}
 	// never include the manifest if the feature-gate annotation is outside of allowed values (only TechPreviewNoUpgrade is currently allowed)
 	if featureGateAnnotationExists && featureGateAnnotationValue != "TechPreviewNoUpgrade" {
-		return true
+		return fmt.Errorf("unrecognized value %s=%s", featureGateAnnotation, featureGateAnnotationValue)
 	}
 
 	profileAnnotation := fmt.Sprintf("include.release.openshift.io/%s", profile)
 	if val, ok := annotations[profileAnnotation]; ok && val == "true" {
-		return false
+		return nil
+	} else if ok {
+		return fmt.Errorf("unrecognized value %s=%s", profileAnnotation, val)
 	}
-	return true
+	return fmt.Errorf("%s unset", profileAnnotation)
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
