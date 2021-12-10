@@ -225,11 +225,12 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		return w.status.DeepCopy()
 	}
 
-	if equalSyncWork(w.work, work, state) {
+	versionEqual, overridesEqual := equalSyncWork(w.work, work, state)
+
+	if versionEqual && overridesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
-
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
 	if w.work == nil {
@@ -243,9 +244,11 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 			},
 		}
 	}
+	if !versionEqual {
+		w.work = work
+	}
 
 	// notify the sync loop that we changed config
-	w.work = work
 	if w.cancelFn != nil {
 		klog.V(2).Info("Cancel the sync worker's current loop")
 		w.cancelFn()
@@ -414,14 +417,14 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	changed := !equalSyncWork(w.work, work, w.work.State)
+	sameVersion, sameOverrides := equalSyncWork(w.work, work, w.work.State)
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
 		work.Attempt = 0
-	} else if changed {
+	} else if !sameVersion {
 		work.State = payload.UpdatingPayload
 		work.Attempt = 0
 	}
@@ -433,7 +436,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 
 	work.Generation = w.work.Generation
 
-	return changed
+	return !sameVersion || !sameOverrides
 }
 
 // equalUpdate returns true if two updates are semantically equivalent.
@@ -467,37 +470,36 @@ func splitDigest(pullspec string) string {
 	return parts[1]
 }
 
-// equalSyncWork returns true if a and b are equal.
-func equalSyncWork(a, b *SyncWork, state payload.State) bool {
+// equalSyncWork returns indications of whether release version has changed and whether overrides have changed.
+func equalSyncWork(a, b *SyncWork, state payload.State) (equalVersion, equalOverrides bool) {
 	// if both `a` and `b` are the same then simply return true
 	if a == b {
-		return true
+		return true, true
 	}
 	// if either `a` or `b` are nil then return false
 	if a == nil || b == nil {
-		return false
+		return false, false
 	}
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
-	overridesEqual := reflect.DeepEqual(a.Overrides, b.Overrides)
+	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
 
 	var detected string
-	if !sameVersion && !overridesEqual {
+	if !sameVersion && !sameOverrides {
 		detected = "version and overrides changes"
 	} else if !sameVersion {
 		detected = "version change"
-	} else if !overridesEqual {
+	} else if !sameOverrides {
 		detected = "overrides change"
 	}
 	if detected != "" {
-		if state == payload.InitializingPayload {
-			klog.Warningf("Ignoring detected %s during payload initialization", detected)
-			return true
-		}
 		klog.V(2).Infof("Detected %s", detected)
-		return false
 	}
-	return true
+	if state == payload.InitializingPayload && !sameVersion {
+		klog.Warning("Ignoring detected version change during payload initialization")
+		return true, sameOverrides
+	}
+	return sameVersion, sameOverrides
 }
 
 // updateStatus records the current status of the sync action for observation
