@@ -622,7 +622,7 @@ func (ConditionalUpdateRisk) SwaggerDoc() map[string]string {
 
 var map_PromQLClusterCondition = map[string]string{
 	"":       "PromQLClusterCondition represents a cluster condition based on PromQL.",
-	"promql": "PromQL is a PromQL query classifying clusters. This query query should return a 1 in the match case and a 0 in the does-not-match case case. Queries which return no time series, or which return values besides 0 or 1, are evaluation failures.",
+	"promql": "PromQL is a PromQL query classifying clusters. This query query should return a 1 in the match case and a 0 in the does-not-match case. Queries which return no time series, or which return values besides 0 or 1, are evaluation failures.",
 }
 
 func (PromQLClusterCondition) SwaggerDoc() map[string]string {
@@ -843,6 +843,43 @@ var map_RegistrySources = map[string]string{
 
 func (RegistrySources) SwaggerDoc() map[string]string {
 	return map_RegistrySources
+}
+
+var map_ImageContentPolicy = map[string]string{
+	"":     "ImageContentPolicy holds cluster-wide information about how to handle registry mirror rules. When multiple policies are defined, the outcome of the behavior is defined on each field.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+	"spec": "spec holds user settable values for configuration",
+}
+
+func (ImageContentPolicy) SwaggerDoc() map[string]string {
+	return map_ImageContentPolicy
+}
+
+var map_ImageContentPolicyList = map[string]string{
+	"": "ImageContentPolicyList lists the items in the ImageContentPolicy CRD.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
+}
+
+func (ImageContentPolicyList) SwaggerDoc() map[string]string {
+	return map_ImageContentPolicyList
+}
+
+var map_ImageContentPolicySpec = map[string]string{
+	"":                        "ImageContentPolicySpec is the specification of the ImageContentPolicy CRD.",
+	"repositoryDigestMirrors": "repositoryDigestMirrors allows images referenced by image digests in pods to be pulled from alternative mirrored repository locations. The image pull specification provided to the pod will be compared to the source locations described in RepositoryDigestMirrors and the image may be pulled down from any of the mirrors in the list instead of the specified repository allowing administrators to choose a potentially faster mirror. To pull image from mirrors by tags, should set the \"allowMirrorByTags\".\n\nEach “source” repository is treated independently; configurations for different “source” repositories don’t interact.\n\nIf the \"mirrors\" is not specified, the image will continue to be pulled from the specified repository in the pull spec.\n\nWhen multiple policies are defined for the same “source” repository, the sets of defined mirrors will be merged together, preserving the relative order of the mirrors, if possible. For example, if policy A has mirrors `a, b, c` and policy B has mirrors `c, d, e`, the mirrors will be used in the order `a, b, c, d, e`.  If the orders of mirror entries conflict (e.g. `a, b` vs. `b, a`) the configuration is not rejected but the resulting order is unspecified.",
+}
+
+func (ImageContentPolicySpec) SwaggerDoc() map[string]string {
+	return map_ImageContentPolicySpec
+}
+
+var map_RepositoryDigestMirrors = map[string]string{
+	"":                  "RepositoryDigestMirrors holds cluster-wide information about how to handle mirrors in the registries config.",
+	"source":            "source is the repository that users refer to, e.g. in image pull specifications.",
+	"allowMirrorByTags": "allowMirrorByTags if true, the mirrors can be used to pull the images that are referenced by their tags. Default is false, the mirrors only work when pulling the images that are referenced by their digests. Pulling images by tag can potentially yield different images, depending on which endpoint we pull from. Forcing digest-pulls for mirrors avoids that issue.",
+	"mirrors":           "mirrors is zero or more repositories that may also contain the same images. If the \"mirrors\" is not specified, the image will continue to be pulled from the specified repository in the pull spec. No mirror will be configured. The order of mirrors in this list is treated as the user's desired priority, while source is by default considered lower priority than all mirrors. Other cluster configuration, including (but not limited to) other repositoryDigestMirrors objects, may impact the exact order mirrors are contacted in, or some mirrors may be contacted in parallel, so this should be considered a preference rather than a guarantee of ordering.",
+}
+
+func (RepositoryDigestMirrors) SwaggerDoc() map[string]string {
+	return map_RepositoryDigestMirrors
 }
 
 var map_AWSPlatformSpec = map[string]string{
@@ -1153,7 +1190,8 @@ func (PlatformStatus) SwaggerDoc() map[string]string {
 }
 
 var map_PowerVSPlatformSpec = map[string]string{
-	"": "PowerVSPlatformSpec holds the desired state of the IBM Power Systems Virtual Servers infrastructure provider. This only includes fields that can be modified in the cluster.",
+	"":                 "PowerVSPlatformSpec holds the desired state of the IBM Power Systems Virtual Servers infrastructure provider. This only includes fields that can be modified in the cluster.",
+	"serviceEndpoints": "serviceEndpoints is a list of custom endpoints which will override the default service endpoints of a Power VS service.",
 }
 
 func (PowerVSPlatformSpec) SwaggerDoc() map[string]string {
@@ -1174,7 +1212,7 @@ func (PowerVSPlatformStatus) SwaggerDoc() map[string]string {
 
 var map_PowerVSServiceEndpoint = map[string]string{
 	"":     "PowervsServiceEndpoint stores the configuration of a custom url to override existing defaults of PowerVS Services.",
-	"name": "name is the name of the Power VS service.",
+	"name": "name is the name of the Power VS service. Few of the services are IAM - https://cloud.ibm.com/apidocs/iam-identity-token-api ResourceController - https://cloud.ibm.com/apidocs/resource-controller/resource-controller Power Cloud - https://cloud.ibm.com/apidocs/power-cloud",
 	"url":  "url is fully qualified URI with scheme https, that overrides the default generated endpoint for a client. This must be provided and cannot be empty.",
 }
 
@@ -1295,6 +1333,26 @@ func (ExternalIPPolicy) SwaggerDoc() map[string]string {
 	return map_ExternalIPPolicy
 }
 
+var map_MTUMigration = map[string]string{
+	"":        "MTUMigration contains infomation about MTU migration.",
+	"network": "Network contains MTU migration configuration for the default network.",
+	"machine": "Machine contains MTU migration configuration for the machine's uplink.",
+}
+
+func (MTUMigration) SwaggerDoc() map[string]string {
+	return map_MTUMigration
+}
+
+var map_MTUMigrationValues = map[string]string{
+	"":     "MTUMigrationValues contains the values for a MTU migration.",
+	"to":   "To is the MTU to migrate to.",
+	"from": "From is the MTU to migrate from.",
+}
+
+func (MTUMigrationValues) SwaggerDoc() map[string]string {
+	return map_MTUMigrationValues
+}
+
 var map_Network = map[string]string{
 	"":       "Network holds cluster-wide information about Network. The canonical name is `cluster`. It is used to configure the desired network configuration, such as: IP address pools for services/pod IPs, network plugin, etc. Please view network.spec for an explanation on what applies when configuring this resource.\n\nCompatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 	"spec":   "spec holds user settable values for configuration. As a general rule, this SHOULD NOT be read directly. Instead, you should consume the NetworkStatus, as it indicates the currently deployed configuration. Currently, most spec fields are immutable after installation. Please view the individual ones for further details on each.",
@@ -1316,6 +1374,7 @@ func (NetworkList) SwaggerDoc() map[string]string {
 var map_NetworkMigration = map[string]string{
 	"":            "NetworkMigration represents the cluster network configuration.",
 	"networkType": "NetworkType is the target plugin that is to be deployed. Currently supported values are: OpenShiftSDN, OVNKubernetes",
+	"mtu":         "MTU contains the MTU migration configuration.",
 }
 
 func (NetworkMigration) SwaggerDoc() map[string]string {
@@ -1530,6 +1589,7 @@ var map_OpenIDClaims = map[string]string{
 	"preferredUsername": "preferredUsername is the list of claims whose values should be used as the preferred username. If unspecified, the preferred username is determined from the value of the sub claim",
 	"name":              "name is the list of claims whose values should be used as the display name. Optional. If unspecified, no display name is set for the identity",
 	"email":             "email is the list of claims whose values should be used as the email address. Optional. If unspecified, no email is set for the identity",
+	"groups":            "groups is the list of claims value of which should be used to synchronize groups from the OIDC provider to OpenShift for the user. If multiple claims are specified, the first one with a non-empty value is used.",
 }
 
 func (OpenIDClaims) SwaggerDoc() map[string]string {
@@ -1692,7 +1752,7 @@ var map_ProxySpec = map[string]string{
 	"":                   "ProxySpec contains cluster proxy creation configuration.",
 	"httpProxy":          "httpProxy is the URL of the proxy for HTTP requests.  Empty means unset and will not result in an env var.",
 	"httpsProxy":         "httpsProxy is the URL of the proxy for HTTPS requests.  Empty means unset and will not result in an env var.",
-	"noProxy":            "noProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in an env var.",
+	"noProxy":            "noProxy is a comma-separated list of hostnames and/or CIDRs and/or IPs for which the proxy should not be used. Empty means unset and will not result in an env var.",
 	"readinessEndpoints": "readinessEndpoints is a list of endpoints used to verify readiness of the proxy.",
 	"trustedCA":          "trustedCA is a reference to a ConfigMap containing a CA certificate bundle. The trustedCA field should only be consumed by a proxy validator. The validator is responsible for reading the certificate bundle from the required key \"ca-bundle.crt\", merging it with the system default trust bundle, and writing the merged trust bundle to a ConfigMap named \"trusted-ca-bundle\" in the \"openshift-config-managed\" namespace. Clients that expect to make proxy connections must use the trusted-ca-bundle for all HTTPS requests to the proxy, and may use the trusted-ca-bundle for non-proxy HTTPS requests as well.\n\nThe namespace for the ConfigMap referenced by trustedCA is \"openshift-config\". Here is an example ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n name: user-ca-bundle\n namespace: openshift-config\n data:\n   ca-bundle.crt: |",
 }
