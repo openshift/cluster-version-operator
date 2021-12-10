@@ -54,6 +54,7 @@ func TestGetEffectiveMinor(t *testing.T) {
 }
 
 func TestUpgradeableRun(t *testing.T) {
+	ctx := context.Background()
 	ptr := func(status configv1.ConditionStatus) *configv1.ConditionStatus {
 		return &status
 	}
@@ -128,7 +129,9 @@ func TestUpgradeableRun(t *testing.T) {
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
 			instance := NewUpgradeable(cvLister)
 
-			err := instance.Run(context.TODO(), precondition.ReleaseContext{DesiredVersion: tc.desiredVersion}, clusterVersion)
+			err := instance.Run(ctx, precondition.ReleaseContext{
+				DesiredVersion: tc.desiredVersion,
+			})
 			switch {
 			case err != nil && len(tc.expected) == 0:
 				t.Error(err)

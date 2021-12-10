@@ -630,12 +630,12 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 				Actual:      desired,
 				Verified:    info.Verified,
 			})
-			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
-				if work.Desired.Force {
-					klog.V(4).Infof("Forcing past precondition failures: %s", err)
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
-				} else {
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
+			if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
+				DesiredVersion: payloadUpdate.Release.Version,
+			}), work.Desired.Force); err != nil {
+				klog.V(4).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
+				if block {
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", "preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
 					reporter.Report(SyncWorkerStatus{
 						Generation:  work.Generation,
 						Failure:     err,
@@ -646,6 +646,8 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 						Verified:    info.Verified,
 					})
 					return err
+				} else {
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
 				}
 			}
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)

@@ -2,7 +2,6 @@ package clusterversion
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -15,8 +14,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
-
-const backupConditionType = "RecentBackup"
 
 // Upgradeable checks if clusterversion is upgradeable currently.
 type Upgradeable struct {
@@ -51,7 +48,7 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 // Run runs the Upgradeable precondition.
 // If the feature gate `key` is not found, or the api for clusterversion doesn't exist, this check is inert and always returns nil error.
 // Otherwise, if Upgradeable condition is set to false in the object, it returns an PreconditionError when possible.
-func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.ReleaseContext, clusterVersion *configv1.ClusterVersion) error {
+func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.ReleaseContext) error {
 	cv, err := pf.lister.Get(pf.key)
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
@@ -91,7 +88,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	// if no cluster overrides have been set
 	if currentMinor == desiredMinor {
 		klog.V(4).Infof("Precondition %q passed: minor from the current %s matches minor from the target %s (both %s).", pf.Name(), currentVersion, releaseContext.DesiredVersion, currentMinor)
-		if condition := ClusterVersionOverridesCondition(clusterVersion); condition != nil {
+		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
 			klog.V(4).Infof("Update from %s to %s blocked by %s: %s", currentVersion, releaseContext.DesiredVersion, condition.Reason, condition.Message)
 
 			return &precondition.Error{
@@ -114,80 +111,6 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 // Name returns Name for the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }
-
-//  RecentEtcdBackup checks if a recent etcd backup has been taken.
-type RecentEtcdBackup struct {
-	key      string
-	cvLister configv1listers.ClusterVersionLister
-	coLister configv1listers.ClusterOperatorLister
-}
-
-// NewRecentEtcdBackup returns a new RecentEtcdBackup precondition check.
-func NewRecentEtcdBackup(cvLister configv1listers.ClusterVersionLister, coLister configv1listers.ClusterOperatorLister) *RecentEtcdBackup {
-	return &RecentEtcdBackup{
-		key:      "version",
-		cvLister: cvLister,
-		coLister: coLister,
-	}
-}
-
-func recentEtcdBackupCondition(lister configv1listers.ClusterOperatorLister) (reason string, message string) {
-	var msgDetail string
-	ops, err := lister.Get("etcd")
-	if err == nil {
-		backupCondition := resourcemerge.FindOperatorStatusCondition(ops.Status.Conditions, backupConditionType)
-		if backupCondition == nil {
-			reason = "EtcdRecentBackupNotSet"
-			msgDetail = "etcd backup condition is not set."
-		} else if backupCondition.Status != configv1.ConditionTrue {
-			reason = backupCondition.Reason
-			msgDetail = backupCondition.Message
-		}
-	} else {
-		reason = "UnableToGetEtcdOperator"
-		msgDetail = fmt.Sprintf("Unable to get etcd operator, err=%v.", err)
-	}
-	if len(msgDetail) > 0 {
-		message = fmt.Sprintf("%s: %s", backupConditionType, msgDetail)
-	}
-	return reason, message
-}
-
-// Run runs the RecentEtcdBackup precondition. It returns a PreconditionError until Etcd indicates that a
-// recent etcd backup has been taken.
-func (pf *RecentEtcdBackup) Run(ctx context.Context, releaseContext precondition.ReleaseContext, clusterVersion *configv1.ClusterVersion) error {
-	cv, err := pf.cvLister.Get(pf.key)
-	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
-		return nil
-	}
-	if err != nil {
-		return &precondition.Error{
-			Nested:  err,
-			Reason:  "UnknownError",
-			Message: err.Error(),
-			Name:    pf.Name(),
-		}
-	}
-
-	currentVersion := GetCurrentVersion(cv.Status.History)
-	currentMinor := GetEffectiveMinor(currentVersion)
-	desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
-
-	if minorVersionUpgrade(currentMinor, desiredMinor) {
-		reason, message := recentEtcdBackupCondition(pf.coLister)
-		if len(reason) > 0 {
-			return &precondition.Error{
-				Reason:  reason,
-				Message: message,
-				Name:    pf.Name(),
-			}
-		}
-	}
-	return nil
-}
-
-// Name returns Name for the precondition.
-func (pf *RecentEtcdBackup) Name() string { return "EtcdRecentBackup" }
 
 // GetCurrentVersion determines and returns the cluster's current version by iterating through the
 // provided update history until it finds the first version with update State of Completed. If a

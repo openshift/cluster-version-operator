@@ -7,30 +7,48 @@ import (
 
 func TestSummarize(t *testing.T) {
 	tests := []struct {
-		input []error
-		exp   string
+		name          string
+		errors        []error
+		force         bool
+		expectedBlock bool
+		expectedError string
 	}{{
-		input: nil,
+		name:   "nil",
+		errors: nil,
 	}, {
-		input: []error{},
+		name:   "empty error slice",
+		errors: []error{},
 	}, {
-		input: []error{fmt.Errorf("random error")},
-		exp:   "random error",
+		name:          "unrecognized error type",
+		errors:        []error{fmt.Errorf("random error")},
+		expectedBlock: true,
+		expectedError: "random error",
 	}, {
-		input: []error{&Error{
+		name:          "forced unrecognized error type",
+		errors:        []error{fmt.Errorf("random error")},
+		force:         true,
+		expectedBlock: false,
+		expectedError: "Forced through blocking failures: random error",
+	}, {
+		name: "single feature-gate error",
+		errors: []error{&Error{
 			Nested:  nil,
 			Reason:  "NotAllowedFeatureGateSet",
 			Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 			Name:    "FeatureGate",
 		}},
-		exp: `Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
+		expectedBlock: true,
+		expectedError: `Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
 	}, {
-		input: []error{fmt.Errorf("random error"), fmt.Errorf("random error 2")},
-		exp: `Multiple precondition checks failed:
+		name:          "two unrecognized error types",
+		errors:        []error{fmt.Errorf("random error"), fmt.Errorf("random error 2")},
+		expectedBlock: true,
+		expectedError: `Multiple precondition checks failed:
 * random error
 * random error 2`,
 	}, {
-		input: []error{&Error{
+		name: "two feature gate errors",
+		errors: []error{&Error{
 			Nested:  nil,
 			Reason:  "NotAllowedFeatureGateSet",
 			Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
@@ -41,11 +59,13 @@ func TestSummarize(t *testing.T) {
 			Message: "Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 			Name:    "FeatureGate",
 		}},
-		exp: `Multiple precondition checks failed:
+		expectedBlock: true,
+		expectedError: `Multiple precondition checks failed:
 * Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.
 * Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random-2 is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
 	}, {
-		input: []error{
+		name: "unrecognized type and a feature-gate error",
+		errors: []error{
 			fmt.Errorf("random error"),
 			&Error{
 				Nested:  nil,
@@ -53,22 +73,28 @@ func TestSummarize(t *testing.T) {
 				Message: "Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.",
 				Name:    "FeatureGate",
 			}},
-		exp: `Multiple precondition checks failed:
+		expectedBlock: true,
+		expectedError: `Multiple precondition checks failed:
 * random error
 * Precondition "FeatureGate" failed because of "NotAllowedFeatureGateSet": Feature Gate random is set for the cluster. This Feature Gate turns on features that are not part of the normal supported platform.`,
 	}}
 	for _, test := range tests {
-		t.Run("", func(t *testing.T) {
-			err := Summarize(test.input)
-			if test.exp == "" {
+		t.Run(test.name, func(t *testing.T) {
+			block, err := Summarize(test.errors, test.force)
+
+			if block != test.expectedBlock {
+				t.Errorf("expected block %t, but got %t", test.expectedBlock, block)
+			}
+
+			if test.expectedError == "" {
 				if err != nil {
 					t.Fatalf("expected no error, got %v", err)
 				}
 			} else {
 				if err == nil {
-					t.Fatalf("expected err %s, got nil", test.exp)
-				} else if err.Error() != test.exp {
-					t.Fatalf("expected err %s, got %s", test.exp, err.Error())
+					t.Fatalf("expected err %s, got nil", test.expectedError)
+				} else if err.Error() != test.expectedError {
+					t.Fatalf("expected err %s, got %s", test.expectedError, err.Error())
 				}
 			}
 		})

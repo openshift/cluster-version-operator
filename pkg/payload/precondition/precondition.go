@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -42,7 +41,7 @@ type ReleaseContext struct {
 // Precondition defines the precondition check for a payload.
 type Precondition interface {
 	// Run executes the precondition checks ands returns an error when the precondition fails.
-	Run(ctx context.Context, releaseContext ReleaseContext, cv *configv1.ClusterVersion) error
+	Run(ctx context.Context, releaseContext ReleaseContext) error
 
 	// Name returns a human friendly name for the precondition.
 	Name() string
@@ -53,10 +52,10 @@ type List []Precondition
 
 // RunAll runs all the reflight checks in order, returning a list of errors if any.
 // All checks are run, regardless if any one precondition fails.
-func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext, cv *configv1.ClusterVersion) []error {
+func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext) []error {
 	var errs []error
 	for _, pf := range pfList {
-		if err := pf.Run(ctx, releaseContext, cv); err != nil {
+		if err := pf.Run(ctx, releaseContext); err != nil {
 			klog.Errorf("Precondition %q failed: %v", pf.Name(), err)
 			errs = append(errs, err)
 		}
@@ -65,9 +64,11 @@ func (pfList List) RunAll(ctx context.Context, releaseContext ReleaseContext, cv
 }
 
 // Summarize summarizes all the precondition.Error from errs.
-func Summarize(errs []error) error {
+// Returns the consolidated error and a boolean for whether the error
+// is blocking (true) or a warning (false).
+func Summarize(errs []error, force bool) (bool, error) {
 	if len(errs) == 0 {
-		return nil
+		return false, nil
 	}
 	var msgs []string
 	for _, e := range errs {
@@ -83,7 +84,12 @@ func Summarize(errs []error) error {
 	} else {
 		msg = fmt.Sprintf("Multiple precondition checks failed:\n* %s", strings.Join(msgs, "\n* "))
 	}
-	return &payload.UpdateError{
+
+	if force {
+		msg = fmt.Sprintf("Forced through blocking failures: %s", msg)
+	}
+
+	return !force, &payload.UpdateError{
 		Nested:  nil,
 		Reason:  "UpgradePreconditionCheckFailed",
 		Message: msg,
