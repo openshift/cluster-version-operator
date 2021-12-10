@@ -225,13 +225,16 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		return w.status.DeepCopy()
 	}
 
-	if equalSyncWork(w.work, work, state) {
+	versionEqual, overridesEqual := equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
+
+	if versionEqual && overridesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
 
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
+	var oldDesired *configv1.Update
 	if w.work == nil {
 		work.State = state
 		w.status = SyncWorkerStatus{
@@ -242,10 +245,20 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 				Image:   work.Desired.Image,
 			},
 		}
+	} else {
+		oldDesired = &w.work.Desired
+	}
+
+	w.work = work
+
+	if !versionEqual && oldDesired == nil {
+		klog.Infof("Propagating initial target version %v to sync worker loop in state %s.", desired, state)
+	} else if !versionEqual && state == payload.InitializingPayload {
+		klog.Warningf("Ignoring detected version change from %v to %v during payload initialization", *oldDesired, work.Desired)
+		w.work.Desired = *oldDesired
 	}
 
 	// notify the sync loop that we changed config
-	w.work = work
 	if w.cancelFn != nil {
 		klog.V(2).Info("Cancel the sync worker's current loop")
 		w.cancelFn()
@@ -414,14 +427,15 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	changed := !equalSyncWork(w.work, work, w.work.State)
+	sameVersion, sameOverrides := equalSyncWork(work, w.work, "calculating next work")
+	changed := !sameVersion || !sameOverrides
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
 	if work.Empty() {
 		work.State = w.work.State
 		work.Attempt = 0
-	} else if changed {
+	} else if changed && w.work.State != payload.InitializingPayload {
 		work.State = payload.UpdatingPayload
 		work.Attempt = 0
 	}
@@ -467,37 +481,32 @@ func splitDigest(pullspec string) string {
 	return parts[1]
 }
 
-// equalSyncWork returns true if a and b are equal.
-func equalSyncWork(a, b *SyncWork, state payload.State) bool {
+// equalSyncWork returns indications of whether release version has changed and whether overrides have changed.
+func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides bool) {
 	// if both `a` and `b` are the same then simply return true
 	if a == b {
-		return true
+		return true, true
 	}
 	// if either `a` or `b` are nil then return false
 	if a == nil || b == nil {
-		return false
+		return false, false
 	}
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
-	overridesEqual := reflect.DeepEqual(a.Overrides, b.Overrides)
+	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
 
 	var detected string
-	if !sameVersion && !overridesEqual {
-		detected = "version and overrides changes"
+	if !sameVersion && !sameOverrides {
+		detected = fmt.Sprintf("version (from %v to %v) and overrides changes", a.Desired, b.Desired)
 	} else if !sameVersion {
-		detected = "version change"
-	} else if !overridesEqual {
-		detected = "overrides change"
+		detected = fmt.Sprintf("version change (from %v to %v)", a.Desired, b.Desired)
+	} else if !sameOverrides {
+		detected = fmt.Sprintf("overrides change (%v to %v)", a.Overrides, b.Overrides)
 	}
 	if detected != "" {
-		if state == payload.InitializingPayload {
-			klog.Warningf("Ignoring detected %s during payload initialization", detected)
-			return true
-		}
-		klog.V(2).Infof("Detected %s", detected)
-		return false
+		klog.V(2).Infof("Detected while %s: %s", context, detected)
 	}
-	return true
+	return sameVersion, sameOverrides
 }
 
 // updateStatus records the current status of the sync action for observation
