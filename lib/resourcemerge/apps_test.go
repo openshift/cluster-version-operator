@@ -48,6 +48,16 @@ func TestEnsureDeployment(t *testing.T) {
 					Replicas: int32Pointer(2)}},
 		},
 		{
+			name: "implicit replica count",
+			existing: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Replicas: int32Pointer(2)}},
+			expectedModified: true,
+			expected: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Replicas: int32Pointer(1)}},
+		},
+		{
 			name:     "existing-selector-nil-required-selector-non-nil",
 			existing: appsv1.Deployment{},
 			required: appsv1.Deployment{
@@ -82,8 +92,4 @@ func TestEnsureDeployment(t *testing.T) {
 func defaultDeployment(in *appsv1.Deployment, from appsv1.Deployment) {
 	modified := pointer.BoolPtr(false)
 	EnsureDeployment(modified, in, from)
-}
-
-func int32Pointer(i int32) *int32 {
-	return &i
 }
