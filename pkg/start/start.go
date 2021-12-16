@@ -38,6 +38,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featurechangestopper"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/library-go/pkg/config/clusterstatus"
+	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
 	"github.com/openshift/library-go/pkg/crypto"
 )
 
@@ -46,10 +48,6 @@ const (
 	defaultComponentNamespace = "openshift-cluster-version"
 
 	minResyncPeriod = 2 * time.Minute
-
-	leaseDuration = 137 * time.Second
-	renewDeadline = 107 * time.Second
-	retryPeriod   = 26 * time.Second
 )
 
 // Options are the valid inputs to starting the CVO.
@@ -77,6 +75,8 @@ type Options struct {
 	Namespace       string
 	PayloadOverride string
 	ResyncInterval  time.Duration
+
+	leaderElection configv1.LeaderElection
 }
 
 type asyncResult struct {
@@ -157,7 +157,7 @@ func (o *Options) Run(ctx context.Context) error {
 	if err := controllerCtx.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
 		return err
 	}
-
+	o.leaderElection = getLeaderElectionConfig(ctx, cb.RestConfig(defaultQPS))
 	o.run(ctx, controllerCtx, lock)
 	return nil
 }
@@ -234,9 +234,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 		leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
 			Lock:            lock,
 			ReleaseOnCancel: true,
-			LeaseDuration:   leaseDuration,
-			RenewDeadline:   renewDeadline,
-			RetryPeriod:     retryPeriod,
+			LeaseDuration:   o.leaderElection.LeaseDuration.Duration,
+			RenewDeadline:   o.leaderElection.RenewDeadline.Duration,
+			RetryPeriod:     o.leaderElection.RetryPeriod.Duration,
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
@@ -415,6 +415,27 @@ func highQPS(config *rest.Config) {
 func useProtobuf(config *rest.Config) {
 	config.AcceptContentTypes = "application/vnd.kubernetes.protobuf,application/json"
 	config.ContentType = "application/vnd.kubernetes.protobuf"
+}
+
+func getLeaderElectionConfig(ctx context.Context, restcfg *rest.Config) configv1.LeaderElection {
+
+	// Defaults follow conventions
+	// https://github.com/openshift/enhancements/pull/832/files#diff-2e28754e69aa417e5b6d89e99e42f05bfb6330800fa823753383db1d170fbc2fR183
+	// see rhbz#1986477 for more detail
+	defaultLeaderElection := libgoleaderelection.LeaderElectionDefaulting(
+		configv1.LeaderElection{},
+		"", "",
+	)
+
+	if infra, err := clusterstatus.GetClusterInfraStatus(ctx, restcfg); err == nil && infra != nil {
+		if infra.ControlPlaneTopology == configv1.SingleReplicaTopologyMode {
+			return libgoleaderelection.LeaderElectionSNOConfig(defaultLeaderElection)
+		}
+	} else {
+		klog.Warningf("unable to get cluster infrastructure status, using HA cluster values for leader election: %v", err)
+	}
+
+	return defaultLeaderElection
 }
 
 // Context holds the controllers for this operator and exposes a unified start command.
