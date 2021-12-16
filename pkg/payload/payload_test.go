@@ -6,10 +6,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -117,8 +118,11 @@ func Test_loadUpdatePayload(t *testing.T) {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("loadUpdatePayload() = %s", diff.ObjectReflectDiff(tt.want, got))
+			// Manifest holds an unexported type of 'resourceID' with a field name of 'id'
+			// DeepEqual fails so here we use cmp.Diff to ignore just that field to avoid false postives
+			stringDiff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id"))
+			if !reflect.DeepEqual(got, tt.want) && stringDiff != "" {
+				t.Errorf("loadUpdatePayload() = %s", stringDiff)
 			}
 		})
 	}
