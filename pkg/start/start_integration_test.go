@@ -284,6 +284,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
+	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	includeTechPreview := false
 	controllers := options.NewControllerContext(cb, includeTechPreview)
 
@@ -447,6 +448,7 @@ func TestIntegrationCVO_initializeAndHandleError(t *testing.T) {
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "ignored")
 	options.ResyncInterval = 3 * time.Second
+	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	includeTechPreview := false
 	controllers := options.NewControllerContext(cb, includeTechPreview)
 
@@ -563,6 +565,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.Name = ns
 	options.ListenAddr = ""
 	options.NodeName = "test-node"
+	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	includeTechPreview := false
 	controllers := options.NewControllerContext(cb, includeTechPreview)
 
@@ -752,6 +755,7 @@ metadata:
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = payloadDir
+	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	includeTechPreview := false
 	controllers := options.NewControllerContext(cb, includeTechPreview)
 	if err := controllers.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
