@@ -18,7 +18,7 @@ func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, 
 			klog.Error(err)
 			return false, nil
 		} else if !done {
-			klog.V(4).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
+			klog.V(2).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
 			return false, nil
 		}
 		return true, nil

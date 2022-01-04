@@ -61,7 +61,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	if len(config.Status.History) == 0 {
-		klog.V(5).Infof("initialize new history completed=%t desired=%#v", completed, desired)
+		klog.V(2).Infof("initialize new history completed=%t desired=%#v", completed, desired)
 		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
 			Version: desired.Version,
 			Image:   desired.Image,
@@ -78,7 +78,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	if mergeEqualVersions(last, desired) {
-		klog.V(5).Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
+		klog.V(2).Infof("merge into existing history completed=%t desired=%#v last=%#v", completed, desired, last)
 		if completed {
 			last.State = configv1.CompletedUpdate
 			if last.CompletionTime == nil {
@@ -86,7 +86,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 			}
 		}
 	} else {
-		klog.V(5).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
+		klog.V(2).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
 		if last.CompletionTime == nil {
 			last.CompletionTime = &now
 		}
@@ -115,7 +115,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	// leave this here in case we find other future history bugs and need to debug it
-	if klog.V(5).Enabled() && len(config.Status.History) > 1 {
+	if klog.V(2).Enabled() && len(config.Status.History) > 1 {
 		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
 			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
 			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
@@ -158,7 +158,7 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
-	klog.V(5).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
+	klog.V(2).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
 	// update the config with the latest available updates

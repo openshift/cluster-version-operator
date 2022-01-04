@@ -39,7 +39,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getAvailableUpdates()
 	if u != nil && u.Upstream == upstream && u.Channel == channel && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		klog.V(4).Infof("Available updates were recently retrieved, will try later.")
+		klog.V(2).Infof("Available updates were recently retrieved, will try later.")
 		return nil
 	}
 

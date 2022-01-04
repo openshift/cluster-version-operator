@@ -16,7 +16,7 @@ spec:
       - "--enable-auto-update=false"
       - "--enable-default-cluster-version=false"
       - "--listen="
-      - "--v=5"
+      - "--v=2"
       - "--kubeconfig=/etc/kubernetes/kubeconfig"
     securityContext:
       privileged: true

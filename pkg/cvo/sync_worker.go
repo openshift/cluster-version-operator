@@ -219,12 +219,12 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	}
 
 	if work.Empty() {
-		klog.V(5).Info("Update work has no release image; ignoring requested change")
+		klog.V(2).Info("Update work has no release image; ignoring requested change")
 		return w.status.DeepCopy()
 	}
 
 	if equalSyncWork(w.work, work, state) {
-		klog.V(5).Info("Update work is equal to current target; no change required")
+		klog.V(2).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
 
@@ -245,15 +245,15 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	// notify the sync loop that we changed config
 	w.work = work
 	if w.cancelFn != nil {
-		klog.V(5).Info("Cancel the sync worker's current loop")
+		klog.V(2).Info("Cancel the sync worker's current loop")
 		w.cancelFn()
 		w.cancelFn = nil
 	}
 	select {
 	case w.notify <- struct{}{}:
-		klog.V(5).Info("Notify the sync worker that new work is available")
+		klog.V(2).Info("Notify the sync worker that new work is available")
 	default:
-		klog.V(5).Info("The sync worker has already been notified that new work is available")
+		klog.V(2).Info("The sync worker has already been notified that new work is available")
 	}
 
 	return w.status.DeepCopy()
@@ -263,7 +263,7 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 // It is edge-triggered when Update() is invoked and level-driven after the
 // syncOnce() has succeeded for a given input (we are said to be "reconciling").
 func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
-	klog.V(5).Infof("Starting sync worker")
+	klog.V(2).Infof("Starting sync worker")
 
 	work := &SyncWork{}
 
@@ -276,26 +276,26 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 			waitingToReconcile := work.State == payload.ReconcilingPayload
 			select {
 			case <-ctx.Done():
-				klog.V(5).Infof("Stopped worker")
+				klog.V(2).Infof("Stopped worker")
 				return
 			case <-next:
 				waitingToReconcile = false
-				klog.V(5).Infof("Wait finished")
+				klog.V(2).Infof("Wait finished")
 			case <-w.notify:
-				klog.V(5).Infof("Work updated")
+				klog.V(2).Infof("Work updated")
 			}
 
 			// determine whether we need to do work
 			changed := w.calculateNext(work)
 			if !changed && waitingToReconcile {
-				klog.V(5).Infof("No change, waiting")
+				klog.V(2).Infof("No change, waiting")
 				continue
 			}
 
 			// until Update() has been called at least once, we do nothing
 			if work.Empty() {
 				next = time.After(w.minimumReconcileInterval)
-				klog.V(5).Infof("No work, waiting")
+				klog.V(2).Infof("No work, waiting")
 				continue
 			}
 
@@ -334,7 +334,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 				// reporter hides status updates that occur earlier than the previous failure,
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
-				klog.V(5).Infof("Previous sync status: %#v", reporter.previousStatus)
+				klog.V(2).Infof("Previous sync status: %#v", reporter.previousStatus)
 				return w.syncOnce(ctx, work, maxWorkers, reporter, config)
 			}()
 			if err != nil {
@@ -355,7 +355,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 				continue
 			}
 			if work.State != payload.ReconcilingPayload {
-				klog.V(4).Infof("Sync succeeded, transitioning from %s to %s", work.State, payload.ReconcilingPayload)
+				klog.V(2).Infof("Sync succeeded, transitioning from %s to %s", work.State, payload.ReconcilingPayload)
 			}
 
 			work.Completed++
@@ -365,7 +365,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 		}
 	}, 10*time.Millisecond, ctx.Done())
 
-	klog.V(5).Infof("Worker shut down")
+	klog.V(2).Infof("Worker shut down")
 }
 
 // statusWrapper prevents a newer status update from overwriting a previous
@@ -388,7 +388,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	if p.Failure != nil && status.Failure == nil {
 		if p.Actual.Image == status.Actual.Image {
 			if fractionComplete < previousFractionComplete {
-				klog.V(5).Infof("Dropping status report from earlier in sync loop")
+				klog.V(2).Infof("Dropping status report from earlier in sync loop")
 				return
 			}
 		}
@@ -489,7 +489,7 @@ func equalSyncWork(a, b *SyncWork, state payload.State) bool {
 			klog.Warningf("Ignoring detected %s during payload initialization", detected)
 			return true
 		}
-		klog.V(5).Infof("Detected %s", detected)
+		klog.V(2).Infof("Detected %s", detected)
 		return false
 	}
 	return true
@@ -538,7 +538,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		Version: work.Desired.Version,
 		Image:   work.Desired.Image,
 	}
-	klog.V(4).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
+	klog.V(2).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
 
 	if work.Attempt == 0 {
 		payload.InitCOUpdateStartTimes()
@@ -550,7 +550,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 		// possibly complain here if Version, etc. diverges from the payload content
 		desired = validPayload.Release
 	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
-		klog.V(4).Infof("Loading payload")
+		klog.V(2).Infof("Loading payload")
 		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", "retrieving payload version=%q image=%q", desired.Version, desired.Image)
 		reporter.Report(SyncWorkerStatus{
@@ -613,9 +613,9 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 
 		// need to make sure the payload is only set when the preconditions have been successful
 		if len(w.preconditions) == 0 {
-			klog.V(4).Info("No preconditions configured.")
+			klog.V(2).Info("No preconditions configured.")
 		} else if info.Local {
-			klog.V(4).Info("Skipping preconditions for a local operator image payload.")
+			klog.V(2).Info("Skipping preconditions for a local operator image payload.")
 		} else {
 			reporter.Report(SyncWorkerStatus{
 				Generation:  work.Generation,
@@ -627,7 +627,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 			})
 			if err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{DesiredVersion: payloadUpdate.Release.Version}, clusterVersion)); err != nil {
 				if work.Desired.Force {
-					klog.V(4).Infof("Forcing past precondition failures: %s", err)
+					klog.V(2).Infof("Forcing past precondition failures: %s", err)
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsForced", "preconditions forced for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
 				} else {
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionsFailed", "preconditions failed for payload loaded version=%q image=%q failures=%v", desired.Version, desired.Image, err)
@@ -648,7 +648,7 @@ func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers in
 
 		w.payload = payloadUpdate
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", "payload loaded version=%q image=%q", desired.Version, desired.Image)
-		klog.V(4).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
+		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
 	}
 
 	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
@@ -732,14 +732,14 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				}
 				ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 				if ok && ov.Unmanaged {
-					klog.V(4).Infof("Skipping precreation of %s as unmanaged", task)
+					klog.V(2).Infof("Skipping precreation of %s as unmanaged", task)
 					continue
 				}
 				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
 					klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
 					continue
 				}
-				klog.V(4).Infof("Precreated resource %s", task)
+				klog.V(2).Infof("Precreated resource %s", task)
 			}
 		}
 
@@ -749,11 +749,11 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 			}
 			cr.Update()
 
-			klog.V(4).Infof("Running sync for %s", task)
+			klog.V(2).Infof("Running sync for %s", task)
 
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 			if ok && ov.Unmanaged {
-				klog.V(4).Infof("Skipping %s as unmanaged", task)
+				klog.V(2).Infof("Skipping %s as unmanaged", task)
 				continue
 			}
 
@@ -761,7 +761,7 @@ func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, w
 				return err
 			}
 			cr.Inc()
-			klog.V(4).Infof("Done syncing for %s", task)
+			klog.V(2).Infof("Done syncing for %s", task)
 		}
 		return nil
 	})
@@ -905,7 +905,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 	// server
 	err := errors.FilterOut(errors.NewAggregate(errs), isContextError)
 	if err == nil {
-		klog.V(4).Infof("All errors were context errors: %v", errs)
+		klog.V(2).Infof("All errors were context errors: %v", errs)
 		return nil
 	}
 	agg, ok := err.(errors.Aggregate)
@@ -916,7 +916,7 @@ func summarizeTaskGraphErrors(errs []error) error {
 	}
 
 	// log the errors to assist in debugging future summarization
-	if klog.V(4).Enabled() {
+	if klog.V(2).Enabled() {
 		klog.Infof("Summarizing %d errors", len(errs))
 		for _, err := range errs {
 			if uErr, ok := err.(*payload.UpdateError); ok {
