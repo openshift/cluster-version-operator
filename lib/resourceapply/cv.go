@@ -36,7 +36,7 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 		return existing, false, nil
 	}
 
-	klog.V(4).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+	klog.V(2).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 
 	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

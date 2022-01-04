@@ -116,7 +116,7 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 		if thiefResult, ok := c.MatchResults[thiefKey]; ok {
 			detail = fmt.Sprintf(" (last evaluated on %s)", thiefResult.When)
 		}
-		klog.V(4).Infof("%s is the most stale cached cluster-condition match entry, but it is too fresh%s.  However, we don't have a cached evaluation for %s, so attempt to evaluate that now.", thiefKey, detail, key)
+		klog.V(2).Infof("%s is the most stale cached cluster-condition match entry, but it is too fresh%s.  However, we don't have a cached evaluation for %s, so attempt to evaluate that now.", thiefKey, detail, key)
 	}
 
 	// if we ended up stealing this Match call, log that, to make contention more clear
@@ -127,7 +127,7 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 		} else {
 			reason = fmt.Sprintf("its last evaluation completed %s ago", now.Sub(thiefResult.When))
 		}
-		klog.V(4).Infof("%s is stealing this cluster-condition match call for %s, because %s", thiefKey, key, reason)
+		klog.V(2).Infof("%s is stealing this cluster-condition match call for %s, because %s", thiefKey, key, reason)
 	}
 
 	match, err := c.Condition.Match(ctx, targetCondition)
@@ -160,7 +160,7 @@ func (c *Cache) expireStaleMatchResults(ctx context.Context, now time.Time) {
 			aspect = "queued request"
 		}
 		if age > c.Expiration {
-			klog.V(4).Infof("pruning %q from the condition cache, as the %s is %s old", key, aspect, age)
+			klog.V(2).Infof("pruning %q from the condition cache, as the %s is %s old", key, aspect, age)
 			delete(c.MatchResults, key)
 		}
 	}

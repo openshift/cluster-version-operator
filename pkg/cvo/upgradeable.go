@@ -39,7 +39,7 @@ func (optr *Operator) syncUpgradeable() error {
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getUpgradeable()
 	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		klog.V(4).Infof("Upgradeable conditions were recently checked, will try later.")
+		klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
 	optr.setUpgradeableConditions()
@@ -245,7 +245,7 @@ func (check *clusterManifestDeleteInProgressUpgradeable) Check() *configv1.Clust
 	}
 	if deletes := resourcedelete.DeletesInProgress(); len(deletes) > 0 {
 		resources := strings.Join(deletes, ",")
-		klog.V(4).Infof("Resource deletions in progress; resources=%s", resources)
+		klog.V(2).Infof("Resource deletions in progress; resources=%s", resources)
 		cond.Reason = "ResourceDeletesInProgress"
 		cond.Message = fmt.Sprintf("Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=%s", resources)
 		return cond
@@ -399,7 +399,7 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 func (optr *Operator) addFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
-		klog.V(4).Infof("ConfigMap %s/%s added.", cm.Namespace, cm.Name)
+		klog.V(2).Infof("ConfigMap %s/%s added.", cm.Namespace, cm.Name)
 		optr.setUpgradeableConditions()
 	}
 }
@@ -409,7 +409,7 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		oldCm := oldObj.(*corev1.ConfigMap)
 		if !equality.Semantic.DeepEqual(cm, oldCm) {
-			klog.V(4).Infof("ConfigMap %s/%s updated.", cm.Namespace, cm.Name)
+			klog.V(2).Infof("ConfigMap %s/%s updated.", cm.Namespace, cm.Name)
 			optr.setUpgradeableConditions()
 		}
 	}
@@ -418,7 +418,7 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 func (optr *Operator) deleteFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
-		klog.V(4).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
+		klog.V(2).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
 		optr.setUpgradeableConditions()
 	}
 }

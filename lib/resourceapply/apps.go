@@ -35,7 +35,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -65,7 +65,7 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})

@@ -35,7 +35,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.ClusterRoleBindings().Update(ctx, existing, metav1.UpdateOptions{})
@@ -64,7 +64,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating ClusterRole %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ClusterRole %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
@@ -93,7 +93,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating RoleBinding %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating RoleBinding %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -122,7 +122,7 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating Role %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Role %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.Roles(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})

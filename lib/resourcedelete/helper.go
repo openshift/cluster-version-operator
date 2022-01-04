@@ -62,7 +62,7 @@ func SetDeleteRequested(obj metav1.Object, resource Resource) {
 	deletedResources.lock.Lock()
 	deletedResources.m[resource] = times
 	deletedResources.lock.Unlock()
-	klog.V(4).Infof("Delete requested for %s.", resource)
+	klog.V(2).Infof("Delete requested for %s.", resource)
 }
 
 // SetDeleteVerified updates map entry to indicate resource deletion has been completed.
@@ -73,7 +73,7 @@ func SetDeleteVerified(resource Resource) {
 	deletedResources.lock.Lock()
 	deletedResources.m[resource] = times
 	deletedResources.lock.Unlock()
-	klog.V(4).Infof("Delete of %s completed.", resource)
+	klog.V(2).Infof("Delete of %s completed.", resource)
 }
 
 // getDeleteTimes returns map entry for given resource.
@@ -111,9 +111,9 @@ func GetDeleteProgress(resource Resource, getError error) (bool, error) {
 				SetDeleteVerified(resource)
 			} else {
 				if deletionTimes.Expected != nil {
-					klog.V(4).Infof("Delete of %s is expected by %s.", resource, deletionTimes.Expected.String())
+					klog.V(2).Infof("Delete of %s is expected by %s.", resource, deletionTimes.Expected.String())
 				} else {
-					klog.V(4).Infof("Delete of %s has already been requested.", resource)
+					klog.V(2).Infof("Delete of %s has already been requested.", resource)
 				}
 			}
 		}

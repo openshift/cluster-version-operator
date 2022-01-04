@@ -69,7 +69,7 @@ func Match(ctx context.Context, matchingRules []configv1.ClusterCondition) (bool
 	for _, config := range matchingRules {
 		condition, ok := Registry[config.Type]
 		if !ok {
-			klog.V(4).Infof("Skipping unrecognized cluster condition type %q", config.Type)
+			klog.V(2).Infof("Skipping unrecognized cluster condition type %q", config.Type)
 			continue
 		}
 		match, err := condition.Match(ctx, &config)

@@ -266,7 +266,7 @@ type payloadTasks struct {
 }
 
 func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Update, []payloadTasks, error) {
-	klog.V(4).Infof("Loading updatepayload from %q", dir)
+	klog.V(2).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, nil, err
 	}
