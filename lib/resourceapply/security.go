@@ -36,7 +36,7 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating SCC %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating SCC %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})

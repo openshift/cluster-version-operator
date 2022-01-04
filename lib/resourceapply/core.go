@@ -38,7 +38,7 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(4).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.Namespaces().Update(ctx, existing, metav1.UpdateOptions{})
@@ -75,7 +75,7 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 	existing.Spec.Selector = required.Spec.Selector
 
 	if reconciling {
-		klog.V(4).Infof("Updating Service %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Service %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.Services(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -105,7 +105,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating ServiceAccount %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ServiceAccount %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.ServiceAccounts(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -135,7 +135,7 @@ func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter,
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating ConfigMap %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ConfigMap %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.ConfigMaps(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
