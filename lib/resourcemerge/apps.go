@@ -3,6 +3,7 @@ package resourcemerge
 import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 )
 
@@ -26,6 +27,7 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 		existing.Spec.Selector = required.Spec.Selector
 	}
 
+	ensureStrategyDefault(&required)
 	if !equality.Semantic.DeepEqual(existing.Spec.Strategy, required.Spec.Strategy) {
 		*modified = true
 		existing.Spec.Strategy = required.Spec.Strategy
@@ -37,6 +39,23 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 func ensureReplicasDefault(required *appsv1.Deployment) {
 	if required.Spec.Replicas == nil {
 		required.Spec.Replicas = pointer.Int32(1)
+	}
+}
+
+func ensureStrategyDefault(required *appsv1.Deployment) {
+	if len(required.Spec.Strategy.Type) == 0 || required.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType {
+		required.Spec.Strategy.Type = appsv1.RollingUpdateDeploymentStrategyType
+		if required.Spec.Strategy.RollingUpdate == nil {
+			required.Spec.Strategy.RollingUpdate = &appsv1.RollingUpdateDeployment{}
+		}
+		if required.Spec.Strategy.RollingUpdate.MaxUnavailable == nil {
+			twentyFivePercent := intstr.FromString("25%")
+			required.Spec.Strategy.RollingUpdate.MaxUnavailable = &twentyFivePercent
+		}
+		if required.Spec.Strategy.RollingUpdate.MaxSurge == nil {
+			twentyFivePercent := intstr.FromString("25%")
+			required.Spec.Strategy.RollingUpdate.MaxSurge = &twentyFivePercent
+		}
 	}
 }
 
