@@ -84,16 +84,16 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 	req.Header.Add("Accept", GraphMediaType)
 	if c.transport != nil && c.transport.TLSClientConfig != nil {
 		if c.transport.TLSClientConfig.ClientCAs == nil {
-			klog.V(5).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)
+			klog.V(2).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)
 		} else {
-			klog.V(5).Infof("Using a root CA pool with %n root CA subjects to request updates from %s", len(c.transport.TLSClientConfig.RootCAs.Subjects()), uri)
+			klog.V(2).Infof("Using a root CA pool with %n root CA subjects to request updates from %s", len(c.transport.TLSClientConfig.RootCAs.Subjects()), uri)
 		}
 	}
 
 	if c.transport != nil && c.transport.Proxy != nil {
 		proxy, err := c.transport.Proxy(req)
 		if err == nil && proxy != nil {
-			klog.V(5).Infof("Using proxy %s to request updates from %s", proxy.Host, uri)
+			klog.V(2).Infof("Using proxy %s to request updates from %s", proxy.Host, uri)
 		}
 	}
 

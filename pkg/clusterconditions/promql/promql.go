@@ -79,7 +79,7 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	}
 
 	v1api := prometheusv1.NewAPI(client)
-	klog.V(4).Infof("evaluate %s cluster condition: %q", condition.Type, condition.PromQL.PromQL)
+	klog.V(2).Infof("evaluate %s cluster condition: %q", condition.Type, condition.PromQL.PromQL)
 	result, warnings, err := v1api.Query(ctx, condition.PromQL.PromQL, time.Now())
 	if err != nil {
 		return false, fmt.Errorf("executing PromQL query: %w", err)

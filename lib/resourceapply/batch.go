@@ -36,7 +36,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating Job %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Job %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.Jobs(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})

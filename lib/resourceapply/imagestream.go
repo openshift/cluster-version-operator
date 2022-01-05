@@ -34,7 +34,7 @@ func ApplyImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGe
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 	actual, err := client.ImageStreams(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err

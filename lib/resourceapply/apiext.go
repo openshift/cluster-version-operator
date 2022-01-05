@@ -35,7 +35,7 @@ func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.
 	}
 
 	if reconciling {
-		klog.V(4).Infof("Updating CRD %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating CRD %s due to diff: %v", required.Name, cmp.Diff(existing, required))
 	}
 
 	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})

@@ -106,7 +106,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 	existing.SetOwnerReferences(required.GetOwnerReferences())
 
 	if reconciling {
-		klog.V(4).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), objDiff)
+		klog.V(2).Infof("Updating %s %s/%s due to diff: %v", required.GetKind(), required.GetNamespace(), required.GetName(), objDiff)
 	}
 
 	actual, err := client.Update(ctx, existing, metav1.UpdateOptions{})

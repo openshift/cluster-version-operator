@@ -34,7 +34,7 @@ spec:
           - "--listen=0.0.0.0:9099"
           - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
           - "--serving-key-file=/etc/tls/serving-cert/tls.key"
-          - "--v=5"
+          - "--v=2"
         resources:
           requests:
             cpu: 20m
