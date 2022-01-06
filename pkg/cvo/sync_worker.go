@@ -241,7 +241,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 		return nil
 	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
 		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
-		msg := fmt.Sprintf("Retrieving payload version=%q image=%q", desired.Version, desired.Image)
+		msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
 		reporter.ReportPayload(LoadPayloadStatus{
 			Step:               "RetrievePayload",
@@ -263,14 +263,14 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 			return err
 		}
 
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "VerifyPayload", "Verifying payload version=%q image=%q", desired.Version, desired.Image)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
 		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile)
 		if err != nil {
-			msg := fmt.Sprintf("Verifying payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", msg)
+			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
 			reporter.ReportPayload(LoadPayloadStatus{
 				Failure:            err,
-				Step:               "VerifyPayload",
+				Step:               "LoadPayload",
 				Message:            msg,
 				Verified:           info.Verified,
 				Release:            desired,
