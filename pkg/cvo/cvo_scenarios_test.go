@@ -242,7 +242,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual:     configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -631,7 +631,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -996,7 +996,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1294,7 +1294,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.1-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -1542,7 +1542,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.1-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -1863,7 +1863,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation: 1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.1-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -1888,42 +1888,11 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 3 {
+	if len(actions) != 1 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "version",
-			ResourceVersion: "2",
-			Generation:      1,
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID:     clusterUID,
-			Channel:       "fast",
-			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
-		},
-		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			ObservedGeneration: 1,
-			Desired:            desired,
-			VersionHash:        "DL-FFQ2Uem8=",
-			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-			},
-			Conditions: []configv1.ClusterOperatorStatusCondition{
-				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				// cleared failing status and set progressing
-				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.1-abc"},
-				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-				{Type: DesiredReleaseAccepted, Status: configv1.ConditionFalse, Reason: "PreconditionChecks",
-					Message: "Preconditions failed for payload loaded version=\"1.0.1-abc\" image=\"image/image:1\": Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 2 will succeed after 3 attempt"},
-			},
-		},
-	})
 
 	// Step 2: Set allowUnverifiedImages to true, trigger a sync and the operator should apply the payload
 	//
@@ -2049,7 +2018,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "4",
+			ResourceVersion: "3",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
@@ -2135,10 +2104,11 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
+	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
 
 	go worker.Start(ctx, 1, o.name, o.cvLister)
 
-	// Step 1: The operator should report that it is blocked on unverified content
+	// Step 1: Simulate a verified payload being retrieved and ensure the operator sets verified
 	//
 	client.ClearActions()
 	err := o.sync(ctx, o.queueKey())
@@ -2150,7 +2120,6 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	actual := cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
@@ -2177,189 +2146,13 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-				{Type: DesiredReleaseAccepted, Status: configv1.ConditionFalse, Reason: "RetrievePayload",
-					Message: "Retrieving payload failed version=\"1.0.1-abc\" image=\"image/image:1\" failure=The update cannot be verified: some random error"},
-			},
-		},
-	})
-
-	// Step 2: Simulate a verified payload being retrieved and ensure the operator sets verified
-	//
-	// set an update
-	copied := configv1.Update{
-		Version: desired.Version,
-		Image:   desired.Image,
-	}
-	actual.ObjectMeta.Generation = 2
-	actual.Spec.DesiredUpdate = &copied
-	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
-	//
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
-	if len(actions) != 3 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	expectGet(t, actions[0], "clusterversions", "", "version")
-
-	verifyAllStatus(t, worker.StatusCh(),
-		SyncWorkerStatus{
-			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			Generation: 1,
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(1, 0),
-			},
-		},
-		SyncWorkerStatus{
-			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			Generation:   1,
-			LastProgress: time.Unix(1, 0),
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "RetrievePayload",
-				Message:            "Retrieving payload failed version=\"1.0.1-abc\" image=\"image/image:1\" failure=The update cannot be verified: some random error",
-				LastTransitionTime: time.Unix(2, 0),
-				Failure: &payload.UpdateError{
-					Reason:  "ImageVerificationFailed",
-					Message: "The update cannot be verified: some random error",
-					Nested:  fmt.Errorf("some random error"),
-				},
-			},
-		},
-		SyncWorkerStatus{
-			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			Generation:   2,
-			LastProgress: time.Unix(2, 0),
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(3, 0),
-			},
-		},
-		SyncWorkerStatus{
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-			},
-			Verified:     false,
-			Generation:   2,
-			LastProgress: time.Unix(3, 0),
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(4, 0),
-				Verified:           true,
-			},
-		},
-		SyncWorkerStatus{
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			LastProgress: time.Unix(4, 0),
-			Verified:     true,
-			Generation:   2,
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(5, 0),
-				Verified:           true,
-			},
-		},
-		SyncWorkerStatus{
-			Done:        1,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			LastProgress: time.Unix(5, 0),
-			Verified:     true,
-			Generation:   2,
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(6, 0),
-				Verified:           true,
-			},
-		},
-		SyncWorkerStatus{
-			Done:        2,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			LastProgress: time.Unix(6, 0),
-			Verified:     true,
-			Generation:   2,
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
-				LastTransitionTime: time.Unix(7, 0),
-				Verified:           true,
-			},
-		},
-	)
-
-	// wait for status to reflect sync of new payload
-	waitForStatusCompleted(t, worker)
-
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "version",
-			ResourceVersion: "3",
-			Generation:      2,
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID:     actual.Spec.ClusterID,
-			Channel:       "fast",
-			DesiredUpdate: &copied,
-		},
-		Status: configv1.ClusterVersionStatus{
-			ObservedGeneration: 2,
-			Desired: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			VersionHash: "DL-FFQ2Uem8=",
-			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-			},
-			Conditions: []configv1.ClusterOperatorStatusCondition{
-				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
-				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
 					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
 			},
 		},
 	})
 }
+
 func TestCVO_RestartAndReconcile(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 
@@ -2442,7 +2235,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -2701,7 +2494,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Actual:      configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "RetrievePayload",
-				Message:            "Retrieving payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
