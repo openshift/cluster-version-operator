@@ -6,11 +6,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 )
 
 func TestEnsureDeployment(t *testing.T) {
 	labelSelector := metav1.LabelSelector{}
+	twentyFivePercent := intstr.FromString("25%")
 	tests := []struct {
 		name     string
 		existing appsv1.Deployment
@@ -68,6 +70,36 @@ func TestEnsureDeployment(t *testing.T) {
 			expected: appsv1.Deployment{
 				Spec: appsv1.DeploymentSpec{
 					Selector: &labelSelector}},
+		},
+		{
+			name: "implicit strategy",
+			existing: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Strategy: appsv1.DeploymentStrategy{
+						Type: appsv1.RollingUpdateDeploymentStrategyType,
+						RollingUpdate: &appsv1.RollingUpdateDeployment{
+							MaxSurge:       &twentyFivePercent,
+							MaxUnavailable: &twentyFivePercent,
+						},
+					},
+				},
+			},
+			required: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{},
+			},
+
+			expectedModified: false,
+			expected: appsv1.Deployment{
+				Spec: appsv1.DeploymentSpec{
+					Strategy: appsv1.DeploymentStrategy{
+						Type: appsv1.RollingUpdateDeploymentStrategyType,
+						RollingUpdate: &appsv1.RollingUpdateDeployment{
+							MaxSurge:       &twentyFivePercent,
+							MaxUnavailable: &twentyFivePercent,
+						},
+					},
+				},
+			},
 		},
 	}
 
