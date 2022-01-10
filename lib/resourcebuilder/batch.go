@@ -19,7 +19,7 @@ func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, 
 			klog.Error(err)
 			return false, nil
 		} else if !done {
-			klog.V(4).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
+			klog.V(2).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
 			return false, nil
 		}
 		return true, nil
@@ -50,7 +50,7 @@ func checkJobHealth(ctx context.Context, client batchclientv1.JobsGetter, job *b
 	// the Job will 'Active == 0' if and only if it exceeds the deadline or if the update image could not be pulled.
 	// Failed jobs will be recreated in the next run.
 	if j.Status.Active == 0 {
-		klog.V(4).Infof("No active pods for job %s in namespace %s", job.Name, job.Namespace)
+		klog.V(2).Infof("No active pods for job %s in namespace %s", job.Name, job.Namespace)
 		failed, reason, message := hasJobFailed(job)
 		// If there is more than one failed job pod then get the cause for failure
 		if j.Status.Failed > 0 {
@@ -68,7 +68,7 @@ func checkJobHealth(ctx context.Context, client batchclientv1.JobsGetter, job *b
 			if reason == "DeadlineExceeded" {
 				return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
 			} else {
-				klog.V(4).Infof("Ignoring job %s in namespace %s with condition Failed=True because %s: %s", job.Name, job.Namespace, reason, message)
+				klog.V(2).Infof("Ignoring job %s in namespace %s with condition Failed=True because %s: %s", job.Name, job.Namespace, reason, message)
 			}
 		}
 	}
