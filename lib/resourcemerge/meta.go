@@ -3,16 +3,23 @@ package resourcemerge
 import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 )
 
 // EnsureObjectMeta ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureObjectMeta(modified *bool, existing *metav1.ObjectMeta, required metav1.ObjectMeta) {
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("ensure object meta already modified")}
 	setStringIfSet(modified, &existing.Namespace, required.Namespace)
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("namespace modified")}
 	setStringIfSet(modified, &existing.Name, required.Name)
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("name modified")}
 	mergeMap(modified, &existing.Labels, required.Labels)
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("labels modified")}
 	mergeMap(modified, &existing.Annotations, required.Annotations)
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("annotations modified")}
 	mergeOwnerRefs(modified, &existing.OwnerReferences, required.OwnerReferences)
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" && *modified {klog.V(2).Infof("owner references modified")}
 }
 
 func setStringIfSet(modified *bool, existing *string, required string) {
@@ -48,6 +55,7 @@ func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required 
 				found = true
 				if !equality.Semantic.DeepEqual((*existing)[eidx], required[ridx]) {
 					*modified = true
+					klog.V(2).Infof("clobering owner ref: %v != %v", (*existing)[eidx], required[ridx])
 					(*existing)[eidx] = required[ridx]
 				}
 				break
@@ -55,6 +63,7 @@ func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required 
 		}
 		if !found {
 			*modified = true
+			klog.V(2).Infof("injecting owner ref: %v\n  into %v", required[ridx], *existing)
 			*existing = append(*existing, required[ridx])
 		}
 	}

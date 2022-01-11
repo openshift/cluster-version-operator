@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/klog/v2"
+
 	imagev1 "github.com/openshift/api/image/v1"
 	securityv1 "github.com/openshift/api/security/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -175,7 +177,8 @@ func (b *builder) Do(ctx context.Context) error {
 	case *corev1.Service:
 		if b.modifier != nil {
 			b.modifier(typedObject)
-		}
+			klog.V(2).Infof("modifying service with %v", b.modifier)
+		} else {klog.V(2).Infof("no service modifier")}
 		if deleteReq, err := resourcedelete.DeleteServicev1(ctx, b.coreClientv1, typedObject,
 			updatingMode); err != nil {
 			return err

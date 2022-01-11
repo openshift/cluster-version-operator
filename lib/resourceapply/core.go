@@ -62,16 +62,21 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 	if IsCreateOnly(required) {
 		return nil, false, nil
 	}
+	if required.Namespace == "openshift-monitoring" && required.Name == "cluster-monitoring-operator" {klog.V(2).Infof("apply service: ownerRefs: existing %v vs. required %v", existing.ObjectMeta.OwnerReferences, required.ObjectMeta.OwnerReferences)}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	if *modified {klog.V(2).Infof("service metadata modified")}
 	resourcemerge.EnsureServicePorts(modified, &existing.Spec.Ports, required.Spec.Ports)
+	if *modified {klog.V(2).Infof("service ports modified")}
 	resourcemerge.EnsureServiceType(modified, &existing.Spec.Type, required.Spec.Type)
+	if *modified {klog.V(2).Infof("service type modified")}
 	selectorSame := equality.Semantic.DeepEqual(existing.Spec.Selector, required.Spec.Selector)
 
 	if selectorSame && !*modified {
 		return nil, false, nil
 	}
+	klog.V(2).Infof("service selector modified")
 	existing.Spec.Selector = required.Spec.Selector
 
 	if reconciling {
