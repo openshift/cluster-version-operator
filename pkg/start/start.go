@@ -4,9 +4,7 @@ package start
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -40,7 +38,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/library-go/pkg/crypto"
 )
 
 const (
@@ -162,28 +159,6 @@ func (o *Options) Run(ctx context.Context) error {
 	return nil
 }
 
-func (o *Options) makeTLSConfig() (*tls.Config, error) {
-	// Load the initial certificate contents.
-	certBytes, err := ioutil.ReadFile(o.ServingCertFile)
-	if err != nil {
-		return nil, err
-	}
-	keyBytes, err := ioutil.ReadFile(o.ServingKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	certificate, err := tls.X509KeyPair(certBytes, keyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return crypto.SecureTLSConfig(&tls.Config{
-		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &certificate, nil
-		},
-	}), nil
-}
-
 // run launches a number of goroutines to handle manifest application,
 // metrics serving, etc.  It continues operating until ctx.Done(),
 // and then attempts a clean shutdown limited by an internal context
@@ -212,14 +187,6 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 
 	resultChannel := make(chan asyncResult, 1)
 	resultChannelCount := 0
-	var tlsConfig *tls.Config
-	if o.ListenAddr != "" {
-		var err error
-		tlsConfig, err = o.makeTLSConfig()
-		if err != nil {
-			klog.Fatalf("Failed to create TLS config: %v", err)
-		}
-	}
 
 	informersDone := postMainContext.Done()
 	// FIXME: would be nice if there was a way to collect these.
@@ -244,7 +211,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, tlsConfig)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
