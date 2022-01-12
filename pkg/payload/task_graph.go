@@ -480,10 +480,10 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 			for {
 				select {
 				case <-ctx.Done():
-					klog.V(4).Infof("Canceled worker %d while waiting for work", job)
+					klog.V(2).Infof("Canceled worker %d while waiting for work", job)
 					return
 				case runTask := <-workCh:
-					klog.V(4).Infof("Running %d on worker %d", runTask.index, job)
+					klog.V(2).Infof("Running %d on worker %d", runTask.index, job)
 					err := fn(ctx, runTask.tasks)
 					resultCh <- taskStatus{index: runTask.index, error: err}
 				}
@@ -529,7 +529,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 
 	cancelFn()
 	wg.Wait()
-	klog.V(4).Infof("Workers finished")
+	klog.V(2).Infof("Workers finished")
 
 	var errs []error
 	var firstIncompleteNode *TaskNode
@@ -552,7 +552,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		}
 	}
 
-	klog.V(4).Infof("Result of work: %v", errs)
+	klog.V(2).Infof("Result of work: %v", errs)
 	if len(errs) > 0 {
 		return errs
 	}

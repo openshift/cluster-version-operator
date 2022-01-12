@@ -4099,7 +4099,7 @@ func fakeClientsetWithUpdates(obj *configv1.ClusterVersion) *fake.Clientset {
 			obj.Status = update.Status
 			rv, _ := strconv.Atoi(update.ResourceVersion)
 			obj.ResourceVersion = strconv.Itoa(rv + 1)
-			klog.V(5).Infof("updated object to %#v", obj)
+			klog.V(2).Infof("updated object to %#v", obj)
 			return true, obj.DeepCopy(), nil
 		}
 		return false, nil, fmt.Errorf("unrecognized")

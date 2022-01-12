@@ -478,9 +478,9 @@ func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err e
 // It returns an error if it could not update the cluster version object.
 func (optr *Operator) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(4).Infof("Started syncing cluster version %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing cluster version %q (%v)", key, startTime)
 	defer func() {
-		klog.V(4).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
+		klog.V(2).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
 
 	// ensure the cluster version exists, that the object is valid, and that
@@ -490,11 +490,11 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 		return err
 	}
 	if changed {
-		klog.V(4).Infof("Cluster version changed, waiting for newer event")
+		klog.V(2).Infof("Cluster version changed, waiting for newer event")
 		return nil
 	}
 	if original == nil {
-		klog.V(4).Infof("No ClusterVersion object and defaulting not enabled, waiting for one")
+		klog.V(2).Infof("No ClusterVersion object and defaulting not enabled, waiting for one")
 		return nil
 	}
 
@@ -507,14 +507,14 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	// identify the desired next version
 	desired, ok := findUpdateFromConfig(config)
 	if ok {
-		klog.V(4).Infof("Desired version from spec is %#v", desired)
+		klog.V(2).Infof("Desired version from spec is %#v", desired)
 	} else {
 		currentVersion := optr.currentVersion()
 		desired = configv1.Update{
 			Version: currentVersion.Version,
 			Image:   currentVersion.Image,
 		}
-		klog.V(4).Infof("Desired version from operator is %#v", desired)
+		klog.V(2).Infof("Desired version from operator is %#v", desired)
 	}
 
 	// handle the case of a misconfigured CVO by doing nothing
@@ -549,9 +549,9 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 // sync available updates. It only modifies cluster version.
 func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(4).Infof("Started syncing available updates %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing available updates %q (%v)", key, startTime)
 	defer func() {
-		klog.V(4).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
+		klog.V(2).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
 	}()
 
 	config, err := optr.cvLister.Get(optr.name)
@@ -571,9 +571,9 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 // sync upgradeableCondition. It only modifies cluster version.
 func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(4).Infof("Started syncing upgradeable %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing upgradeable %q (%v)", key, startTime)
 	defer func() {
-		klog.V(4).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
+		klog.V(2).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
 	}()
 
 	config, err := optr.cvLister.Get(optr.name)
