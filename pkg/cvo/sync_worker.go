@@ -256,6 +256,9 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 	} else if !versionEqual && state == payload.InitializingPayload {
 		klog.Warningf("Ignoring detected version change from %v to %v during payload initialization", *oldDesired, work.Desired)
 		w.work.Desired = *oldDesired
+		if overridesEqual {
+			return w.status.DeepCopy()
+		}
 	}
 
 	// notify the sync loop that we changed config
