@@ -439,6 +439,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 		work.State = w.work.State
 		work.Attempt = 0
 	} else if changed && w.work.State != payload.InitializingPayload {
+		klog.V(2).Infof("Work changed, transitioning from %s and the suggested incoming %s state to %s", work.State, w.work.State, payload.UpdatingPayload)
 		work.State = payload.UpdatingPayload
 		work.Attempt = 0
 	}
