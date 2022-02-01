@@ -329,7 +329,7 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder s
 // then attempts a clean shutdown limited by shutdownContext.Done().
 // Assumes runContext.Done() occurs before or simultaneously with
 // shutdownContext.Done().
-func (optr *Operator) Run(runContext context.Context, shutdownContext context.Context, workers int) error {
+func (optr *Operator) Run(runContext context.Context, shutdownContext context.Context) error {
 	defer optr.queue.ShutDown()
 	defer optr.availableUpdatesQueue.ShutDown()
 	defer optr.upgradeableQueue.ShutDown()

@@ -218,7 +218,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
-						err := controllerCtx.CVO.Run(runContext, shutdownContext, 2)
+						err := controllerCtx.CVO.Run(runContext, shutdownContext)
 						resultChannel <- asyncResult{name: "main operator", error: err}
 					}()
 
