@@ -123,7 +123,7 @@ spec:
         summary: Cluster version operator is not able to evaluate conditional update graphs for {{ "{{ $value | humanizeDuration }}" }}.
         description: Failure to evaluate conditional updates means CVO will not be able to evaluate if an conditional edge is applicable to the cluster or not.
       expr: |
-        (time()-cluster_version_unknown_conditional_update_condition) >= 3600
+        (time()-cluster_version_unknown_conditional_update_condition) >= 600
       for: 10m
       labels:
         severity: warning
