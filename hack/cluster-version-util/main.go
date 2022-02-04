@@ -4,6 +4,8 @@ import (
 	"log"
 
 	"github.com/spf13/cobra"
+
+	"github.com/openshift/cluster-version-operator/hack/cluster-version-util/releasediff"
 )
 
 func main() {
@@ -13,6 +15,7 @@ func main() {
 	}
 
 	rootCmd.AddCommand(newTaskGraphCmd())
+	rootCmd.AddCommand(releasediff.NewReleaseResourceDiffCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
