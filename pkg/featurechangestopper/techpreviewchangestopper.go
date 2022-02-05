@@ -40,6 +40,7 @@ func New(
 		queue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
 	}
 
+	c.queue.Add("cluster") // seed an initial sync, in case startingTechPreviewState is wrong
 	featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
