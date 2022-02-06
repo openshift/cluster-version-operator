@@ -9,6 +9,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
@@ -60,11 +61,13 @@ func New(
 // processNextWorkItem caller handling the queue management.  It returns
 // done when there will be no more work (because the feature gate changed).
 func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, err error) {
-	featureGates, err := c.featureGateLister.Get("cluster")
-	if err != nil {
+	var current configv1.FeatureSet
+	if featureGates, err := c.featureGateLister.Get("cluster"); err == nil {
+		current = featureGates.Spec.FeatureSet
+	} else if !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	techPreviewNowSet := featureGates.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
+	techPreviewNowSet := current == configv1.TechPreviewNoUpgrade
 	if techPreviewNowSet != c.startingTechPreviewState {
 		var action string
 		if c.shutdownFn == nil {
@@ -72,7 +75,7 @@ func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, 
 		} else {
 			action = "requesting shutdown"
 		}
-		klog.Infof("TechPreviewNoUpgrade was %t, but the current feature set is %q; %s.", c.startingTechPreviewState, featureGates.Spec.FeatureSet, action)
+		klog.Infof("TechPreviewNoUpgrade was %t, but the current feature set is %q; %s.", c.startingTechPreviewState, current, action)
 		if c.shutdownFn != nil {
 			c.shutdownFn()
 		}
