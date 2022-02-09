@@ -1,6 +1,7 @@
 package payload
 
 import (
+	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
@@ -18,7 +19,7 @@ import (
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
-func Test_loadUpdatePayload(t *testing.T) {
+func TestLoadUpdate(t *testing.T) {
 	type args struct {
 		dir          string
 		releaseImage string
@@ -136,7 +137,7 @@ func mustRead(path string) []byte {
 	return data
 }
 
-func Test_Exclude(t *testing.T) {
+func Test_include(t *testing.T) {
 	tests := []struct {
 		name               string
 		exclude            string
@@ -144,7 +145,7 @@ func Test_Exclude(t *testing.T) {
 		profile            string
 		annotations        map[string]interface{}
 
-		isExcluded bool
+		expected error
 	}{
 		{
 			name:    "exclusion identifier set",
@@ -153,13 +154,13 @@ func Test_Exclude(t *testing.T) {
 			annotations: map[string]interface{}{
 				"exclude.release.openshift.io/identifier":                     "true",
 				"include.release.openshift.io/self-managed-high-availability": "true"},
-			isExcluded: true,
+			expected: errors.New("exclude.release.openshift.io/identifier=true"),
 		},
 		{
 			name:        "profile selection works",
 			profile:     "single-node",
 			annotations: map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
-			isExcluded:  true,
+			expected:    errors.New("include.release.openshift.io/single-node unset"),
 		},
 		{
 			name:        "profile selection works included",
@@ -173,7 +174,7 @@ func Test_Exclude(t *testing.T) {
 				"include.release.openshift.io/self-managed-high-availability": "true",
 				"release.openshift.io/feature-gate":                           "TechPreviewNoUpgrade",
 			},
-			isExcluded: true,
+			expected: errors.New("tech-preview excluded, and release.openshift.io/feature-gate=TechPreviewNoUpgrade"),
 		},
 		{
 			name:               "correct techpreview value is included if techpreview on",
@@ -183,7 +184,6 @@ func Test_Exclude(t *testing.T) {
 				"include.release.openshift.io/self-managed-high-availability": "true",
 				"release.openshift.io/feature-gate":                           "TechPreviewNoUpgrade",
 			},
-			isExcluded: false,
 		},
 		{
 			name:    "incorrect techpreview value is not excluded if techpreview off",
@@ -192,7 +192,7 @@ func Test_Exclude(t *testing.T) {
 				"include.release.openshift.io/self-managed-high-availability": "true",
 				"release.openshift.io/feature-gate":                           "Other",
 			},
-			isExcluded: true,
+			expected: errors.New("unrecognized value release.openshift.io/feature-gate=Other"),
 		},
 		{
 			name:               "incorrect techpreview value is not excluded if techpreview on",
@@ -202,19 +202,19 @@ func Test_Exclude(t *testing.T) {
 				"include.release.openshift.io/self-managed-high-availability": "true",
 				"release.openshift.io/feature-gate":                           "Other",
 			},
-			isExcluded: true,
+			expected: errors.New("unrecognized value release.openshift.io/feature-gate=Other"),
 		},
 		{
 			name:        "default profile selection excludes without annotation",
 			profile:     DefaultClusterProfile,
 			annotations: map[string]interface{}{},
-			isExcluded:  true,
+			expected:    errors.New("include.release.openshift.io/self-managed-high-availability unset"),
 		},
 		{
 			name:        "default profile selection excludes with no annotation",
 			profile:     DefaultClusterProfile,
 			annotations: nil,
-			isExcluded:  true,
+			expected:    errors.New("no annotations"),
 		},
 	}
 	for _, tt := range tests {
@@ -223,15 +223,15 @@ func Test_Exclude(t *testing.T) {
 			if tt.annotations != nil {
 				metadata["annotations"] = tt.annotations
 			}
-			ret := shouldExclude(tt.exclude, tt.includeTechPreview, tt.profile, &manifest.Manifest{
+			err := include(tt.exclude, tt.includeTechPreview, tt.profile, &manifest.Manifest{
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"metadata": metadata,
 					},
 				},
 			})
-			if ret != tt.isExcluded {
-				t.Errorf("(exclude: %v, profile: %v, annotations: %v) %v != %v", tt.exclude, tt.profile, tt.annotations, tt.isExcluded, ret)
+			if !reflect.DeepEqual(err, tt.expected) {
+				t.Errorf("(exclude: %v, profile: %v, annotations: %v) expected %v, but got %v", tt.exclude, tt.profile, tt.annotations, tt.expected, err)
 			}
 		})
 	}
