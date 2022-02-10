@@ -457,7 +457,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview boo
 			o.ClusterProfile,
 		),
 
-		StopOnFeatureGateChange: featurechangestopper.New(includeTechPreview, cvInformer.Config().V1().FeatureGates()),
+		StopOnFeatureGateChange: featurechangestopper.New(includeTechPreview, sharedInformers.Config().V1().FeatureGates()),
 	}
 
 	if o.EnableAutoUpdate {
