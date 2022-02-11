@@ -222,7 +222,6 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "progressing and previously failed, not reconciling",
 			syncStatus: &SyncWorkerStatus{
-				Step:        "Moving",
 				Reconciling: false,
 				Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 				Failure: &payload.UpdateError{
@@ -303,7 +302,6 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Step:        "Moving",
 						Reconciling: true,
 						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure: &payload.UpdateError{
@@ -378,7 +376,6 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Step:        "Moving",
 						Reconciling: true,
 						Completed:   2,
 						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
@@ -454,7 +451,6 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Step:        "Moving",
 						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						Failure:     fmt.Errorf("injected error"),
 						VersionHash: "foo",
@@ -572,7 +568,6 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "invalid image while progressing preserves progressing order and partial history",
 			syncStatus: &SyncWorkerStatus{
-				Step:    "Working",
 				Done:    600,
 				Total:   1000,
 				Failure: os.ErrNotExist,
@@ -1009,7 +1004,6 @@ func TestOperator_sync(t *testing.T) {
 			name: "report partial retrieved version",
 			syncStatus: &SyncWorkerStatus{
 				Actual: configv1.Release{Image: "image/image:v4.0.1"},
-				Step:   "RetrievePayload",
 			},
 			optr: &Operator{
 				release: configv1.Release{
@@ -1099,7 +1093,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
-							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "DownloadingUpdate", Message: "Working towards image/image:v4.0.1: downloading update"},
+							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards image/image:v4.0.1"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 						},
 					},
@@ -3993,6 +3987,7 @@ func expectMutation(t *testing.T, a ktesting.Action, verb string, resource, subr
 			t.Fatalf("unexpected action: %#v", at)
 		}
 		if !reflect.DeepEqual(expect, actual) {
+			t.Logf("%#v", actual)
 			t.Fatalf("unexpected object: %s", diff.ObjectReflectDiff(expect, actual))
 		}
 	default:
