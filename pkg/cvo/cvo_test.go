@@ -189,37 +189,6 @@ func TestOperator_sync(t *testing.T) {
 		wantSync    []configv1.Update
 	}{
 		{
-			name: "create version and status",
-			optr: &Operator{
-				release: configv1.Release{
-					Version: "4.0.1",
-					Image:   "image/image:v4.0.1",
-				},
-				enableDefaultClusterVersion: true,
-				namespace:                   "test",
-				name:                        "default",
-				client:                      fake.NewSimpleClientset(),
-			},
-			wantActions: func(t *testing.T, optr *Operator) {
-				f := optr.client.(*fake.Clientset)
-				act := f.Actions()
-				if len(act) != 4 {
-					t.Fatalf("unknown actions: %d %#v", len(act), act)
-				}
-				expectGet(t, act[0], "clusterversions", "", "default")
-				expectGet(t, act[1], "clusterversions", "", "default")
-				expectCreate(t, act[2], "clusterversions", "", &configv1.ClusterVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "default",
-					},
-					Spec: configv1.ClusterVersionSpec{
-						Channel: "fast",
-					},
-				})
-				expectGet(t, act[3], "clusterversions", "", "default")
-			},
-		},
-		{
 			name: "progressing and previously failed, not reconciling",
 			syncStatus: &SyncWorkerStatus{
 				Reconciling: false,
@@ -3934,11 +3903,6 @@ func expectGet(t *testing.T, a ktesting.Action, resource, namespace, name string
 	}
 }
 
-func expectCreate(t *testing.T, a ktesting.Action, resource, namespace string, obj interface{}) {
-	t.Helper()
-	expectMutation(t, a, "create", resource, "", namespace, obj)
-}
-
 func expectUpdateStatus(t *testing.T, a ktesting.Action, resource, namespace string, obj interface{}) {
 	t.Helper()
 	expectMutation(t, a, "update", resource, "status", namespace, obj)
@@ -4317,102 +4281,6 @@ func TestOperator_ownerReference(t *testing.T) {
 				if ref.UID != expected.UID || ref.Name != expected.Name || ref.Kind != expected.Kind {
 					t.Errorf("owner reference at %d does not match expected reference: %v", i, cmp.Diff(ref, expected))
 				}
-			}
-		})
-	}
-}
-
-func makeTestClient(cvs ...configv1.ClusterVersion) *fake.Clientset {
-	client := &fake.Clientset{}
-	clusterVersions := make(map[string]*configv1.ClusterVersion)
-	for _, cv := range cvs {
-		clusterVersions[cv.Name] = &cv
-	}
-	client.AddReactor("*", "clusterversions", func(action ktesting.Action) (handled bool, ret runtime.Object, err error) {
-		switch a := action.(type) {
-		case ktesting.CreateActionImpl:
-			c := a.Object.DeepCopyObject().(*configv1.ClusterVersion)
-			c.UID = types.UID(c.Name)
-			clusterVersions[c.Name] = c
-			return true, a.Object, nil
-		case ktesting.UpdateActionImpl:
-			c := a.Object.DeepCopyObject().(*configv1.ClusterVersion)
-			var (
-				existing *configv1.ClusterVersion
-				ok       bool
-			)
-			if existing, ok = clusterVersions[c.Name]; !ok {
-				return true, nil, errors.NewNotFound(schema.GroupResource{
-					Group:    configv1.GroupName,
-					Resource: "clusterversions",
-				}, c.Name)
-			}
-			c.UID = existing.UID
-			clusterVersions[c.Name] = c
-			return true, a.Object, nil
-		case ktesting.GetActionImpl:
-			var (
-				existing *configv1.ClusterVersion
-				ok       bool
-			)
-			if existing, ok = clusterVersions[a.Name]; !ok {
-				return true, nil, errors.NewNotFound(schema.GroupResource{
-					Group:    configv1.GroupName,
-					Resource: "clusterversions",
-				}, a.Name)
-			}
-			return true, existing, nil
-		default:
-			return true, nil, fmt.Errorf("unknown action: %v", a)
-		}
-	})
-	return client
-}
-func TestOperator_getOrCreateClusterVersion(t *testing.T) {
-	tests := []struct {
-		name           string
-		cvName         string
-		expectedResult *configv1.ClusterVersion
-		cvs            []configv1.ClusterVersion
-		enableDefault  bool
-		changed        bool
-	}{
-		{
-			name:           "no existing cluster version",
-			cvName:         "version",
-			expectedResult: &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
-			enableDefault:  true,
-			changed:        true,
-		},
-		{
-			name:   "existing cluster version",
-			cvName: "version",
-			cvs: []configv1.ClusterVersion{
-				{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
-			},
-			expectedResult: &configv1.ClusterVersion{ObjectMeta: metav1.ObjectMeta{Name: "version", UID: types.UID("version")}},
-			enableDefault:  true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client := makeTestClient(tt.cvs...)
-			optr := &Operator{
-				name:     tt.cvName,
-				cvLister: &clientCVLister{client: client},
-				client:   client,
-			}
-			cv, changed, err := optr.getOrCreateClusterVersion(context.Background(), tt.enableDefault)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			// ignore ClusterVersion spec
-			cv.Spec = configv1.ClusterVersionSpec{}
-			if !reflect.DeepEqual(cv, tt.expectedResult) {
-				t.Errorf("expected does not match %v", cmp.Diff(cv, tt.expectedResult))
-			}
-			if changed != tt.changed {
-				t.Errorf("Expected change: %t, got: %t", tt.changed, changed)
 			}
 		})
 	}

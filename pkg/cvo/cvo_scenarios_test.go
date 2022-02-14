@@ -79,20 +79,33 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		return false, nil, nil
 	})
 
+	_, err := client.ConfigV1().ClusterVersions().Create(context.Background(),
+		&configv1.ClusterVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "version",
+			},
+			Spec: configv1.ClusterVersionSpec{
+				Channel: "fast",
+			},
+		},
+		metav1.CreateOptions{})
+
+	if err != nil {
+		fmt.Printf("Cannot create cluster version object, err: %#v\n", err)
+	}
+
 	o := &Operator{
-		namespace:                   "test",
-		name:                        "version",
-		enableDefaultClusterVersion: true,
-		queue:                       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
-		client:                      client,
-		cvLister:                    &clientCVLister{client: client},
-		exclude:                     "exclude-test",
-		eventRecorder:               record.NewFakeRecorder(100),
-		clusterProfile:              payload.DefaultClusterProfile,
+		namespace:      "test",
+		name:           "version",
+		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
+		client:         client,
+		cvLister:       &clientCVLister{client: client},
+		exclude:        "exclude-test",
+		eventRecorder:  record.NewFakeRecorder(100),
+		clusterProfile: payload.DefaultClusterProfile,
 	}
 
 	dynamicScheme := runtime.NewScheme()
-	//dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, &unstructured.Unstructured{})
 	dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
@@ -123,7 +136,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	go worker.Start(ctx, 1, o.name, o.cvLister)
 
-	// Step 1: Verify the CVO creates the initial Cluster Version object
+	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
 	err := o.sync(ctx, o.queueKey())
@@ -131,43 +144,12 @@ func TestCVO_StartupAndSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 4 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	// read from lister
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	// read before create
-	expectGet(t, actions[1], "clusterversions", "", "version")
-	// create initial version
 	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectCreate(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "version",
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
-		},
-	})
-
-	// read after create
-	expectGet(t, actions[3], "clusterversions", "", "version")
-
-	verifyAllStatus(t, worker.StatusCh())
-
-	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
-	//
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	expectGet(t, actions[0], "clusterversions", "", "version")
-	actual = cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
@@ -513,7 +495,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 
 	go worker.Start(ctx, 1, o.name, o.cvLister)
 
-	// Step 1: Verify the CVO creates the initial Cluster Version object
+	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
 	err := o.sync(ctx, o.queueKey())
@@ -521,42 +503,11 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 4 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	// read from lister
-	expectGet(t, actions[0], "clusterversions", "", "version")
-	// read before create
-	expectGet(t, actions[1], "clusterversions", "", "version")
-	// create initial version
-	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectCreate(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "version",
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
-		},
-	})
-	// read after create
-	expectGet(t, actions[3], "clusterversions", "", "version")
-
-	verifyAllStatus(t, worker.StatusCh())
-
-	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
-	//
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
 	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	actual = cvs["version"].(*configv1.ClusterVersion)
+	actual := cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
@@ -879,7 +830,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 	}
 	go worker.Start(ctx, 1, o.name, o.cvLister)
 
-	// Step 1: Verify the CVO creates the initial Cluster Version object
+	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
 	client.ClearActions()
 	err := o.sync(ctx, o.queueKey())
@@ -887,41 +838,11 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions := client.Actions()
-	if len(actions) != 4 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	// read from lister
-	expectGet(t, actions[0], "clusterversions", "", "version")
-	// read before create
-	expectGet(t, actions[1], "clusterversions", "", "version")
-	// create initial version
-	actual := cvs["version"].(*configv1.ClusterVersion)
-	expectCreate(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "version",
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID: actual.Spec.ClusterID,
-			Channel:   "fast",
-		},
-	})
-	// read after create
-	expectGet(t, actions[3], "clusterversions", "", "version")
-	verifyAllStatus(t, worker.StatusCh())
-
-	// Step 2: Ensure the CVO reports a status error if it has nothing to sync
-	//
-	client.ClearActions()
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	actions = client.Actions()
 	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
-	actual = cvs["version"].(*configv1.ClusterVersion)
+	actual := cvs["version"].(*configv1.ClusterVersion)
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "version",
