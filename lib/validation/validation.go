@@ -13,6 +13,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+// Validates upstream, clusterID, desired version. It also expects that the desired version either should have a pull spec associated with it or
+// it should be a version from cluster's version history. For rest of the cases it returns error.
 func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(&config.ObjectMeta, false, apivalidation.NameIsDNS1035Label, nil)
 
@@ -49,6 +51,9 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 	return errs
 }
 
+// countPayloadsForVersion counts the pull specs associated with the desired version.
+// It returns zero when there are no pull specs present for the desired version and the version is not present in cluster's history.
+// It returns 1 when there is one pull spec associated with the desired version or the desired version is present in cluster's history.
 func countPayloadsForVersion(config *configv1.ClusterVersion, version string) int {
 	count := 0
 	for _, update := range config.Status.AvailableUpdates {
