@@ -30,6 +30,11 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 			errs = append(errs, field.Invalid(field.NewPath("spec", "clusterID"), config.Spec.ClusterID, "must be a version-4 UUID"))
 		}
 	}
+	return errs
+}
+
+func ValidateDesiredUpdate(config *configv1.ClusterVersion) field.ErrorList {
+	errs := field.ErrorList{}
 	if u := config.Spec.DesiredUpdate; u != nil {
 		switch {
 		case len(u.Version) == 0 && len(u.Image) == 0:

@@ -619,6 +619,9 @@ func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
 		return nil
 	}
+	if errs := validation.ValidateDesiredUpdate(config); len(errs) > 0 {
+		return nil
+	}
 
 	return optr.syncUpgradeable()
 }
