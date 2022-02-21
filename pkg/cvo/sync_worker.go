@@ -30,7 +30,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string, lister configlistersv1.ClusterVersionLister) *SyncWorkerStatus
+	Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -214,7 +214,7 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
-func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter StatusReporter, clusterVersion *configv1.ClusterVersion) error {
+func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
 	desired := configv1.Release{
 		Version: work.Desired.Version,
 		Image:   work.Desired.Image,
@@ -346,15 +346,11 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 }
 
 // loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
-func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvoOptrName string, lister configlistersv1.ClusterVersionLister) error {
-	config, err := lister.Get(cvoOptrName)
-	if err != nil {
-		return err
-	}
+func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvoOptrName string) error {
 	// reporter hides status updates that occur earlier than the previous failure,
 	// so that we don't fail, then immediately start reporting an earlier status
 	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
-	if err := w.syncPayload(ctx, work, reporter, config); err != nil {
+	if err := w.syncPayload(ctx, work, reporter); err != nil {
 		klog.V(2).Infof("loadUpdatedPayload syncPayload err=%v", err)
 		return err
 	}
@@ -366,7 +362,7 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvo
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string, lister configlistersv1.ClusterVersionLister) *SyncWorkerStatus {
+func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -423,7 +419,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	}
 
 	w.lock.Unlock()
-	err := w.loadUpdatedPayload(ctx, work, cvoOptrName, lister)
+	err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
 	w.lock.Lock()
 	if err != nil {
 		return w.status.DeepCopy()
@@ -558,7 +554,7 @@ type statusWrapper struct {
 }
 
 func (w *statusWrapper) ValidPayloadStatus(release configv1.Release) bool {
-	return w.previousStatus.loadPayloadStatus.Release.Image == release.Image
+	return equalDigest(w.previousStatus.loadPayloadStatus.Release.Image, release.Image)
 }
 
 func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
