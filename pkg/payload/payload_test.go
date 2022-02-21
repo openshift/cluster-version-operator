@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
@@ -114,7 +115,7 @@ func TestLoadUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", false, DefaultClusterProfile)
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", false, DefaultClusterProfile, capability.ClusterCapabilities{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -144,6 +145,7 @@ func Test_include(t *testing.T) {
 		includeTechPreview bool
 		profile            string
 		annotations        map[string]interface{}
+		caps               capability.ClusterCapabilities
 
 		expected error
 	}{
@@ -216,6 +218,36 @@ func Test_include(t *testing.T) {
 			annotations: nil,
 			expected:    errors.New("no annotations"),
 		},
+		{
+			name:    "unrecognized capability works",
+			profile: DefaultClusterProfile,
+			annotations: map[string]interface{}{
+				"include.release.openshift.io/self-managed-high-availability": "true",
+				capability.CapabilityAnnotation:                               "cap1"},
+			expected: errors.New("unrecognized capability names: cap1"),
+		},
+		{
+			name:    "disabled capability works",
+			profile: DefaultClusterProfile,
+			annotations: map[string]interface{}{
+				"include.release.openshift.io/self-managed-high-availability": "true",
+				capability.CapabilityAnnotation:                               "cap1"},
+			caps: capability.ClusterCapabilities{
+				KnownCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+			},
+			expected: errors.New("disabled capabilities: cap1"),
+		},
+		{
+			name:    "enabled capability works",
+			profile: DefaultClusterProfile,
+			annotations: map[string]interface{}{
+				"include.release.openshift.io/self-managed-high-availability": "true",
+				capability.CapabilityAnnotation:                               "cap1"},
+			caps: capability.ClusterCapabilities{
+				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -223,7 +255,7 @@ func Test_include(t *testing.T) {
 			if tt.annotations != nil {
 				metadata["annotations"] = tt.annotations
 			}
-			err := include(tt.exclude, tt.includeTechPreview, tt.profile, &manifest.Manifest{
+			err := include(tt.exclude, tt.includeTechPreview, tt.profile, tt.caps, &manifest.Manifest{
 				Obj: &unstructured.Unstructured{
 					Object: map[string]interface{}{
 						"metadata": metadata,
