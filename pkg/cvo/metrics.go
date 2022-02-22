@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -81,9 +82,10 @@ new version but has not reached the completed state and
 is the time the update was started. The type 'initial' is
 set to the oldest entry in the history. The from_version label
 will be set to the last completed version, the initial
-version for 'cluster', or empty for 'initial'.
-.`,
-		}, []string{"type", "version", "image", "from_version"}),
+version for 'cluster', or empty for 'initial'. The verified
+label indicates whether the provided release was properly
+verified before it was installed.`,
+		}, []string{"type", "version", "image", "from_version", "verified"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
@@ -336,7 +338,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 }
 
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
-	ch <- m.version.WithLabelValues("", "", "", "").Desc()
+	ch <- m.version.WithLabelValues("", "", "", "", "").Desc()
 	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
 	ch <- m.capability.WithLabelValues("").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
@@ -349,6 +351,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
+	var currentUpdateHistory configv1.UpdateHistory
 
 	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
 		// output cluster version
@@ -370,7 +373,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 						break
 					}
 				}
-				g := m.version.WithLabelValues("completed", history.Version, history.Image, previous.Version)
+				g := m.version.WithLabelValues("completed", history.Version, history.Image, previous.Version, verifiedString(history))
 				g.Set(float64(history.CompletionTime.Unix()))
 				ch <- g
 				break
@@ -378,7 +381,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// answers "which images were clusters initially installed with"
-		g := m.version.WithLabelValues("initial", initial.Version, initial.Image, "")
+		g := m.version.WithLabelValues("initial", initial.Version, initial.Image, "", verifiedString(initial))
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
@@ -389,13 +392,15 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		if len(completed.Version) == 0 {
 			initialVersion = ""
 		}
-		g = m.version.WithLabelValues("cluster", current.Version, current.Image, initialVersion)
+		currentUpdateHistory = findUpdateHistoryFromRelease(cv.Status.History, current)
+		g = m.version.WithLabelValues("cluster", current.Version, current.Image, initialVersion, verifiedString(currentUpdateHistory))
 		g.Set(float64(cv.CreationTimestamp.Unix()))
 		ch <- g
 
 		// answers "is there a desired update we have not yet satisfied"
 		if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-			g = m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version)
+			desiredUpdateHistory := findUpdateHistoryFromUpdate(cv.Status.History, *update)
+			g = m.version.WithLabelValues("desired", update.Version, update.Image, completed.Version, verifiedString(desiredUpdateHistory))
 			g.Set(float64(mostRecentTimestamp(cv)))
 			ch <- g
 		}
@@ -404,9 +409,10 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
 		if failing != nil && failing.Status == configv1.ConditionTrue {
 			if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
-				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)
+				desiredUpdateHistory := findUpdateHistoryFromUpdate(cv.Status.History, *update)
+				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version, verifiedString(desiredUpdateHistory))
 			} else {
-				g = m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version)
+				g = m.version.WithLabelValues("failure", current.Version, current.Image, completed.Version, verifiedString(currentUpdateHistory))
 			}
 			if failing.LastTransitionTime.IsZero() {
 				g.Set(0)
@@ -419,7 +425,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		// when the CVO is transitioning towards a new version report a unique series describing it
 		if len(cv.Status.History) > 0 && cv.Status.History[0].State == configv1.PartialUpdate {
 			updating := cv.Status.History[0]
-			g := m.version.WithLabelValues("updating", updating.Version, updating.Image, completed.Version)
+			g := m.version.WithLabelValues("updating", updating.Version, updating.Image, completed.Version, verifiedString(updating))
 			if updating.StartedTime.IsZero() {
 				g.Set(0)
 			} else {
@@ -468,7 +474,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
+	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version, verifiedString(currentUpdateHistory))
 	if m.optr.releaseCreated.IsZero() {
 		g.Set(0)
 	} else {
@@ -669,4 +675,36 @@ func fileExistsAndNotEmpty(fName string) (bool, error) {
 		// Some other error, file may not exist.
 		return false, err
 	}
+}
+
+// If the 'update.Image' is specified, returns the string "true" or "false" according
+// to the value of 'update.Verified'. Otherwise returns empty string.
+func verifiedString(update configv1.UpdateHistory) string {
+	if update.Verified {
+		return strconv.FormatBool(true)
+	} else if len(update.Image) > 0 {
+		return strconv.FormatBool(false)
+	} else {
+		// If an configv1.UpdateHistory has an unspecified image, it couldn't be added to the history and thus couldn't be verified.
+		return ""
+	}
+}
+
+func findUpdateHistoryFromRelease(history []configv1.UpdateHistory, release configv1.Release) configv1.UpdateHistory {
+	return findUpdateHistory(history, release.Version, release.Image)
+}
+
+func findUpdateHistoryFromUpdate(history []configv1.UpdateHistory, update configv1.Update) configv1.UpdateHistory {
+	return findUpdateHistory(history, update.Version, update.Image)
+}
+
+// Returns an UpdateHistory from the 'history' which has the same version and image values as 'version', and 'image'.
+// If 'history' doesn't contain such UpdateHistory, returns empty UpdateHistory.
+func findUpdateHistory(history []configv1.UpdateHistory, version string, image string) configv1.UpdateHistory {
+	for _, update := range history {
+		if update.Version == version && update.Image == image {
+			return update
+		}
+	}
+	return configv1.UpdateHistory{}
 }
