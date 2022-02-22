@@ -57,6 +57,15 @@ spec:
         (time()-cluster_version_operator_update_retrieval_timestamp_seconds) >= 3600 and ignoring(condition, name, reason) cluster_operator_conditions{name="version", condition="RetrievedUpdates", endpoint="metrics", reason!="NoChannel"}
       labels:
         severity: warning
+    - alert: CurrentVersionNotVerified
+      annotations:
+        summary: The current version of the cluster is not verified.
+        description: The cluster was forcefully upgraded with a provided release image which verification failed, and therefore this cluster may not be trusted or may experience some issues. The verification process does not cover upgradeable checks that depend on the cluster state at the time when the update target was accepted. To resolve this alert, please upgrade the cluster to a verified version.
+      expr: |
+        count(last_over_time(cluster_version{type="current", verified="false"}[5m])) > 0
+      labels:
+        severity: info
+        namespace: openshift-cluster-version
     - alert: UpdateAvailable
       annotations:
         summary: Your upstream update recommendation service recommends you update your cluster.
