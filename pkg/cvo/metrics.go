@@ -374,7 +374,16 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
 
-	if cv, err := m.optr.cvLister.Get(m.optr.name); err == nil {
+	if cv, err := m.optr.cvLister.Get(m.optr.name); apierrors.IsNotFound(err) {
+		g := m.clusterOperatorUp.WithLabelValues("version", "", "ClusterVersionNotFound")
+		g.Set(0)
+		ch <- g
+
+		g = m.clusterOperatorConditions.WithLabelValues("version", string(configv1.OperatorAvailable), "ClusterVersionNotFound")
+		g.Set(0)
+		ch <- g
+	} else if err == nil {
+
 		// output cluster version
 
 		var initial configv1.UpdateHistory
@@ -484,7 +493,18 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 				klog.V(2).Infof("skipping metrics for ClusterVersion condition %s=%s (neither True nor False)", condition.Type, condition.Status)
 				continue
 			}
-			g := m.clusterOperatorConditions.WithLabelValues("version", string(condition.Type), string(condition.Reason))
+
+			if condition.Type == configv1.OperatorAvailable {
+				g = m.clusterOperatorUp.WithLabelValues("version", completed.Version, string(condition.Reason))
+				if condition.Status == configv1.ConditionTrue {
+					g.Set(1)
+				} else {
+					g.Set(0)
+				}
+				ch <- g
+			}
+
+			g = m.clusterOperatorConditions.WithLabelValues("version", string(condition.Type), string(condition.Reason))
 			if condition.Status == configv1.ConditionTrue {
 				g.Set(1)
 			} else {

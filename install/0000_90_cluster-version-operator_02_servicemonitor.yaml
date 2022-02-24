@@ -96,7 +96,7 @@ spec:
     - alert: ClusterOperatorDown
       annotations:
         summary: Cluster operator has not been available for 10 minutes.
-        description: The {{ "{{ $labels.name }}" }} operator may be down or disabled because {{ "{{ $labels.reason }}" }}, and the components it manages may be unavailable or degraded.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+        description: The {{ "{{ $labels.name }}" }} operator may be down or disabled because {{ "{{ $labels.reason }}" }}, and the components it manages may be unavailable or degraded.  Cluster upgrades may not complete. For more information refer to '{{ "{{ if eq $labels.name \"version\" }}oc adm upgrade{{ else }}oc get -o yaml clusteroperator {{ $labels.name }}{{ end }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
         runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-monitoring-operator/ClusterOperatorDown.md
       expr: |
         max by (namespace, name, reason) (cluster_operator_up{job="cluster-version-operator"} == 0)
@@ -106,13 +106,15 @@ spec:
     - alert: ClusterOperatorDegraded
       annotations:
         summary: Cluster operator has been degraded for 30 minutes.
-        description: The {{ "{{ $labels.name }}" }} operator is degraded because {{ "{{ $labels.reason }}" }}, and the components it manages may have reduced quality of service.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+        description: The {{ "{{ $labels.name }}" }} operator is degraded because {{ "{{ $labels.reason }}" }}, and the components it manages may have reduced quality of service.  Cluster upgrades may not complete. For more information refer to '{{ "{{ if eq $labels.name \"version\" }}oc adm upgrade{{ else }}oc get -o yaml clusteroperator {{ $labels.name }}{{ end }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
         runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-monitoring-operator/ClusterOperatorDegraded.md
       expr: |
         max by (namespace, name, reason)
         (
           (
-            cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"}
+            cluster_operator_conditions{job="cluster-version-operator", name!="version", condition="Degraded"}
+            or on (namespace, name)
+            cluster_operator_conditions{job="cluster-version-operator", name="version", condition="Failing"}
             or on (namespace, name)
             group by (namespace, name) (cluster_operator_up{job="cluster-version-operator"})
           ) == 1
@@ -123,7 +125,7 @@ spec:
     - alert: ClusterOperatorFlapping
       annotations:
         summary: Cluster operator up status is changing often.
-        description: The  {{ "{{ $labels.name }}" }} operator behavior might cause upgrades to be unstable. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+        description: The  {{ "{{ $labels.name }}" }} operator behavior might cause upgrades to be unstable. For more information refer to '{{ "{{ if eq $labels.name \"version\" }}oc adm upgrade{{ else }}oc get -o yaml clusteroperator {{ $labels.name }}{{ end }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
         max by (namespace, name) (changes(cluster_operator_up{job="cluster-version-operator"}[2m]) > 2)
       for: 10m
