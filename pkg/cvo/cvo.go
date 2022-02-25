@@ -535,7 +535,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	optr.uid = original.UID
 
 	// ensure that the object we do have is valid
-	errs := validation.ValidateClusterVersion(original)
+	errs := validation.ValidateCincinnatiUpstream(original.Spec.Upstream)
 	// for fields that have meaning that are incomplete, clear them
 	// prevents us from loading clearly malformed payloads
 	config := validation.ClearInvalidFields(original, errs)
@@ -616,7 +616,7 @@ func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
-	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+	if errs := validation.ValidateCincinnatiUpstream(config.Spec.Upstream); len(errs) > 0 {
 		return nil
 	}
 	if errs := validation.ValidateDesiredUpdate(config); len(errs) > 0 {

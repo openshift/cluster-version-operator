@@ -193,11 +193,24 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	uuid, err := uuid.Parse(string(clusterID))
+	id, err := uuid.Parse(string(clusterID))
 	if err != nil {
-		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
-			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidID",
-			Message: fmt.Sprintf("invalid cluster ID: %s", err),
+		switch {
+		case id.Variant() != uuid.RFC4122:
+			return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
+				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidID",
+				Message: fmt.Sprintf("must be an RFC4122-variant UUID: %s", err),
+			}
+		case id.Version() != 4:
+			return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
+				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidID",
+				Message: fmt.Sprintf("must be a version-4 UUID: %s", err),
+			}
+		default:
+			return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
+				Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "InvalidID",
+				Message: fmt.Sprintf("invalid cluster ID: %s", err),
+			}
 		}
 	}
 
@@ -231,7 +244,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
+	current, updates, conditionalUpdates, err := cincinnati.NewClient(id, transport).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {
