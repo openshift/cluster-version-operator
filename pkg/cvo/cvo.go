@@ -589,9 +589,6 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 	if err != nil {
 		return err
 	}
-	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
-		return nil
-	}
 	return optr.syncAvailableUpdates(ctx, config)
 }
 
