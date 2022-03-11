@@ -57,8 +57,7 @@ type Options struct {
 	NodeName   string
 	ListenAddr string
 
-	EnableAutoUpdate            bool
-	EnableDefaultClusterVersion bool
+	EnableAutoUpdate bool
 
 	// Exclude is used to determine whether to exclude
 	// certain manifests based on an annotation:
@@ -151,11 +150,8 @@ func (o *Options) Run(ctx context.Context) error {
 
 	// initialize the controllers and attempt to load the payload information
 	controllerCtx := o.NewControllerContext(cb, includeTechPreview)
-	if err := controllerCtx.CVO.InitializeFromPayload(cb.RestConfig(defaultQPS), cb.RestConfig(highQPS)); err != nil {
-		return err
-	}
 	o.leaderElection = getLeaderElectionConfig(ctx, cb.RestConfig(defaultQPS))
-	o.run(ctx, controllerCtx, lock)
+	o.run(ctx, controllerCtx, lock, cb.RestConfig(defaultQPS), cb.RestConfig(highQPS))
 	return nil
 }
 
@@ -164,7 +160,7 @@ func (o *Options) Run(ctx context.Context) error {
 // and then attempts a clean shutdown limited by an internal context
 // with a two-minute cap.  It returns after it successfully collects all
 // launched goroutines.
-func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock) {
+func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock, restConfig *rest.Config, burstRestConfig *rest.Config) {
 	runContext, runCancel := context.WithCancel(ctx) // so we can cancel internally on errors or TERM
 	defer runCancel()
 	shutdownContext, shutdownCancel := context.WithCancel(context.Background()) // extends beyond ctx
@@ -195,9 +191,17 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 	controllerCtx.OpenshiftConfigManagedInformerFactory.Start(informersDone)
 	controllerCtx.InformerFactory.Start(informersDone)
 
+	allSynced := controllerCtx.CVInformerFactory.WaitForCacheSync(informersDone)
+	for _, synced := range allSynced {
+		if !synced {
+			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
+		}
+	}
+
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
+		var firstError error
 		leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
 			Lock:            lock,
 			ReleaseOnCancel: true,
@@ -215,6 +219,14 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
+					if err := controllerCtx.CVO.InitializeFromPayload(runContext, restConfig, burstRestConfig); err != nil {
+						if firstError == nil {
+							firstError = err
+						}
+						klog.Infof("Failed to initialize from payload; shutting down: %v", err)
+						resultChannel <- asyncResult{name: "payload initialization", error: firstError}
+					}
+
 					resultChannelCount++
 					go func() {
 						defer utilruntime.HandleCrash()
@@ -244,7 +256,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 				},
 			},
 		})
-		resultChannel <- asyncResult{name: "leader controller", error: nil}
+		resultChannel <- asyncResult{name: "leader controller", error: firstError}
 	}()
 
 	var shutdownTimer *time.Timer
@@ -442,7 +454,6 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview boo
 			o.NodeName,
 			o.Namespace, o.Name,
 			o.ReleaseImage,
-			o.EnableDefaultClusterVersion,
 			o.PayloadOverride,
 			resyncPeriod(o.ResyncInterval)(),
 			cvInformer.Config().V1().ClusterVersions(),

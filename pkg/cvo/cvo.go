@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,7 +30,6 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
@@ -86,10 +84,6 @@ type Operator struct {
 	release configv1.Release
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
-
-	// enableDefaultClusterVersion allows the operator to create a
-	// ClusterVersion object if one does not already exist.
-	enableDefaultClusterVersion bool
 
 	client        clientset.Interface
 	kubeClient    kubernetes.Interface
@@ -159,7 +153,6 @@ func New(
 	nodename string,
 	namespace, name string,
 	releaseImage string,
-	enableDefaultClusterVersion bool,
 	overridePayloadDir string,
 	minimumInterval time.Duration,
 	cvInformer configinformersv1.ClusterVersionInformer,
@@ -184,8 +177,6 @@ func New(
 		release: configv1.Release{
 			Image: releaseImage,
 		},
-
-		enableDefaultClusterVersion: enableDefaultClusterVersion,
 
 		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
@@ -225,10 +216,28 @@ func New(
 	return optr
 }
 
-// InitializeFromPayload retrieves the payload contents and verifies the initial state, then configures the
-// controller that loads and applies content to the cluster. It returns an error if the payload appears to
-// be in error rather than continuing.
-func (optr *Operator) InitializeFromPayload(restConfig *rest.Config, burstRestConfig *rest.Config) error {
+// InitializeFromPayload waits until a ClusterVersion object exists. It then retrieves the payload contents and verifies the
+// initial state, then configures the controller that loads and applies content to the cluster. It returns an error if the
+// payload appears to be in error rather than continuing.
+func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
+
+	// wait until cluster version object exists
+	if err := wait.PollImmediateInfiniteWithContext(ctx, 3*time.Second, func(ctx context.Context) (bool, error) {
+
+		// ensure the cluster version exists
+		_, _, err := optr.getClusterVersion(ctx)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				klog.V(2).Infof("No cluster version object, waiting for one")
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	}); err != nil {
+		return fmt.Errorf("Error when attempting to get cluster version object: %w", err)
+	}
+
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.includeTechPreview, optr.clusterProfile)
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
@@ -517,9 +526,8 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 		klog.V(2).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
 
-	// ensure the cluster version exists, that the object is valid, and that
-	// all initial conditions are set.
-	original, changed, err := optr.getOrCreateClusterVersion(ctx, optr.enableDefaultClusterVersion)
+	// ensure the cluster version exists and has not changed
+	original, changed, err := optr.getClusterVersion(ctx)
 	if err != nil {
 		return err
 	}
@@ -527,11 +535,6 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 		klog.V(2).Infof("Cluster version changed, waiting for newer event")
 		return nil
 	}
-	if original == nil {
-		klog.V(2).Infof("No ClusterVersion object and defaulting not enabled, waiting for one")
-		return nil
-	}
-
 	optr.uid = original.UID
 
 	// ensure that the object we do have is valid
@@ -650,49 +653,15 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 	optr.lastResourceVersion = i
 }
 
-func (optr *Operator) getOrCreateClusterVersion(ctx context.Context, enableDefault bool) (*configv1.ClusterVersion, bool, error) {
+// getClusterVersion returns the cluster version object, with an indication of whether it's older
+// than the previousily returned and saved cluster version object, or an error.
+func (optr *Operator) getClusterVersion(ctx context.Context) (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
-		// if we are waiting to see a newer cached version, just exit
-		if optr.isOlderThanLastUpdate(obj) {
-			return nil, true, nil
-		}
-		return obj, false, nil
+		olderThanLastUpdate := optr.isOlderThanLastUpdate(obj)
+		return obj, olderThanLastUpdate, nil
 	}
-
-	if !apierrors.IsNotFound(err) {
-		return nil, false, err
-	}
-
-	if !enableDefault {
-		return nil, false, nil
-	}
-
-	id, _ := uuid.NewRandom()
-
-	// XXX: generate ClusterVersion from options calculated above.
-	config := &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: optr.name,
-		},
-		Spec: configv1.ClusterVersionSpec{
-			Channel:   "fast",
-			ClusterID: configv1.ClusterID(id.String()),
-		},
-	}
-
-	_, _, err = resourceapply.ApplyClusterVersionFromCache(ctx, optr.cvLister, optr.client.ConfigV1(), config)
-	if apierrors.IsAlreadyExists(err) {
-		return nil, true, nil
-	}
-
-	// refetch the ClusterVersion so that the UID is present
-	actual, err := optr.cvLister.Get(optr.name)
-	if err != nil {
-		return nil, false, err
-	}
-
-	return actual, true, err
+	return nil, false, err
 }
 
 // versionString returns a string describing the desired version.
