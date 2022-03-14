@@ -201,6 +201,8 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	desired := optr.mergeReleaseMetadata(status.Actual)
 	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0)
 
+	config.Status.Capabilities = status.CapabilitiesStatus
+
 	// update validation errors
 	var reason string
 	if len(validationErrs) > 0 {

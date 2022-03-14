@@ -23,6 +23,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/library-go/pkg/manifest"
 )
@@ -132,7 +133,9 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string) (*Update, error) {
+func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string,
+	capabilities capability.ClusterCapabilities) (*Update, error) {
+
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
 		return nil, err
@@ -187,7 +190,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if err := include(excludeIdentifier, includeTechPreview, profile, &manifest); err != nil {
+				if err := include(excludeIdentifier, includeTechPreview, profile, capabilities, &manifest); err != nil {
 					klog.V(5).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}
@@ -215,7 +218,9 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 	return payload, nil
 }
 
-func include(excludeIdentifier string, includeTechPreview bool, profile string, manifest *manifest.Manifest) error {
+func include(excludeIdentifier string, includeTechPreview bool, profile string, capabilities capability.ClusterCapabilities,
+	manifest *manifest.Manifest) error {
+
 	annotations := manifest.Obj.GetAnnotations()
 	if annotations == nil {
 		return errors.New("no annotations")
@@ -237,12 +242,13 @@ func include(excludeIdentifier string, includeTechPreview bool, profile string, 
 	}
 
 	profileAnnotation := fmt.Sprintf("include.release.openshift.io/%s", profile)
-	if val, ok := annotations[profileAnnotation]; ok && val == "true" {
-		return nil
-	} else if ok {
+	if val, ok := annotations[profileAnnotation]; ok && val != "true" {
 		return fmt.Errorf("unrecognized value %s=%s", profileAnnotation, val)
+	} else if !ok {
+		return fmt.Errorf("%s unset", profileAnnotation)
 	}
-	return fmt.Errorf("%s unset", profileAnnotation)
+
+	return capability.CheckResourceEnablement(annotations, capabilities)
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by

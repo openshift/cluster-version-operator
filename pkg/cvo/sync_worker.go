@@ -22,6 +22,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	"github.com/openshift/library-go/pkg/manifest"
@@ -30,7 +31,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus
+	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, cvoOptrName string) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -75,6 +76,8 @@ type SyncWork struct {
 	// Attempt is incremented each time we attempt to sync a payload and reset
 	// when we change Generation/Desired or successfully synchronize.
 	Attempt int
+
+	Capabilities capability.ClusterCapabilities
 }
 
 // Empty returns true if the image is empty for this work.
@@ -113,6 +116,8 @@ type SyncWorkerStatus struct {
 	Verified bool
 
 	loadPayloadStatus LoadPayloadStatus
+
+	CapabilitiesStatus configv1.ClusterVersionCapabilitiesStatus
 }
 
 // DeepCopy copies the worker status.
@@ -264,7 +269,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile, work.Capabilities)
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
@@ -362,14 +367,16 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvo
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus {
+func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion,
+	state payload.State, cvoOptrName string) *SyncWorkerStatus {
+
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
 	work := &SyncWork{
 		Generation: generation,
 		Desired:    desired,
-		Overrides:  overrides,
+		Overrides:  config.Spec.Overrides,
 	}
 
 	// the sync worker’s generation should always be latest with every change
@@ -382,6 +389,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
+	work.Capabilities = capability.SetCapabilities(config)
 	versionEqual, overridesEqual := equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
 
 	if versionEqual && overridesEqual {
@@ -424,6 +432,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	if err != nil {
 		return w.status.DeepCopy()
 	}
+
+	w.status.CapabilitiesStatus = capability.GetCapabilitiesStatus(w.work.Capabilities)
 
 	// notify the sync loop that we changed config
 	if w.cancelFn != nil {
