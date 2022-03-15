@@ -575,7 +575,6 @@ func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
 
 func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	p := w.previousStatus
-	status.loadPayloadStatus = p.loadPayloadStatus
 	var fractionComplete float32
 	if status.Total > 0 {
 		fractionComplete = float32(status.Done) / float32(status.Total)
@@ -744,12 +743,14 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 	total := len(payloadUpdate.Manifests)
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
-			Generation:  work.Generation,
-			Initial:     work.State.Initializing(),
-			Reconciling: work.State.Reconciling(),
-			VersionHash: payloadUpdate.ManifestHash,
-			Actual:      payloadUpdate.Release,
-			Verified:    payloadUpdate.VerifiedImage,
+			Generation:         work.Generation,
+			Initial:            work.State.Initializing(),
+			Reconciling:        work.State.Reconciling(),
+			VersionHash:        payloadUpdate.ManifestHash,
+			Actual:             payloadUpdate.Release,
+			Verified:           payloadUpdate.VerifiedImage,
+			loadPayloadStatus:  w.status.loadPayloadStatus,
+			CapabilitiesStatus: w.status.CapabilitiesStatus,
 		},
 		completed: work.Completed,
 		version:   payloadUpdate.Release.Version,
