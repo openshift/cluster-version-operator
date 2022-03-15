@@ -191,7 +191,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
 				if err := include(excludeIdentifier, includeTechPreview, profile, capabilities, &manifest); err != nil {
-					klog.V(5).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
+					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
