@@ -262,6 +262,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -281,6 +285,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -302,6 +310,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(5, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -322,6 +334,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(6, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
 			},
 		},
 	)
@@ -360,6 +376,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -388,6 +408,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -408,6 +432,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -428,6 +456,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -449,6 +481,10 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -621,6 +657,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -641,6 +681,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -661,6 +705,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			LastProgress: time.Unix(4, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -709,6 +757,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -737,6 +789,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -757,6 +813,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			Generation:   1,
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -777,6 +837,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			Generation:   1,
 			LastProgress: time.Unix(2, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -798,6 +862,10 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -966,6 +1034,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 		},
 		SyncWorkerStatus{
 			Done:        1,
@@ -986,6 +1058,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(4, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 		},
 		SyncWorkerStatus{
 			Done:        2,
@@ -1000,6 +1076,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(4, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -1047,6 +1127,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -1075,6 +1159,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -1095,6 +1183,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -1115,6 +1207,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -1136,6 +1232,10 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -1344,6 +1444,10 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1385,6 +1489,10 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1593,6 +1701,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1635,6 +1747,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1663,6 +1779,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1682,6 +1802,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			Generation:   1,
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1701,6 +1825,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			Generation:   1,
 			LastProgress: time.Unix(2, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1721,6 +1849,10 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1887,6 +2019,10 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			Generation: 1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1905,6 +2041,10 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1923,6 +2063,10 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
@@ -1965,6 +2109,10 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2200,6 +2348,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2219,6 +2371,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2238,6 +2394,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2252,7 +2412,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 2 {
+	if len(actions) != 1 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2275,6 +2435,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2293,6 +2457,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2312,6 +2480,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2331,6 +2503,10 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2483,6 +2659,10 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2513,6 +2693,10 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2558,6 +2742,10 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2594,6 +2782,10 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
@@ -2720,6 +2912,10 @@ func TestCVO_ParallelError(t *testing.T) {
 					Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 					LastProgress: status.LastProgress,
 					Generation:   1,
+					CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+						EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+						KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+					},
 					loadPayloadStatus: LoadPayloadStatus{
 						Step:               "PayloadLoaded",
 						Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2749,6 +2945,10 @@ func TestCVO_ParallelError(t *testing.T) {
 			Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			LastProgress: status.LastProgress,
 			Generation:   1,
+			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
@@ -2787,6 +2987,10 @@ func TestCVO_ParallelError(t *testing.T) {
 			ObservedGeneration: 1,
 			Desired:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash:        "Gyh2W6qcDO4=",
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"openshift-samples"},
+			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
