@@ -2,6 +2,7 @@ package capability
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -18,6 +19,12 @@ type ClusterCapabilities struct {
 	EnabledCapabilities map[configv1.ClusterVersionCapability]struct{}
 }
 
+type capabilitiesSort []configv1.ClusterVersionCapability
+
+func (caps capabilitiesSort) Len() int           { return len(caps) }
+func (caps capabilitiesSort) Swap(i, j int)      { caps[i], caps[j] = caps[j], caps[i] }
+func (caps capabilitiesSort) Less(i, j int) bool { return string(caps[i]) < string(caps[j]) }
+
 // SetCapabilities populates and returns cluster capabilities from ClusterVersion capabilities spec.
 func SetCapabilities(config *configv1.ClusterVersion) ClusterCapabilities {
 	var capabilities ClusterCapabilities
@@ -32,9 +39,11 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	for k := range capabilities.EnabledCapabilities {
 		status.EnabledCapabilities = append(status.EnabledCapabilities, k)
 	}
+	sort.Sort(capabilitiesSort(status.EnabledCapabilities))
 	for k := range capabilities.KnownCapabilities {
 		status.KnownCapabilities = append(status.KnownCapabilities, k)
 	}
+	sort.Sort(capabilitiesSort(status.KnownCapabilities))
 	return status
 }
 
