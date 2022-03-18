@@ -61,7 +61,7 @@ github.com/modern-go/concurrent
 github.com/modern-go/reflect2
 # github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 github.com/mwitkow/go-conntrack
-# github.com/openshift/api v0.0.0-20220208222216-7e3ffb09accd
+# github.com/openshift/api v0.0.0-20220317153038-a2ca88c44400
 ## explicit
 github.com/openshift/api/config/v1
 github.com/openshift/api/image/docker10
