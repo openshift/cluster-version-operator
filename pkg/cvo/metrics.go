@@ -49,6 +49,7 @@ type operatorMetrics struct {
 
 	version                                               *prometheus.GaugeVec
 	availableUpdates                                      *prometheus.GaugeVec
+	capability                                            *prometheus.GaugeVec
 	clusterOperatorUp                                     *prometheus.GaugeVec
 	clusterOperatorConditions                             *prometheus.GaugeVec
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
@@ -87,6 +88,10 @@ version for 'cluster', or empty for 'initial'.
 			Name: "cluster_version_available_updates",
 			Help: "Report the count of available versions for an upstream and channel.",
 		}, []string{"upstream", "channel"}),
+		capability: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_capability",
+			Help: "Report currently enabled cluster capabilities.  0 is disabled, and 1 is enabled.",
+		}, []string{"name"}),
 		clusterOperatorUp: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_up",
 			Help: "Reports key highlights of the active cluster operators.",
@@ -333,6 +338,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.version.WithLabelValues("", "", "", "").Desc()
 	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
+	ch <- m.capability.WithLabelValues("").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
@@ -430,6 +436,21 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			g := m.availableUpdates.WithLabelValues(upstream, cv.Spec.Channel)
 			g.Set(float64(len(cv.Status.AvailableUpdates)))
 			ch <- g
+		}
+
+		enabledCapabilities := make(map[configv1.ClusterVersionCapability]struct{}, len(cv.Status.Capabilities.EnabledCapabilities))
+		for _, capability := range cv.Status.Capabilities.EnabledCapabilities {
+			g := m.capability.WithLabelValues(string(capability))
+			g.Set(float64(1))
+			ch <- g
+			enabledCapabilities[capability] = struct{}{}
+		}
+		for _, capability := range cv.Status.Capabilities.KnownCapabilities {
+			if _, ok := enabledCapabilities[capability]; !ok {
+				g := m.capability.WithLabelValues(string(capability))
+				g.Set(float64(0))
+				ch <- g
+			}
 		}
 
 		for _, condition := range cv.Status.Conditions {
