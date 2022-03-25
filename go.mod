@@ -28,3 +28,5 @@ require (
 	k8s.io/kube-aggregator v0.23.0
 	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
 )
+
+replace github.com/openshift/api => github.com/omertuc/api v0.0.0-20220324163540-ce55c26acefc
