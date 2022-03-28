@@ -33,7 +33,11 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
+			wantKnownKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
 			wantEnabledKeys: []string{},
 		},
 		{name: "set capabilities 4_11",
@@ -45,8 +49,16 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
-			wantEnabledKeys: []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
+			wantKnownKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
+			wantEnabledKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
 		},
 		{name: "set capabilities vCurrent",
 			config: &configv1.ClusterVersion{
@@ -57,8 +69,16 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
-			wantEnabledKeys: []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
+			wantKnownKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
+			wantEnabledKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
 		},
 		{name: "set capabilities None with additional",
 			config: &configv1.ClusterVersion{
@@ -69,7 +89,11 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
+			wantKnownKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
 			wantEnabledKeys: []string{"cap1", "cap2", "cap3"},
 		},
 		{name: "set capabilities 4_11 with additional",
@@ -81,8 +105,19 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples)},
-			wantEnabledKeys: []string{string(configv1.ClusterVersionCapabilityBaremetal), string(configv1.ClusterVersionCapabilityOpenShiftSamples), "cap1", "cap2", "cap3"},
+			wantKnownKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+			},
+			wantEnabledKeys: []string{
+				string(configv1.ClusterVersionCapabilityBaremetal),
+				string(configv1.ClusterVersionCapabilityMarketplace),
+				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
+				"cap1",
+				"cap2",
+				"cap3",
+			},
 		},
 	}
 	for _, test := range tests {

@@ -208,8 +208,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -263,8 +263,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -287,8 +287,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -311,8 +311,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -336,8 +336,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 	)
@@ -377,8 +377,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -409,8 +409,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -433,8 +433,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -457,8 +457,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -482,8 +482,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -606,8 +606,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -658,8 +658,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -682,8 +682,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -706,8 +706,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(4, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -758,8 +758,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -790,8 +790,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -814,8 +814,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -838,8 +838,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -863,8 +863,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -977,8 +977,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
@@ -1035,8 +1035,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1059,8 +1059,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1077,8 +1077,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(4, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1128,8 +1128,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1160,8 +1160,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1184,8 +1184,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1208,8 +1208,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1233,8 +1233,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1445,8 +1445,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1490,8 +1490,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1702,8 +1702,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1748,8 +1748,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1780,8 +1780,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1803,8 +1803,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation:   1,
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1826,8 +1826,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation:   1,
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -1850,8 +1850,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2020,8 +2020,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			Generation: 1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2042,8 +2042,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2064,8 +2064,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2110,8 +2110,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2220,8 +2220,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
@@ -2349,8 +2349,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2372,8 +2372,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2395,8 +2395,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(4, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2436,8 +2436,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2458,8 +2458,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2481,8 +2481,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2504,8 +2504,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(4, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2660,8 +2660,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2694,8 +2694,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2743,8 +2743,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2783,8 +2783,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2913,8 +2913,8 @@ func TestCVO_ParallelError(t *testing.T) {
 					LastProgress: status.LastProgress,
 					Generation:   1,
 					CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-						EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-						KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+						EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+						KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 					},
 					loadPayloadStatus: LoadPayloadStatus{
 						Step:               "PayloadLoaded",
@@ -2946,8 +2946,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			LastProgress: status.LastProgress,
 			Generation:   1,
 			CapabilitiesStatus: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2988,8 +2988,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			Desired:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash:        "Gyh2W6qcDO4=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "openshift-samples"},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{"baremetal", "marketplace", "openshift-samples"},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
