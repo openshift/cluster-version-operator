@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"reflect"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
@@ -32,6 +34,12 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	"github.com/openshift/library-go/pkg/manifest"
 )
+
+func init() {
+	klog.InitFlags(flag.CommandLine)
+	_ = flag.CommandLine.Lookup("v").Value.Set("2")
+	_ = flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
+}
 
 func Test_SyncWorker_apply(t *testing.T) {
 	tests := []struct {
@@ -48,7 +56,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				"kind": "TestA",
 				"metadata": {
 					"namespace": "default",
-					"name": "testa"
+					"name": "testa",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 			`{
@@ -56,7 +67,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				"kind": "TestB",
 				"metadata": {
 					"namespace": "default",
-					"name": "testb"
+					"name": "testb",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 		},
@@ -81,7 +95,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				"kind": "TestA",
 				"metadata": {
 					"namespace": "default",
-					"name": "testa"
+					"name": "testa",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 			`{
@@ -89,7 +106,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 				"kind": "TestB",
 				"metadata": {
 					"namespace": "default",
-					"name": "testb"
+					"name": "testb",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 		},
@@ -106,6 +126,28 @@ func Test_SyncWorker_apply(t *testing.T) {
 
 			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
 				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
+			}
+		},
+	}, {
+		manifests: []string{
+			`{
+                                "apiVersion": "test.cvo.io/v1",
+                                "kind": "TestA",
+                                "metadata": {
+                                        "namespace": "default",
+                                        "name": "testa",
+                                        "annotations": {
+                                                "include.release.openshift.io/self-managed-high-availability": "true",
+						"capability.openshift.io/name": "openshift-samples+baremetal"
+                                        }
+                                }
+                        }`,
+		},
+		reactors: map[action]error{},
+		check: func(t *testing.T, actions []action) {
+			if len(actions) != 0 {
+				spew.Dump(actions)
+				t.Fatalf("unexpected %d actions", len(actions))
 			}
 		},
 	}}
@@ -189,7 +231,10 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 				"kind": "TestA",
 				"metadata": {
 					"namespace": "default",
-					"name": "testa"
+					"name": "testa",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 				`{
@@ -197,7 +242,10 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 				"kind": "TestB",
 				"metadata": {
 					"namespace": "default",
-					"name": "testb"
+					"name": "testb",
+					"annotations": {
+						"include.release.openshift.io/self-managed-high-availability": "true"
+					}
 				}
 			}`,
 			},
@@ -216,6 +264,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 						"metadata": map[string]interface{}{
 							"name":      "testa",
 							"namespace": "default",
+							"annotations": map[string]interface{}{
+								"include.release.openshift.io/self-managed-high-availability": "true",
+							},
 						},
 					},
 				}
@@ -231,6 +282,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 						"metadata": map[string]interface{}{
 							"name":      "testb",
 							"namespace": "default",
+							"annotations": map[string]interface{}{
+								"include.release.openshift.io/self-managed-high-availability": "true",
+							},
 						},
 					},
 				}
@@ -256,7 +310,10 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 					"kind": "TestA",
 					"metadata": {
 						"namespace": "default",
-						"name": "testa"
+						"name": "testa",
+						"annotations": {
+							"include.release.openshift.io/self-managed-high-availability": "true"
+						}
 					}
 				}`,
 				`{
@@ -264,7 +321,10 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 					"kind": "TestB",
 					"metadata": {
 						"namespace": "default",
-						"name": "testb"
+						"name": "testb",
+						"annotations": {
+							"include.release.openshift.io/self-managed-high-availability": "true"
+						}
 					}
 				}`,
 			},
@@ -284,6 +344,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 							"name":      "testa",
 							"namespace": "default",
 							"labels":    map[string]interface{}{"test/label": "a"},
+							"annotations": map[string]interface{}{
+								"include.release.openshift.io/self-managed-high-availability": "true",
+							},
 						},
 					},
 				}
@@ -300,6 +363,9 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 							"name":      "testb",
 							"namespace": "default",
 							"labels":    map[string]interface{}{"test/label": "a"},
+							"annotations": map[string]interface{}{
+								"include.release.openshift.io/self-managed-high-availability": "true",
+							},
 						},
 					},
 				}

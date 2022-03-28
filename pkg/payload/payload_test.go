@@ -1,7 +1,6 @@
 package payload
 
 import (
-	"errors"
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
@@ -16,7 +15,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
-	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
@@ -115,7 +113,7 @@ func TestLoadUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", false, DefaultClusterProfile, capability.ClusterCapabilities{})
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", false, DefaultClusterProfile, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -136,135 +134,4 @@ func mustRead(path string) []byte {
 		panic(err)
 	}
 	return data
-}
-
-func Test_include(t *testing.T) {
-	tests := []struct {
-		name               string
-		exclude            string
-		includeTechPreview bool
-		profile            string
-		annotations        map[string]interface{}
-		caps               capability.ClusterCapabilities
-
-		expected error
-	}{
-		{
-			name:    "exclusion identifier set",
-			exclude: "identifier",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"exclude.release.openshift.io/identifier":                     "true",
-				"include.release.openshift.io/self-managed-high-availability": "true"},
-			expected: errors.New("exclude.release.openshift.io/identifier=true"),
-		},
-		{
-			name:        "profile selection works",
-			profile:     "single-node",
-			annotations: map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
-			expected:    errors.New("include.release.openshift.io/single-node unset"),
-		},
-		{
-			name:        "profile selection works included",
-			profile:     DefaultClusterProfile,
-			annotations: map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
-		},
-		{
-			name:    "correct techpreview value is excluded if techpreview off",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				"release.openshift.io/feature-gate":                           "TechPreviewNoUpgrade",
-			},
-			expected: errors.New("tech-preview excluded, and release.openshift.io/feature-gate=TechPreviewNoUpgrade"),
-		},
-		{
-			name:               "correct techpreview value is included if techpreview on",
-			includeTechPreview: true,
-			profile:            DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				"release.openshift.io/feature-gate":                           "TechPreviewNoUpgrade",
-			},
-		},
-		{
-			name:    "incorrect techpreview value is not excluded if techpreview off",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				"release.openshift.io/feature-gate":                           "Other",
-			},
-			expected: errors.New("unrecognized value release.openshift.io/feature-gate=Other"),
-		},
-		{
-			name:               "incorrect techpreview value is not excluded if techpreview on",
-			includeTechPreview: true,
-			profile:            DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				"release.openshift.io/feature-gate":                           "Other",
-			},
-			expected: errors.New("unrecognized value release.openshift.io/feature-gate=Other"),
-		},
-		{
-			name:        "default profile selection excludes without annotation",
-			profile:     DefaultClusterProfile,
-			annotations: map[string]interface{}{},
-			expected:    errors.New("include.release.openshift.io/self-managed-high-availability unset"),
-		},
-		{
-			name:        "default profile selection excludes with no annotation",
-			profile:     DefaultClusterProfile,
-			annotations: nil,
-			expected:    errors.New("no annotations"),
-		},
-		{
-			name:    "unrecognized capability works",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				capability.CapabilityAnnotation:                               "cap1"},
-			expected: errors.New("unrecognized capability names: cap1"),
-		},
-		{
-			name:    "disabled capability works",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				capability.CapabilityAnnotation:                               "cap1"},
-			caps: capability.ClusterCapabilities{
-				KnownCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-			},
-			expected: errors.New("disabled capabilities: cap1"),
-		},
-		{
-			name:    "enabled capability works",
-			profile: DefaultClusterProfile,
-			annotations: map[string]interface{}{
-				"include.release.openshift.io/self-managed-high-availability": "true",
-				capability.CapabilityAnnotation:                               "cap1"},
-			caps: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			metadata := map[string]interface{}{}
-			if tt.annotations != nil {
-				metadata["annotations"] = tt.annotations
-			}
-			err := include(tt.exclude, tt.includeTechPreview, tt.profile, tt.caps, &manifest.Manifest{
-				Obj: &unstructured.Unstructured{
-					Object: map[string]interface{}{
-						"metadata": metadata,
-					},
-				},
-			})
-			if !reflect.DeepEqual(err, tt.expected) {
-				t.Errorf("(exclude: %v, profile: %v, annotations: %v) expected %v, but got %v", tt.exclude, tt.profile, tt.annotations, tt.expected, err)
-			}
-		})
-	}
 }

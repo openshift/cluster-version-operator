@@ -159,6 +159,12 @@ const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 // and no failures occurred during image verification and precondition checking.
 const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccepted"
 
+// ImplicitlyEnabledCapabilities is True if there are enabled capabilities which the user is not currently
+// requesting via spec.capabilities, because the cluster version operator does not support uninstalling
+// capabilities if any associated resources were previously managed by the CVO or disabling previousily
+// enabled capabilities.
+const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
+
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
@@ -201,7 +207,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	desired := optr.mergeReleaseMetadata(status.Actual)
 	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0)
 
-	config.Status.Capabilities = status.CapabilitiesStatus
+	config.Status.Capabilities = status.CapabilitiesStatus.Status
 
 	// update validation errors
 	var reason string
@@ -227,6 +233,9 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	} else {
 		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
 	}
+
+	// set the implicitly enabled capabilities condition
+	setImplicitlyEnabledCapabilitiesCondition(config, status.CapabilitiesStatus.ImplicitlyEnabledCaps, now)
 
 	// set the desired release accepted condition
 	setDesiredReleaseAcceptedCondition(config, status.loadPayloadStatus, now)
@@ -352,6 +361,35 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
+}
+
+func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, implicitlyEnabled []configv1.ClusterVersionCapability,
+	now metav1.Time) {
+
+	if len(implicitlyEnabled) > 0 {
+		message := "The following capabilities could not be disabled: "
+		caps := make([]string, len(implicitlyEnabled))
+		for i, c := range implicitlyEnabled {
+			caps[i] = string(c)
+		}
+		message = message + strings.Join([]string(caps), ", ")
+
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               ImplicitlyEnabledCapabilities,
+			Status:             configv1.ConditionTrue,
+			Reason:             "CapabilitiesImplicitlyEnabled",
+			Message:            message,
+			LastTransitionTime: now,
+		})
+	} else {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               ImplicitlyEnabledCapabilities,
+			Status:             configv1.ConditionFalse,
+			Reason:             "AsExpected",
+			Message:            "Capabilities match configured spec",
+			LastTransitionTime: now,
+		})
+	}
 }
 
 func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status LoadPayloadStatus, now metav1.Time) {

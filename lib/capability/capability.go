@@ -1,9 +1,8 @@
 package capability
 
 import (
-	"fmt"
+	"reflect"
 	"sort"
-	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -15,8 +14,13 @@ const (
 )
 
 type ClusterCapabilities struct {
-	KnownCapabilities   map[configv1.ClusterVersionCapability]struct{}
-	EnabledCapabilities map[configv1.ClusterVersionCapability]struct{}
+	KnownCapabilities             map[configv1.ClusterVersionCapability]struct{}
+	EnabledCapabilities           map[configv1.ClusterVersionCapability]struct{}
+	ImplicitlyEnabledCapabilities []configv1.ClusterVersionCapability
+}
+
+func (c *ClusterCapabilities) Equal(capabilities *ClusterCapabilities) bool {
+	return reflect.DeepEqual(c.EnabledCapabilities, capabilities.EnabledCapabilities)
 }
 
 type capabilitiesSort []configv1.ClusterVersionCapability
@@ -25,12 +29,28 @@ func (caps capabilitiesSort) Len() int           { return len(caps) }
 func (caps capabilitiesSort) Swap(i, j int)      { caps[i], caps[j] = caps[j], caps[i] }
 func (caps capabilitiesSort) Less(i, j int) bool { return string(caps[i]) < string(caps[j]) }
 
-// SetCapabilities populates and returns cluster capabilities from ClusterVersion capabilities spec.
-func SetCapabilities(config *configv1.ClusterVersion) ClusterCapabilities {
+// SetCapabilities populates and returns cluster capabilities from ClusterVersion capabilities spec. This method also
+// ensures that no previousily enabled capability is now disabled and returns any such implicitly enabled capabilities.
+func SetCapabilities(config *configv1.ClusterVersion,
+	existingEnabled map[configv1.ClusterVersionCapability]struct{}) ClusterCapabilities {
+
 	var capabilities ClusterCapabilities
-	capabilities.KnownCapabilities = setKnownCapabilities(config)
-	capabilities.EnabledCapabilities = setEnabledCapabilities(config)
+	capabilities.KnownCapabilities = setKnownCapabilities()
+
+	capabilities.EnabledCapabilities, capabilities.ImplicitlyEnabledCapabilities = setEnabledCapabilities(config.Spec.Capabilities,
+		existingEnabled)
+
 	return capabilities
+}
+
+// GetKnownCapabilities returns all known capabilities as defined in ClusterVersion.
+func GetKnownCapabilities() []configv1.ClusterVersionCapability {
+	var known []configv1.ClusterVersionCapability
+
+	for _, v := range configv1.ClusterVersionCapabilitySets {
+		known = append(known, v...)
+	}
+	return known
 }
 
 // GetCapabilitiesStatus populates and returns ClusterVersion capabilities status from given capabilities.
@@ -47,39 +67,8 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	return status
 }
 
-// CheckResourceEnablement, given resource annotations and defined cluster capabilities, checks if the capability
-// annotation exists. If so, each capability name is validated against the known set of capabilities. Each valid
-// capability is then checked if it is disabled. If any invalid capabilities are found an error is returned listing
-// all invalid capabilities. Otherwise, if any disabled capabilities are found an error is returned listing all
-// disabled capabilities.
-func CheckResourceEnablement(annotations map[string]string, capabilities ClusterCapabilities) error {
-	val, ok := annotations[CapabilityAnnotation]
-	if !ok {
-		return nil
-	}
-	caps := strings.Split(val, "+")
-	numCaps := len(caps)
-	unknownCaps := make([]string, 0, numCaps)
-	disabledCaps := make([]string, 0, numCaps)
-
-	for _, c := range caps {
-		if _, ok = capabilities.KnownCapabilities[configv1.ClusterVersionCapability(c)]; !ok {
-			unknownCaps = append(unknownCaps, c)
-		} else if _, ok = capabilities.EnabledCapabilities[configv1.ClusterVersionCapability(c)]; !ok {
-			disabledCaps = append(disabledCaps, c)
-		}
-	}
-	if len(unknownCaps) > 0 {
-		return fmt.Errorf("unrecognized capability names: %s", strings.Join(unknownCaps, ", "))
-	}
-	if len(disabledCaps) > 0 {
-		return fmt.Errorf("disabled capabilities: %s", strings.Join(disabledCaps, ", "))
-	}
-	return nil
-}
-
 // setKnownCapabilities populates a map keyed by capability from all known capabilities as defined in ClusterVersion.
-func setKnownCapabilities(config *configv1.ClusterVersion) map[configv1.ClusterVersionCapability]struct{} {
+func setKnownCapabilities() map[configv1.ClusterVersionCapability]struct{} {
 	known := make(map[configv1.ClusterVersionCapability]struct{})
 
 	for _, v := range configv1.ClusterVersionCapabilitySets {
@@ -94,27 +83,39 @@ func setKnownCapabilities(config *configv1.ClusterVersion) map[configv1.ClusterV
 }
 
 // setEnabledCapabilities populates a map keyed by capability from all enabled capabilities as defined in ClusterVersion.
-// DefaultCapabilitySet is used if a baseline capability set is not defined by ClusterVersion.
-func setEnabledCapabilities(config *configv1.ClusterVersion) map[configv1.ClusterVersionCapability]struct{} {
+// DefaultCapabilitySet is used if a baseline capability set is not defined by ClusterVersion. A check is then made to
+// ensure that no previousily enabled capability is now disabled and if any such capabilities are found each is enabled,
+// saved, and returned.
+func setEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitiesSpec,
+	priorEnabled map[configv1.ClusterVersionCapability]struct{}) (map[configv1.ClusterVersionCapability]struct{},
+	[]configv1.ClusterVersionCapability) {
+
 	enabled := make(map[configv1.ClusterVersionCapability]struct{})
 
 	capSet := DefaultCapabilitySet
 
-	if config.Spec.Capabilities != nil && len(config.Spec.Capabilities.BaselineCapabilitySet) > 0 {
-		capSet = config.Spec.Capabilities.BaselineCapabilitySet
+	if capabilitiesSpec != nil && len(capabilitiesSpec.BaselineCapabilitySet) > 0 {
+		capSet = capabilitiesSpec.BaselineCapabilitySet
 	}
 
 	for _, v := range configv1.ClusterVersionCapabilitySets[capSet] {
 		enabled[v] = struct{}{}
 	}
 
-	if config.Spec.Capabilities != nil {
-		for _, v := range config.Spec.Capabilities.AdditionalEnabledCapabilities {
+	if capabilitiesSpec != nil {
+		for _, v := range capabilitiesSpec.AdditionalEnabledCapabilities {
 			if _, ok := enabled[v]; ok {
 				continue
 			}
 			enabled[v] = struct{}{}
 		}
 	}
-	return enabled
+	var implicitlyEnabled []configv1.ClusterVersionCapability
+	for k := range priorEnabled {
+		if _, ok := enabled[k]; !ok {
+			implicitlyEnabled = append(implicitlyEnabled, k)
+			enabled[k] = struct{}{}
+		}
+	}
+	return enabled, implicitlyEnabled
 }

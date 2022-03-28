@@ -186,6 +186,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							},
 						},
 					},
@@ -226,6 +227,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Error ensuring the cluster version is up to date: bad"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 						},
 					},
 				})
