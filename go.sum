@@ -487,6 +487,8 @@ github.com/openshift/api v0.0.0-20220208222216-7e3ffb09accd h1:EaCz2jR4vZvtTBGXB
 github.com/openshift/api v0.0.0-20220208222216-7e3ffb09accd/go.mod h1:F/eU6jgr6Q2VhMu1mSpMmygxAELd7+BUxs3NHZ25jV4=
 github.com/openshift/api v0.0.0-20220317153038-a2ca88c44400 h1:DMzrYI2PxPHFGQEWLSiHnAcF8l3wYDlGk1kUlEPhSC8=
 github.com/openshift/api v0.0.0-20220317153038-a2ca88c44400/go.mod h1:F/eU6jgr6Q2VhMu1mSpMmygxAELd7+BUxs3NHZ25jV4=
+github.com/openshift/api v0.0.0-20220325173635-8107b7a38e53 h1:WpOfczPbuY5llRH94DJRsGTsgm7d8iAA2b7m0+YXAqI=
+github.com/openshift/api v0.0.0-20220325173635-8107b7a38e53/go.mod h1:F/eU6jgr6Q2VhMu1mSpMmygxAELd7+BUxs3NHZ25jV4=
 github.com/openshift/build-machinery-go v0.0.0-20210712174854-1bb7fd1518d3/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
 github.com/openshift/build-machinery-go v0.0.0-20210806203541-4ea9b6da3a37/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
 github.com/openshift/build-machinery-go v0.0.0-20211213093930-7e33a7eb4ce3/go.mod h1:b1BuldmJlbA/xYtdZvKi+7j5YGB44qJUJDZ9zwiNCfE=
