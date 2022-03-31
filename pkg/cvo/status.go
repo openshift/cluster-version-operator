@@ -155,10 +155,14 @@ func pruneStatusHistory(config *configv1.ClusterVersion, maxHistory int) {
 // condition is set.
 const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
+// DesiredReleaseAccepted indicates whether the requested (desired) release payload was successfully loaded
+// and no failures occurred during image verification and precondition checking.
+const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccepted"
+
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
-	klog.V(2).Infof("Synchronizing errs=%#v status=%#v", validationErrs, status)
+	klog.V(2).Infof("Synchronizing status errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
 	// update the config with the latest available updates
@@ -222,13 +226,15 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
 	}
 
+	// set the desired release accepted condition
+	setDesiredReleaseAcceptedCondition(config, status.loadPayloadStatus, now)
+
 	// set the available condition
 	if status.Completed > 0 {
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:    configv1.OperatorAvailable,
-			Status:  configv1.ConditionTrue,
-			Message: fmt.Sprintf("Done applying %s", version),
-
+			Type:               configv1.OperatorAvailable,
+			Status:             configv1.ConditionTrue,
+			Message:            fmt.Sprintf("Done applying %s", version),
 			LastTransitionTime: now,
 		})
 	}
@@ -313,11 +319,6 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			case fractionComplete > 0:
 				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete)", version,
 					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)))
-			case status.Step == "RetrievePayload":
-				if len(reason) == 0 {
-					reason = "DownloadingUpdate"
-				}
-				message = fmt.Sprintf("Working towards %s: downloading update", version)
 			case skipFailure:
 				reason = progressReason
 				message = fmt.Sprintf("Working towards %s: %s", version, progressMessage)
@@ -349,6 +350,36 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
+}
+
+func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status LoadPayloadStatus, now metav1.Time) {
+	if status.Step == "PayloadLoaded" {
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               DesiredReleaseAccepted,
+			Status:             configv1.ConditionTrue,
+			Reason:             status.Step,
+			Message:            status.Message,
+			LastTransitionTime: now,
+		})
+	} else if status.Step != "" {
+		if status.Failure != nil {
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               DesiredReleaseAccepted,
+				Status:             configv1.ConditionFalse,
+				Reason:             status.Step,
+				Message:            status.Message,
+				LastTransitionTime: now,
+			})
+		} else {
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               DesiredReleaseAccepted,
+				Status:             configv1.ConditionUnknown,
+				Reason:             status.Step,
+				Message:            status.Message,
+				LastTransitionTime: now,
+			})
+		}
+	}
 }
 
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as

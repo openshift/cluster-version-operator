@@ -30,7 +30,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus
+	Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 }
 
@@ -59,6 +59,8 @@ type PayloadRetriever interface {
 // StatusReporter abstracts how status is reported by the worker run method. Introduced for testing.
 type StatusReporter interface {
 	Report(status SyncWorkerStatus)
+	ReportPayload(payLoadStatus LoadPayloadStatus)
+	ValidPayloadStatus(release configv1.Release) bool
 }
 
 // SyncWork represents the work that should be done in a sync iteration.
@@ -80,11 +82,19 @@ func (w SyncWork) Empty() bool {
 	return len(w.Desired.Image) == 0
 }
 
+type LoadPayloadStatus struct {
+	Step               string
+	Message            string
+	Failure            error
+	Release            configv1.Release
+	Verified           bool
+	LastTransitionTime time.Time
+}
+
 // SyncWorkerStatus is the status of the sync worker at a given time.
 type SyncWorkerStatus struct {
 	Generation int64
 
-	Step    string
 	Failure error
 
 	Done  int
@@ -97,8 +107,12 @@ type SyncWorkerStatus struct {
 
 	LastProgress time.Time
 
-	Actual   configv1.Release
+	Actual configv1.Release
+
+	// indicates if actual (current) release was verified
 	Verified bool
+
+	loadPayloadStatus LoadPayloadStatus
 }
 
 // DeepCopy copies the worker status.
@@ -115,16 +129,16 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 //
 //   Initial: wait for valid Update(), report empty status
 //     Update() -> Sync
-//   Sync: attempt to invoke the syncOnce() method
-//     syncOnce() returns an error -> Error
-//     syncOnce() returns nil -> Reconciling
-//   Reconciling: invoke syncOnce() no more often than reconcileInterval
+//   Sync: attempt to invoke the apply() method
+//     apply() returns an error -> Error
+//     apply() returns nil -> Reconciling
+//   Reconciling: invoke apply() no more often than reconcileInterval
 //     Update() with different values -> Sync
-//     syncOnce() returns an error -> Error
-//     syncOnce() returns nil -> Reconciling
+//     apply() returns an error -> Error
+//     apply() returns nil -> Reconciling
 //   Error: backoff until we are attempting every reconcileInterval
-//     syncOnce() returns an error -> Error
-//     syncOnce() returns nil -> Reconciling
+//     apply() returns an error -> Error
+//     apply() returns nil -> Reconciling
 //
 type SyncWorker struct {
 	backoff       wait.Backoff
@@ -134,7 +148,7 @@ type SyncWorker struct {
 	eventRecorder record.EventRecorder
 
 	// minimumReconcileInterval is the minimum time between reconcile attempts, and is
-	// used to define the maximum backoff interval when syncOnce() returns an error.
+	// used to define the maximum backoff interval when apply() returns an error.
 	minimumReconcileInterval time.Duration
 
 	// coordination between the sync loop and external callers
@@ -200,12 +214,155 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
+func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
+	desired := configv1.Release{
+		Version: work.Desired.Version,
+		Image:   work.Desired.Image,
+	}
+	klog.V(2).Infof("syncPayload: %s (force=%t)", versionString(desired), work.Desired.Force)
+
+	// cache the payload until the release image changes
+	validPayload := w.payload
+	if validPayload != nil && validPayload.Release.Image == desired.Image {
+
+		// clear payload status if it no longer applies to desired target
+		if !reporter.ValidPayloadStatus(desired) {
+			klog.V(2).Info("Resetting payload status to currently loaded payload.")
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            nil,
+				Step:               "PayloadLoaded",
+				Message:            fmt.Sprintf("Payload loaded version=%q image=%q", desired.Version, desired.Image),
+				Verified:           w.status.Verified,
+				Release:            desired,
+				LastTransitionTime: time.Now(),
+			})
+		}
+		// possibly complain here if Version, etc. diverges from the payload content
+		return nil
+	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
+		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
+		msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
+		reporter.ReportPayload(LoadPayloadStatus{
+			Step:               "RetrievePayload",
+			Message:            msg,
+			Release:            desired,
+			LastTransitionTime: time.Now(),
+		})
+		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
+		if err != nil {
+			msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            err,
+				Step:               "RetrievePayload",
+				Message:            msg,
+				Release:            desired,
+				LastTransitionTime: time.Now(),
+			})
+			return err
+		}
+
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile)
+		if err != nil {
+			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            err,
+				Step:               "LoadPayload",
+				Message:            msg,
+				Verified:           info.Verified,
+				Release:            desired,
+				LastTransitionTime: time.Now(),
+			})
+			return err
+		}
+
+		payloadUpdate.VerifiedImage = info.Verified
+		payloadUpdate.LoadedAt = time.Now()
+
+		if work.Desired.Version == "" {
+			work.Desired.Version = payloadUpdate.Release.Version
+			desired.Version = payloadUpdate.Release.Version
+		} else if payloadUpdate.Release.Version != work.Desired.Version {
+			err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
+			msg := fmt.Sprintf("Verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", msg)
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            err,
+				Step:               "VerifyPayloadVersion",
+				Message:            msg,
+				Verified:           info.Verified,
+				Release:            desired,
+				LastTransitionTime: time.Now(),
+			})
+			return err
+		}
+
+		// need to make sure the payload is only set when the preconditions have been successful
+		if len(w.preconditions) == 0 {
+			klog.V(2).Info("No preconditions configured.")
+		} else if info.Local {
+			klog.V(2).Info("Skipping preconditions for a local operator image payload.")
+		} else {
+			if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
+				DesiredVersion: payloadUpdate.Release.Version,
+			}), work.Desired.Force); err != nil {
+				klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
+				if block {
+					msg := fmt.Sprintf("Preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", msg)
+					reporter.ReportPayload(LoadPayloadStatus{
+						Failure:            err,
+						Step:               "PreconditionChecks",
+						Message:            msg,
+						Verified:           info.Verified,
+						Release:            desired,
+						LastTransitionTime: time.Now(),
+					})
+					return err
+				} else {
+					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
+				}
+			}
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
+		}
+
+		w.payload = payloadUpdate
+		msg = fmt.Sprintf("Payload loaded version=%q image=%q", desired.Version, desired.Image)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
+		reporter.ReportPayload(LoadPayloadStatus{
+			Failure:            nil,
+			Step:               "PayloadLoaded",
+			Message:            msg,
+			Verified:           info.Verified,
+			Release:            desired,
+			LastTransitionTime: time.Now(),
+		})
+		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
+	}
+	return nil
+}
+
+// loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
+func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvoOptrName string) error {
+	// reporter hides status updates that occur earlier than the previous failure,
+	// so that we don't fail, then immediately start reporting an earlier status
+	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
+	if err := w.syncPayload(ctx, work, reporter); err != nil {
+		klog.V(2).Infof("loadUpdatedPayload syncPayload err=%v", err)
+		return err
+	}
+	return nil
+}
+
 // Update instructs the sync worker to start synchronizing the desired update. The reconciling boolean is
 // ignored unless this is the first time that Update has been called. The returned status represents either
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 //   giving the sync loop the opportunity to observe our change and begin working towards it.
-func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State) *SyncWorkerStatus {
+func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, overrides []configv1.ComponentOverride, state payload.State, cvoOptrName string) *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
@@ -261,6 +418,13 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 		}
 	}
 
+	w.lock.Unlock()
+	err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
+	w.lock.Lock()
+	if err != nil {
+		return w.status.DeepCopy()
+	}
+
 	// notify the sync loop that we changed config
 	if w.cancelFn != nil {
 		klog.V(2).Info("Cancel the sync worker's current loop")
@@ -279,9 +443,9 @@ func (w *SyncWorker) Update(generation int64, desired configv1.Update, overrides
 
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
-// syncOnce() has succeeded for a given input (we are said to be "reconciling").
+// apply() has succeeded for a given input (we are said to be "reconciling").
 func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
-	klog.V(2).Infof("Starting sync worker")
+	klog.V(2).Infof("Start: starting sync worker")
 
 	work := &SyncWork{}
 
@@ -345,15 +509,11 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 				w.lock.Unlock()
 				defer cancelFn()
 
-				config, err := lister.Get(cvoOptrName)
-				if err != nil {
-					return err
-				}
 				// reporter hides status updates that occur earlier than the previous failure,
 				// so that we don't fail, then immediately start reporting an earlier status
 				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
 				klog.V(2).Infof("Previous sync status: %#v", reporter.previousStatus)
-				return w.syncOnce(ctx, work, maxWorkers, reporter, config)
+				return w.apply(ctx, work, maxWorkers, reporter)
 			}()
 			if err != nil {
 				// backoff wait
@@ -393,8 +553,19 @@ type statusWrapper struct {
 	previousStatus *SyncWorkerStatus
 }
 
+func (w *statusWrapper) ValidPayloadStatus(release configv1.Release) bool {
+	return equalDigest(w.previousStatus.loadPayloadStatus.Release.Image, release.Image)
+}
+
+func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
+	status := w.previousStatus
+	status.loadPayloadStatus = payloadStatus
+	w.w.updateStatus(*status)
+}
+
 func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	p := w.previousStatus
+	status.loadPayloadStatus = p.loadPayloadStatus
 	var fractionComplete float32
 	if status.Total > 0 {
 		fractionComplete = float32(status.Done) / float32(status.Total)
@@ -548,136 +719,17 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 	return w.status.DeepCopy()
 }
 
-// sync retrieves the image and applies it to the server, returning an error if
-// the update could not be completely applied. The status is updated as we progress.
-// Cancelling the context will abort the execution of the sync.
-func (w *SyncWorker) syncOnce(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter, clusterVersion *configv1.ClusterVersion) error {
-	desired := configv1.Release{
-		Version: work.Desired.Version,
-		Image:   work.Desired.Image,
-	}
-	klog.V(2).Infof("Running sync %s (force=%t) on generation %d in state %s at attempt %d", versionString(desired), work.Desired.Force, work.Generation, work.State, work.Attempt)
+// apply applies the current payload to the server, executing in parallel if maxWorkers is set greater
+// than 1, returning an error if the update could not be completely applied. The status is updated as we
+// progress. Cancelling the context will abort the execution of apply.
+func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+	klog.V(2).Infof("apply: %s on generation %d in state %s at attempt %d", work.Desired.Version, work.Generation, work.State, work.Attempt)
 
 	if work.Attempt == 0 {
 		payload.InitCOUpdateStartTimes()
 	}
+	payloadUpdate := w.payload
 
-	// cache the payload until the release image changes
-	validPayload := w.payload
-	if validPayload != nil && validPayload.Release.Image == desired.Image {
-		// possibly complain here if Version, etc. diverges from the payload content
-		desired = validPayload.Release
-	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
-		klog.V(2).Infof("Loading payload")
-		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", "retrieving payload version=%q image=%q", desired.Version, desired.Image)
-		reporter.Report(SyncWorkerStatus{
-			Generation:  work.Generation,
-			Step:        "RetrievePayload",
-			Initial:     work.State.Initializing(),
-			Reconciling: work.State.Reconciling(),
-			Actual:      desired,
-		})
-		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
-		if err != nil {
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", "retrieving payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "RetrievePayload",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-			})
-			return err
-		}
-
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "VerifyPayload", "verifying payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile)
-		if err != nil {
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadFailed", "verifying payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "VerifyPayload",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			return err
-		}
-
-		payloadUpdate.VerifiedImage = info.Verified
-		payloadUpdate.LoadedAt = time.Now()
-
-		if work.Desired.Version == "" {
-			work.Desired.Version = payloadUpdate.Release.Version
-			desired.Version = payloadUpdate.Release.Version
-		} else if payloadUpdate.Release.Version != work.Desired.Version {
-			err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", "verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Failure:     err,
-				Step:        "VerifyPayloadVersion",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			return err
-		}
-
-		// need to make sure the payload is only set when the preconditions have been successful
-		if len(w.preconditions) == 0 {
-			klog.V(2).Info("No preconditions configured.")
-		} else if info.Local {
-			klog.V(2).Info("Skipping preconditions for a local operator image payload.")
-		} else {
-			reporter.Report(SyncWorkerStatus{
-				Generation:  work.Generation,
-				Step:        "PreconditionChecks",
-				Initial:     work.State.Initializing(),
-				Reconciling: work.State.Reconciling(),
-				Actual:      desired,
-				Verified:    info.Verified,
-			})
-			if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
-				DesiredVersion: payloadUpdate.Release.Version,
-			}), work.Desired.Force); err != nil {
-				klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
-				if block {
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", "preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
-					reporter.Report(SyncWorkerStatus{
-						Generation:  work.Generation,
-						Failure:     err,
-						Step:        "PreconditionChecks",
-						Initial:     work.State.Initializing(),
-						Reconciling: work.State.Reconciling(),
-						Actual:      desired,
-						Verified:    info.Verified,
-					})
-					return err
-				} else {
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
-				}
-			}
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
-		}
-
-		w.payload = payloadUpdate
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", "payload loaded version=%q image=%q", desired.Version, desired.Image)
-		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
-	}
-
-	return w.apply(ctx, w.payload, work, maxWorkers, reporter)
-}
-
-// apply updates the server with the contents of the provided image or returns an error.
-// Cancelling the context will abort the execution of the sync. Will be executed in parallel if
-// maxWorkers is set greater than 1.
-func (w *SyncWorker) apply(ctx context.Context, payloadUpdate *payload.Update, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	// encapsulate status reporting in a threadsafe updater
 	total := len(payloadUpdate.Manifests)
 	cr := &consistentReporter{
@@ -840,7 +892,6 @@ func (r *consistentReporter) Update() {
 	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
 	copied := r.status
-	copied.Step = "ApplyResources"
 	copied.Done = r.done
 	copied.Total = r.total
 	r.reporter.Report(copied)
@@ -850,7 +901,6 @@ func (r *consistentReporter) Error(err error) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	copied := r.status
-	copied.Step = "ApplyResources"
 	copied.Done = r.done
 	copied.Total = r.total
 	if !isContextError(err) {
@@ -865,7 +915,6 @@ func (r *consistentReporter) Errors(errs []error) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	copied := r.status
-	copied.Step = "ApplyResources"
 	copied.Done = r.done
 	copied.Total = r.total
 	if err != nil {

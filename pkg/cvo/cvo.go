@@ -507,11 +507,12 @@ func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err e
 // 1. A ClusterVersion object exists
 // 2. The ClusterVersion object has the appropriate status for the state of the cluster
 // 3. The configSync object is kept up to date maintaining the user's desired version
+// 4. Loads initial/updated payload releases
 //
 // It returns an error if it could not update the cluster version object.
 func (optr *Operator) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing cluster version %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing cluster version %q, spec changes, status, and payload (%v)", key, startTime)
 	defer func() {
 		klog.V(2).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
@@ -574,7 +575,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(config.Generation, desired, config.Spec.Overrides, state)
+	status := optr.configSync.Update(ctx, config.Generation, desired, config.Spec.Overrides, state, optr.name)
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)
