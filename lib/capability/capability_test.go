@@ -122,7 +122,7 @@ func TestSetCapabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config)
+			caps := SetCapabilities(test.config, nil)
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
@@ -143,6 +143,46 @@ func TestSetCapabilities(t *testing.T) {
 			for _, v := range test.wantEnabledKeys {
 				if _, ok := caps.EnabledCapabilities[configv1.ClusterVersionCapability(v)]; !ok {
 					t.Errorf("Missing EnabledCapabilities key %q. EnabledCapabilities returned : %v", v, caps.EnabledCapabilities)
+				}
+			}
+		})
+	}
+}
+
+func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
+	tests := []struct {
+		name         string
+		config       *configv1.ClusterVersion
+		wantImplicit []string
+		priorEnabled map[configv1.ClusterVersionCapability]struct{}
+	}{
+		{name: "set capabilities 4_11 with additional",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySet4_11,
+					},
+				},
+			},
+			priorEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
+			wantImplicit: []string{"cap1", "cap2", "cap3"},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			caps := SetCapabilities(test.config, test.priorEnabled)
+			if len(caps.ImplicitlyEnabledCapabilities) != len(test.wantImplicit) {
+				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %q. ImplicitlyEnabledCapabilities returned: %v", test.wantImplicit, caps.ImplicitlyEnabledCapabilities)
+			}
+			for _, wanted := range test.wantImplicit {
+				found := false
+				for _, have := range caps.ImplicitlyEnabledCapabilities {
+					if wanted == string(have) {
+						found = true
+					}
+				}
+				if !found {
+					t.Errorf("Missing ImplicitlyEnabledCapabilities key %q. ImplicitlyEnabledCapabilities returned : %v", wanted, caps.ImplicitlyEnabledCapabilities)
 				}
 			}
 		})
@@ -210,103 +250,6 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 						t.Errorf("Missing EnabledCapabilities key %q. EnabledCapabilities returned : %v", v, config.EnabledCapabilities)
 					}
 				}
-			}
-		})
-	}
-}
-
-func TestCheckResourceEnablement(t *testing.T) {
-	tests := []struct {
-		name        string
-		annotations map[string]string
-		caps        ClusterCapabilities
-		wantError   string
-	}{
-		{name: "empty annotations"},
-		{name: "no capabilitity annotation",
-			annotations: map[string]string{"foo": "bar"},
-		},
-		{name: "known capabilitity annotation",
-			annotations: map[string]string{CapabilityAnnotation: string(configv1.ClusterVersionCapabilityOpenShiftSamples), "foo": "bar"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-			},
-		},
-		{name: "multiple enabled capabilitities annotation",
-			annotations: map[string]string{CapabilityAnnotation: "cap1+cap2"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-			},
-		},
-		{name: "multiple capabilitities annotation with spaces",
-			annotations: map[string]string{CapabilityAnnotation: " + cap1 +cap2+ "},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-			},
-			wantError: "unrecognized capability names:  ,  cap1 ,  ",
-		},
-		{name: "unrecognized capabilitity annotation",
-			annotations: map[string]string{CapabilityAnnotation: "cap1"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-			},
-			wantError: "unrecognized capability names: cap1",
-		},
-		{name: "unrecognized capabilitities, spaces",
-			annotations: map[string]string{CapabilityAnnotation: "cap1 + cap2"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-			},
-			wantError: "unrecognized capability names: cap1 ,  cap2",
-		},
-		{name: "invalid capabilitity annotation divider",
-			annotations: map[string]string{CapabilityAnnotation: "cap1,cap2,cap3,cap4"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-			},
-			wantError: "unrecognized capability names: cap1,cap2,cap3,cap4",
-		},
-		{name: "multiple unrecognized capabilitities annotation",
-			annotations: map[string]string{CapabilityAnnotation: "cap1+cap2+cap3+cap4"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-			},
-			wantError: "unrecognized capability names: cap1, cap2, cap3, cap4",
-		},
-		{name: "disabled capabilitity annotation",
-			annotations: map[string]string{CapabilityAnnotation: "cap1"},
-			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{},
-			},
-			wantError: "disabled capabilities: cap1",
-		},
-		{name: "multiple disabled capabilitities annotation",
-			annotations: map[string]string{CapabilityAnnotation: "cap1+cap2+cap3+cap4+cap5+cap6"},
-			caps: ClusterCapabilities{
-				KnownCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {},
-					"cap3": {}, "cap4": {}, "cap5": {}, "cap6": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			},
-			wantError: "disabled capabilities: cap4, cap5, cap6",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			err := CheckResourceEnablement(test.annotations, test.caps)
-			if len(test.wantError) == 0 {
-				if err != nil {
-					t.Errorf("Wanted no error, got error %q", err.Error())
-				}
-			} else if test.wantError != err.Error() {
-				t.Errorf("Wanted error %q, got error %q", test.wantError, err.Error())
 			}
 		})
 	}

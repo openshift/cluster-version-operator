@@ -255,6 +255,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "Unable to apply 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 						},
 					},
 				})
@@ -298,6 +299,7 @@ func TestOperator_sync(t *testing.T) {
 								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							},
 						},
 					},
@@ -329,6 +331,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 						},
 					},
 				})
@@ -369,6 +372,7 @@ func TestOperator_sync(t *testing.T) {
 							Desired:     configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
@@ -400,6 +404,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadIntegrity", Message: "Error while reconciling 0.0.1-abc: the contents of the update are invalid"},
@@ -439,6 +444,7 @@ func TestOperator_sync(t *testing.T) {
 							},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
@@ -471,6 +477,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						VersionHash: "foo",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "injected error"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 0.0.1-abc: an error occurred"},
@@ -525,6 +532,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "file does not exist"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 4.0.1: an error occurred"},
@@ -594,6 +602,7 @@ func TestOperator_sync(t *testing.T) {
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							// the order of progressing in the conditions array is preserved
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Unable to apply 4.0.1: an error occurred"},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "file does not exist"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -653,6 +662,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards image/image:v4.0.1"},
@@ -696,6 +706,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards image/image:v4.0.1"},
@@ -739,6 +750,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.2", Version: "4.0.2"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
@@ -795,6 +807,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.2"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.2"},
@@ -848,6 +861,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we don't reset the message here until the image is loaded
@@ -908,6 +922,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we don't reset the message here until the image is loaded
@@ -959,6 +974,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
@@ -1059,6 +1075,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							// we correct the message that was incorrect from the previous state
@@ -1102,6 +1119,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Initializing, will work towards image/image:v4.0.1"},
@@ -1134,6 +1152,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						VersionHash: "xyz",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 0.0.1-abc"},
@@ -1186,6 +1205,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash:        "xyz",
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
@@ -1254,6 +1274,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1300,6 +1321,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1343,6 +1365,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1375,6 +1398,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1420,6 +1444,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1453,6 +1478,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1494,6 +1520,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1529,6 +1556,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1578,6 +1606,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1614,6 +1643,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1662,6 +1692,7 @@ func TestOperator_sync(t *testing.T) {
 					Status: configv1.ClusterVersionStatus{
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1694,6 +1725,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "0.0.1-abc"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
@@ -1758,6 +1790,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:            configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 4.0.1"},
@@ -1833,6 +1866,7 @@ func TestOperator_sync(t *testing.T) {
 						ObservedGeneration: 2,
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.4\": when image is empty the update must be a previous version or an available update"},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 4.0.1: the cluster version is invalid"},
@@ -1910,6 +1944,7 @@ func TestOperator_sync(t *testing.T) {
 						},
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid: spec.desiredUpdate.version: Invalid value: \"4.0.3\": there are multiple possible payloads for this version, specify the exact image"},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 4.0.1"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 4.0.1: the cluster version is invalid"},
@@ -1963,6 +1998,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash:        "y_Kc5IQiIyU=",
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
@@ -2025,6 +2061,7 @@ func TestOperator_sync(t *testing.T) {
 							VersionHash:        "unknown_hash",
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
@@ -2064,6 +2101,7 @@ func TestOperator_sync(t *testing.T) {
 						ObservedGeneration: 2,
 						VersionHash:        "y_Kc5IQiIyU=",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
@@ -2127,6 +2165,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: ClusterVersionInvalid, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "The cluster version is invalid:\n* spec.upstream: Invalid value: \"#%GG\": must be a valid URL or empty\n* spec.clusterID: Invalid value: \"not-valid-cluster-id\": must be an RFC4122-variant UUID\n"},
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 0.0.1-abc"},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at 0.0.1-abc: the cluster version is invalid"},
@@ -2165,6 +2204,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "InvalidClusterVersion", Message: "Stopped at image/image:v4.0.1: the cluster version is invalid"},
@@ -2204,6 +2244,7 @@ func TestOperator_sync(t *testing.T) {
 						Desired:     configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
+							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 							{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "InvalidClusterVersion", Message: "Reconciling 0.0.1-abc: the cluster version is invalid"},
@@ -2427,6 +2468,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 								{Image: "image/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
@@ -2487,6 +2529,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 								{Image: "image/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
@@ -2551,6 +2594,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 								{Image: "image/image:v4.0.1"},
 							},
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
@@ -2609,6 +2653,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 							},
 							ObservedGeneration: 2,
 							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
 								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},

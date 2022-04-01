@@ -15,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 
-	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
@@ -488,7 +487,7 @@ func Test_TaskGraph_real(t *testing.T) {
 	if len(path) == 0 {
 		t.Skip("TEST_GRAPH_PATH unset")
 	}
-	p, err := LoadUpdate(path, "arbitrary/image:1", "", false, DefaultClusterProfile, capability.ClusterCapabilities{})
+	p, err := LoadUpdate(path, "arbitrary/image:1", "", false, DefaultClusterProfile, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

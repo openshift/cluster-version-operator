@@ -23,7 +23,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
-	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/library-go/pkg/manifest"
 )
@@ -134,12 +133,18 @@ type metadata struct {
 }
 
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string,
-	capabilities capability.ClusterCapabilities) (*Update, error) {
+	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
 
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
 		return nil, err
 	}
+
+	// We only pass known capabilities at payload load time to avoid doing any capability
+	// enable filtering which only occurs during apply.
+	onlyKnownCaps := configv1.ClusterVersionCapabilitiesStatus{
+		EnabledCapabilities: knownCapabilities,
+		KnownCapabilities:   knownCapabilities}
 
 	var manifests []manifest.Manifest
 	var errs []error
@@ -190,7 +195,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if err := include(excludeIdentifier, includeTechPreview, profile, capabilities, &manifest); err != nil {
+				if err := manifest.Include(&excludeIdentifier, &includeTechPreview, &profile, &onlyKnownCaps); err != nil {
 					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}
@@ -216,39 +221,6 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	payload.Manifests = manifests
 	return payload, nil
-}
-
-func include(excludeIdentifier string, includeTechPreview bool, profile string, capabilities capability.ClusterCapabilities,
-	manifest *manifest.Manifest) error {
-
-	annotations := manifest.Obj.GetAnnotations()
-	if annotations == nil {
-		return errors.New("no annotations")
-	}
-
-	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
-	if v := annotations[excludeAnnotation]; v == "true" {
-		return fmt.Errorf("%s=%s", excludeAnnotation, v)
-	}
-
-	featureGateAnnotation := "release.openshift.io/feature-gate"
-	featureGateAnnotationValue, featureGateAnnotationExists := annotations[featureGateAnnotation]
-	if featureGateAnnotationValue == "TechPreviewNoUpgrade" && !includeTechPreview {
-		return fmt.Errorf("tech-preview excluded, and %s=%s", featureGateAnnotation, featureGateAnnotationValue)
-	}
-	// never include the manifest if the feature-gate annotation is outside of allowed values (only TechPreviewNoUpgrade is currently allowed)
-	if featureGateAnnotationExists && featureGateAnnotationValue != "TechPreviewNoUpgrade" {
-		return fmt.Errorf("unrecognized value %s=%s", featureGateAnnotation, featureGateAnnotationValue)
-	}
-
-	profileAnnotation := fmt.Sprintf("include.release.openshift.io/%s", profile)
-	if val, ok := annotations[profileAnnotation]; ok && val != "true" {
-		return fmt.Errorf("unrecognized value %s=%s", profileAnnotation, val)
-	} else if !ok {
-		return fmt.Errorf("%s unset", profileAnnotation)
-	}
-
-	return capability.CheckResourceEnablement(annotations, capabilities)
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by

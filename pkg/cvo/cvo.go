@@ -222,14 +222,12 @@ func New(
 // payload appears to be in error rather than continuing.
 func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
 
-	var config *configv1.ClusterVersion
-
 	// wait until cluster version object exists
 	if err := wait.PollImmediateInfiniteWithContext(ctx, 3*time.Second, func(ctx context.Context) (bool, error) {
 		var err error
 
 		// ensure the cluster version exists
-		config, _, err = optr.getClusterVersion(ctx)
+		_, _, err = optr.getClusterVersion(ctx)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				klog.V(2).Infof("No cluster version object, waiting for one")
@@ -241,10 +239,9 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	}); err != nil {
 		return fmt.Errorf("Error when attempting to get cluster version object: %w", err)
 	}
-	capabilities := capability.SetCapabilities(config)
 
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.includeTechPreview,
-		optr.clusterProfile, capabilities)
+		optr.clusterProfile, capability.GetKnownCapabilities())
 
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)

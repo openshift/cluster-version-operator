@@ -94,6 +94,11 @@ type LoadPayloadStatus struct {
 	LastTransitionTime time.Time
 }
 
+type CapabilityStatus struct {
+	Status                configv1.ClusterVersionCapabilitiesStatus
+	ImplicitlyEnabledCaps []configv1.ClusterVersionCapability
+}
+
 // SyncWorkerStatus is the status of the sync worker at a given time.
 type SyncWorkerStatus struct {
 	Generation int64
@@ -117,7 +122,7 @@ type SyncWorkerStatus struct {
 
 	loadPayloadStatus LoadPayloadStatus
 
-	CapabilitiesStatus configv1.ClusterVersionCapabilitiesStatus
+	CapabilitiesStatus CapabilityStatus
 }
 
 // DeepCopy copies the worker status.
@@ -269,7 +274,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile, work.Capabilities)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile,
+			capability.GetKnownCapabilities())
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
@@ -352,6 +358,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 
 // loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
 func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvoOptrName string) error {
+
 	// reporter hides status updates that occur earlier than the previous failure,
 	// so that we don't fail, then immediately start reporting an earlier status
 	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
@@ -379,9 +386,12 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		Overrides:  config.Spec.Overrides,
 	}
 
+	var priorCaps map[configv1.ClusterVersionCapability]struct{}
+
 	// the sync worker’s generation should always be latest with every change
 	if w.work != nil {
 		w.work.Generation = generation
+		priorCaps = w.work.Capabilities.EnabledCapabilities
 	}
 
 	if work.Empty() {
@@ -389,13 +399,16 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	work.Capabilities = capability.SetCapabilities(config)
-	versionEqual, overridesEqual := equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
+	work.Capabilities = capability.SetCapabilities(config, priorCaps)
 
-	if versionEqual && overridesEqual {
+	versionEqual, overridesEqual, capabilitiesEqual :=
+		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
+
+	if versionEqual && overridesEqual && capabilitiesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
+	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = work.Capabilities.ImplicitlyEnabledCapabilities
 
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
@@ -421,7 +434,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	} else if !versionEqual && state == payload.InitializingPayload {
 		klog.Warningf("Ignoring detected version change from %v to %v during payload initialization", *oldDesired, work.Desired)
 		w.work.Desired = *oldDesired
-		if overridesEqual {
+		if overridesEqual && capabilitiesEqual {
 			return w.status.DeepCopy()
 		}
 	}
@@ -433,7 +446,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	w.status.CapabilitiesStatus = capability.GetCapabilitiesStatus(w.work.Capabilities)
+	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 
 	// notify the sync loop that we changed config
 	if w.cancelFn != nil {
@@ -610,8 +623,8 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
-	sameVersion, sameOverrides := equalSyncWork(work, w.work, "calculating next work")
-	changed := !sameVersion || !sameOverrides
+	sameVersion, sameOverrides, sameCapabilities := equalSyncWork(work, w.work, "calculating next work")
+	changed := !sameVersion || !sameOverrides || !sameCapabilities
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
@@ -627,6 +640,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 	if w.work != nil {
 		work.Desired = w.work.Desired
 		work.Overrides = w.work.Overrides
+		work.Capabilities = w.work.Capabilities
 	}
 
 	work.Generation = w.work.Generation
@@ -665,32 +679,36 @@ func splitDigest(pullspec string) string {
 	return parts[1]
 }
 
-// equalSyncWork returns indications of whether release version has changed and whether overrides have changed.
-func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides bool) {
+// equalSyncWork returns indications of whether release version has changed, whether overrides have changed,
+// and whether capabilities have changed.
+func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides, equalCapabilities bool) {
 	// if both `a` and `b` are the same then simply return true
 	if a == b {
-		return true, true
+		return true, true, true
 	}
 	// if either `a` or `b` are nil then return false
 	if a == nil || b == nil {
-		return false, false
+		return false, false, false
 	}
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
+	sameCapabilities := a.Capabilities.Equal(&b.Capabilities)
 
-	var detected string
-	if !sameVersion && !sameOverrides {
-		detected = fmt.Sprintf("version (from %v to %v) and overrides changes", a.Desired, b.Desired)
-	} else if !sameVersion {
-		detected = fmt.Sprintf("version change (from %v to %v)", a.Desired, b.Desired)
-	} else if !sameOverrides {
-		detected = fmt.Sprintf("overrides change (%v to %v)", a.Overrides, b.Overrides)
+	var msgs []string
+	if !sameVersion {
+		msgs = append(msgs, fmt.Sprintf("version changed (from %v to %v)", a.Desired, b.Desired))
 	}
-	if detected != "" {
-		klog.V(2).Infof("Detected while %s: %s", context, detected)
+	if !sameOverrides {
+		msgs = append(msgs, fmt.Sprintf("overrides changed (%v to %v)", a.Overrides, b.Overrides))
 	}
-	return sameVersion, sameOverrides
+	if !sameCapabilities {
+		msgs = append(msgs, fmt.Sprintf("capabilities changed (%v to %v)", a.Capabilities, b.Capabilities))
+	}
+	if len(msgs) > 0 {
+		klog.V(2).Infof("Detected while %s: %s", context, strings.Join(msgs, ", "))
+	}
+	return sameVersion, sameOverrides, sameCapabilities
 }
 
 // updateStatus records the current status of the sync action for observation
@@ -763,6 +781,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 	if backoff.Steps > 1 && work.State == payload.InitializingPayload {
 		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second}
 	}
+
 	for i := range payloadUpdate.Manifests {
 		tasks = append(tasks, &payload.Task{
 			Index:    i + 1,
@@ -771,6 +790,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			Backoff:  backoff,
 		})
 	}
+
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
 	var precreateObjects bool
@@ -800,6 +820,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 		graph.Parallelize(payload.ByNumberAndComponent)
 		precreateObjects = true
 	}
+	capabilities := capability.GetCapabilitiesStatus(work.Capabilities)
 
 	// update each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
@@ -816,6 +837,10 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
 				if ok && ov.Unmanaged {
 					klog.V(2).Infof("Skipping precreation of %s as unmanaged", task)
+					continue
+				}
+				if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
+					klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
 					continue
 				}
 				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
@@ -839,7 +864,10 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				klog.V(2).Infof("Skipping %s as unmanaged", task)
 				continue
 			}
-
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
+				klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
+				continue
+			}
 			if err := task.Run(ctx, payloadUpdate.Release.Version, w.builder, work.State); err != nil {
 				return err
 			}
