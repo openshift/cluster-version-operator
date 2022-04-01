@@ -224,7 +224,11 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
-func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter StatusReporter) error {
+func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
+	reporter StatusReporter) ([]configv1.ClusterVersionCapability, error) {
+
+	var implicitlyEnabledCaps []configv1.ClusterVersionCapability
+
 	desired := configv1.Release{
 		Version: work.Desired.Version,
 		Image:   work.Desired.Image,
@@ -248,7 +252,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 			})
 		}
 		// possibly complain here if Version, etc. diverges from the payload content
-		return nil
+		return nil, nil
 	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
 		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 		msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
@@ -270,7 +274,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 				Release:            desired,
 				LastTransitionTime: time.Now(),
 			})
-			return err
+			return nil, err
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
@@ -287,7 +291,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 				Release:            desired,
 				LastTransitionTime: time.Now(),
 			})
-			return err
+			return nil, err
 		}
 
 		payloadUpdate.VerifiedImage = info.Verified
@@ -308,7 +312,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 				Release:            desired,
 				LastTransitionTime: time.Now(),
 			})
-			return err
+			return nil, err
 		}
 
 		// need to make sure the payload is only set when the preconditions have been successful
@@ -332,14 +336,17 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 						Release:            desired,
 						LastTransitionTime: time.Now(),
 					})
-					return err
+					return nil, err
 				} else {
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
 				}
 			}
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
 		}
-
+		if w.payload != nil {
+			implicitlyEnabledCaps = payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
+				work.Capabilities)
+		}
 		w.payload = payloadUpdate
 		msg = fmt.Sprintf("Payload loaded version=%q image=%q", desired.Version, desired.Image)
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
@@ -353,20 +360,23 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork, reporter S
 		})
 		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
 	}
-	return nil
+	return implicitlyEnabledCaps, nil
 }
 
 // loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
-func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork, cvoOptrName string) error {
+func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork,
+	cvoOptrName string) ([]configv1.ClusterVersionCapability, error) {
 
 	// reporter hides status updates that occur earlier than the previous failure,
 	// so that we don't fail, then immediately start reporting an earlier status
 	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
-	if err := w.syncPayload(ctx, work, reporter); err != nil {
+
+	implicitlyEnabledCaps, err := w.syncPayload(ctx, work, reporter)
+	if err != nil {
 		klog.V(2).Infof("loadUpdatedPayload syncPayload err=%v", err)
-		return err
+		return nil, err
 	}
-	return nil
+	return implicitlyEnabledCaps, nil
 }
 
 // Update instructs the sync worker to start synchronizing the desired update. The reconciling boolean is
@@ -442,12 +452,16 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	}
 
 	w.lock.Unlock()
-	err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
+	implicit, err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
 	w.lock.Lock()
 	if err != nil {
 		return w.status.DeepCopy()
 	}
 
+	// Update capabilities settings and status to include any capabilities that were implicitly enabled due
+	// to previously managed resources.
+	w.work.Capabilities = capability.SetFromImplicitlyEnabledCapabilities(implicit, w.work.Capabilities)
+	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = w.work.Capabilities.ImplicitlyEnabledCapabilities
 	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 
 	// notify the sync loop that we changed config
