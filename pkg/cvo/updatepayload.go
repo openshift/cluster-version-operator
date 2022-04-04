@@ -135,14 +135,28 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	hash := md5.New()
 	hash.Write([]byte(update.Image))
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
-
 	tdir := filepath.Join(r.workingDir, payloadHash)
-	err := payload.ValidateDirectory(tdir)
-	if os.IsNotExist(err) {
-		// the dirs don't exist, try fetching the payload to tdir.
-		err = r.fetchUpdatePayloadToDir(ctx, tdir, update)
+
+	// Prune older jobs and directories while gracefully handling errors.
+	if err := r.pruneJobs(ctx, 0); err != nil {
+		klog.Warningf("failed to prune jobs: %v", err)
 	}
-	if err != nil {
+	if files, err := os.ReadDir(r.workingDir); err != nil {
+		klog.Warningf("failed to list update payload directory: %v", err)
+	} else {
+		for _, file := range files {
+			if err := os.RemoveAll(filepath.Join(r.workingDir, file.Name())); err != nil {
+				klog.Warningf("failed to prune update payload directory: %v", err)
+			}
+		}
+	}
+
+	if err := payload.ValidateDirectory(tdir); os.IsNotExist(err) {
+		// the dirs don't exist, try fetching the payload to tdir.
+		if err := r.fetchUpdatePayloadToDir(ctx, tdir, update); err != nil {
+			return "", err
+		}
+	} else if err != nil {
 		return "", err
 	}
 
@@ -217,14 +231,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		},
 	}
 
-	// Prune older jobs while gracefully handling errors.
-	err := r.pruneJobs(ctx, 2)
-	if err != nil {
-		klog.Warningf("failed to prune jobs: %v", err)
-	}
-
-	_, err = r.kubeClient.BatchV1().Jobs(job.Namespace).Create(ctx, job, metav1.CreateOptions{})
-	if err != nil {
+	if _, err := r.kubeClient.BatchV1().Jobs(job.Namespace).Create(ctx, job, metav1.CreateOptions{}); err != nil {
 		return err
 	}
 	return resourcebuilder.WaitForJobCompletion(ctx, r.kubeClient.BatchV1(), job)
@@ -247,12 +254,6 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 		switch {
 		// Ignore jobs not beginning with operatorName
 		case !strings.HasPrefix(job.Name, r.operatorName+"-"):
-			break
-		// Ignore jobs that have not yet started
-		case job.Status.StartTime == nil:
-			break
-		// Ignore jobs that are still active
-		case job.Status.Active == 1:
 			break
 		default:
 			deleteJobs = append(deleteJobs, job)
