@@ -693,7 +693,7 @@ func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
-	sameCapabilities := a.Capabilities.Equal(&b.Capabilities)
+	capabilitiesError := a.Capabilities.Equal(&b.Capabilities)
 
 	var msgs []string
 	if !sameVersion {
@@ -702,13 +702,13 @@ func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides
 	if !sameOverrides {
 		msgs = append(msgs, fmt.Sprintf("overrides changed (%v to %v)", a.Overrides, b.Overrides))
 	}
-	if !sameCapabilities {
-		msgs = append(msgs, fmt.Sprintf("capabilities changed (%v to %v)", a.Capabilities, b.Capabilities))
+	if capabilitiesError != nil {
+		msgs = append(msgs, fmt.Sprintf("capabilities changed (%v)", capabilitiesError))
 	}
 	if len(msgs) > 0 {
 		klog.V(2).Infof("Detected while %s: %s", context, strings.Join(msgs, ", "))
 	}
-	return sameVersion, sameOverrides, sameCapabilities
+	return sameVersion, sameOverrides, capabilitiesError == nil
 }
 
 // updateStatus records the current status of the sync action for observation

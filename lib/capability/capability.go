@@ -1,6 +1,7 @@
 package capability
 
 import (
+	"fmt"
 	"reflect"
 	"sort"
 
@@ -19,8 +20,12 @@ type ClusterCapabilities struct {
 	ImplicitlyEnabledCapabilities []configv1.ClusterVersionCapability
 }
 
-func (c *ClusterCapabilities) Equal(capabilities *ClusterCapabilities) bool {
-	return reflect.DeepEqual(c.EnabledCapabilities, capabilities.EnabledCapabilities)
+func (c *ClusterCapabilities) Equal(capabilities *ClusterCapabilities) error {
+	if !reflect.DeepEqual(c.EnabledCapabilities, capabilities.EnabledCapabilities) {
+		return fmt.Errorf("enabled %v not equal to %v", c.EnabledCapabilities, capabilities.EnabledCapabilities)
+	}
+
+	return nil
 }
 
 type capabilitiesSort []configv1.ClusterVersionCapability
