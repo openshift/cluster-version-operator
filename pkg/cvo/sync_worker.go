@@ -404,11 +404,13 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	versionEqual, overridesEqual, capabilitiesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
 
+	// needs to be set here since changes in implicitly enabled capabilities are not considered a "capabilities change"
+	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = work.Capabilities.ImplicitlyEnabledCapabilities
+
 	if versionEqual && overridesEqual && capabilitiesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
 		return w.status.DeepCopy()
 	}
-	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = work.Capabilities.ImplicitlyEnabledCapabilities
 
 	// initialize the reconciliation flag and the status the first time
 	// update is invoked
