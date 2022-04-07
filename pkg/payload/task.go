@@ -178,7 +178,17 @@ func (e *UpdateError) Error() string {
 	return e.Message
 }
 
+// Cause supports github.com/pkg/errors.Cause [1].
+//
+// [1]: https://pkg.go.dev/github.com/pkg/errors#readme-retrieving-the-cause-of-an-error
 func (e *UpdateError) Cause() error {
+	return e.Nested
+}
+
+// Unwrap supports errors.Unwrap [1].
+//
+// [1]: https://pkg.go.dev/errors#Unwrap
+func (e *UpdateError) Unwrap() error {
 	return e.Nested
 }
 
