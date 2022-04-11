@@ -48,6 +48,21 @@ func SetCapabilities(config *configv1.ClusterVersion,
 	return capabilities
 }
 
+// SetFromImplicitlyEnabledCapabilities, given implicitly enabled capabilities and cluster capabilities, updates
+// the latter with the given implicitly enabled capabilities and ensures each is in the enabled map. The updated
+// cluster capabilities are returned.
+func SetFromImplicitlyEnabledCapabilities(implicitlyEnabled []configv1.ClusterVersionCapability,
+	capabilities ClusterCapabilities) ClusterCapabilities {
+
+	capabilities.ImplicitlyEnabledCapabilities = implicitlyEnabled
+	for _, c := range implicitlyEnabled {
+		if _, ok := capabilities.EnabledCapabilities[c]; !ok {
+			capabilities.EnabledCapabilities[c] = struct{}{}
+		}
+	}
+	return capabilities
+}
+
 // GetKnownCapabilities returns all known capabilities as defined in ClusterVersion.
 func GetKnownCapabilities() []configv1.ClusterVersionCapability {
 	var known []configv1.ClusterVersionCapability
@@ -70,6 +85,39 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	}
 	sort.Sort(capabilitiesSort(status.KnownCapabilities))
 	return status
+}
+
+// GetImplicitlyEnabledCapabilities, given an enabled resource's current capabilities, compares them against
+// the resource's capabilities from an update release. Any of the updated resource's capabilities that do not
+// exist in the current resource, are not enabled, and do not already exist in the implicitly enabled list of
+// capabilities are returned. The returned list are capabilities which must be implicitly enabled.
+func GetImplicitlyEnabledCapabilities(enabledManifestCaps []configv1.ClusterVersionCapability,
+	updatedManifestCaps []configv1.ClusterVersionCapability,
+	capabilities ClusterCapabilities) []configv1.ClusterVersionCapability {
+
+	var caps []configv1.ClusterVersionCapability
+	for _, c := range updatedManifestCaps {
+		if Contains(enabledManifestCaps, c) {
+			continue
+		}
+		if _, ok := capabilities.EnabledCapabilities[c]; !ok {
+			if !Contains(capabilities.ImplicitlyEnabledCapabilities, c) {
+				caps = append(caps, c)
+			}
+		}
+	}
+	return caps
+}
+
+func Contains(caps []configv1.ClusterVersionCapability, capability configv1.ClusterVersionCapability) bool {
+	found := false
+	for _, c := range caps {
+		if capability == c {
+			found = true
+			break
+		}
+	}
+	return found
 }
 
 // setKnownCapabilities populates a map keyed by capability from all known capabilities as defined in ClusterVersion.

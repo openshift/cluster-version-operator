@@ -23,6 +23,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/library-go/pkg/manifest"
 )
@@ -140,11 +141,15 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 		return nil, err
 	}
 
-	// We only pass known capabilities at payload load time to avoid doing any capability
-	// enable filtering which only occurs during apply.
-	onlyKnownCaps := configv1.ClusterVersionCapabilitiesStatus{
-		EnabledCapabilities: knownCapabilities,
-		KnownCapabilities:   knownCapabilities}
+	var onlyKnownCaps *configv1.ClusterVersionCapabilitiesStatus
+
+	if knownCapabilities != nil {
+		// We only pass known capabilities at payload load time to avoid doing any capability
+		// enable filtering which only occurs during apply.
+		onlyKnownCaps = &configv1.ClusterVersionCapabilitiesStatus{
+			EnabledCapabilities: knownCapabilities,
+			KnownCapabilities:   knownCapabilities}
+	}
 
 	var manifests []manifest.Manifest
 	var errs []error
@@ -195,7 +200,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if err := manifest.Include(&excludeIdentifier, &includeTechPreview, &profile, &onlyKnownCaps); err != nil {
+				if err := manifest.Include(&excludeIdentifier, &includeTechPreview, &profile, onlyKnownCaps); err != nil {
 					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}
@@ -221,6 +226,40 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 	payload.ManifestHash = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	payload.Manifests = manifests
 	return payload, nil
+}
+
+// GetImplicitlyEnabledCapabilities iterates through each manifest in the updated payload. If the manifest is enabled in
+// the current payload the updated manifest's capabilities are checked to see if any must be implicitly enabled.
+// All capabilities requiring implicit enablement are returned.
+func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest, currentPayloadManifests []manifest.Manifest,
+	capabilities capability.ClusterCapabilities) []configv1.ClusterVersionCapability {
+
+	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
+
+	// Initialize so it contains existng implicitly enabled capabilities
+	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
+
+	for _, updateManifest := range updatePayloadManifests {
+		for _, currentManifest := range currentPayloadManifests {
+			if !updateManifest.SameResourceID(currentManifest) {
+				continue
+			}
+			if err := currentManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
+				continue
+			}
+			if err := updateManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
+				caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
+					updateManifest.GetManifestCapabilities(), capabilities)
+
+				for _, c := range caps {
+					if !capability.Contains(implicitlyEnabledCaps, c) {
+						implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
+					}
+				}
+			}
+		}
+	}
+	return implicitlyEnabledCaps
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
