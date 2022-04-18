@@ -439,11 +439,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		oldDesired = &w.work.Desired
 	}
 
-	w.work = work
-
-	if !versionEqual && oldDesired == nil {
-		klog.Infof("Propagating initial target version %v to sync worker loop in state %s.", desired, state)
-	} else if !versionEqual && state == payload.InitializingPayload {
+	// since oldDesired is not nil this is not the first time update is invoked and therefore w.work is not nil
+	if !versionEqual && oldDesired != nil && state == payload.InitializingPayload {
 		klog.Warningf("Ignoring detected version change from %v to %v during payload initialization", *oldDesired, work.Desired)
 		w.work.Desired = *oldDesired
 		if overridesEqual && capabilitiesEqual {
@@ -455,8 +452,19 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	implicit, err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
 	w.lock.Lock()
 	if err != nil {
+		// save latest capability settings if not first time through
+		if w.work != nil {
+			w.work.Capabilities = work.Capabilities
+		}
 		return w.status.DeepCopy()
 	}
+
+	if !versionEqual && oldDesired == nil {
+		klog.Infof("Propagating initial target version %v to sync worker loop in state %s.", desired, state)
+	}
+
+	// update work to include desired version now that it has been successfully loaded
+	w.work = work
 
 	// Update capabilities settings and status to include any capabilities that were implicitly enabled due
 	// to previously managed resources.

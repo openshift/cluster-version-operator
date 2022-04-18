@@ -2022,7 +2022,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		t.Fatal(err)
 	}
 	actions = client.Actions()
-	if len(actions) != 1 {
+	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[0], "clusterversions", "", "version")
@@ -2170,7 +2170,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
-			ResourceVersion: "3",
+			ResourceVersion: "4",
 			Generation:      1,
 		},
 		Spec: configv1.ClusterVersionSpec{
