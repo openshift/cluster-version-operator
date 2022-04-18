@@ -141,15 +141,6 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	if err := r.pruneJobs(ctx, 0); err != nil {
 		klog.Warningf("failed to prune jobs: %v", err)
 	}
-	if files, err := os.ReadDir(r.workingDir); err != nil {
-		klog.Warningf("failed to list update payload directory: %v", err)
-	} else {
-		for _, file := range files {
-			if err := os.RemoveAll(filepath.Join(r.workingDir, file.Name())); err != nil {
-				klog.Warningf("failed to prune update payload directory: %v", err)
-			}
-		}
-	}
 
 	if err := payload.ValidateDirectory(tdir); os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
@@ -290,20 +281,24 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 
 // copyPayloadCmd returns a shell command that copies CVO and release manifests from the default location
 // to the target dir.
-// It is made up of 2 commands:
-// `mkdir -p <target dir> && mv <default cvo manifest dir> <target cvo manifests dir>`
-// `mkdir -p <target dir> && mv <default release manifest dir> <target release manifests dir>`
 func copyPayloadCmd(tdir string) string {
-	var (
-		fromCVOPath = filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir)
-		toCVOPath   = filepath.Join(tdir, payload.CVOManifestDir)
-		cvoCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromCVOPath, toCVOPath)
+	baseDir, targetName := filepath.Split(tdir)
+	tmpDir := filepath.Join(baseDir, fmt.Sprintf("%s-%s", targetName, randutil.String(5)))
 
-		fromReleasePath = filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir)
-		toReleasePath   = filepath.Join(tdir, payload.ReleaseManifestDir)
-		releaseCmd      = fmt.Sprintf("mkdir -p %s && mv %s %s", tdir, fromReleasePath, toReleasePath)
-	)
-	return fmt.Sprintf("%s && %s", cvoCmd, releaseCmd)
+	cleanupCmd := fmt.Sprintf("rm -fR %s", filepath.Join(baseDir, "*"))
+
+	tmpDirCmd := fmt.Sprintf("mkdir %s", tmpDir)
+
+	fromCVOPath := filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir)
+	toCVOPath := filepath.Join(tmpDir, payload.CVOManifestDir)
+	cvoCmd := fmt.Sprintf("mv %s %s", fromCVOPath, toCVOPath)
+
+	fromReleasePath := filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir)
+	toReleasePath := filepath.Join(tmpDir, payload.ReleaseManifestDir)
+	releaseCmd := fmt.Sprintf("mv %s %s", fromReleasePath, toReleasePath)
+
+	moveInPlaceCmd := fmt.Sprintf("mv %s %s", tmpDir, tdir)
+	return strings.Join([]string{cleanupCmd, tmpDirCmd, cvoCmd, releaseCmd, moveInPlaceCmd}, " && ")
 }
 
 // findUpdateFromConfig identifies a desired update from user input or returns false. It will
