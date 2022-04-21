@@ -161,15 +161,35 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir string, update configv1.Update) error {
 	var (
 		version         = update.Version
-		payload         = update.Image
+		image           = update.Image
 		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
 		namespace       = r.namespace
 		deadline        = pointer.Int64Ptr(2 * 60)
 		nodeSelectorKey = "node-role.kubernetes.io/master"
 		nodename        = r.nodeName
-		cmd             = []string{"/bin/sh"}
-		args            = []string{"-c", copyPayloadCmd(dir)}
 	)
+
+	baseDir, targetName := filepath.Split(dir)
+	tmpDir := filepath.Join(baseDir, fmt.Sprintf("%s-%s", targetName, randutil.String(5)))
+
+	setContainerDefaults := func(container corev1.Container) corev1.Container {
+		container.Image = image
+		container.VolumeMounts = []corev1.VolumeMount{{
+			MountPath: targetUpdatePayloadsDir,
+			Name:      "payloads",
+		}}
+		container.SecurityContext = &corev1.SecurityContext{
+			Privileged: pointer.BoolPtr(true),
+		}
+		container.Resources = corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceCPU:              resource.MustParse("10m"),
+				corev1.ResourceMemory:           resource.MustParse("50Mi"),
+				corev1.ResourceEphemeralStorage: resource.MustParse("2Mi"),
+			},
+		}
+		return container
+	}
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -180,26 +200,38 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			ActiveDeadlineSeconds: deadline,
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:    "payload",
-						Image:   payload,
-						Command: cmd,
-						Args:    args,
-						VolumeMounts: []corev1.VolumeMount{{
-							MountPath: targetUpdatePayloadsDir,
-							Name:      "payloads",
-						}},
-						SecurityContext: &corev1.SecurityContext{
-							Privileged: pointer.BoolPtr(true),
-						},
-						Resources: corev1.ResourceRequirements{
-							Requests: corev1.ResourceList{
-								corev1.ResourceCPU:              resource.MustParse("10m"),
-								corev1.ResourceMemory:           resource.MustParse("50Mi"),
-								corev1.ResourceEphemeralStorage: resource.MustParse("2Mi"),
+					InitContainers: []corev1.Container{
+						setContainerDefaults(corev1.Container{
+							Name:    "cleanup",
+							Command: []string{"rm", "-fR", filepath.Join(baseDir, "*")},
+						}),
+						setContainerDefaults(corev1.Container{
+							Name:    "make-temporary-directory",
+							Command: []string{"mkdir", tmpDir},
+						}),
+						setContainerDefaults(corev1.Container{
+							Name: "move-operator-manifests-to-temporary-directory",
+							Command: []string{
+								"mv",
+								filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir),
+								filepath.Join(tmpDir, payload.CVOManifestDir),
 							},
-						},
-					}},
+						}),
+						setContainerDefaults(corev1.Container{
+							Name: "move-release-manifests-to-temporary-directory",
+							Command: []string{
+								"mv",
+								filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir),
+								filepath.Join(tmpDir, payload.ReleaseManifestDir),
+							},
+						}),
+					},
+					Containers: []corev1.Container{
+						setContainerDefaults(corev1.Container{
+							Name:    "rename-to-final-location",
+							Command: []string{"mv", tmpDir, dir},
+						}),
+					},
 					Volumes: []corev1.Volume{{
 						Name: "payloads",
 						VolumeSource: corev1.VolumeSource{
@@ -277,28 +309,6 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 		return fmt.Errorf("error deleting jobs: %v", agg.Error())
 	}
 	return nil
-}
-
-// copyPayloadCmd returns a shell command that copies CVO and release manifests from the default location
-// to the target dir.
-func copyPayloadCmd(tdir string) string {
-	baseDir, targetName := filepath.Split(tdir)
-	tmpDir := filepath.Join(baseDir, fmt.Sprintf("%s-%s", targetName, randutil.String(5)))
-
-	cleanupCmd := fmt.Sprintf("rm -fR %s", filepath.Join(baseDir, "*"))
-
-	tmpDirCmd := fmt.Sprintf("mkdir %s", tmpDir)
-
-	fromCVOPath := filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir)
-	toCVOPath := filepath.Join(tmpDir, payload.CVOManifestDir)
-	cvoCmd := fmt.Sprintf("mv %s %s", fromCVOPath, toCVOPath)
-
-	fromReleasePath := filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir)
-	toReleasePath := filepath.Join(tmpDir, payload.ReleaseManifestDir)
-	releaseCmd := fmt.Sprintf("mv %s %s", fromReleasePath, toReleasePath)
-
-	moveInPlaceCmd := fmt.Sprintf("mv %s %s", tmpDir, tdir)
-	return strings.Join([]string{cleanupCmd, tmpDirCmd, cvoCmd, releaseCmd, moveInPlaceCmd}, " && ")
 }
 
 // findUpdateFromConfig identifies a desired update from user input or returns false. It will
