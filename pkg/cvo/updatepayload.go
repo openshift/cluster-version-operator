@@ -202,8 +202,9 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 				Spec: corev1.PodSpec{
 					InitContainers: []corev1.Container{
 						setContainerDefaults(corev1.Container{
-							Name:    "cleanup",
-							Command: []string{"rm", "-fR", filepath.Join(baseDir, "*")},
+							Name:       "cleanup",
+							Command:    []string{"sh", "-c", "rm -fR *"},
+							WorkingDir: baseDir,
 						}),
 						setContainerDefaults(corev1.Container{
 							Name:    "make-temporary-directory",
