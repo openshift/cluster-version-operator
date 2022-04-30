@@ -224,10 +224,17 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
+// syncPayload retrieves, loads, and verifies the specified payload, aka sync's the payload, whenever there is no current
+// payload or the current payload differs from the desired payload. Whenever a payload is sync'ed a check is made for
+// implicitly enabled capabilities. For the purposes of the check made here, implicitly enabled capabilities are
+// capabilities which are disabled in the desired payload but must remain enabled since the capability defines one or
+// more resources which are enabled in the current payload. All such capabilities are returned along with any previously
+// existing implicitly enabled capabilities. If no new implicitly enabled capabilities are found, just the previously
+// existing implicitly enabled capabilities are returned.
 func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 	reporter StatusReporter) ([]configv1.ClusterVersionCapability, error) {
 
-	var implicitlyEnabledCaps []configv1.ClusterVersionCapability
+	implicitlyEnabledCaps := work.Capabilities.ImplicitlyEnabledCapabilities
 
 	desired := configv1.Release{
 		Version: work.Desired.Version,
@@ -252,7 +259,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			})
 		}
 		// possibly complain here if Version, etc. diverges from the payload content
-		return nil, nil
+		return implicitlyEnabledCaps, nil
 	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
 		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 		msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
