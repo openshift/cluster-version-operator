@@ -306,9 +306,10 @@ if __name__ == '__main__':
     }
 
     health_checks = {
-        ('k8s.io/api/apps/v1', 'Deployment'): 'b.checkDeploymentHealth',
         ('k8s.io/api/apps/v1', 'DaemonSet'): 'b.checkDaemonSetHealth',
+        ('k8s.io/api/apps/v1', 'Deployment'): 'b.checkDeploymentHealth',
         ('k8s.io/api/batch/v1', 'Job'): 'b.checkJobHealth',
+        ('k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1', 'CustomResourceDefinition'): 'b.checkCustomResourceDefinitionHealth',
     }
 
     generate_lib_resources(directory='lib', types=types, clients=clients, modifiers=modifiers, health_checks=health_checks)

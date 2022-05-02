@@ -255,8 +255,10 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject, reconcilingMode); err != nil {
+			if actual, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
+			} else if actual != nil {
+				return b.checkCustomResourceDefinitionHealth(ctx, actual)
 			}
 		}
 	default:
