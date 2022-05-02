@@ -459,9 +459,11 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	implicit, err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
 	w.lock.Lock()
 	if err != nil {
-		// save latest capability settings if not first time through
+		// save override and capability changes if not first time through
 		if w.work != nil {
+			w.work.Overrides = config.Spec.Overrides
 			w.work.Capabilities = work.Capabilities
+			w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 		}
 		return w.status.DeepCopy()
 	}
