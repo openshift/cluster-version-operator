@@ -96,6 +96,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
     imports = {}
     for import_name in [
             'github.com/openshift/cluster-version-operator/lib/resourceapply',
+            'github.com/openshift/cluster-version-operator/lib/resourcedelete',
             'github.com/openshift/cluster-version-operator/lib/resourceread',
             'github.com/openshift/library-go/pkg/manifest',
             'k8s.io/client-go/rest',
@@ -176,6 +177,8 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         '',
         'func (b *builder) Do(ctx context.Context) error {',
         '\tobj := resourceread.ReadOrDie(b.raw)',
+        '\tupdatingMode := b.mode == UpdatingMode',
+        '\treconcilingMode := b.mode == ReconcilingMode',
         '',
         '\tswitch typedObject := obj.(type) {'
     ])
@@ -195,23 +198,42 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
                 '\t\tif b.modifier != nil {',
                 '\t\t\tb.modifier(typedObject)',
                 '\t\t}',
+                '\t\tif deleteReq, err := resourcedelete.Delete{}{}(ctx, b.{}, typedObject,'.format(type_name, version, client_prop_name),
+                '\t\t\tupdatingMode); err != nil {',
+                '\t\t\treturn err',
+                '\t\t} else if !deleteReq {',
             ])
+
             type_key = (package, type_name)
             modifier = modifiers.get(type_key)
             if modifier:
                 lines.extend([
-                    '\t\tif err := {}(ctx, typedObject); err != nil {{'.format(modifier),
-                    '\t\t\treturn err',
-                    '\t\t}',
+                    '\t\t\tif err := {}(ctx, typedObject); err != nil {{'.format(modifier),
+                    '\t\t\t\treturn err',
+                    '\t\t\t}',
                 ])
+
+            health_check = health_checks.get(type_key)
+            actual = '_'
+            if health_check:
+                actual = 'actual'
+
             lines.extend([
-                '\t\tif _, _, err := resourceapply.Apply{}{}(ctx, b.{}, typedObject); err != nil {{'.format(type_name, version, client_prop_name),
-                '\t\t\treturn err',
+                '\t\t\tif {}, _, err := resourceapply.Apply{}{}(ctx, b.{}, typedObject, reconcilingMode); err != nil {{'.format(actual, type_name, version, client_prop_name),
+                '\t\t\t\treturn err',
+            ])
+
+            if health_check:
+                lines.extend([
+                    '\t\t\t} else if actual != nil {',
+                    '\t\t\t\treturn {}(ctx, actual)'.format(health_check),
+                ])
+
+            lines.extend([
+                '\t\t\t}',
                 '\t\t}',
             ])
-            health_check = health_checks.get(type_key)
-            if health_check:
-                lines.append('\t\treturn {}(ctx, typedObject)'.format(health_check))
+
 
     lines.extend([
         '\tdefault:',

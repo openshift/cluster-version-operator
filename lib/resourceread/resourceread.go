@@ -13,7 +13,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 var (
@@ -24,9 +23,6 @@ var (
 
 func init() {
 	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
-	if err := apiregistrationv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := appsv1.AddToScheme(scheme); err != nil {
@@ -49,7 +45,6 @@ func init() {
 	}
 	decoder = codecs.UniversalDecoder(
 		apiextensionsv1.SchemeGroupVersion,
-		apiregistrationv1.SchemeGroupVersion,
 		appsv1.SchemeGroupVersion,
 		batchv1.SchemeGroupVersion,
 		corev1.SchemeGroupVersion,
