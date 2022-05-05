@@ -1737,6 +1737,24 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// wait until the new payload load fails
+	count = 0
+	for {
+		var status SyncWorkerStatus
+		select {
+		case status = <-worker.StatusCh():
+		case <-time.After(3 * time.Second):
+			t.Fatalf("never saw expected apply event")
+		}
+		if status.loadPayloadStatus.Step == "VerifyPayloadVersion" {
+			break
+		}
+		t.Log("Waiting to see step VerifyPayloadVersion")
+		count++
+		if count > 8 {
+			t.Fatalf("saw too many sync events of the wrong form")
+		}
+	}
 	actions := client.Actions()
 	if len(actions) != 2 {
 		t.Fatalf("%s", spew.Sdump(actions))
@@ -1777,6 +1795,164 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 				{Type: "Available", Status: "True", Message: "Done applying 1.0.1-abc"},
 				{Type: "Failing", Status: "False"},
 				{Type: "Progressing", Status: "True", Message: "Working towards 1.0.1-abc: 3 of 3 done (100% complete)"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	})
+}
+
+func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest-2")
+
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	//
+	o.release.Image = "image/image:0"
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+			Generation:      1,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID:     clusterUID,
+			Channel:       "fast",
+			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
+			Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+				BaselineCapabilitySet:         configv1.ClusterVersionCapabilitySetNone,
+				AdditionalEnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal},
+			},
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     desired,
+			VersionHash: "DL-FFQ2Uem8=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			// Emulates capabilities status set by a previous pod
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples, configv1.ClusterVersionCapabilityOpenShiftSamples},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+
+	go worker.Start(ctx, 1, o.name, o.cvLister)
+
+	// Step 1: The operator should report that it is blocked on unverified content
+	//
+	err := o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// wait until we see the new payload show up
+	count := 0
+	for {
+		var status SyncWorkerStatus
+		select {
+		case status = <-worker.StatusCh():
+		case <-time.After(3 * time.Second):
+			t.Fatalf("never saw expected retrieve payload event")
+		}
+		if reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
+			break
+		}
+		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
+		count++
+		if count > 8 {
+			t.Fatalf("saw too many sync events of the wrong form")
+		}
+	}
+	// wait until the new payload is applied
+	count = 0
+	for {
+		var status SyncWorkerStatus
+		select {
+		case status = <-worker.StatusCh():
+		case <-time.After(3 * time.Second):
+			t.Fatalf("never saw expected apply event")
+		}
+		if status.loadPayloadStatus.Step == "PayloadLoaded" {
+			break
+		}
+		t.Log("Waiting to see step PayloadLoaded")
+		count++
+		if count > 8 {
+			t.Fatalf("saw too many sync events of the wrong form")
+		}
+	}
+
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Actual:      configv1.Release{Version: "1.0.1-abc", Image: "image/image:1", URL: configv1.URL("https://example.com/v1.0.1-abc")},
+			Generation:  1,
+			Total:       3,
+			VersionHash: "DL-FFQ2Uem8=",
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				},
+				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+			},
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				LastTransitionTime: time.Unix(1, 0),
+				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			},
+		},
+	)
+	actions := client.Actions()
+	if len(actions) != 3 {
+		t.Fatalf("%s", spew.Sdump(actions))
+	}
+	expectGet(t, actions[1], "clusterversions", "", "version")
+	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+			Generation:      1,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID:     clusterUID,
+			Channel:       "fast",
+			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
+			Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+				BaselineCapabilitySet:         configv1.ClusterVersionCapabilitySetNone,
+				AdditionalEnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal},
+			},
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			ObservedGeneration: 1,
+			Desired:            desired,
+			VersionHash:        "DL-FFQ2Uem8=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: marketplace, openshift-samples"},
+				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+				{Type: "Available", Status: "False"},
+				{Type: "Failing", Status: "False"},
+				{Type: "Progressing", Status: "True", Message: "Working towards 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},
