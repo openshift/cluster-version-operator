@@ -405,10 +405,14 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 
 	var priorCaps map[configv1.ClusterVersionCapability]struct{}
 
-	// the sync worker’s generation should always be latest with every change
+	// The sync worker’s generation should always be latest with every change.
+	// If this is the first time through initialize priorCaps to the last known value of enabled capabilities.
 	if w.work != nil {
 		w.work.Generation = generation
 		priorCaps = w.work.Capabilities.EnabledCapabilities
+	} else {
+		klog.V(2).Info("Initializing prior known value of enabled capabilities from ClusterVersion status.")
+		priorCaps = capability.GetCapabilitiesAsMap(config.Status.Capabilities.EnabledCapabilities)
 	}
 
 	if work.Empty() {
@@ -434,13 +438,11 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	var oldDesired *configv1.Update
 	if w.work == nil {
 		work.State = state
-		w.status = SyncWorkerStatus{
-			Generation:  generation,
-			Reconciling: state.Reconciling(),
-			Actual: configv1.Release{
-				Version: work.Desired.Version,
-				Image:   work.Desired.Image,
-			},
+		w.status.Generation = generation
+		w.status.Reconciling = state.Reconciling()
+		w.status.Actual = configv1.Release{
+			Version: work.Desired.Version,
+			Image:   work.Desired.Image,
 		}
 	} else {
 		oldDesired = &w.work.Desired
@@ -933,7 +935,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				continue
 			}
 			if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
-				klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
+				klog.V(2).Infof("Skipping %s: %s", task, err)
 				continue
 			}
 			if err := task.Run(ctx, payloadUpdate.Release.Version, w.builder, work.State); err != nil {
