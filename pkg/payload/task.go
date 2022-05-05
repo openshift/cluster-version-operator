@@ -61,6 +61,18 @@ func COUpdateStartTimesGet(name string) time.Time {
 	return clusterOperatorUpdateStartTimes.m[name]
 }
 
+func getManifestResourceId(m manifest.Manifest) string {
+	name := m.Obj.GetName()
+	if len(name) == 0 {
+		name = m.OriginalFilename
+	}
+	ns := m.Obj.GetNamespace()
+	if len(ns) == 0 {
+		return fmt.Sprintf("%s %q", strings.ToLower(m.GVK.Kind), name)
+	}
+	return fmt.Sprintf("%s \"%s/%s\"", strings.ToLower(m.GVK.Kind), ns, name)
+}
+
 // ResourceBuilder abstracts how a manifest is created on the server. Introduced for testing.
 type ResourceBuilder interface {
 	Apply(context.Context, *manifest.Manifest, State) error
@@ -84,15 +96,8 @@ func (st *Task) Copy() *Task {
 }
 
 func (st *Task) String() string {
-	name := st.Manifest.Obj.GetName()
-	if len(name) == 0 {
-		name = st.Manifest.OriginalFilename
-	}
-	ns := st.Manifest.Obj.GetNamespace()
-	if len(ns) == 0 {
-		return fmt.Sprintf("%s %q (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), name, st.Index, st.Total)
-	}
-	return fmt.Sprintf("%s \"%s/%s\" (%d of %d)", strings.ToLower(st.Manifest.GVK.Kind), ns, name, st.Index, st.Total)
+	manId := getManifestResourceId(*st.Manifest)
+	return fmt.Sprintf("%s (%d of %d)", manId, st.Index, st.Total)
 }
 
 // Run attempts to create the provided object until it succeeds or context is cancelled. It returns the

@@ -48,6 +48,15 @@ func SetCapabilities(config *configv1.ClusterVersion,
 	return capabilities
 }
 
+// GetCapabilitiesAsMap returns the slice of capabilities as a map with default values.
+func GetCapabilitiesAsMap(capabilities []configv1.ClusterVersionCapability) map[configv1.ClusterVersionCapability]struct{} {
+	caps := make(map[configv1.ClusterVersionCapability]struct{}, len(capabilities))
+	for _, c := range capabilities {
+		caps[c] = struct{}{}
+	}
+	return caps
+}
+
 // SetFromImplicitlyEnabledCapabilities, given implicitly enabled capabilities and cluster capabilities, updates
 // the latter with the given implicitly enabled capabilities and ensures each is in the enabled map. The updated
 // cluster capabilities are returned.
@@ -143,17 +152,12 @@ func setEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitie
 	priorEnabled map[configv1.ClusterVersionCapability]struct{}) (map[configv1.ClusterVersionCapability]struct{},
 	[]configv1.ClusterVersionCapability) {
 
-	enabled := make(map[configv1.ClusterVersionCapability]struct{})
-
 	capSet := DefaultCapabilitySet
 
 	if capabilitiesSpec != nil && len(capabilitiesSpec.BaselineCapabilitySet) > 0 {
 		capSet = capabilitiesSpec.BaselineCapabilitySet
 	}
-
-	for _, v := range configv1.ClusterVersionCapabilitySets[capSet] {
-		enabled[v] = struct{}{}
-	}
+	enabled := GetCapabilitiesAsMap(configv1.ClusterVersionCapabilitySets[capSet])
 
 	if capabilitiesSpec != nil {
 		for _, v := range capabilitiesSpec.AdditionalEnabledCapabilities {

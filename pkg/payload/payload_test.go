@@ -155,7 +155,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "basic",
 			pathExt: "test1",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
 				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
@@ -187,7 +187,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "already implicitly enabled",
 			pathExt: "test5",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				KnownCapabilities:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
 				EnabledCapabilities:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{"cap2"},
 			},
@@ -200,7 +200,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "only add cap once",
 			pathExt: "test6",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
 				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
@@ -223,6 +223,9 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 					"cap7": {}, "cap8": {}, "cap9": {}, "cap10": {}, "cap11": {}, "cap12": {},
 					"cap13": {}, "cap14": {}, "cap15": {}, "cap16": {}, "cap17": {}, "cap18": {},
 					"cap19": {}, "cap20": {}, "cap21": {}, "cap22": {}, "cap23": {}, "cap24": {},
+					"cap111": {}, "cap112": {}, "cap113": {}, "cap114": {}, "cap115": {}, "cap116": {},
+					"cap117": {}, "cap118": {}, "cap119": {}, "cap1111": {}, "cap1113": {}, "cap1115": {},
+					"cap1110": {}, "cap1112": {}, "cap1114": {}, "cap1116": {},
 				},
 				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{
 					"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}, "cap6": {},
@@ -285,6 +288,18 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			},
 			wantImplicitLen: 1,
 		},
+		{
+			name:    "duplicate manifests",
+			pathExt: "test10",
+			capabilities: capability.ClusterCapabilities{
+				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+			},
+			wantImplicit: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapability("cap2"),
+			},
+			wantImplicitLen: 1,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -297,6 +312,10 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			updateMans, err := readManifestFiles(path)
 			if err != nil {
 				t.Fatal(err)
+			}
+			// readManifestFiles does not allow dup manifests so hacking in here.
+			if tt.pathExt == "test10" {
+				updateMans = append(updateMans, updateMans[0])
 			}
 			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities)
 			if len(caps) != tt.wantImplicitLen {

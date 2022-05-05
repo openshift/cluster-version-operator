@@ -240,23 +240,33 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
 
 	for _, updateManifest := range updatePayloadManifests {
+		updateManErr := updateManifest.Include(nil, nil, nil, &clusterCaps)
+
+		// update manifest is enabled, no need to check
+		if updateManErr == nil {
+			continue
+		}
 		for _, currentManifest := range currentPayloadManifests {
 			if !updateManifest.SameResourceID(currentManifest) {
 				continue
 			}
+
+			// current manifest is disabled, no need to check
 			if err := currentManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
 				continue
 			}
-			if err := updateManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
-				caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
-					updateManifest.GetManifestCapabilities(), capabilities)
+			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
+				updateManifest.GetManifestCapabilities(), capabilities)
 
-				for _, c := range caps {
-					if !capability.Contains(implicitlyEnabledCaps, c) {
-						implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
-					}
+			capStrings := make([]string, len(caps))
+			for i, c := range caps {
+				capStrings[i] = string(c)
+				if !capability.Contains(implicitlyEnabledCaps, c) {
+					implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
 				}
 			}
+			klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",
+				getManifestResourceId(updateManifest), strings.Join(capStrings, ", "))
 		}
 	}
 	return implicitlyEnabledCaps
