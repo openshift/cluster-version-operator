@@ -663,6 +663,11 @@ func (optr *Operator) getClusterVersion(ctx context.Context) (*configv1.ClusterV
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		olderThanLastUpdate := optr.isOlderThanLastUpdate(obj)
+		if obj != nil {
+			obj.Spec.Capabilities = &configv1.ClusterVersionCapabilitiesSpec{
+				BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetNone,
+			}
+		}
 		return obj, olderThanLastUpdate, nil
 	}
 	return nil, false, err

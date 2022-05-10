@@ -133,6 +133,18 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
+func manifestResourceId(m manifest.Manifest) string {
+	name := m.Obj.GetName()
+	if len(name) == 0 {
+		name = m.OriginalFilename
+	}
+	ns := m.Obj.GetNamespace()
+	if len(ns) == 0 {
+		return fmt.Sprintf("%s %q", strings.ToLower(m.GVK.Kind), name)
+	}
+	return fmt.Sprintf("%s \"%s/%s\"", strings.ToLower(m.GVK.Kind), ns, name)
+}
+
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string,
 	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
 
@@ -245,11 +257,17 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 				continue
 			}
 			if err := currentManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
-				continue
+				break
 			}
 			if err := updateManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
+				klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities which will be implicitly enabled: %v",
+					manifestResourceId(updateManifest), err)
 				caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
 					updateManifest.GetManifestCapabilities(), capabilities)
+
+				if len(caps) != 0 {
+					klog.V(2).Infof("!!!! caps: %v\ncCaps: %v\nuCaps: %v", caps, currentManifest.GetManifestCapabilities(), updateManifest.GetManifestCapabilities())
+				}
 
 				for _, c := range caps {
 					if !capability.Contains(implicitlyEnabledCaps, c) {
@@ -257,6 +275,7 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 					}
 				}
 			}
+			break
 		}
 	}
 	return implicitlyEnabledCaps
