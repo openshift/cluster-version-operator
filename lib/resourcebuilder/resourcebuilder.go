@@ -114,10 +114,11 @@ func (b *builder) Do(ctx context.Context) error {
 			if err := b.modifyDaemonSet(ctx, typedObject); err != nil {
 				return err
 			}
-			if _, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
+			if actual, _, err := resourceapply.ApplyDaemonSetv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
+			} else if actual != nil {
+				return b.checkDaemonSetHealth(ctx, actual)
 			}
-			return b.checkDaemonSetHealth(ctx, typedObject)
 		}
 	case *appsv1.Deployment:
 		if b.modifier != nil {
@@ -130,10 +131,11 @@ func (b *builder) Do(ctx context.Context) error {
 			if err := b.modifyDeployment(ctx, typedObject); err != nil {
 				return err
 			}
-			if _, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
+			if actual, _, err := resourceapply.ApplyDeploymentv1(ctx, b.appsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
+			} else if actual != nil {
+				return b.checkDeploymentHealth(ctx, actual)
 			}
-			return b.checkDeploymentHealth(ctx, typedObject)
 		}
 	case *batchv1.Job:
 		if b.modifier != nil {
@@ -143,10 +145,11 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject, reconcilingMode); err != nil {
+			if actual, _, err := resourceapply.ApplyJobv1(ctx, b.batchClientv1, typedObject, reconcilingMode); err != nil {
 				return err
+			} else if actual != nil {
+				return b.checkJobHealth(ctx, actual)
 			}
-			return b.checkJobHealth(ctx, typedObject)
 		}
 	case *corev1.ConfigMap:
 		if b.modifier != nil {
@@ -252,8 +255,10 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject, reconcilingMode); err != nil {
+			if actual, _, err := resourceapply.ApplyCustomResourceDefinitionv1(ctx, b.apiextensionsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
+			} else if actual != nil {
+				return b.checkCustomResourceDefinitionHealth(ctx, actual)
 			}
 		}
 	default:
