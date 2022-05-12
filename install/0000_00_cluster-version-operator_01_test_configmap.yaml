@@ -4,6 +4,7 @@ metadata:
   name: test-cm
   namespace: openshift-config-managed
   annotations:
+    capability.openshift.io/name: marketplace+baremetal+openshift-samples
     kubernetes.io/description: Test only ConfigMap in the openshift-config namespace.
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
