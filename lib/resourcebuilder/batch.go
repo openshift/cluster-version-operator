@@ -15,7 +15,12 @@ import (
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		if done, err := checkJobHealth(ctx, client, job); err != nil && done {
+		j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
+		if err != nil {
+			return false, fmt.Errorf("error getting Job %s: %v", job.Name, err)
+		}
+
+		if done, err := checkJobHealth(ctx, j); err != nil && done {
 			return false, err
 		} else if err != nil {
 			klog.Error(err)
@@ -33,29 +38,24 @@ func (b *builder) checkJobHealth(ctx context.Context, job *batchv1.Job) error {
 		return nil
 	}
 
-	_, err := checkJobHealth(ctx, b.batchClientv1, job)
+	_, err := checkJobHealth(ctx, job)
 	return err
 }
 
 // checkJobHealth returns an error if the job status is bad enough to block further manifest application.
-func checkJobHealth(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) (bool, error) {
-	j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
-	if err != nil {
-		return false, fmt.Errorf("error getting Job %s: %v", job.Name, err)
-	}
-
-	if j.Status.Succeeded > 0 {
+func checkJobHealth(ctx context.Context, job *batchv1.Job) (bool, error) {
+	if job.Status.Succeeded > 0 {
 		return true, nil
 	}
 
 	// Since we have filled in "activeDeadlineSeconds",
 	// the Job will 'Active == 0' if and only if it exceeds the deadline or if the update image could not be pulled.
 	// Failed jobs will be recreated in the next run.
-	if j.Status.Active == 0 {
+	if job.Status.Active == 0 {
 		klog.V(2).Infof("No active pods for job %s in namespace %s", job.Name, job.Namespace)
 		failed, reason, message := hasJobFailed(job)
 		// If there is more than one failed job pod then get the cause for failure
-		if j.Status.Failed > 0 {
+		if job.Status.Failed > 0 {
 			failureReason := "DeadlineExceeded"
 			failureMessage := "Job was active longer than specified deadline"
 			if failed {
