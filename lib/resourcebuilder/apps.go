@@ -82,32 +82,28 @@ func (b *builder) checkDeploymentHealth(ctx context.Context, deployment *appsv1.
 	}
 
 	iden := fmt.Sprintf("%s/%s", deployment.Namespace, deployment.Name)
-	d, err := b.appsClientv1.Deployments(deployment.Namespace).Get(ctx, deployment.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
 
-	if d.DeletionTimestamp != nil {
+	if deployment.DeletionTimestamp != nil {
 		return fmt.Errorf("deployment %s is being deleted", iden)
 	}
 
 	var availableCondition *appsv1.DeploymentCondition
 	var progressingCondition *appsv1.DeploymentCondition
 	var replicaFailureCondition *appsv1.DeploymentCondition
-	for idx, dc := range d.Status.Conditions {
+	for idx, dc := range deployment.Status.Conditions {
 		switch dc.Type {
 		case appsv1.DeploymentProgressing:
-			progressingCondition = &d.Status.Conditions[idx]
+			progressingCondition = &deployment.Status.Conditions[idx]
 		case appsv1.DeploymentAvailable:
-			availableCondition = &d.Status.Conditions[idx]
+			availableCondition = &deployment.Status.Conditions[idx]
 		case appsv1.DeploymentReplicaFailure:
-			replicaFailureCondition = &d.Status.Conditions[idx]
+			replicaFailureCondition = &deployment.Status.Conditions[idx]
 		}
 	}
 
 	if replicaFailureCondition != nil && replicaFailureCondition.Status == corev1.ConditionTrue {
 		return &payload.UpdateError{
-			Nested:  fmt.Errorf("deployment %s has some pods failing; unavailable replicas=%d", iden, d.Status.UnavailableReplicas),
+			Nested:  fmt.Errorf("deployment %s has some pods failing; unavailable replicas=%d", iden, deployment.Status.UnavailableReplicas),
 			Reason:  "WorkloadNotProgressing",
 			Message: fmt.Sprintf("deployment %s has a replica failure %s: %s", iden, replicaFailureCondition.Reason, replicaFailureCondition.Message),
 			Name:    iden,
@@ -116,7 +112,7 @@ func (b *builder) checkDeploymentHealth(ctx context.Context, deployment *appsv1.
 
 	if availableCondition != nil && availableCondition.Status == corev1.ConditionFalse && progressingCondition != nil && progressingCondition.Status == corev1.ConditionFalse {
 		return &payload.UpdateError{
-			Nested:  fmt.Errorf("deployment %s is not available and not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, d.Status.UpdatedReplicas, d.Status.Replicas, d.Status.AvailableReplicas, d.Status.Replicas),
+			Nested:  fmt.Errorf("deployment %s is not available and not progressing; updated replicas=%d of %d, available replicas=%d of %d", iden, deployment.Status.UpdatedReplicas, deployment.Status.Replicas, deployment.Status.AvailableReplicas, deployment.Status.Replicas),
 			Reason:  "WorkloadNotAvailable",
 			Message: fmt.Sprintf("deployment %s is not available %s (%s) or progressing %s (%s)", iden, availableCondition.Reason, availableCondition.Message, progressingCondition.Reason, progressingCondition.Message),
 			Name:    iden,
@@ -168,12 +164,8 @@ func (b *builder) checkDaemonSetHealth(ctx context.Context, daemonset *appsv1.Da
 	}
 
 	iden := fmt.Sprintf("%s/%s", daemonset.Namespace, daemonset.Name)
-	d, err := b.appsClientv1.DaemonSets(daemonset.Namespace).Get(ctx, daemonset.Name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
 
-	if d.DeletionTimestamp != nil {
+	if daemonset.DeletionTimestamp != nil {
 		return fmt.Errorf("daemonset %s is being deleted", iden)
 	}
 
