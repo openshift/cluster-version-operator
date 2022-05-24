@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"reflect"
@@ -14,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/errors"
+	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
@@ -282,6 +283,19 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
+		}
+		if info.VerificationError != nil {
+			msg := ""
+			for err := info.VerificationError; err != nil; err = errors.Unwrap(err) {
+				details := err.Error()
+				if !strings.Contains(msg, details) {
+					// library-go/pkg/verify wraps the details, but does not include them
+					// in the top-level error string.  If we have an error like that,
+					// include the details here.
+					msg = fmt.Sprintf("%s\n%s", msg, details)
+				}
+			}
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", msg)
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
@@ -1081,12 +1095,12 @@ func summarizeTaskGraphErrors(errs []error) error {
 	// we ignore context errors (canceled or timed out) since they don't
 	// provide good feedback to users and are an internal detail of the
 	// server
-	err := errors.FilterOut(errors.NewAggregate(errs), isContextError)
+	err := apierrors.FilterOut(apierrors.NewAggregate(errs), isContextError)
 	if err == nil {
 		klog.V(2).Infof("All errors were context errors: %v", errs)
 		return nil
 	}
-	agg, ok := err.(errors.Aggregate)
+	agg, ok := err.(apierrors.Aggregate)
 	if !ok {
 		errs = []error{err}
 	} else {
@@ -1181,7 +1195,7 @@ func newClusterOperatorsNotAvailable(errs []error) error {
 	sort.Strings(names)
 	name := strings.Join(names, ", ")
 	return &payload.UpdateError{
-		Nested:       errors.NewAggregate(errs),
+		Nested:       apierrors.NewAggregate(errs),
 		UpdateEffect: updateEffect,
 		Reason:       "ClusterOperatorsNotAvailable",
 		Message:      fmt.Sprintf("Some cluster operators are still updating: %s", name),
@@ -1228,7 +1242,7 @@ func newMultipleError(errs []error) error {
 		return errs[0]
 	}
 	return &payload.UpdateError{
-		Nested:  errors.NewAggregate(errs),
+		Nested:  apierrors.NewAggregate(errs),
 		Reason:  "MultipleErrors",
 		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
 	}

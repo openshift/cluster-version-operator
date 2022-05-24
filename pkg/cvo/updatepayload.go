@@ -113,7 +113,8 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		if !update.Force {
 			return PayloadInfo{}, vErr
 		}
-		klog.Warningf("An image was retrieved from %q that failed verification: %v", update.Image, vErr)
+		vErr.Message = fmt.Sprintf("Target release version=%q image=%q cannot be verified, but continuing anyway because the update was forced: %v", update.Version, update.Image, err)
+		klog.Warning(vErr)
 		info.VerificationError = vErr
 	} else {
 		info.Verified = true
