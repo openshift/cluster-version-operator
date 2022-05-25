@@ -377,6 +377,10 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	err := w.loadUpdatedPayload(ctx, work, cvoOptrName, lister)
 	w.lock.Lock()
 	if err != nil {
+		// save override changes if not first time through
+		if w.work != nil {
+			w.work.Overrides = overrides
+		}
 		return w.status.DeepCopy()
 	}
 
