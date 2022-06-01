@@ -204,7 +204,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 					InitContainers: []corev1.Container{
 						setContainerDefaults(corev1.Container{
 							Name:       "cleanup",
-							Command:    []string{"sh", "-c", "rm -fR *"},
+							Command:    []string{"sh", "-c", "rm -fR ./*"},
 							WorkingDir: baseDir,
 						}),
 						setContainerDefaults(corev1.Container{
