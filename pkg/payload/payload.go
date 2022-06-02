@@ -157,32 +157,38 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, 
 				continue
 			}
 
+			klog.Infof("!!!! %s", file.Name())
 			p := filepath.Join(task.idir, file.Name())
 			if task.skipFiles.Has(p) {
+				klog.Info("!!!! skip")
 				continue
 			}
 
 			raw, err := ioutil.ReadFile(p)
 			if err != nil {
 				errs = append(errs, err)
+				klog.Info("!!!! err")
 				continue
 			}
 			if task.preprocess != nil {
 				raw, err = task.preprocess(raw)
 				if err != nil {
 					errs = append(errs, fmt.Errorf("preprocess %s: %w", file.Name(), err))
+					klog.Info("!!!! preprocess")
 					continue
 				}
 			}
 			ms, err := manifest.ParseManifests(bytes.NewReader(raw))
 			if err != nil {
 				errs = append(errs, fmt.Errorf("parse %s: %w", file.Name(), err))
+				klog.Info("!!!! parse")
 				continue
 			}
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
 				if shouldExclude(excludeIdentifier, profile, &manifest) {
+					klog.Info("!!!! exclude")
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
@@ -216,11 +222,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier, profile string) (*Update, 
 func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifest) bool {
 	annotations := manifest.Obj.GetAnnotations()
 	if annotations == nil {
+		klog.Info("!!!! no anno")
 		return true
 	}
 
 	excludeAnnotation := fmt.Sprintf("exclude.release.openshift.io/%s", excludeIdentifier)
 	if annotations[excludeAnnotation] == "true" {
+		klog.Info("!!!! explicit")
 		return true
 	}
 
@@ -228,6 +236,7 @@ func shouldExclude(excludeIdentifier, profile string, manifest *manifest.Manifes
 	if val, ok := annotations[profileAnnotation]; ok && val == "true" {
 		return false
 	}
+	klog.Info("!!!! profile")
 	return true
 }
 
