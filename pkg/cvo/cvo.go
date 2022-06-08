@@ -668,15 +668,26 @@ func (optr *Operator) getClusterVersion(ctx context.Context) (*configv1.ClusterV
 	return nil, false, err
 }
 
-// versionString returns a string describing the desired version.
-func versionString(update configv1.Release) string {
-	if len(update.Version) > 0 {
-		return update.Version
+// versionString returns a string describing the version. The given version is used if set otherwise
+// the given image is used if set. If neither of these is set "<unknown>" is returned.
+func versionString(version string, image string) string {
+	if len(version) > 0 {
+		return version
 	}
-	if len(update.Image) > 0 {
-		return update.Image
+	if len(image) > 0 {
+		return image
 	}
 	return "<unknown>"
+}
+
+// versionStringFromUpdate returns a string describing the desired version from Update type.
+func versionStringFromUpdate(update configv1.Update) string {
+	return versionString(update.Version, update.Image)
+}
+
+// versionStringFromRelease returns a string describing the desired version from Release type.
+func versionStringFromRelease(release configv1.Release) string {
+	return versionString(release.Version, release.Image)
 }
 
 // currentVersion returns an update object describing the current
