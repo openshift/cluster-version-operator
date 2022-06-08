@@ -65,7 +65,7 @@ type PayloadRetriever interface {
 type StatusReporter interface {
 	Report(status SyncWorkerStatus)
 	ReportPayload(payLoadStatus LoadPayloadStatus)
-	ValidPayloadStatus(release configv1.Release) bool
+	ValidPayloadStatus(update configv1.Update) bool
 }
 
 // SyncWork represents the work that should be done in a sync iteration.
@@ -93,7 +93,7 @@ type LoadPayloadStatus struct {
 	Step               string
 	Message            string
 	Failure            error
-	Release            configv1.Release
+	Update             configv1.Update
 	Verified           bool
 	LastTransitionTime time.Time
 }
@@ -249,17 +249,18 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 
 	implicitlyEnabledCaps := work.Capabilities.ImplicitlyEnabledCapabilities
 
-	desired := configv1.Release{
+	desired := configv1.Update{
 		Version: work.Desired.Version,
 		Image:   work.Desired.Image,
+		Force:   work.Desired.Force,
 	}
-	klog.V(2).Infof("syncPayload: %s (force=%t)", versionString(desired), work.Desired.Force)
+	klog.V(2).Infof("syncPayload: %s (force=%t)", versionStringFromUpdate(desired), work.Desired.Force)
 
 	// cache the payload until the release image changes
 	validPayload := w.payload
 	if validPayload != nil && validPayload.Release.Image == desired.Image {
 
-		// clear payload status if it no longer applies to desired target
+		// reset payload status to currently loaded payload if it no longer applies to desired target
 		if !reporter.ValidPayloadStatus(desired) {
 			klog.V(2).Info("Resetting payload status to currently loaded payload.")
 			reporter.ReportPayload(LoadPayloadStatus{
@@ -267,7 +268,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "PayloadLoaded",
 				Message:            fmt.Sprintf("Payload loaded version=%q image=%q", desired.Version, desired.Image),
 				Verified:           w.status.Verified,
-				Release:            desired,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 		}
@@ -280,7 +281,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		reporter.ReportPayload(LoadPayloadStatus{
 			Step:               "RetrievePayload",
 			Message:            msg,
-			Release:            desired,
+			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
 		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
@@ -291,7 +292,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Failure:            err,
 				Step:               "RetrievePayload",
 				Message:            msg,
-				Release:            desired,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -324,7 +325,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "LoadPayload",
 				Message:            msg,
 				Verified:           info.Verified,
-				Release:            desired,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -345,7 +346,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "VerifyPayloadVersion",
 				Message:            msg,
 				Verified:           info.Verified,
-				Release:            desired,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -369,7 +370,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 						Step:               "PreconditionChecks",
 						Message:            msg,
 						Verified:           info.Verified,
-						Release:            desired,
+						Update:             desired,
 						LastTransitionTime: time.Now(),
 					})
 					return nil, err
@@ -391,7 +392,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			Step:               "PayloadLoaded",
 			Message:            msg,
 			Verified:           info.Verified,
-			Release:            desired,
+			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
 		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
@@ -459,6 +460,16 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 
 	if versionEqual && overridesEqual && capabilitiesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
+
+		if !equalUpdate(w.work.Desired, w.status.loadPayloadStatus.Update) {
+			w.lock.Unlock()
+			// this will only reset payload status to currently loaded payload
+			_, err := w.loadUpdatedPayload(ctx, w.work, cvoOptrName)
+			w.lock.Lock()
+			if err != nil {
+				klog.Warningf("Error when attempting to reset payload status to currently loaded payload: %v.", err)
+			}
+		}
 		return w.status.DeepCopy()
 	}
 
@@ -641,8 +652,8 @@ type statusWrapper struct {
 	previousStatus *SyncWorkerStatus
 }
 
-func (w *statusWrapper) ValidPayloadStatus(release configv1.Release) bool {
-	return equalDigest(w.previousStatus.loadPayloadStatus.Release.Image, release.Image)
+func (w *statusWrapper) ValidPayloadStatus(update configv1.Update) bool {
+	return equalDigest(w.previousStatus.loadPayloadStatus.Update.Image, update.Image)
 }
 
 // ReportPayload reports payload load status.
