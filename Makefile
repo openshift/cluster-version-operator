@@ -1,6 +1,6 @@
 BIN_DIR?=./bin
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
-GOLANGCI_LINT_VERSION=v1.43.0
+GOLANGCI_LINT_VERSION=v1.46.0
 
 all: build
 .PHONY: all
