@@ -86,6 +86,7 @@ func (s State) String() string {
 	default:
 		panic(fmt.Sprintf("unrecognized state %d", int(s)))
 	}
+	return ""
 }
 
 const (
