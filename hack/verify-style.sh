@@ -11,11 +11,6 @@ if [[ ! $(which go) ]]; then
   echo "https://golang.org/dl/"
   exit 1
 fi
-if [[ ! $(which golint) ]]; then
-  echo "golint not found on PATH. To install:"
-  echo "go get -u github.com/golang/lint/golint"
-  exit 1
-fi
 if [[ ! $(which yamllint) ]]; then
   echo "yamllint not found on PATH. To install:"
   echo "https://github.com/adrienverge/yamllint"
@@ -36,9 +31,6 @@ gofmt -s -d $GOFILES
 
 echo "Running go vet..."
 go vet $GOPKGS
-
-echo "Running golint..."
-golint -set_exit_status $GOPKGS
 
 echo "Running yamllint..."
 YAMLS=$(find . -path ./vendor -prune -o -name '*.yaml' | grep -v vendor)
