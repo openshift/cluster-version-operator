@@ -1,6 +1,4 @@
 BIN_DIR?=./bin
-GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
-GOLANGCI_LINT_VERSION=v1.43.0
 
 all: build
 .PHONY: all
@@ -26,13 +24,3 @@ verify-codegen-crds:
 verify-codegen: verify-codegen-crds
 verify: verify-codegen
 .PHONY: update-codegen-crds update-codegen verify-codegen-crds verify-codegen verify
-
-
-.PHONY: lint
-## Checks the code with golangci-lint
-lint: $(GOLANGCI_LINT_BIN)
-	$(GOLANGCI_LINT_BIN) run -c .golangci.yaml --deadline=30m
-
-$(GOLANGCI_LINT_BIN):
-	mkdir -p $(BIN_DIR)
-	hack/golangci-lint.sh $(GOLANGCI_LINT_BIN)
