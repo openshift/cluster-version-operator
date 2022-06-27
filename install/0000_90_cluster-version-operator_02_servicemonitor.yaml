@@ -60,6 +60,15 @@ spec:
         cluster_version_available_updates > 0
       labels:
         severity: info
+    - alert: MinorReleaseEnteredMaintenanceSupport
+      annotations:
+        summary: The current minor release 4.8 entered its maintenance support phase.
+        description: The current minor release 4.8 entered its maintenance support phase on January 27, 2022. Please change to the release channel 4.9 and update to a newer version before the end of the maintenance support phase. For more information on life cycle phases, refer to https://access.redhat.com/support/policy/updates/openshift/#ocp4_phases.
+      expr: |
+        vector(1)
+      labels:
+        severity: info
+        namespace: openshift-cluster-version        
   - name: cluster-operators
     rules:
     - alert: ClusterNotUpgradeable
