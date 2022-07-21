@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -28,14 +29,18 @@ func EnsureServiceAccount(modified *bool, existing *corev1.ServiceAccount, requi
 // ensurePodTemplateSpec ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, required corev1.PodTemplateSpec) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-
-	ensurePodSpec(modified, &existing.Spec, required.Spec)
+	ensurePodTemplateSpecDeployment(false, modified, existing, required)
 }
 
-func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.PodSpec) {
-	ensureContainers(modified, &existing.InitContainers, required.InitContainers, required.HostNetwork)
-	ensureContainers(modified, &existing.Containers, required.Containers, required.HostNetwork)
+func ensurePodTemplateSpecDeployment(forDeployment bool, modified *bool, existing *corev1.PodTemplateSpec, required corev1.PodTemplateSpec) {
+	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+
+	ensurePodSpec(forDeployment, modified, &existing.Spec, required.Spec)
+}
+
+func ensurePodSpec(forDeployment bool, modified *bool, existing *corev1.PodSpec, required corev1.PodSpec) {
+	ensureContainers(forDeployment, modified, &existing.InitContainers, required.InitContainers, required.HostNetwork)
+	ensureContainers(forDeployment, modified, &existing.Containers, required.Containers, required.HostNetwork)
 	ensureVolumes(modified, &existing.Volumes, required.Volumes)
 
 	if len(required.RestartPolicy) > 0 {
@@ -48,24 +53,25 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	setStringIfSet(modified, &existing.ServiceAccountName, required.ServiceAccountName)
 	setBool(modified, &existing.HostNetwork, required.HostNetwork)
 	mergeMap(modified, &existing.NodeSelector, required.NodeSelector)
-	ensurePodSecurityContextPtr(modified, &existing.SecurityContext, required.SecurityContext)
-	ensureAffinityPtr(modified, &existing.Affinity, required.Affinity)
+	//ensurePodSecurityContextPtr(forDeployment, modified, &existing.SecurityContext, required.SecurityContext)
+	ensurePodSecurityContextPtr(true, modified, &existing.SecurityContext, required.SecurityContext)
+	ensureAffinityPtr(forDeployment, modified, &existing.Affinity, required.Affinity)
 	ensureTolerations(modified, &existing.Tolerations, required.Tolerations)
 	setStringIfSet(modified, &existing.PriorityClassName, required.PriorityClassName)
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
-	setBoolPtr(modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
+	setBoolPtrDeployment(forDeployment, modified, &existing.ShareProcessNamespace, required.ShareProcessNamespace)
 	ensureDNSPolicy(modified, &existing.DNSPolicy, required.DNSPolicy)
 	ensureTerminationGracePeriod(modified, &existing.TerminationGracePeriodSeconds, required.TerminationGracePeriodSeconds)
 }
 
-func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container, hostNetwork bool) {
+func ensureContainers(forDeployment bool, modified *bool, existing *[]corev1.Container, required []corev1.Container, hostNetwork bool) {
 	for i := len(*existing) - 1; i >= 0; i-- {
 		existingContainer := &(*existing)[i]
 		var existingCurr *corev1.Container
 		for _, requiredContainer := range required {
 			if existingContainer.Name == requiredContainer.Name {
 				existingCurr = &(*existing)[i]
-				ensureContainer(modified, existingCurr, requiredContainer, hostNetwork)
+				ensureContainer(forDeployment, modified, existingCurr, requiredContainer, hostNetwork)
 				break
 			}
 		}
@@ -90,7 +96,7 @@ func ensureContainers(modified *bool, existing *[]corev1.Container, required []c
 	}
 }
 
-func ensureContainer(modified *bool, existing *corev1.Container, required corev1.Container, hostNetwork bool) {
+func ensureContainer(forDeployment bool, modified *bool, existing *corev1.Container, required corev1.Container, hostNetwork bool) {
 	setStringIfSet(modified, &existing.Name, required.Name)
 	setStringIfSet(modified, &existing.Image, required.Image)
 
@@ -107,7 +113,11 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 	ensureProbePtr(modified, &existing.ReadinessProbe, required.ReadinessProbe)
 
 	// our security context should always win
-	ensureSecurityContextPtr(modified, &existing.SecurityContext, required.SecurityContext)
+	//if forDeployment {
+	ensureDeploymentSecurityContextPtr(modified, &existing.SecurityContext, required.SecurityContext)
+	//} else {
+	//ensureSecurityContextPtrForPod(modified, &existing.SecurityContext, required.SecurityContext)
+	//}
 }
 
 func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.EnvVar) {
@@ -465,7 +475,7 @@ func ensureVolumeSourceDefaults(required *corev1.VolumeSource) {
 	}
 }
 
-func ensureSecurityContextPtr(modified *bool, existing **corev1.SecurityContext, required *corev1.SecurityContext) {
+func ensureSecurityContextPtrForPod(modified *bool, existing **corev1.SecurityContext, required *corev1.SecurityContext) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
@@ -476,26 +486,62 @@ func ensureSecurityContextPtr(modified *bool, existing **corev1.SecurityContext,
 		*existing = required
 		return
 	}
-	ensureSecurityContext(modified, *existing, *required)
+	ensureSecurityContext(false, modified, *existing, *required)
 }
 
-func ensureSecurityContext(modified *bool, existing *corev1.SecurityContext, required corev1.SecurityContext) {
-	ensureCapabilitiesPtr(modified, &existing.Capabilities, required.Capabilities)
-	ensureSELinuxOptionsPtr(modified, &existing.SELinuxOptions, required.SELinuxOptions)
-	setBoolPtr(modified, &existing.Privileged, required.Privileged)
-	setInt64Ptr(modified, &existing.RunAsUser, required.RunAsUser)
-	setBoolPtr(modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
-	setBoolPtr(modified, &existing.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
-	setBoolPtr(modified, &existing.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+func ensureDeploymentSecurityContextPtr(modified *bool, existing **corev1.SecurityContext, required *corev1.SecurityContext) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing != nil {
+		klog.V(2).Infof("!!!! SecurityContext:\n%#v", *existing)
+	}
+	if *existing == nil || (required == nil && *existing != nil && !equality.Semantic.DeepEqual(**existing, corev1.SecurityContext{})) {
+		klog.V(2).Info("!!!! SecurityContext: *existing = required")
+		*modified = true
+		*existing = required
+		return
+	}
+	ensureSecurityContext(true, modified, *existing, *required)
 }
 
-func ensureCapabilitiesPtr(modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
+func ensureSecurityContext(forDeployment bool, modified *bool, existing *corev1.SecurityContext, required corev1.SecurityContext) {
+	ensureCapabilitiesPtr(forDeployment, modified, &existing.Capabilities, required.Capabilities)
+	ensureSELinuxOptionsPtr(forDeployment, modified, &existing.SELinuxOptions, required.SELinuxOptions)
+	setBoolPtrDeployment(forDeployment, modified, &existing.Privileged, required.Privileged)
+	setInt64PtrDeployment(forDeployment, modified, &existing.RunAsUser, required.RunAsUser)
+	setBoolPtrDeployment(forDeployment, modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
+	setBoolPtrDeployment(forDeployment, modified, &existing.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
+	setBoolPtrDeployment(forDeployment, modified, &existing.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+}
+
+func ensureCapabilitiesPtr(forDeployment bool, modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
+	if forDeployment {
+		ensureDeploymentCapabilitiesPtr(modified, existing, required)
+	} else {
+		ensurePodCapabilitiesPtr(modified, existing, required)
+	}
+}
+
+func ensurePodCapabilitiesPtr(modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
 	}
 
 	if *existing == nil {
+		*modified = true
+		*existing = required
+		return
+	}
+	ensureCapabilities(modified, *existing, *required)
+}
+
+func ensureDeploymentCapabilitiesPtr(modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -589,13 +635,33 @@ func ensureTolerations(modified *bool, existing *[]corev1.Toleration, required [
 	}
 }
 
-func ensureAffinityPtr(modified *bool, existing **corev1.Affinity, required *corev1.Affinity) {
+func ensureAffinityPtr(forDeployment bool, modified *bool, existing **corev1.Affinity, required *corev1.Affinity) {
+	if forDeployment {
+		ensureDeploymentAffinityPtr(modified, existing, required)
+	} else {
+		ensurePodAffinityPtr(modified, existing, required)
+	}
+}
+
+func ensurePodAffinityPtr(modified *bool, existing **corev1.Affinity, required *corev1.Affinity) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
 	}
 
 	if *existing == nil {
+		*modified = true
+		*existing = required
+		return
+	}
+	ensureAffinity(modified, *existing, *required)
+}
+
+func ensureDeploymentAffinityPtr(modified *bool, existing **corev1.Affinity, required *corev1.Affinity) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -618,7 +684,15 @@ func ensureAffinity(modified *bool, existing *corev1.Affinity, required corev1.A
 	}
 }
 
-func ensurePodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
+func ensurePodSecurityContextPtr(forDeployment bool, modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
+	if forDeployment {
+		ensureDeploymentPodSecurityContextPtr(modified, existing, required)
+	} else {
+		ensurePodPodSecurityContextPtr(modified, existing, required)
+	}
+}
+
+func ensurePodPodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
@@ -629,14 +703,31 @@ func ensurePodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityCo
 		*existing = required
 		return
 	}
-	ensurePodSecurityContext(modified, *existing, *required)
+	ensurePodSecurityContext(modified, false, *existing, *required)
 }
 
-func ensurePodSecurityContext(modified *bool, existing *corev1.PodSecurityContext, required corev1.PodSecurityContext) {
-	ensureSELinuxOptionsPtr(modified, &existing.SELinuxOptions, required.SELinuxOptions)
-	setInt64Ptr(modified, &existing.RunAsUser, required.RunAsUser)
-	setInt64Ptr(modified, &existing.RunAsGroup, required.RunAsGroup)
-	setBoolPtr(modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
+func ensureDeploymentPodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing != nil {
+		klog.V(2).Infof("!!!! PodSecurityContext:\n%#v", *existing)
+	}
+
+	if *existing == nil || (required == nil && *existing != nil && !equality.Semantic.DeepEqual(**existing, corev1.PodSecurityContext{})) {
+		klog.V(2).Info("!!!! PodSecurityContext: *existing = required")
+		*modified = true
+		*existing = required
+		return
+	}
+	ensurePodSecurityContext(modified, true, *existing, *required)
+}
+
+func ensurePodSecurityContext(modified *bool, forDeployment bool, existing *corev1.PodSecurityContext, required corev1.PodSecurityContext) {
+	ensureSELinuxOptionsPtr(forDeployment, modified, &existing.SELinuxOptions, required.SELinuxOptions)
+	setInt64PtrDeployment(forDeployment, modified, &existing.RunAsUser, required.RunAsUser)
+	setInt64PtrDeployment(forDeployment, modified, &existing.RunAsGroup, required.RunAsGroup)
+	setBoolPtrDeployment(forDeployment, modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
 
 	// any SupplementalGroups we specify, we require.
 	for _, required := range required.SupplementalGroups {
@@ -653,7 +744,7 @@ func ensurePodSecurityContext(modified *bool, existing *corev1.PodSecurityContex
 		}
 	}
 
-	setInt64Ptr(modified, &existing.FSGroup, required.FSGroup)
+	setInt64PtrDeployment(forDeployment, modified, &existing.FSGroup, required.FSGroup)
 
 	// any SupplementalGroups we specify, we require.
 	for _, required := range required.Sysctls {
@@ -675,13 +766,33 @@ func ensurePodSecurityContext(modified *bool, existing *corev1.PodSecurityContex
 	}
 }
 
-func ensureSELinuxOptionsPtr(modified *bool, existing **corev1.SELinuxOptions, required *corev1.SELinuxOptions) {
+func ensureSELinuxOptionsPtr(forDeployment bool, modified *bool, existing **corev1.SELinuxOptions, required *corev1.SELinuxOptions) {
+	if forDeployment {
+		ensureDeploymentSELinuxOptionsPtr(modified, existing, required)
+	} else {
+		ensurePodSELinuxOptionsPtr(modified, existing, required)
+	}
+}
+
+func ensurePodSELinuxOptionsPtr(modified *bool, existing **corev1.SELinuxOptions, required *corev1.SELinuxOptions) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
 	}
 
 	if *existing == nil {
+		*modified = true
+		*existing = required
+		return
+	}
+	ensureSELinuxOptions(modified, *existing, *required)
+}
+
+func ensureDeploymentSELinuxOptionsPtr(modified *bool, existing **corev1.SELinuxOptions, required *corev1.SELinuxOptions) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -734,12 +845,36 @@ func setBool(modified *bool, existing *bool, required bool) {
 }
 
 func setBoolPtr(modified *bool, existing **bool, required *bool) {
+	setBoolPtrDeployment(false, modified, existing, required)
+}
+
+func setBoolPtrDeployment(forDeployment bool, modified *bool, existing **bool, required *bool) {
+	if forDeployment {
+		setDeploymentBoolPtr(modified, existing, required)
+	} else {
+		setPodBoolPtr(modified, existing, required)
+	}
+}
+
+func setPodBoolPtr(modified *bool, existing **bool, required *bool) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
 	}
 
 	if *existing == nil {
+		*modified = true
+		*existing = required
+		return
+	}
+	setBool(modified, *existing, *required)
+}
+
+func setDeploymentBoolPtr(modified *bool, existing **bool, required *bool) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -774,12 +909,36 @@ func setInt64(modified *bool, existing *int64, required int64) {
 }
 
 func setInt64Ptr(modified *bool, existing **int64, required *int64) {
+	setInt64PtrDeployment(false, modified, existing, required)
+}
+
+func setInt64PtrDeployment(forDeployment bool, modified *bool, existing **int64, required *int64) {
+	if forDeployment {
+		setDeploymentInt64Ptr(modified, existing, required)
+	} else {
+		setPodInt64Ptr(modified, existing, required)
+	}
+}
+
+func setPodInt64Ptr(modified *bool, existing **int64, required *int64) {
 	// if we have no required, then we don't care what someone else has set
 	if required == nil {
 		return
 	}
 
 	if *existing == nil {
+		*modified = true
+		*existing = required
+		return
+	}
+	setInt64(modified, *existing, *required)
+}
+
+func setDeploymentInt64Ptr(modified *bool, existing **int64, required *int64) {
+	if *existing == nil && required == nil {
+		return
+	}
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return

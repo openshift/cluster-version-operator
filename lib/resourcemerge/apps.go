@@ -33,6 +33,7 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 		existing.Spec.Strategy = required.Spec.Strategy
 	}
 
+	//ensurePodTemplateSpecDeployment(true, modified, &existing.Spec.Template, required.Spec.Template)
 	ensurePodTemplateSpec(modified, &existing.Spec.Template, required.Spec.Template)
 }
 
