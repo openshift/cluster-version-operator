@@ -18,7 +18,7 @@ func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1
 	mergeMap(modified, &existing.Data, required.Data)
 }
 
-// EnsureServiceAccount ensures that the existing mathces the required.
+// EnsureServiceAccount ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureServiceAccount(modified *bool, existing *corev1.ServiceAccount, required corev1.ServiceAccount) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
@@ -466,12 +466,13 @@ func ensureVolumeSourceDefaults(required *corev1.VolumeSource) {
 }
 
 func ensureSecurityContextPtr(modified *bool, existing **corev1.SecurityContext, required *corev1.SecurityContext) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -490,12 +491,13 @@ func ensureSecurityContext(modified *bool, existing *corev1.SecurityContext, req
 }
 
 func ensureCapabilitiesPtr(modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -619,12 +621,13 @@ func ensureAffinity(modified *bool, existing *corev1.Affinity, required corev1.A
 }
 
 func ensurePodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -676,12 +679,13 @@ func ensurePodSecurityContext(modified *bool, existing *corev1.PodSecurityContex
 }
 
 func ensureSELinuxOptionsPtr(modified *bool, existing **corev1.SELinuxOptions, required *corev1.SELinuxOptions) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -734,12 +738,13 @@ func setBool(modified *bool, existing *bool, required bool) {
 }
 
 func setBoolPtr(modified *bool, existing **bool, required *bool) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
@@ -758,6 +763,9 @@ func setInt32Ptr(modified *bool, existing **int32, required *int32) {
 	if *existing == nil && required == nil {
 		return
 	}
+
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
 	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
@@ -774,12 +782,13 @@ func setInt64(modified *bool, existing *int64, required int64) {
 }
 
 func setInt64Ptr(modified *bool, existing **int64, required *int64) {
-	// if we have no required, then we don't care what someone else has set
-	if required == nil {
+	if *existing == nil && required == nil {
 		return
 	}
 
-	if *existing == nil {
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
 		return
