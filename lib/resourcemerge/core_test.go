@@ -30,11 +30,12 @@ func TestEnsurePodSpec(t *testing.T) {
 			expected:         corev1.PodSpec{},
 		},
 		{
-			name: "remove regular containers from existing",
+			name: "remove regular containers from existing, PodSecurityContext none",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{Name: "test"},
-					{Name: "to-be-removed"}}},
+					{Name: "to-be-removed"}},
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false)}},
 			input: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{Name: "test"}}},
@@ -43,6 +44,71 @@ func TestEnsurePodSpec(t *testing.T) {
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{Name: "test"}}},
+		},
+		{
+			name: "PodSecurityContext empty",
+			existing: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
+					RunAsUser:      int64Ptr(int64(1234)),
+					RunAsGroup:     int64Ptr(int64(1234)),
+					FSGroup:        int64Ptr(int64(1234)),
+					SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
+				}},
+			input: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+		},
+		{
+			name: "PodSecurityContext changes",
+			existing: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
+					RunAsUser:  int64Ptr(int64(1234)),
+					RunAsGroup: int64Ptr(int64(1234))}},
+			input: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
+					RunAsGroup: int64Ptr(int64(5))}},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
+					RunAsGroup: int64Ptr(int64(5))}},
+		},
+		{
+			name: "container SecurityContext none",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: boolPtr(false),
+						RunAsUser: int64Ptr(int64(1234)),
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"bar"}},
+						SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
+					}}}},
+			input: corev1.PodSpec{},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "container SecurityContext empty",
+			existing: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: boolPtr(false),
+						RunAsUser: int64Ptr(int64(1234)),
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"bar"}},
+						SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
+					}}}},
+			input: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{SecurityContext: &corev1.SecurityContext{}}}},
+
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{SecurityContext: &corev1.SecurityContext{}}}},
 		},
 		{
 			name: "remove regular and init containers from existing",
@@ -1558,4 +1624,12 @@ func TestEnsureEnvVar(t *testing.T) {
 func defaultPodSpec(in *corev1.PodSpec, from corev1.PodSpec) {
 	modified := pointer.BoolPtr(false)
 	ensurePodSpec(modified, in, from)
+}
+
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
 }
