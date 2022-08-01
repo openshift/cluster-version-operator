@@ -55,7 +55,14 @@ spec:
         summary: Cluster version operator has not retrieved updates in {{ "{{ $value | humanizeDuration }}" }}.
         description: Failure to retrieve updates means that cluster administrators will need to monitor for available updates on their own or risk falling behind on security or other bugfixes. If the failure is expected, you can clear spec.channel in the ClusterVersion object to tell the cluster-version operator to not retrieve updates. Failure reason {{ "{{ with $cluster_operator_conditions := \"cluster_operator_conditions\" | query}}{{range $value := .}}{{if and (eq (label \"name\" $value) \"version\") (eq (label \"condition\" $value) \"RetrievedUpdates\") (eq (label \"endpoint\" $value) \"metrics\") (eq (value $value) 0.0)}}{{label \"reason\" $value}} {{end}}{{end}}{{end}}" }}. {{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} For more information refer to {{ label \"url\" (first $console_url ) }}/settings/cluster/.{{ end }}{{ end }}" }}
       expr: |
-        (time()-cluster_version_operator_update_retrieval_timestamp_seconds) >= 3600 and ignoring(condition, name, reason) cluster_operator_conditions{name="version", condition="RetrievedUpdates", endpoint="metrics", reason!="NoChannel"}
+        max by (namespace)
+        (
+          (
+            time()-cluster_version_operator_update_retrieval_timestamp_seconds
+          ) >= 3600 
+          and ignoring(condition, name, reason) 
+          (cluster_operator_conditions{name="version", condition="RetrievedUpdates", endpoint="metrics", reason!="NoChannel"})
+        )
       labels:
         severity: warning
     - alert: UpdateAvailable
@@ -82,7 +89,7 @@ spec:
         summary: Cluster operator has not been available for 10 minutes.
         description: The {{ "{{ $labels.name }}" }} operator may be down or disabled, and the components it manages may be unavailable or degraded.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
-        cluster_operator_up{job="cluster-version-operator"} == 0
+        max by (namespace, name) (cluster_operator_up{job="cluster-version-operator"} == 0)
       for: 10m
       labels:
         severity: critical
@@ -91,11 +98,14 @@ spec:
         summary: Cluster operator has been degraded for 30 minutes.
         description: The {{ "{{ $labels.name }}" }} operator is degraded because {{ "{{ $labels.reason }}" }}, and the components it manages may have reduced quality of service.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
+        max by (namespace, name, reason)
         (
-          cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"}
-          or on (namespace, name)
-          group by (namespace, name) (cluster_operator_up{job="cluster-version-operator"})
-        ) == 1
+          (
+            cluster_operator_conditions{job="cluster-version-operator", condition="Degraded"}
+            or on (namespace, name)
+            group by (namespace, name) (cluster_operator_up{job="cluster-version-operator"})
+          ) == 1
+        )
       for: 30m
       labels:
         severity: warning
@@ -104,7 +114,7 @@ spec:
         summary: Cluster operator up status is changing often.
         description: The  {{ "{{ $labels.name }}" }} operator behavior might cause upgrades to be unstable. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
-        changes(cluster_operator_up{job="cluster-version-operator"}[2m]) > 2
+        max by (namespace, name) (changes(cluster_operator_up{job="cluster-version-operator"}[2m]) > 2)
       for: 10m
       labels:
         severity: warning
