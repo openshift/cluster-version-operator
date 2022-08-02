@@ -2361,7 +2361,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 		},
 		{
-			name: "report an error condition when architecture isn't set",
+			name: "report an error condition when channel isn't set",
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
@@ -2396,49 +2396,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
-					Reason:  noArchitecture,
-					Message: "The set of architectures has not been configured.",
-				},
-			},
-		},
-		{
-			name: "report an error condition when channel isn't set",
-			handler: func(w http.ResponseWriter, req *http.Request) {
-				http.Error(w, "bad things", http.StatusInternalServerError)
-			},
-			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
-				release: configv1.Release{
-					Version: "v4.0.0",
-					Image:   "image/image:v4.0.1",
-				},
-				namespace: "test",
-				name:      "default",
-				client: fake.NewSimpleClientset(
-					&configv1.ClusterVersion{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "default",
-						},
-						Spec: configv1.ClusterVersionSpec{
-							ClusterID: configv1.ClusterID(id),
-							Channel:   "",
-						},
-						Status: configv1.ClusterVersionStatus{
-							History: []configv1.UpdateHistory{
-								{Image: "image/image:v4.0.1"},
-							},
-						},
-					},
-				),
-			},
-			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "",
-				Architecture: "amd64",
-				Condition: configv1.ClusterOperatorStatusCondition{
-					Type:    configv1.RetrievedUpdates,
-					Status:  configv1.ConditionFalse,
 					Reason:  noChannel,
 					Message: "The update channel has not been configured.",
 				},
@@ -2451,7 +2408,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2475,9 +2431,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				Upstream: "",
+				Channel:  "fast",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2493,7 +2448,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2524,9 +2478,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				Upstream: "",
+				Channel:  "fast",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2556,7 +2509,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2588,9 +2540,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				Upstream: "",
+				Channel:  "fast",
 				Current: configv1.Release{
 					Version:  "4.0.1",
 					Image:    "image/image:v4.0.1",
@@ -2623,7 +2574,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 			optr: &Operator{
 				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2655,10 +2605,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
-				Current:      configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
+				Upstream: "",
+				Channel:  "fast",
+				Current:  configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 				Updates: []configv1.Release{
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
 					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},

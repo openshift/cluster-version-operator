@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -68,9 +67,6 @@ const (
 	// provide better visibility during install and upgrade of
 	// error conditions.
 	PrecreatingPayload
-
-	// heterogeneousArchitectureID identifies a payload architecture as heterogeneous.
-	heterogeneousArchitectureID = "multi"
 )
 
 // Initializing is true if the state is InitializingPayload.
@@ -112,8 +108,6 @@ type Update struct {
 	LoadedAt      time.Time
 
 	ImageRef *imagev1.ImageStream
-
-	Architecture string
 
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
@@ -313,7 +307,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Updat
 		releaseDir = filepath.Join(dir, ReleaseManifestDir)
 	)
 
-	release, arch, err := loadReleaseFromMetadata(releaseDir)
+	release, err := loadReleaseFromMetadata(releaseDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -331,9 +325,8 @@ func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Updat
 	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile)
 
 	return &Update{
-		Release:      release,
-		ImageRef:     imageRef,
-		Architecture: arch,
+		Release:  release,
+		ImageRef: imageRef,
 	}, tasks, nil
 }
 
@@ -357,51 +350,33 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []
 	}}
 }
 
-func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error) {
+func loadReleaseFromMetadata(releaseDir string) (configv1.Release, error) {
 	var release configv1.Release
 	path := filepath.Join(releaseDir, cincinnatiJSONFile)
 	data, err := ioutil.ReadFile(path)
 	if err != nil {
-		return release, "", err
+		return release, err
 	}
 
 	var metadata metadata
 	if err := json.Unmarshal(data, &metadata); err != nil {
-		return release, "", fmt.Errorf("unmarshal Cincinnati metadata: %w", err)
+		return release, fmt.Errorf("unmarshal Cincinnati metadata: %w", err)
 	}
 
 	if metadata.Kind != "cincinnati-metadata-v0" {
-		return release, "", fmt.Errorf("unrecognized Cincinnati metadata kind %q", metadata.Kind)
+		return release, fmt.Errorf("unrecognized Cincinnati metadata kind %q", metadata.Kind)
 	}
 
 	if metadata.Version == "" {
-		return release, "", errors.New("missing required Cincinnati metadata version")
+		return release, errors.New("missing required Cincinnati metadata version")
 	}
 
 	if _, err := semver.Parse(metadata.Version); err != nil {
-		return release, "", fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
+		return release, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
 	}
 
 	release.Version = metadata.Version
 
-	var arch string
-	if archInterface, ok := metadata.Metadata["release.openshift.io/architecture"]; ok {
-		if archString, ok := archInterface.(string); ok {
-			if archString == heterogeneousArchitectureID {
-				arch = archString
-			} else {
-				return release, "", fmt.Errorf("Architecture from %s (%s) contains invalid value: %q. Valid value is %q.",
-					cincinnatiJSONFile, release.Version, archString, heterogeneousArchitectureID)
-			}
-			klog.V(2).Infof("Architecture from %s (%s) is heterogeneous: %q", cincinnatiJSONFile, release.Version, arch)
-		} else {
-			return release, "", fmt.Errorf("Architecture from %s (%s) is not a string: %v",
-				cincinnatiJSONFile, release.Version, archInterface)
-		}
-	} else {
-		arch = runtime.GOARCH
-		klog.V(2).Infof("Architecture from %s (%s) retrieved from runtime: %q", cincinnatiJSONFile, release.Version, arch)
-	}
 	if urlInterface, ok := metadata.Metadata["url"]; ok {
 		if urlString, ok := urlInterface.(string); ok {
 			release.URL = configv1.URL(urlString)
@@ -418,7 +393,7 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error
 		}
 	}
 
-	return release, arch, nil
+	return release, nil
 }
 
 func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
