@@ -121,6 +121,11 @@ type Operator struct {
 	upgradeable           *upgradeable
 	upgradeableChecks     []upgradeableCheck
 
+	// minimumUpgradeableCheckInterval is the minimum duration before another
+	// synchronization of the upgradeable status can happen during failing
+	// precondition checks.
+	minimumUpgradeableCheckInterval time.Duration
+
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
 	verifier verify.Interface
@@ -179,10 +184,11 @@ func New(
 			Image: releaseImage,
 		},
 
-		statusInterval:             15 * time.Second,
-		minimumUpdateCheckInterval: minimumInterval,
-		payloadDir:                 overridePayloadDir,
-		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
+		statusInterval:                  15 * time.Second,
+		minimumUpdateCheckInterval:      minimumInterval,
+		minimumUpgradeableCheckInterval: 15 * time.Second,
+		payloadDir:                      overridePayloadDir,
+		defaultUpstreamServer:           "https://api.openshift.com/api/upgrades_info/v1/graph",
 
 		client:        client,
 		kubeClient:    kubeClient,
@@ -627,7 +633,7 @@ func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 		return nil
 	}
 
-	return optr.syncUpgradeable()
+	return optr.syncUpgradeable(config)
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than

@@ -33,12 +33,13 @@ const (
 
 var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 
-// syncUpgradeable. The status is only checked if it has been more than
-// the minimumUpdateCheckInterval since the last check.
-func (optr *Operator) syncUpgradeable() error {
-	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
+// syncUpgradeable synchronizes the upgradeable status only if it has been more than
+// the minimumUpdateCheckInterval since the last synchronization or the precondition
+// checks on the payload are failing for less than minimumUpdateCheckInterval, and it has
+// been more than the minimumUpgradeableCheckInterval since the last synchronization.
+func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
 	u := optr.getUpgradeable()
-	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
+	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) && !shouldSyncUpgradeableDueToPreconditionChecks(optr, config, u) {
 		klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
@@ -92,8 +93,14 @@ type upgradeable struct {
 	Conditions []configv1.ClusterOperatorStatusCondition
 }
 
+// hasPassedDurationSinceTime checks if a certain amount of time specified by duration
+// has passed since time. Returns true if the duration has passed, returns false otherwise.
+func hasPassedDurationSinceTime(t time.Time, duration time.Duration) bool {
+	return time.Now().After(t.Add(duration))
+}
+
 func (u *upgradeable) RecentlyChanged(interval time.Duration) bool {
-	return u.At.After(time.Now().Add(-interval))
+	return !hasPassedDurationSinceTime(u.At, interval)
 }
 
 func (u *upgradeable) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
@@ -441,4 +448,23 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 		UpdateFunc: optr.updateFunc,
 		DeleteFunc: optr.deleteFunc,
 	}
+}
+
+// shouldSyncUpgradeableDueToPreconditionChecks checks if the upgradeable status should
+// be synchronized due to the precondition checks. It checks whether the precondition
+// checks on the payload are failing for less than minimumUpdateCheckInterval, and it has
+// been more than the minimumUpgradeableCheckInterval since the last synchronization.
+// This means, upon precondition failure, we will synchronize the upgradeable status
+// more frequently at beginning of an upgrade.
+//
+// shouldSyncUpgradeableDueToPreconditionChecks expects the parameters not to be nil.
+//
+// Function returns true if the synchronization should happen, returns false otherwise.
+func shouldSyncUpgradeableDueToPreconditionChecks(optr *Operator, config *configv1.ClusterVersion, u *upgradeable) bool {
+	cond := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, DesiredReleaseAccepted)
+	if cond != nil && cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse &&
+		hasPassedDurationSinceTime(u.At, optr.minimumUpgradeableCheckInterval) && !hasPassedDurationSinceTime(cond.LastTransitionTime.Time, optr.minimumUpdateCheckInterval) {
+		return true
+	}
+	return false
 }
