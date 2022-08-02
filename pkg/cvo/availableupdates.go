@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -22,7 +23,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 )
 
-const noArchitecture string = "NoArchitecture"
 const noChannel string = "NoChannel"
 
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
@@ -35,9 +35,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		usedDefaultUpstream = true
 		upstream = optr.defaultUpstreamServer
 	}
-
+	arch := runtime.GOARCH
 	channel := config.Spec.Channel
-	arch := optr.getArchitecture()
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getAvailableUpdates()
@@ -47,9 +46,6 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, u.LastAttempt)
 	} else if channel != u.Channel {
 		klog.V(2).Infof("Retrieving available updates again, because the channel has changed from %q to %q", u.Channel, channel)
-	} else if arch != u.Architecture {
-		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q",
-			u.Architecture, arch)
 	} else if upstream == u.Upstream || (upstream == optr.defaultUpstreamServer && u.Upstream == "") {
 		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, u.LastAttempt)
 		return nil
@@ -71,7 +67,6 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	au := &availableUpdates{
 		Upstream:           upstream,
 		Channel:            config.Spec.Channel,
-		Architecture:       arch,
 		Current:            current,
 		Updates:            updates,
 		ConditionalUpdates: conditionalUpdates,
@@ -87,9 +82,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 }
 
 type availableUpdates struct {
-	Upstream     string
-	Channel      string
-	Architecture string
+	Upstream string
+	Channel  string
 
 	// LastAttempt records the time of the most recent attempt at update
 	// retrieval, regardless of whether it was successful.
@@ -121,7 +115,6 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *confi
 	if u == nil {
 		return nil
 	}
-	// Architecture could change but does not reside in ClusterVersion
 	if u.Upstream != string(original.Spec.Upstream) || u.Channel != original.Spec.Channel {
 		return nil
 	}
@@ -167,7 +160,6 @@ func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
 	if u != nil && (optr.availableUpdates == nil ||
 		optr.availableUpdates.Upstream != u.Upstream ||
 		optr.availableUpdates.Channel != u.Channel ||
-		optr.availableUpdates.Architecture != u.Architecture ||
 		success) {
 		u.LastSyncOrConfigChange = u.LastAttempt
 	} else if optr.availableUpdates != nil {
@@ -182,20 +174,6 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
 	return optr.availableUpdates
-}
-
-// getArchitecture returns the currently determined cluster architecture.
-func (optr *Operator) getArchitecture() string {
-	optr.statusLock.Lock()
-	defer optr.statusLock.Unlock()
-	return optr.architecture
-}
-
-// SetArchitecture sets the cluster architecture.
-func (optr *Operator) SetArchitecture(architecture string) {
-	optr.statusLock.Lock()
-	defer optr.statusLock.Unlock()
-	optr.architecture = architecture
 }
 
 func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, configv1.ClusterOperatorStatusCondition) {
@@ -225,7 +203,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 
 	if len(arch) == 0 {
 		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
-			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: noArchitecture,
+			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: "NoArchitecture",
 			Message: "The set of architectures has not been configured.",
 		}
 	}
