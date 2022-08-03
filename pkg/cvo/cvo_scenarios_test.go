@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -14,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
@@ -30,13 +31,19 @@ import (
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
-func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
+var architecture string
+
+func init() {
+	architecture = runtime.GOARCH
+}
+
+func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
 	client := &fake.Clientset{}
-	client.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("*", "*", func(action clientgotesting.Action) (handled bool, ret apiruntime.Object, err error) {
 		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 	})
-	cvs := make(map[string]runtime.Object)
-	client.AddReactor("*", "clusterversions", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+	cvs := make(map[string]apiruntime.Object)
+	client.AddReactor("*", "clusterversions", func(action clientgotesting.Action) (handled bool, ret apiruntime.Object, err error) {
 		switch a := action.(type) {
 		case clientgotesting.GetActionImpl:
 			obj, ok := cvs[a.GetName()]
@@ -71,7 +78,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		}
 		return false, nil, fmt.Errorf("unexpected client action: %#v", action)
 	})
-	client.AddReactor("get", "featuregates", func(action clientgotesting.Action) (handled bool, ret runtime.Object, err error) {
+	client.AddReactor("get", "featuregates", func(action clientgotesting.Action) (handled bool, ret apiruntime.Object, err error) {
 		switch a := action.(type) {
 		case clientgotesting.GetAction:
 			return true, nil, errors.NewNotFound(schema.GroupResource{Resource: "clusterversions"}, a.GetName())
@@ -105,7 +112,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]runtime.Object, *fak
 		clusterProfile: payload.DefaultClusterProfile,
 	}
 
-	dynamicScheme := runtime.NewScheme()
+	dynamicScheme := apiruntime.NewScheme()
 	dynamicScheme.AddKnownTypeWithName(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, &unstructured.Unstructured{})
 	dynamicClient := dynamicfake.NewSimpleDynamicClient(dynamicScheme)
 
@@ -220,7 +227,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -241,7 +248,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -250,7 +257,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -260,7 +267,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -276,7 +283,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Done:        1,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -286,7 +293,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -302,7 +309,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Done:        2,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -312,7 +319,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(4, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(5, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -329,7 +336,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Completed:   1,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -339,7 +346,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(5, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(6, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -400,7 +407,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -412,7 +419,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Generation:  1,
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -427,7 +434,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -437,7 +444,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -453,7 +460,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -463,7 +470,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -479,7 +486,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -490,7 +497,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Completed:   2,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -506,7 +513,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -637,7 +644,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -661,7 +668,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -669,7 +676,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -686,7 +693,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -695,7 +702,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Done:        1,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -712,7 +719,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -721,7 +728,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Initial:     true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -738,7 +745,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(5, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -798,7 +805,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -809,7 +816,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -825,7 +832,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -834,7 +841,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -851,7 +858,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -860,7 +867,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -877,7 +884,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -887,7 +894,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Completed:   2,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -904,7 +911,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1025,7 +1032,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -1049,7 +1056,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1057,7 +1064,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1068,7 +1075,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1083,7 +1090,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Done:        1,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1094,7 +1101,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1109,7 +1116,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Done:        2,
 			Total:       3,
 			Initial:     true,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1126,7 +1133,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(5, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1185,7 +1192,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -1196,7 +1203,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1212,7 +1219,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1221,7 +1228,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1238,7 +1245,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1247,7 +1254,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1264,7 +1271,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1274,7 +1281,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Completed:   2,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -1291,7 +1298,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1491,7 +1498,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1506,7 +1513,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -1556,7 +1563,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.1-abc"},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
@@ -1922,7 +1929,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -1937,7 +1944,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2144,7 +2151,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			Actual:      configv1.Release{Version: "1.0.1-abc", Image: "image/image:1", URL: configv1.URL("https://example.com/v1.0.1-abc")},
 			Generation:  1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
@@ -2154,7 +2161,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -2196,7 +2203,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: marketplace, openshift-samples"},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: "Available", Status: "False"},
 				{Type: "Failing", Status: "False"},
 				{Type: "Progressing", Status: "True", Message: "Working towards 1.0.1-abc"},
@@ -2393,7 +2400,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2408,7 +2415,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2463,7 +2470,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -2474,7 +2481,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2489,7 +2496,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2498,7 +2505,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2514,7 +2521,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2523,7 +2530,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2539,7 +2546,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2549,7 +2556,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Completed:   2,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2565,7 +2572,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2723,7 +2730,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2738,7 +2745,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2746,7 +2753,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2762,7 +2769,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2770,7 +2777,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 		SyncWorkerStatus{
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
@@ -2786,7 +2793,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
@@ -2841,7 +2848,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -2950,7 +2957,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -3053,7 +3060,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3061,7 +3068,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3077,7 +3084,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3086,7 +3093,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3102,7 +3109,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3111,7 +3118,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3127,7 +3134,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(5, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3154,7 +3161,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Completed:   1,
 			Done:        3,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3170,7 +3177,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3178,7 +3185,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3194,7 +3201,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3203,7 +3210,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        1,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3219,7 +3226,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3228,7 +3235,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3244,7 +3251,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3355,7 +3362,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3388,7 +3395,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		SyncWorkerStatus{
 			Reconciling: true,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3403,7 +3410,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3423,7 +3430,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
@@ -3439,7 +3446,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3468,7 +3475,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Reconciling: true,
 			Done:        2,
 			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=",
+			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			Failure: &payload.UpdateError{
 				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
@@ -3490,7 +3497,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3538,7 +3545,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Reason: "UpdatePayloadFailed", Message: "Error while reconciling 1.0.0-abc: the update could not be applied"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
 	})
@@ -3652,6 +3659,7 @@ func TestCVO_ParallelError(t *testing.T) {
 					Done:         status.Done,
 					Total:        3,
 					VersionHash:  "Gyh2W6qcDO4=",
+					Architecture: architecture,
 					Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 					LastProgress: status.LastProgress,
 					Generation:   1,
@@ -3663,7 +3671,7 @@ func TestCVO_ParallelError(t *testing.T) {
 					},
 					loadPayloadStatus: LoadPayloadStatus{
 						Step:               "PayloadLoaded",
-						Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+						Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 						LastTransitionTime: status.loadPayloadStatus.LastTransitionTime,
 						Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 					},
@@ -3687,6 +3695,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Done:         1,
 			Total:        3,
 			VersionHash:  "Gyh2W6qcDO4=",
+			Architecture: architecture,
 			Actual:       configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			LastProgress: status.LastProgress,
 			Generation:   1,
@@ -3698,7 +3707,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				LastTransitionTime: status.loadPayloadStatus.LastTransitionTime,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -3744,7 +3753,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
-					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
+					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 1 of 3 done (33% complete), waiting on operator-1, operator-2"},
