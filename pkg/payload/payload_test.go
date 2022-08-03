@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -23,10 +24,13 @@ import (
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
+var architecture string
+
 func init() {
 	klog.InitFlags(flag.CommandLine)
 	_ = flag.CommandLine.Lookup("v").Value.Set("2")
 	_ = flag.CommandLine.Lookup("alsologtostderr").Value.Set("true")
+	architecture = runtime.GOARCH
 }
 
 func TestLoadUpdate(t *testing.T) {
@@ -62,6 +66,7 @@ func TestLoadUpdate(t *testing.T) {
 						Name: "1.0.0-abc",
 					},
 				},
+				Architecture: architecture,
 				ManifestHash: "DL-FFQ2Uem8=",
 				Manifests: []manifest.Manifest{
 					{

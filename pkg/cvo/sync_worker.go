@@ -112,10 +112,11 @@ type SyncWorkerStatus struct {
 	Done  int
 	Total int
 
-	Completed   int
-	Reconciling bool
-	Initial     bool
-	VersionHash string
+	Completed    int
+	Reconciling  bool
+	Initial      bool
+	VersionHash  string
+	Architecture string
 
 	LastProgress time.Time
 
@@ -384,7 +385,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				work.Capabilities)
 		}
 		w.payload = payloadUpdate
-		msg = fmt.Sprintf("Payload loaded version=%q image=%q", desired.Version, desired.Image)
+		msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
+			payloadUpdate.Architecture)
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
 		reporter.ReportPayload(LoadPayloadStatus{
 			Failure:            nil,
@@ -394,7 +396,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			Release:            desired,
 			LastTransitionTime: time.Now(),
 		})
-		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)
+		klog.V(2).Infof("Payload loaded from %s with hash %s, architecture %s", desired.Image, payloadUpdate.ManifestHash,
+			payloadUpdate.Architecture)
 	}
 	return implicitlyEnabledCaps, nil
 }
@@ -511,6 +514,9 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	w.work.Capabilities = capability.SetFromImplicitlyEnabledCapabilities(implicit, w.work.Capabilities)
 	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = w.work.Capabilities.ImplicitlyEnabledCapabilities
 	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
+
+	// Update syncWorker status with architecture of newly loaded payload.
+	w.status.Architecture = w.payload.Architecture
 
 	// notify the sync loop that we changed config
 	if w.cancelFn != nil {
@@ -863,12 +869,13 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 	total := len(payloadUpdate.Manifests)
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
-			Generation:  work.Generation,
-			Initial:     work.State.Initializing(),
-			Reconciling: work.State.Reconciling(),
-			VersionHash: payloadUpdate.ManifestHash,
-			Actual:      payloadUpdate.Release,
-			Verified:    payloadUpdate.VerifiedImage,
+			Generation:   work.Generation,
+			Initial:      work.State.Initializing(),
+			Reconciling:  work.State.Reconciling(),
+			VersionHash:  payloadUpdate.ManifestHash,
+			Architecture: w.status.Architecture,
+			Actual:       payloadUpdate.Release,
+			Verified:     payloadUpdate.VerifiedImage,
 		},
 		completed: work.Completed,
 		version:   payloadUpdate.Release.Version,
