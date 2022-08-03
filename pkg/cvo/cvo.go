@@ -30,6 +30,11 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/verify"
+	"github.com/openshift/library-go/pkg/verify/store/configmap"
+	"github.com/openshift/library-go/pkg/verify/store/sigstore"
+
 	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
@@ -39,10 +44,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
-	"github.com/openshift/library-go/pkg/manifest"
-	"github.com/openshift/library-go/pkg/verify"
-	"github.com/openshift/library-go/pkg/verify/store/configmap"
-	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
 const (

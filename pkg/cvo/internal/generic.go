@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -15,9 +16,10 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
+	"github.com/openshift/library-go/pkg/manifest"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // readUnstructuredV1OrDie reads operatorstatus object from bytes. Panics on error.

@@ -15,9 +15,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
+	"github.com/openshift/library-go/pkg/manifest"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 var (
