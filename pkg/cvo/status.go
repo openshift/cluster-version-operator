@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -375,6 +376,7 @@ func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, 
 		for i, c := range implicitlyEnabled {
 			caps[i] = string(c)
 		}
+		sort.Strings(caps)
 		message = message + strings.Join([]string(caps), ", ")
 
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
