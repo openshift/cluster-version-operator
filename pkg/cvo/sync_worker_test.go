@@ -7,9 +7,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
 
-	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_statusWrapper_ReportProgress(t *testing.T) {
@@ -180,6 +188,197 @@ func Test_runThrottledStatusNotifier(t *testing.T) {
 	case <-out:
 		t.Fatalf("should have throttled")
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func task(name string, gvk schema.GroupVersionKind) *payload.Task {
+	return &payload.Task{
+		Manifest: &manifest.Manifest{
+			OriginalFilename: fmt.Sprintf("%s.yaml", name),
+			GVK:              gvk,
+			Obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"group":      gvk.Group,
+					"apiVersion": gvk.Version,
+					"kind":       gvk.Kind,
+					"metadata": map[string]interface{}{
+						"name": name,
+					},
+				},
+			},
+		},
+	}
+}
+
+func Test_condenseClusterOperators(t *testing.T) {
+	coADegradedNone := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectNone,
+		Reason:              "ClusterOperatorDegraded",
+		PluralReason:        "ClusterOperatorsDegraded",
+		Message:             "Cluster operator test-co-A is degraded",
+		PluralMessageFormat: "Cluster operators %s are degraded",
+		Name:                "test-co-A",
+		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+	coANotAvailable := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectFail,
+		Reason:              "ClusterOperatorNotAvailable",
+		PluralReason:        "ClusterOperatorsNotAvailable",
+		Message:             "Cluster operator test-co-A is not available",
+		PluralMessageFormat: "Cluster operators %s are not available",
+		Name:                "test-co-A",
+		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+	coAUpdating := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectNone,
+		Reason:              "ClusterOperatorUpdating",
+		PluralReason:        "ClusterOperatorsUpdating",
+		Message:             "Cluster operator test-co-A is updating versions",
+		PluralMessageFormat: "Cluster operators %s are updating versions",
+		Name:                "test-co-A",
+		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+	coBDegradedFail := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectFail,
+		Reason:              "ClusterOperatorDegraded",
+		PluralReason:        "ClusterOperatorsDegraded",
+		Message:             "Cluster operator test-co-B is degraded",
+		PluralMessageFormat: "Cluster operators %s are degraded",
+		Name:                "test-co-B",
+		Task:                task("test-co-B", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+	coBUpdating := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectNone,
+		Reason:              "ClusterOperatorUpdating",
+		PluralReason:        "ClusterOperatorsUpdating",
+		Message:             "Cluster operator test-co-B is updating versions",
+		PluralMessageFormat: "Cluster operators %s are updating versions",
+		Name:                "test-co-B",
+		Task:                task("test-co-B", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+	coCDegradedFailAfterInterval := &payload.UpdateError{
+		UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+		Reason:              "ClusterOperatorDegraded",
+		PluralReason:        "ClusterOperatorsDegraded",
+		Message:             "Cluster operator test-co-C is degraded",
+		PluralMessageFormat: "Cluster operators %s are degraded",
+		Name:                "test-co-C",
+		Task:                task("test-co-C", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+	}
+
+	tests := []struct {
+		name     string
+		input    []error
+		expected []error
+	}{{
+		name:     "no errors",
+		expected: []error{},
+	}, {
+		name: "one ClusterOperator, one API",
+		input: []error{
+			coAUpdating,
+			apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "clusteroperator"}, "test-co-A"),
+		},
+		expected: []error{
+			apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "clusteroperator"}, "test-co-A"),
+			coAUpdating,
+		},
+	}, {
+		name: "two ClusterOperator with different reasons, one API",
+		input: []error{
+			coBUpdating,
+			coANotAvailable,
+			apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "clusteroperator"}, "test-co"),
+		},
+		expected: []error{
+			apierrors.NewNotFound(schema.GroupResource{Group: "", Resource: "clusteroperator"}, "test-co"),
+			coANotAvailable, // NotAvailable sorts before Updating
+			coBUpdating,
+		},
+	}, {
+		name: "two ClusterOperator with the same reason",
+		input: []error{
+			coBUpdating,
+			coAUpdating,
+		},
+		expected: []error{
+			&payload.UpdateError{
+				Nested:              errors.NewAggregate([]error{coBUpdating, coAUpdating}),
+				UpdateEffect:        payload.UpdateEffectNone,
+				Reason:              "ClusterOperatorsUpdating",
+				PluralReason:        "ClusterOperatorsUpdating",
+				Message:             "Cluster operators test-co-A, test-co-B are updating versions",
+				PluralMessageFormat: "Cluster operators %s are updating versions",
+				Name:                "test-co-A, test-co-B",
+				Names:               []string{"test-co-A", "test-co-B"},
+			},
+		},
+	}, {
+		name: "two ClusterOperator with the same reason, one different",
+		input: []error{
+			coBUpdating,
+			coAUpdating,
+			coCDegradedFailAfterInterval,
+		},
+		expected: []error{
+			coCDegradedFailAfterInterval, // Degraded sorts before Updating
+			&payload.UpdateError{
+				Nested:              errors.NewAggregate([]error{coBUpdating, coAUpdating}),
+				UpdateEffect:        payload.UpdateEffectNone,
+				Reason:              "ClusterOperatorsUpdating",
+				PluralReason:        "ClusterOperatorsUpdating",
+				Message:             "Cluster operators test-co-A, test-co-B are updating versions",
+				PluralMessageFormat: "Cluster operators %s are updating versions",
+				Name:                "test-co-A, test-co-B",
+				Names:               []string{"test-co-A", "test-co-B"},
+			},
+		},
+	}, {
+		name: "there ClusterOperator with the same reason but different effects",
+		input: []error{
+			coBDegradedFail,
+			coADegradedNone,
+			coCDegradedFailAfterInterval,
+		},
+		expected: []error{
+			&payload.UpdateError{
+				Nested:              errors.NewAggregate([]error{coBDegradedFail, coADegradedNone, coCDegradedFailAfterInterval}),
+				UpdateEffect:        payload.UpdateEffectFail,
+				Reason:              "ClusterOperatorsDegraded",
+				PluralReason:        "ClusterOperatorsDegraded",
+				Message:             "Cluster operators test-co-A, test-co-B, test-co-C are degraded",
+				PluralMessageFormat: "Cluster operators %s are degraded",
+				Name:                "test-co-A, test-co-B, test-co-C",
+				Names:               []string{"test-co-A", "test-co-B", "test-co-C"},
+			},
+		},
+	}, {
+		name: "to ClusterOperator with the same reason but None and FailAfterInterval effects",
+		input: []error{
+			coADegradedNone,
+			coCDegradedFailAfterInterval,
+		},
+		expected: []error{
+			&payload.UpdateError{
+				Nested:              errors.NewAggregate([]error{coADegradedNone, coCDegradedFailAfterInterval}),
+				UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+				Reason:              "ClusterOperatorsDegraded",
+				PluralReason:        "ClusterOperatorsDegraded",
+				Message:             "Cluster operators test-co-A, test-co-C are degraded",
+				PluralMessageFormat: "Cluster operators %s are degraded",
+				Name:                "test-co-A, test-co-C",
+				Names:               []string{"test-co-A", "test-co-C"},
+			},
+		},
+	}}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := condenseClusterOperators(test.input)
+			if !reflect.DeepEqual(test.expected, actual) {
+				spew.Config.DisableMethods = true
+				t.Fatalf("Incorrect value returned -\ndiff: %s\nexpected: %s\nreturned: %s", diff.ObjectReflectDiff(test.expected, actual), spew.Sdump(test.expected), spew.Sdump(actual))
+			}
+		})
 	}
 }
 

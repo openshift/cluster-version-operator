@@ -873,8 +873,11 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	var tasks []*payload.Task
 	backoff := w.backoff
+	if backoff.Steps == 0 {
+		return fmt.Errorf("SyncWorker requires at least one backoff step to apply any manifests")
+	}
 	if backoff.Steps > 1 && work.State == payload.InitializingPayload {
-		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second}
+		backoff = wait.Backoff{Steps: 4, Factor: 2, Duration: time.Second, Cap: 15 * time.Second}
 	}
 
 	for i := range payloadUpdate.Manifests {
@@ -1135,83 +1138,74 @@ func summarizeTaskGraphErrors(errs []error) error {
 	}
 
 	// collapse into a set of common errors where necessary
+	errs = condenseClusterOperators(errs)
 	if len(errs) == 1 {
 		return errs[0]
-	}
-	// hide the generic "not available yet" when there are more specific errors present
-	if filtered := filterErrors(errs, isClusterOperatorNotAvailable); len(filtered) > 0 {
-		return newMultipleError(filtered)
-	}
-	// if we're only waiting for operators, condense the error down to a singleton
-	if err := newClusterOperatorsNotAvailable(errs); err != nil {
-		return err
 	}
 	return newMultipleError(errs)
 }
 
-// filterErrors returns only the errors in errs which are false for all fns.
-func filterErrors(errs []error, fns ...func(err error) bool) []error {
-	var filtered []error
-	for _, err := range errs {
-		if errorMatches(err, fns...) {
-			continue
-		}
-		filtered = append(filtered, err)
-	}
-	return filtered
-}
-
-func errorMatches(err error, fns ...func(err error) bool) bool {
-	for _, fn := range fns {
-		if fn(err) {
-			return true
-		}
-	}
-	return false
-}
-
-// isClusterOperatorNotAvailable returns true if this is a ClusterOperatorNotAvailable error
-func isClusterOperatorNotAvailable(err error) bool {
-	uErr, ok := err.(*payload.UpdateError)
-	return ok && uErr != nil && uErr.Reason == "ClusterOperatorNotAvailable"
-}
-
-// newClusterOperatorsNotAvailable unifies multiple ClusterOperatorNotAvailable errors into
-// a single error. It returns nil if the provided errors are not of the same type.
-func newClusterOperatorsNotAvailable(errs []error) error {
-	updateEffect := payload.UpdateEffectNone
-	names := make([]string, 0, len(errs))
+// condenseClusterOperators unifies any ClusterOperator errors which
+// share the same reason.
+func condenseClusterOperators(errs []error) []error {
+	condensed := make([]error, 0, len(errs))
+	clusterOperatorByReason := make(map[string][]*payload.UpdateError, len(errs))
+	reasons := make([]string, 0, len(errs))
 	for _, err := range errs {
 		uErr, ok := err.(*payload.UpdateError)
-		if !ok || uErr.Reason != "ClusterOperatorNotAvailable" {
-			return nil
+		if !ok || uErr.Task == nil || uErr.Task.Manifest == nil || uErr.Task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+			// error is not a ClusterOperator error, so pass it through
+			condensed = append(condensed, err)
+			continue
 		}
-		if len(uErr.Name) > 0 {
-			names = append(names, uErr.Name)
+		if _, ok := clusterOperatorByReason[uErr.Reason]; !ok {
+			reasons = append(reasons, uErr.Reason)
 		}
-		switch uErr.UpdateEffect {
-		case payload.UpdateEffectNone:
-		case payload.UpdateEffectFail:
-			updateEffect = payload.UpdateEffectFail
-		case payload.UpdateEffectFailAfterInterval:
-			if updateEffect != payload.UpdateEffectFail {
-				updateEffect = payload.UpdateEffectFailAfterInterval
-			}
-		}
-	}
-	if len(names) == 0 {
-		return nil
+		clusterOperatorByReason[uErr.Reason] = append(clusterOperatorByReason[uErr.Reason], uErr)
 	}
 
-	sort.Strings(names)
-	name := strings.Join(names, ", ")
-	return &payload.UpdateError{
-		Nested:       apierrors.NewAggregate(errs),
-		UpdateEffect: updateEffect,
-		Reason:       "ClusterOperatorsNotAvailable",
-		Message:      fmt.Sprintf("Some cluster operators are still updating: %s", name),
-		Name:         name,
+	sort.Strings(reasons)
+	for _, reason := range reasons {
+		reasonErrors := clusterOperatorByReason[reason]
+		if len(reasonErrors) == 1 {
+			condensed = append(condensed, reasonErrors[0])
+			continue
+		}
+		nested := make([]error, 0, len(reasonErrors))
+		names := make([]string, 0, len(reasonErrors))
+		updateEffect := payload.UpdateEffectNone
+		for _, err := range reasonErrors {
+			nested = append(nested, err)
+			if len(err.Name) > 0 {
+				names = append(names, err.Name)
+			}
+
+			switch err.UpdateEffect {
+			case payload.UpdateEffectNone:
+			case payload.UpdateEffectFail:
+				updateEffect = payload.UpdateEffectFail
+			case payload.UpdateEffectFailAfterInterval:
+				if updateEffect != payload.UpdateEffectFail {
+					updateEffect = payload.UpdateEffectFailAfterInterval
+				}
+			}
+		}
+		sort.Strings(names)
+		name := strings.Join(names, ", ")
+
+		condensed = append(condensed, &payload.UpdateError{
+			Nested:              apierrors.NewAggregate(nested),
+			UpdateEffect:        updateEffect,
+			Reason:              reasonErrors[0].PluralReason,
+			PluralReason:        reasonErrors[0].PluralReason,
+			Message:             fmt.Sprintf(reasonErrors[0].PluralMessageFormat, name),
+			PluralMessageFormat: reasonErrors[0].PluralMessageFormat,
+			Name:                name,
+			Names:               names,
+		})
 	}
+
+	return condensed
 }
 
 // uniqueStrings returns an array with all sequential identical items removed. It modifies the contents

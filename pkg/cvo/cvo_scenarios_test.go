@@ -3554,15 +3554,13 @@ func TestCVO_ParallelError(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	b := &errorResourceBuilder{errors: map[string]error{
 		"0000_10_a_file.yaml": &payload.UpdateError{
-			Reason:       "ClusterOperatorNotAvailable",
 			UpdateEffect: payload.UpdateEffectNone,
-			Name:         "operator-1",
+			Message:      "Failed to reconcile 10-a-file resource",
 		},
 		"0000_20_a_file.yaml": nil,
 		"0000_20_b_file.yaml": &payload.UpdateError{
-			Reason:       "ClusterOperatorNotAvailable",
 			UpdateEffect: payload.UpdateEffectNone,
-			Name:         "operator-2",
+			Message:      "Failed to reconcile 20-b-file resource",
 		},
 	}}
 	worker.builder = b
@@ -3640,9 +3638,6 @@ func TestCVO_ParallelError(t *testing.T) {
 
 	// Step 3: Cancel after we've accumulated 2/3 errors
 	//
-	time.Sleep(100 * time.Millisecond)
-	cancel()
-	//
 	// verify we observe the remaining changes in the first sync
 	for status := range worker.StatusCh() {
 		if status.Failure == nil {
@@ -3675,7 +3670,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		}
 		err := status.Failure
 		uErr, ok := err.(*payload.UpdateError)
-		if !ok || uErr.Reason != "ClusterOperatorsNotAvailable" || uErr.Message != "Some cluster operators are still updating: operator-1, operator-2" {
+		if !ok || uErr.Reason != "MultipleErrors" || uErr.Message != "Multiple errors are preventing progress:\n* Failed to reconcile 10-a-file resource\n* Failed to reconcile 20-b-file resource" {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if status.LastProgress.IsZero() {
@@ -3707,6 +3702,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		}
 		break
 	}
+	cancel()
 	verifyAllStatus(t, worker.StatusCh())
 
 	client.ClearActions()
@@ -3746,8 +3742,8 @@ func TestCVO_ParallelError(t *testing.T) {
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
 					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\""},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
-				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "ClusterOperatorsNotAvailable", Message: "Working towards 1.0.0-abc: 1 of 3 done (33% complete), waiting on operator-1, operator-2"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "MultipleErrors", Message: "Multiple errors are preventing progress:\n* Failed to reconcile 10-a-file resource\n* Failed to reconcile 20-b-file resource"},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "MultipleErrors", Message: "Unable to apply 1.0.0-abc: an unknown error has occurred: MultipleErrors"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
 		},

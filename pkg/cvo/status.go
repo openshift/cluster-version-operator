@@ -427,7 +427,7 @@ func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status 
 
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
-// unavailable AND the general payload task making progress towards its goal. The error's UpdateEffect determines
+// progressing AND the general payload task making progress towards its goal. The error's UpdateEffect determines
 // whether an error should be considered a failure and, if so, whether the operator should be given up to 40 minutes
 // to recover from the error.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
@@ -446,7 +446,11 @@ func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, 
 	case payload.UpdateEffectFailAfterInterval:
 		var exceeded []string
 		threshold := now.Add(-(40 * time.Minute))
-		for _, name := range strings.Split(uErr.Name, ", ") {
+		names := uErr.Names
+		if len(names) == 0 {
+			names = []string{uErr.Name}
+		}
+		for _, name := range names {
 			if payload.COUpdateStartTimesGet(name).Before(threshold) {
 				exceeded = append(exceeded, name)
 			}

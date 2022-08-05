@@ -126,22 +126,18 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
 	if len(expected.Status.Versions) == 0 {
 		return &payload.UpdateError{
-			UpdateEffect: payload.UpdateEffectFail,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      fmt.Sprintf("Cluster operator %s does not declare expected versions", expected.Name),
-			Name:         expected.Name,
+			UpdateEffect:        payload.UpdateEffectFail,
+			Reason:              "ClusterOperatorNoVersions",
+			PluralReason:        "ClusterOperatorsNoVersions",
+			Message:             fmt.Sprintf("Cluster operator %s does not declare expected versions", expected.Name),
+			PluralMessageFormat: "Cluster operators %s do not declare expected versions",
+			Name:                expected.Name,
 		}
 	}
 
 	actual, err := client.Get(ctx, expected.Name)
 	if err != nil {
-		return &payload.UpdateError{
-			Nested:       err,
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      fmt.Sprintf("Cluster operator %s has not yet reported success", expected.Name),
-			Name:         expected.Name,
-		}
+		return err
 	}
 
 	// undone is a sorted slice of transition messages for incomplete operands.
@@ -195,11 +191,13 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 			nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s: %s", actual.Name, availableCondition.Type, availableCondition.Status, availableCondition.Reason, availableCondition.Message)
 		}
 		return &payload.UpdateError{
-			Nested:       nestedMessage,
-			UpdateEffect: payload.UpdateEffectFail,
-			Reason:       "ClusterOperatorNotAvailable",
-			Message:      fmt.Sprintf("Cluster operator %s is not available", actual.Name),
-			Name:         actual.Name,
+			Nested:              nestedMessage,
+			UpdateEffect:        payload.UpdateEffectFail,
+			Reason:              "ClusterOperatorNotAvailable",
+			PluralReason:        "ClusterOperatorsNotAvailable",
+			Message:             fmt.Sprintf("Cluster operator %s is not available", actual.Name),
+			PluralMessageFormat: "Cluster operators %s are not available",
+			Name:                actual.Name,
 		}
 	}
 
@@ -209,11 +207,13 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 			nestedMessage = fmt.Errorf("cluster operator %s is %s=%s: %s, %s", actual.Name, degradedCondition.Type, degradedCondition.Status, degradedCondition.Reason, degradedCondition.Message)
 		}
 		return &payload.UpdateError{
-			Nested:       nestedMessage,
-			UpdateEffect: payload.UpdateEffectFailAfterInterval,
-			Reason:       "ClusterOperatorDegraded",
-			Message:      fmt.Sprintf("Cluster operator %s is degraded", actual.Name),
-			Name:         actual.Name,
+			Nested:              nestedMessage,
+			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			Reason:              "ClusterOperatorDegraded",
+			PluralReason:        "ClusterOperatorsDegraded",
+			Message:             fmt.Sprintf("Cluster operator %s is degraded", actual.Name),
+			PluralMessageFormat: "Cluster operators %s are degraded",
+			Name:                actual.Name,
 		}
 	}
 
@@ -221,11 +221,13 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 	if len(undone) > 0 && mode != resourcebuilder.InitializingMode {
 		nestedMessage = fmt.Errorf("cluster operator %s is available and not degraded but has not finished updating to target version", actual.Name)
 		return &payload.UpdateError{
-			Nested:       nestedMessage,
-			UpdateEffect: payload.UpdateEffectNone,
-			Reason:       "ClusterOperatorUpdating",
-			Message:      fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
-			Name:         actual.Name,
+			Nested:              nestedMessage,
+			UpdateEffect:        payload.UpdateEffectNone,
+			Reason:              "ClusterOperatorUpdating",
+			PluralReason:        "ClusterOperatorsUpdating",
+			Message:             fmt.Sprintf("Cluster operator %s is updating versions", actual.Name),
+			PluralMessageFormat: "Cluster operators %s are updating versions",
+			Name:                actual.Name,
 		}
 	}
 
