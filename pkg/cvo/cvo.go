@@ -197,10 +197,11 @@ func New(
 		clusterProfile:     clusterProfile,
 	}
 
-	cvInformer.Informer().AddEventHandler(optr.eventHandler())
+	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())
 	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
 	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
 
+	coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler())
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
 
@@ -457,9 +458,9 @@ func (optr *Operator) queueKey() string {
 	return fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 }
 
-// eventHandler queues an update for the cluster version on any change to the given object.
+// clusterVersionEventHandler queues an update for the cluster version on any change to the given object.
 // Callers should use this with a scoped informer.
-func (optr *Operator) eventHandler() cache.ResourceEventHandler {
+func (optr *Operator) clusterVersionEventHandler() cache.ResourceEventHandler {
 	workQueueKey := optr.queueKey()
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -476,6 +477,36 @@ func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 			optr.queue.Add(workQueueKey)
 		},
 	}
+}
+
+// clusterOperatorEventHandler queues an update for the cluster version on any change to the given object.
+// Callers should use this with an informer.
+func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
+	return cache.ResourceEventHandlerFuncs{
+		UpdateFunc: func(old, new interface{}) {
+			versionName := "operator"
+			_, oldVersion := clusterOperatorInterfaceVersionOrDie(old, versionName)
+			newStruct, newVersion := clusterOperatorInterfaceVersionOrDie(new, versionName)
+			if optr.configSync != nil && oldVersion != newVersion {
+				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.ObjectMeta.Name, versionName, oldVersion, newVersion)
+				optr.configSync.NotifyAboutManagedResourceActivity(new, msg)
+			}
+		},
+	}
+}
+
+func clusterOperatorInterfaceVersionOrDie(obj interface{}, name string) (*configv1.ClusterOperator, string) {
+	co, ok := obj.(*configv1.ClusterOperator)
+	if !ok {
+		panic(fmt.Sprintf("%v is %T, not a ClusterOperator", obj, obj))
+	}
+
+	for _, version := range co.Status.Versions {
+		if version.Name == name {
+			return co, version.Version
+		}
+	}
+	return co, ""
 }
 
 func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error) {

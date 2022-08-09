@@ -476,6 +476,10 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 	return ch
 }
 
+// Inform the sync worker about activity for a managed resource.
+func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(obj interface{}, message string) {
+}
+
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
 }
 
