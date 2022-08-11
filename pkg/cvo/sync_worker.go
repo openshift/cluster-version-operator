@@ -34,6 +34,9 @@ type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
 	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, cvoOptrName string) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
+
+	// Inform the sync worker about activity for a managed resource.
+	NotifyAboutManagedResourceActivity(obj interface{}, msg string)
 }
 
 // PayloadInfo returns details about the payload when it was retrieved.
@@ -163,7 +166,7 @@ type SyncWorker struct {
 	minimumReconcileInterval time.Duration
 
 	// coordination between the sync loop and external callers
-	notify chan struct{}
+	notify chan string
 	report chan SyncWorkerStatus
 
 	// lock guards changes to these fields
@@ -197,7 +200,7 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 
 		minimumReconcileInterval: reconcileInterval,
 
-		notify: make(chan struct{}, 1),
+		notify: make(chan string, 1),
 		// report is a large buffered channel to improve local testing - most consumers should invoke
 		// Status() or use the result of calling Update() instead because the channel can be out of date
 		// if the reader is not fast enough.
@@ -223,6 +226,16 @@ func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.
 // can be lost, so this is best used as a trigger to read the latest status.
 func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
+}
+
+// Inform the sync worker about activity for a managed resource.
+func (w *SyncWorker) NotifyAboutManagedResourceActivity(obj interface{}, message string) {
+	select {
+	case w.notify <- message:
+		klog.V(2).Infof("Notify the sync worker: %s", message)
+	default:
+		klog.V(2).Info("The sync worker already has a pending notification, so do not notify about:no need to inform about: %s", message)
+	}
 }
 
 // syncPayload retrieves, loads, and verifies the specified payload, aka sync's the payload, whenever there is no current
@@ -514,8 +527,9 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		w.cancelFn()
 		w.cancelFn = nil
 	}
+	msg := "new work is available"
 	select {
-	case w.notify <- struct{}{}:
+	case w.notify <- msg:
 		klog.V(2).Info("Notify the sync worker that new work is available")
 	default:
 		klog.V(2).Info("The sync worker has already been notified that new work is available")
@@ -546,8 +560,8 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName stri
 			case <-next:
 				waitingToReconcile = false
 				klog.V(2).Infof("Wait finished")
-			case <-w.notify:
-				klog.V(2).Infof("Work updated")
+			case msg := <-w.notify:
+				klog.V(2).Info(msg)
 			}
 
 			// determine whether we need to do work
