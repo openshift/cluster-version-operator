@@ -160,7 +160,7 @@ func (o *Options) Run(ctx context.Context) error {
 // and then attempts a clean shutdown limited by an internal context
 // with a two-minute cap.  It returns after it successfully collects all
 // launched goroutines.
-func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourcelock.ConfigMapLock, restConfig *rest.Config, burstRestConfig *rest.Config) {
+func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resourcelock.Interface, restConfig *rest.Config, burstRestConfig *rest.Config) {
 	runContext, runCancel := context.WithCancel(ctx) // so we can cancel internally on errors or TERM
 	defer runCancel()
 	shutdownContext, shutdownCancel := context.WithCancel(context.Background()) // extends beyond ctx
@@ -305,7 +305,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock *resourc
 }
 
 // createResourceLock initializes the lock.
-func createResourceLock(cb *ClientBuilder, namespace, name string) (*resourcelock.ConfigMapLock, error) {
+func createResourceLock(cb *ClientBuilder, namespace, name string) (resourcelock.Interface, error) {
 	client := cb.KubeClientOrDie("leader-election")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -324,17 +324,10 @@ func createResourceLock(cb *ClientBuilder, namespace, name string) (*resourceloc
 	// add a uniquifier so that two processes on the same host don't accidentally both become active
 	id = id + "_" + uuid.String()
 
-	return &resourcelock.ConfigMapLock{
-		ConfigMapMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Client: client.CoreV1(),
-		LockConfig: resourcelock.ResourceLockConfig{
-			Identity:      id,
-			EventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: namespace}),
-		},
-	}, nil
+	return resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock, namespace, name, client.CoreV1(), client.CoordinationV1(), resourcelock.ResourceLockConfig{
+		Identity:      id,
+		EventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: namespace}),
+	})
 }
 
 func resyncPeriod(minResyncPeriod time.Duration) func() time.Duration {
