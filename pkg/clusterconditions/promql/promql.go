@@ -27,6 +27,9 @@ type PromQL struct {
 
 	// HTTPClientConfig holds the client configuration for connecting to the Prometheus service.
 	HTTPClientConfig config.HTTPClientConfig
+
+	// QueryTimeout limits the amount of time we wait before giving up on the Prometheus query.
+	QueryTimeout time.Duration
 }
 
 var promql = &cache.Cache{
@@ -41,6 +44,7 @@ var promql = &cache.Cache{
 				CAFile: "/etc/tls/service-ca/service-ca.crt",
 			},
 		},
+		QueryTimeout: 5 * time.Minute,
 	},
 	MinBetweenMatches: 10 * time.Minute,
 	MinForCondition:   time.Hour,
@@ -79,8 +83,16 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	}
 
 	v1api := prometheusv1.NewAPI(client)
+
+	queryContext := ctx
+	if p.QueryTimeout > 0 {
+		var cancel context.CancelFunc
+		queryContext, cancel = context.WithTimeout(ctx, p.QueryTimeout)
+		defer cancel()
+	}
+
 	klog.V(2).Infof("evaluate %s cluster condition: %q", condition.Type, condition.PromQL.PromQL)
-	result, warnings, err := v1api.Query(ctx, condition.PromQL.PromQL, time.Now())
+	result, warnings, err := v1api.Query(queryContext, condition.PromQL.PromQL, time.Now())
 	if err != nil {
 		return false, fmt.Errorf("executing PromQL query: %w", err)
 	}
