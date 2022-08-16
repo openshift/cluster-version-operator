@@ -93,6 +93,10 @@ type Operator struct {
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
 	// the upstream.
 	minimumUpdateCheckInterval time.Duration
+	// architecture identifies the current architecture being used to retrieve available updates
+	// from OSUS. It's possible values and how it's set are defined by the OSUS Cincinnati API's
+	// "arch" property.
+	architecture string
 	// payloadDir is intended for testing. If unset it will default to '/'
 	payloadDir string
 	// defaultUpstreamServer is intended for testing.
@@ -250,6 +254,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 
 	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
+	optr.SetArchitecture(update.Architecture)
 
 	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(optr.HTTPClient, nil)
 	configClient, err := coreclientsetv1.NewForConfig(restConfig)
@@ -615,6 +620,8 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// inform the config sync loop about our desired state
 	status := optr.configSync.Update(ctx, config.Generation, desired, config, state, optr.name)
+
+	optr.SetArchitecture(status.Architecture)
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)
