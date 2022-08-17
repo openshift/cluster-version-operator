@@ -145,9 +145,9 @@ type Operator struct {
 	// via annotation
 	exclude string
 
-	// includeTechPreview is set to true when the CVO should create resources with the `release.openshift.io/feature-gate=TechPreviewNoUpgrade`
+	// requiredFeatureSet is set to true when the CVO should create resources with the `release.openshift.io/feature-gate=TechPreviewNoUpgrade`
 	// label set.  This is set based on whether the featuregates.config.openshift.io|.spec.featureSet is set to "TechPreviewNoUpgrade".
-	includeTechPreview bool
+	requiredFeatureSet string
 
 	clusterProfile string
 	uid            types.UID
@@ -168,7 +168,7 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	exclude string,
-	includeTechPreview bool,
+	requiredFeatureSet string,
 	clusterProfile string,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -197,7 +197,7 @@ func New(
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
 		exclude:            exclude,
-		includeTechPreview: includeTechPreview,
+		requiredFeatureSet: requiredFeatureSet,
 		clusterProfile:     clusterProfile,
 	}
 
@@ -245,7 +245,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		return fmt.Errorf("Error when attempting to get cluster version object: %w", err)
 	}
 
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.includeTechPreview,
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.requiredFeatureSet,
 		optr.clusterProfile, capability.GetKnownCapabilities())
 
 	if err != nil {
@@ -290,7 +290,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 			Cap:      time.Second * 15,
 		},
 		optr.exclude,
-		optr.includeTechPreview,
+		optr.requiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
 	)

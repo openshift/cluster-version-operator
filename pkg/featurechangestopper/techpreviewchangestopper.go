@@ -20,7 +20,7 @@ import (
 // TechPreviewChangeStopper calls stop when the value of the featuregate changes from TechPreviewNoUpgrade to anything else
 // or from anything to TechPreviewNoUpgrade.
 type TechPreviewChangeStopper struct {
-	startingTechPreviewState bool
+	startingRequiredFeatureSet string
 
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
@@ -31,14 +31,14 @@ type TechPreviewChangeStopper struct {
 
 // New returns a new TechPreviewChangeStopper.
 func New(
-	startingTechPreviewState bool,
+	startingRequiredFeatureSet string,
 	featureGateInformer configinformersv1.FeatureGateInformer,
 ) *TechPreviewChangeStopper {
 	c := &TechPreviewChangeStopper{
-		startingTechPreviewState: startingTechPreviewState,
-		featureGateLister:        featureGateInformer.Lister(),
-		cacheSynced:              []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
-		queue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
+		startingRequiredFeatureSet: startingRequiredFeatureSet,
+		featureGateLister:          featureGateInformer.Lister(),
+		cacheSynced:                []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
+		queue:                      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
 	}
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingTechPreviewState is wrong
@@ -67,15 +67,15 @@ func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, 
 	} else if !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	techPreviewNowSet := current == configv1.TechPreviewNoUpgrade
-	if techPreviewNowSet != c.startingTechPreviewState {
+
+	if string(current) != c.startingRequiredFeatureSet {
 		var action string
 		if c.shutdownFn == nil {
 			action = "no shutdown function configured"
 		} else {
 			action = "requesting shutdown"
 		}
-		klog.Infof("TechPreviewNoUpgrade was %t, but the current feature set is %q; %s.", c.startingTechPreviewState, current, action)
+		klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.startingRequiredFeatureSet, current, action)
 		if c.shutdownFn != nil {
 			c.shutdownFn()
 		}
@@ -98,7 +98,7 @@ func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.C
 	}()
 	c.shutdownFn = shutdownFn
 
-	klog.Infof("Starting stop-on-techpreview-change controller with %s %t.", configv1.TechPreviewNoUpgrade, c.startingTechPreviewState)
+	klog.Infof("Starting stop-on-techpreview-change controller with %s %t.", configv1.TechPreviewNoUpgrade, c.startingRequiredFeatureSet)
 
 	// wait for your secondary caches to fill before starting your work
 	if !cache.WaitForCacheSync(ctx.Done(), c.cacheSynced...) {

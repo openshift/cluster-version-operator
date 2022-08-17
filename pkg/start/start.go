@@ -132,15 +132,19 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
 	// to be off.  If this value changes, the binary will shutdown and expect the pod lifecycle to restart it.
-	includeTechPreview := false
+	startingFeatureSet := ""
 	gate, err := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
 	switch {
 	case apierrors.IsNotFound(err):
-		includeTechPreview = false // if we have no featuregates, then we aren't tech preview
+		// if we have no featuregates, then we assume the default featureset, which is "".
+		// This excludes everything that could possibly depend on a different feature set.
+		startingFeatureSet = ""
 	case err != nil:
 		klog.Warningf("Error getting featuregate value: %v", err)
+
 	default:
-		includeTechPreview = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
+		// otherwise, you're the default
+		startingFeatureSet = string(gate.Spec.FeatureSet)
 	}
 
 	lock, err := createResourceLock(cb, o.Namespace, o.Name)
@@ -149,7 +153,7 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx := o.NewControllerContext(cb, includeTechPreview)
+	controllerCtx := o.NewControllerContext(cb, startingFeatureSet)
 	o.leaderElection = getLeaderElectionConfig(ctx, cb.RestConfig(defaultQPS))
 	o.run(ctx, controllerCtx, lock, cb.RestConfig(defaultQPS), cb.RestConfig(highQPS))
 	return nil
@@ -424,7 +428,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview bool) *Context {
+func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string) *Context {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
@@ -457,11 +461,11 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, includeTechPreview boo
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace, useProtobuf),
 			o.Exclude,
-			includeTechPreview,
+			startingFeatureSet,
 			o.ClusterProfile,
 		),
 
-		StopOnFeatureGateChange: featurechangestopper.New(includeTechPreview, sharedInformers.Config().V1().FeatureGates()),
+		StopOnFeatureGateChange: featurechangestopper.New(startingFeatureSet, sharedInformers.Config().V1().FeatureGates()),
 	}
 
 	if o.EnableAutoUpdate {
