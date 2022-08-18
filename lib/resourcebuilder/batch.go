@@ -15,7 +15,9 @@ import (
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		if done, err := checkJobHealth(ctx, client, job); err != nil {
+		if done, err := checkJobHealth(ctx, client, job); err != nil && done {
+			return false, err
+		} else if err != nil {
 			klog.Error(err)
 			return false, nil
 		} else if !done {
@@ -59,14 +61,14 @@ func checkJobHealth(ctx context.Context, client batchclientv1.JobsGetter, job *b
 			if failed {
 				failureReason, failureMessage = reason, message
 			}
-			return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", failureReason, failureMessage)
+			return true, fmt.Errorf("deadline exceeded, reason: %q, message: %q", failureReason, failureMessage)
 		}
 
 		// When the update image cannot be pulled then the pod is not marked as Failed, but the status condition is set
 		// after the job deadline is exceeded.
 		if failed {
 			if reason == "DeadlineExceeded" {
-				return false, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
+				return true, fmt.Errorf("deadline exceeded, reason: %q, message: %q", reason, message)
 			} else {
 				klog.V(2).Infof("Ignoring job %s in namespace %s with condition Failed=True because %s: %s", job.Name, job.Namespace, reason, message)
 			}
