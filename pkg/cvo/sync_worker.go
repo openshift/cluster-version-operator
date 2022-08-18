@@ -941,6 +941,8 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 	}
 	capabilities := capability.GetCapabilitiesStatus(work.Capabilities)
 
+	var reportEffectErrors []error
+
 	// update each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		// in specific modes, attempt to precreate a set of known types (currently ClusterOperator) without
@@ -988,7 +990,12 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				continue
 			}
 			if err := task.Run(ctx, payloadUpdate.Release.Version, w.builder, work.State); err != nil {
-				return err
+				if uErr, ok := err.(*payload.UpdateError); ok && uErr.UpdateEffect == payload.UpdateEffectReport {
+					// do not fail the task on this manifest, just record it for later complaining
+					reportEffectErrors = append(reportEffectErrors, err)
+				} else {
+					return err
+				}
 			}
 			cr.Inc()
 			klog.V(2).Infof("Done syncing for %s", task)
@@ -1004,7 +1011,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	// update the status
 	cr.Complete()
-	return nil
+	return apierrors.NewAggregate(reportEffectErrors)
 }
 
 var (
@@ -1194,7 +1201,7 @@ func condenseClusterOperators(errs []error) []error {
 		}
 		nested := make([]error, 0, len(reasonErrors))
 		names := make([]string, 0, len(reasonErrors))
-		updateEffect := payload.UpdateEffectNone
+		updateEffect := payload.UpdateEffectReport
 		for _, err := range reasonErrors {
 			nested = append(nested, err)
 			if len(err.Name) > 0 {
@@ -1202,13 +1209,17 @@ func condenseClusterOperators(errs []error) []error {
 			}
 
 			switch err.UpdateEffect {
+			case payload.UpdateEffectReport:
 			case payload.UpdateEffectNone:
-			case payload.UpdateEffectFail:
-				updateEffect = payload.UpdateEffectFail
+				if updateEffect == payload.UpdateEffectReport {
+					updateEffect = payload.UpdateEffectNone
+				}
 			case payload.UpdateEffectFailAfterInterval:
 				if updateEffect != payload.UpdateEffectFail {
 					updateEffect = payload.UpdateEffectFailAfterInterval
 				}
+			case payload.UpdateEffectFail:
+				updateEffect = payload.UpdateEffectFail
 			}
 		}
 		sort.Strings(names)

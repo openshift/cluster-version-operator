@@ -440,6 +440,42 @@ func Test_checkOperatorHealth(t *testing.T) {
 			Name:                "test-co",
 		},
 	}, {
+		name: "cluster operator reporting available=true degraded=true in InitializingMode",
+		actual: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Reason: "RandomReason", Message: "random error"},
+				},
+			},
+		},
+		mode: resourcebuilder.InitializingMode,
+		exp: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+			},
+		},
+		expErr: &payload.UpdateError{
+			Nested:              fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
+			UpdateEffect:        payload.UpdateEffectReport,
+			Reason:              "ClusterOperatorDegraded",
+			PluralReason:        "ClusterOperatorsDegraded",
+			Message:             "Cluster operator test-co is degraded",
+			PluralMessageFormat: "Cluster operators %s are degraded",
+			Name:                "test-co",
+		},
+	}, {
 		name: "cluster operator reporting available=true progressing=true degraded=true",
 		actual: &configv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
@@ -469,6 +505,43 @@ func Test_checkOperatorHealth(t *testing.T) {
 		expErr: &payload.UpdateError{
 			Nested:              fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
 			UpdateEffect:        payload.UpdateEffectFailAfterInterval,
+			Reason:              "ClusterOperatorDegraded",
+			PluralReason:        "ClusterOperatorsDegraded",
+			Message:             "Cluster operator test-co is degraded",
+			PluralMessageFormat: "Cluster operators %s are degraded",
+			Name:                "test-co",
+		},
+	}, {
+		name: "cluster operator reporting available=true progressing=true degraded=true in InitializingMode",
+		actual: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue},
+					{Type: configv1.OperatorDegraded, Status: configv1.ConditionTrue, Reason: "RandomReason", Message: "random error"},
+				},
+			},
+		},
+		mode: resourcebuilder.InitializingMode,
+		exp: &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "test-co"},
+			Status: configv1.ClusterOperatorStatus{
+				Versions: []configv1.OperandVersion{{
+					Name: "operator", Version: "v1",
+				}, {
+					Name: "operand-1", Version: "v1",
+				}},
+			},
+		},
+		expErr: &payload.UpdateError{
+			Nested:              fmt.Errorf("cluster operator test-co is Degraded=True: RandomReason, random error"),
+			UpdateEffect:        payload.UpdateEffectReport,
 			Reason:              "ClusterOperatorDegraded",
 			PluralReason:        "ClusterOperatorsDegraded",
 			Message:             "Cluster operator test-co is degraded",
