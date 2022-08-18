@@ -27,6 +27,10 @@ const (
 	// cannot reach the desired state. It is considered more serious than Degraded
 	// and indicates the cluster is not healthy.
 	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
+
+	// MaxHistory is the maximum size of ClusterVersion history. Once exceeded
+	// ClusterVersion history will be pruned.
+	MaxHistory = 50
 )
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Release) bool {
@@ -126,26 +130,25 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	// TODO: prune Z versions over transitions to Y versions, keep initial installed version
-	pruneStatusHistory(config, 50)
+	pruneStatusHistory(config, MaxHistory)
 
 	config.Status.Desired = desired
 }
 
+// pruneStatusHistory maintains history size at MaxHistory by removing entry at index MaxHistory
+// unless that entry is a completed update in which case entry at MaxHistory-1 is removed thereby
+// retaining the initial completed version.
 func pruneStatusHistory(config *configv1.ClusterVersion, maxHistory int) {
 	if len(config.Status.History) <= maxHistory {
 		return
 	}
-	for i, item := range config.Status.History {
-		if item.State != configv1.CompletedUpdate {
-			continue
-		}
-		// guarantee the last position in the history is always a completed item
-		if i >= maxHistory {
-			config.Status.History[maxHistory-1] = item
-		}
-		break
+	if config.Status.History[maxHistory].State == configv1.CompletedUpdate {
+		item := config.Status.History[maxHistory]
+		config.Status.History = config.Status.History[0 : maxHistory-1]
+		config.Status.History = append(config.Status.History, item)
+	} else {
+		config.Status.History = config.Status.History[:maxHistory]
 	}
-	config.Status.History = config.Status.History[:maxHistory]
 }
 
 // ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
