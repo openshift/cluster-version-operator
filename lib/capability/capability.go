@@ -79,6 +79,7 @@ func GetKnownCapabilities() []configv1.ClusterVersionCapability {
 	for _, v := range configv1.ClusterVersionCapabilitySets {
 		known = append(known, v...)
 	}
+	sort.Sort(capabilitiesSort(known))
 	return known
 }
 
@@ -115,6 +116,7 @@ func GetImplicitlyEnabledCapabilities(enabledManifestCaps []configv1.ClusterVers
 			}
 		}
 	}
+	sort.Sort(capabilitiesSort(caps))
 	return caps
 }
 
@@ -174,5 +176,6 @@ func setEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitie
 			enabled[k] = struct{}{}
 		}
 	}
+	sort.Sort(capabilitiesSort(implicitlyEnabled))
 	return enabled, implicitlyEnabled
 }
