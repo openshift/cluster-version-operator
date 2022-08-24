@@ -475,12 +475,14 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// check the status of conditional updates for recommended="Unknown" and capture the LastTransitionTime
-		for _, conditionalUpdates := range cv.Status.ConditionalUpdates {
-			if c := findCondition(conditionalUpdates.Conditions, "Recommended"); c != nil && c.Status == metav1.ConditionUnknown {
-				g := m.unknownConditionalUpdateCondition.WithLabelValues("")
-				g.Set(float64(c.LastTransitionTime.Unix()))
+		for _, conditionalUpdate := range cv.Status.ConditionalUpdates {
+			for _, condition := range conditionalUpdate.Conditions {
+				if condition.Type == ConditionalUpdateRecommendedType && condition.Status == metav1.ConditionUnknown {
+					g := m.unknownConditionalUpdateCondition.WithLabelValues("")
+					g.Set(float64(condition.LastTransitionTime.Unix()))
+					ch <- g
+				}
 			}
-			ch <- g
 		}
 	}
 
@@ -553,15 +555,6 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	} else {
 		klog.Warningf("availableUpdates is nil")
 	}
-}
-
-func findCondition(conditions []metav1.Condition, name string) *metav1.Condition {
-	for i := range conditions {
-		if conditions[i].Type == name {
-			return &conditions[i]
-		}
-	}
-	return nil
 }
 
 func gaugeFromInstallConfigMap(cm *corev1.ConfigMap, gauge *prometheus.GaugeVec, installType string) prometheus.Gauge {

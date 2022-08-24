@@ -31,6 +31,8 @@ const (
 	// and indicates the cluster is not healthy.
 	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
 
+	ConditionalUpdateRecommendedType = "Recommended"
+
 	// MaxHistory is the maximum size of ClusterVersion history. Once exceeded
 	// ClusterVersion history will be pruned. It is declared here and passed
 	// into the pruner function to allow easier testing.
