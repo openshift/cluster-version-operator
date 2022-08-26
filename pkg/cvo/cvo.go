@@ -145,8 +145,8 @@ type Operator struct {
 	// via annotation
 	exclude string
 
-	// requiredFeatureSet is set to true when the CVO should create resources with the `release.openshift.io/feature-gate=TechPreviewNoUpgrade`
-	// label set.  This is set based on whether the featuregates.config.openshift.io|.spec.featureSet is set to "TechPreviewNoUpgrade".
+	// requiredFeatureSet is set the value of featuregates.config.openshift.io|.spec.featureSet.  It's a very slow
+	// moving resource, so it is not re-detected live.
 	requiredFeatureSet string
 
 	clusterProfile string

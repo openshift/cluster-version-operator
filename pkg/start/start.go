@@ -136,14 +136,15 @@ func (o *Options) Run(ctx context.Context) error {
 	gate, err := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
 	switch {
 	case apierrors.IsNotFound(err):
-		// if we have no featuregates, then we assume the default featureset, which is "".
+		// if we have no featuregates, then the cluster is using the default featureset, which is "".
 		// This excludes everything that could possibly depend on a different feature set.
 		startingFeatureSet = ""
 	case err != nil:
-		klog.Warningf("Error getting featuregate value: %v", err)
+		// client-go automatically retries network blip errors on GETs for 30s by default.  If we fail longer than that
+		// the operator won't be able to do work anyway.  Return the error and crashloop.
+		return err
 
 	default:
-		// otherwise, you're the default
 		startingFeatureSet = string(gate.Spec.FeatureSet)
 	}
 
@@ -418,7 +419,7 @@ func getLeaderElectionConfig(ctx context.Context, restcfg *rest.Config) configv1
 type Context struct {
 	CVO                     *cvo.Operator
 	AutoUpdate              *autoupdate.Controller
-	StopOnFeatureGateChange *featurechangestopper.TechPreviewChangeStopper
+	StopOnFeatureGateChange *featurechangestopper.FeatureChangeStopper
 
 	CVInformerFactory                     externalversions.SharedInformerFactory
 	OpenshiftConfigInformerFactory        informers.SharedInformerFactory

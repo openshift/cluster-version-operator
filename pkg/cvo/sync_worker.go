@@ -184,10 +184,8 @@ type SyncWorker struct {
 	// of the form exclude.release.openshift.io/<identifier>=true
 	exclude string
 
-	// requiredFeatureSet is set to the value of Feature.config.openshift.io|spec.featureSet.
-	// The CVO should create resources with the `annotations[release.openshift.io/feature-set]` unset or if
-	// the annotation is set, it must contain the requiredFeatureSet.
-	// The library called by the CVO translates "" into "Default" to ease usage.
+	// requiredFeatureSet is set to the value of Feature.config.openshift.io|spec.featureSet, which contributes to
+	// whether or not some manifests are included for reconciliation.
 	requiredFeatureSet string
 
 	clusterProfile string
