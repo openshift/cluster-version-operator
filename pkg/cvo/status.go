@@ -134,7 +134,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 	}
 
 	// Prune least informative history entry when at maxHistory.
-	prune(config.Status.History, MaxHistory)
+	config.Status.History = prune(config.Status.History, MaxHistory)
 
 	config.Status.Desired = desired
 }
