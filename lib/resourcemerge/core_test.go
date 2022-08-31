@@ -69,12 +69,14 @@ func TestEnsurePodSpec(t *testing.T) {
 					RunAsGroup: int64Ptr(int64(1234))}},
 			input: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
-					RunAsGroup: int64Ptr(int64(5))}},
+					RunAsGroup:     int64Ptr(int64(5)),
+					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
-					RunAsGroup: int64Ptr(int64(5))}},
+					RunAsGroup:     int64Ptr(int64(5)),
+					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}},
 		},
 		{
 			name: "container SecurityContext none",
