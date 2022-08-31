@@ -488,6 +488,7 @@ func ensureSecurityContext(modified *bool, existing *corev1.SecurityContext, req
 	setBoolPtr(modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
 	setBoolPtr(modified, &existing.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
 	setBoolPtr(modified, &existing.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+	ensureSeccompProfilePtr(modified, &existing.SeccompProfile, required.SeccompProfile)
 }
 
 func ensureCapabilitiesPtr(modified *bool, existing **corev1.Capabilities, required *corev1.Capabilities) {
@@ -535,6 +536,30 @@ func ensureCapabilities(modified *bool, existing *corev1.Capabilities, required 
 			existing.Drop = append(existing.Drop, required)
 		}
 	}
+}
+
+func ensureSeccompProfilePtr(modified *bool, existing **corev1.SeccompProfile, required *corev1.SeccompProfile) {
+	if *existing == nil && required == nil {
+		return
+	}
+
+	// Check if we can simply set to required. This can be done if existing is not set or it is set
+	// but required is not set.
+	if *existing == nil || (required == nil && *existing != nil) {
+		*modified = true
+		*existing = required
+		return
+	}
+	ensureSeccompProfile(modified, *existing, *required)
+}
+
+func ensureSeccompProfile(modified *bool, existing *corev1.SeccompProfile, required corev1.SeccompProfile) {
+	if equality.Semantic.DeepEqual(existing, required) {
+		return
+	}
+
+	*modified = true
+	*existing = required
 }
 
 func setStringSlice(modified *bool, existing *[]string, required []string) {
@@ -640,6 +665,7 @@ func ensurePodSecurityContext(modified *bool, existing *corev1.PodSecurityContex
 	setInt64Ptr(modified, &existing.RunAsUser, required.RunAsUser)
 	setInt64Ptr(modified, &existing.RunAsGroup, required.RunAsGroup)
 	setBoolPtr(modified, &existing.RunAsNonRoot, required.RunAsNonRoot)
+	ensureSeccompProfilePtr(modified, &existing.SeccompProfile, required.SeccompProfile)
 
 	// any SupplementalGroups we specify, we require.
 	for _, required := range required.SupplementalGroups {
