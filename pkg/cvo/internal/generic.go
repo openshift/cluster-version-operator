@@ -93,8 +93,21 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		return existing, false, nil
 	}
 
-	// copy all keys from required in existing except skipKeys
-	for k, v := range required.Object {
+	server_side_default, err := client.Update(ctx, expected, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+	if err == nil {
+		for k, v := range server_side_default.Object {
+			if skipKeys.Has(k) {
+				continue
+			}
+			expected.Object[k] = v
+		}
+		objDiff = cmp.Diff(expected, existing)
+		if objDiff == "" {
+			return existing, false, nil
+		}
+	}
+
+	for k, v := range expected.Object {
 		if skipKeys.Has(k) {
 			continue
 		}
