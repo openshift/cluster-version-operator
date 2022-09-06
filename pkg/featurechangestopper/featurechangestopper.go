@@ -17,10 +17,9 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// TechPreviewChangeStopper calls stop when the value of the featuregate changes from TechPreviewNoUpgrade to anything else
-// or from anything to TechPreviewNoUpgrade.
-type TechPreviewChangeStopper struct {
-	startingTechPreviewState bool
+// FeatureChangeStopper calls stop when the value of the featureset changes
+type FeatureChangeStopper struct {
+	startingRequiredFeatureSet string
 
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
@@ -29,19 +28,19 @@ type TechPreviewChangeStopper struct {
 	shutdownFn context.CancelFunc
 }
 
-// New returns a new TechPreviewChangeStopper.
+// New returns a new FeatureChangeStopper.
 func New(
-	startingTechPreviewState bool,
+	startingRequiredFeatureSet string,
 	featureGateInformer configinformersv1.FeatureGateInformer,
-) *TechPreviewChangeStopper {
-	c := &TechPreviewChangeStopper{
-		startingTechPreviewState: startingTechPreviewState,
-		featureGateLister:        featureGateInformer.Lister(),
-		cacheSynced:              []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
-		queue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
+) *FeatureChangeStopper {
+	c := &FeatureChangeStopper{
+		startingRequiredFeatureSet: startingRequiredFeatureSet,
+		featureGateLister:          featureGateInformer.Lister(),
+		cacheSynced:                []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
+		queue:                      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
 	}
 
-	c.queue.Add("cluster") // seed an initial sync, in case startingTechPreviewState is wrong
+	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
 	featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
@@ -60,22 +59,22 @@ func New(
 // syncHandler processes a single work entry, with the
 // processNextWorkItem caller handling the queue management.  It returns
 // done when there will be no more work (because the feature gate changed).
-func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, err error) {
+func (c *FeatureChangeStopper) syncHandler(ctx context.Context) (done bool, err error) {
 	var current configv1.FeatureSet
 	if featureGates, err := c.featureGateLister.Get("cluster"); err == nil {
 		current = featureGates.Spec.FeatureSet
 	} else if !apierrors.IsNotFound(err) {
 		return false, err
 	}
-	techPreviewNowSet := current == configv1.TechPreviewNoUpgrade
-	if techPreviewNowSet != c.startingTechPreviewState {
+
+	if string(current) != c.startingRequiredFeatureSet {
 		var action string
 		if c.shutdownFn == nil {
 			action = "no shutdown function configured"
 		} else {
 			action = "requesting shutdown"
 		}
-		klog.Infof("TechPreviewNoUpgrade was %t, but the current feature set is %q; %s.", c.startingTechPreviewState, current, action)
+		klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.startingRequiredFeatureSet, current, action)
 		if c.shutdownFn != nil {
 			c.shutdownFn()
 		}
@@ -85,7 +84,7 @@ func (c *TechPreviewChangeStopper) syncHandler(ctx context.Context) (done bool, 
 }
 
 // Run launches the controller and blocks until it is canceled or work completes.
-func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.CancelFunc) error {
+func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.CancelFunc) error {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -98,7 +97,7 @@ func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.C
 	}()
 	c.shutdownFn = shutdownFn
 
-	klog.Infof("Starting stop-on-techpreview-change controller with %s %t.", configv1.TechPreviewNoUpgrade, c.startingTechPreviewState)
+	klog.Infof("Starting stop-on-featureset-change controller with %q.", c.startingRequiredFeatureSet)
 
 	// wait for your secondary caches to fill before starting your work
 	if !cache.WaitForCacheSync(ctx.Done(), c.cacheSynced...) {
@@ -106,14 +105,14 @@ func (c *TechPreviewChangeStopper) Run(ctx context.Context, shutdownFn context.C
 	}
 
 	err := wait.PollImmediateUntilWithContext(ctx, 30*time.Second, c.runWorker)
-	klog.Info("Shutting down stop-on-techpreview-change controller")
+	klog.Info("Shutting down stop-on-featureset-change controller")
 	return err
 }
 
 // runWorker handles a single worker poll round, processing as many
 // work items as possible, and returning done when there will be no
 // more work.
-func (c *TechPreviewChangeStopper) runWorker(ctx context.Context) (done bool, err error) {
+func (c *FeatureChangeStopper) runWorker(ctx context.Context) (done bool, err error) {
 	// hot loop until we're told to stop.  processNextWorkItem will
 	// automatically wait until there's work available, so we don't worry
 	// about secondary waits
@@ -126,7 +125,7 @@ func (c *TechPreviewChangeStopper) runWorker(ctx context.Context) (done bool, er
 
 // processNextWorkItem deals with one key off the queue.  It returns
 // done when there will be no more work.
-func (c *TechPreviewChangeStopper) processNextWorkItem(ctx context.Context) (done bool, err error) {
+func (c *FeatureChangeStopper) processNextWorkItem(ctx context.Context) (done bool, err error) {
 	// pull the next work item from queue.  It should be a key we use to lookup
 	// something in a cache
 	key, quit := c.queue.Get()

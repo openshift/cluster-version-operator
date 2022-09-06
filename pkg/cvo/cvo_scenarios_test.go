@@ -125,7 +125,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 			Steps: 1,
 		},
 		"exclude-test",
-		false,
+		"",
 		record.NewFakeRecorder(100),
 		o.clusterProfile,
 	)

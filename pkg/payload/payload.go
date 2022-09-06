@@ -139,7 +139,7 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview bool, profile string,
+func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet string, profile string,
 	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
 
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
@@ -206,7 +206,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 			for _, manifest := range ms {
-				if err := manifest.Include(&excludeIdentifier, &includeTechPreview, &profile, onlyKnownCaps); err != nil {
+				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps); err != nil {
 					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
 					continue
 				}

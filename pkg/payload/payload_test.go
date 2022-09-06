@@ -129,7 +129,7 @@ func TestLoadUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", false, DefaultClusterProfile, nil)
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return

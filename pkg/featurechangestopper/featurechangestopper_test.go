@@ -13,40 +13,40 @@ import (
 
 func TestTechPreviewChangeStopper(t *testing.T) {
 	tests := []struct {
-		name                     string
-		startingTechPreviewState bool
-		featureGate              string
-		expectedShutdownCalled   bool
+		name                       string
+		startingRequiredFeatureSet string
+		featureGate                string
+		expectedShutdownCalled     bool
 	}{
 		{
-			name:                     "default-no-change",
-			startingTechPreviewState: false,
-			featureGate:              "",
-			expectedShutdownCalled:   false,
+			name:                       "default-no-change",
+			startingRequiredFeatureSet: "",
+			featureGate:                "",
+			expectedShutdownCalled:     false,
 		},
 		{
-			name:                     "default-with-change-to-tech-preview",
-			startingTechPreviewState: false,
-			featureGate:              "TechPreviewNoUpgrade",
-			expectedShutdownCalled:   true,
+			name:                       "default-with-change-to-tech-preview",
+			startingRequiredFeatureSet: "",
+			featureGate:                "TechPreviewNoUpgrade",
+			expectedShutdownCalled:     true,
 		},
 		{
-			name:                     "default-with-change-to-other",
-			startingTechPreviewState: false,
-			featureGate:              "AnythingElse",
-			expectedShutdownCalled:   false,
+			name:                       "default-with-change-to-other",
+			startingRequiredFeatureSet: "",
+			featureGate:                "AnythingElse",
+			expectedShutdownCalled:     true,
 		},
 		{
-			name:                     "techpreview-to-techpreview",
-			startingTechPreviewState: true,
-			featureGate:              "TechPreviewNoUpgrade",
-			expectedShutdownCalled:   false,
+			name:                       "techpreview-to-techpreview",
+			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
+			featureGate:                "TechPreviewNoUpgrade",
+			expectedShutdownCalled:     false,
 		},
 		{
-			name:                     "techpreview-to-not-tech-preview", // this isn't allowed today
-			startingTechPreviewState: true,
-			featureGate:              "",
-			expectedShutdownCalled:   true,
+			name:                       "techpreview-to-not-tech-preview", // this isn't allowed today
+			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
+			featureGate:                "",
+			expectedShutdownCalled:     true,
 		},
 	}
 	for _, tt := range tests {
@@ -72,7 +72,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
 			featureGates := informerFactory.Config().V1().FeatureGates()
-			c := New(tt.startingTechPreviewState, featureGates)
+			c := New(tt.startingRequiredFeatureSet, featureGates)
 			informerFactory.Start(ctx.Done())
 
 			if err := c.Run(ctx, shutdownFn); err != nil {
