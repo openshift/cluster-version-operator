@@ -464,10 +464,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		klog.V(2).Info("Update work is equal to current target; no change required")
 
 		if !equalUpdate(w.work.Desired, w.status.loadPayloadStatus.Update) {
-			w.lock.Unlock()
 			// this will only reset payload status to currently loaded payload
 			_, err := w.loadUpdatedPayload(ctx, w.work, cvoOptrName)
-			w.lock.Lock()
 			if err != nil {
 				klog.Warningf("Error when attempting to reset payload status to currently loaded payload: %v.", err)
 			}
@@ -499,9 +497,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		}
 	}
 
-	w.lock.Unlock()
 	implicit, err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
-	w.lock.Lock()
 	if err != nil {
 		// save override and capability changes if not first time through
 		if w.work != nil {
@@ -661,7 +657,7 @@ func (w *statusWrapper) ValidPayloadStatus(update configv1.Update) bool {
 	return equalDigest(w.previousStatus.loadPayloadStatus.Update.Image, update.Image)
 }
 
-// ReportPayload reports payload load status.
+// ReportPayload reports payload load status. SyncWorker must be locked before ReportPayload is called.
 func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
 	status := w.previousStatus
 	status.loadPayloadStatus = payloadStatus
@@ -823,9 +819,8 @@ func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 // observation by others. It sends a copy of the update to the report channel for improved
 // testability. It sets Generation, Reconciling, Actual, Verified, payload load, and
 // capabilities statuses which are manged by the payload load sync action.
+// SyncWorker must be locked before updateLoadStatus is called.
 func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
-	w.lock.Lock()
-	defer w.lock.Unlock()
 
 	// do not overwrite these status values which are not managed by load
 	update.Failure = w.status.Failure
