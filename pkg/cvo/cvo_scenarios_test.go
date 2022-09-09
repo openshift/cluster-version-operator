@@ -1890,67 +1890,8 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// wait until we see the new payload show up
-	count := 0
-	for {
-		var status SyncWorkerStatus
-		select {
-		case status = <-worker.StatusCh():
-		case <-time.After(3 * time.Second):
-			t.Fatalf("never saw expected retrieve payload event")
-		}
-		if reflect.DeepEqual(configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}, status.Actual) {
-			break
-		}
-		t.Logf("Unexpected status waiting to see first retrieve: %#v", status)
-		count++
-		if count > 8 {
-			t.Fatalf("saw too many sync events of the wrong form")
-		}
-	}
-	// wait until the new payload is applied
-	count = 0
-	for {
-		var status SyncWorkerStatus
-		select {
-		case status = <-worker.StatusCh():
-		case <-time.After(3 * time.Second):
-			t.Fatalf("never saw expected apply event")
-		}
-		if status.loadPayloadStatus.Step == "PayloadLoaded" {
-			break
-		}
-		t.Log("Waiting to see step PayloadLoaded")
-		count++
-		if count > 8 {
-			t.Fatalf("saw too many sync events of the wrong form")
-		}
-	}
-	verifyAllStatus(t, worker.StatusCh(),
-		SyncWorkerStatus{
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			Generation: 1,
-			CapabilitiesStatus: CapabilityStatus{
-				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				},
-			},
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
-				LastTransitionTime: time.Unix(1, 0),
-				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			},
-		},
-	)
+	waitForStatus(t, 8, 3, worker.StatusCh(), waitForPayloadLoaded)
+	clearAllStatusWithWait(t, "init", 3, worker.StatusCh())
 
 	// Step 1: Attempt to load another payload which will fail. The operator should still save capability changes and reflect in status.
 	//
@@ -1993,29 +1934,15 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 		t.Fatal(err)
 	}
 	// wait until the new payload load fails
-	count = 0
-	for {
-		var status SyncWorkerStatus
-		select {
-		case status = <-worker.StatusCh():
-		case <-time.After(3 * time.Second):
-			t.Fatalf("never saw expected apply event")
-		}
-		if status.loadPayloadStatus.Step == "VerifyPayloadVersion" {
-			break
-		}
-		t.Log("Waiting to see step VerifyPayloadVersion")
-		count++
-		if count > 8 {
-			t.Fatalf("saw too many sync events of the wrong form")
-		}
-	}
+	waitForStatus(t, 8, 3, worker.StatusCh(), waitForVerifyPayload)
 	actions := client.Actions()
-	if len(actions) != 2 {
-		t.Fatalf("%s", spew.Sdump(actions))
-	}
-	expectGet(t, actions[0], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+
+	checkStatus(t, actions[1], "update", "clusterversions", "status", "", configv1.ClusterVersionCapabilitiesStatus{
+		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
+		KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+	})
+
+	expectFinalUpdateStatus(t, actions, "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "3",
@@ -2478,106 +2405,35 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 
 	// Step 5: Wait for the SyncWorker to trigger a reconcile (500ms after the first)
 	//
-	verifyAllStatus(t, worker.StatusCh(),
-		SyncWorkerStatus{
-			Reconciling: true,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			Generation: 1,
-			CapabilitiesStatus: CapabilityStatus{
-				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				},
-			},
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
-				LastTransitionTime: time.Unix(1, 0),
-				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+
+	verifyFinalStatus(t, "Step 5", 10, true, worker.StatusCh(), SyncWorkerStatus{
+		Reconciling:  true,
+		Completed:    3,
+		Done:         3,
+		Total:        3,
+		VersionHash:  "DL-FFQ2Uem8=",
+		Architecture: architecture,
+		Actual: configv1.Release{
+			Version: "1.0.1-abc",
+			Image:   "image/image:1",
+			URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+		},
+		LastProgress: time.Unix(7, 0),
+		Generation:   1,
+		CapabilitiesStatus: CapabilityStatus{
+			Status: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 		},
-		SyncWorkerStatus{
-			Reconciling: true,
-			Done:        1,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			Generation:   1,
-			LastProgress: time.Unix(1, 0),
-			CapabilitiesStatus: CapabilityStatus{
-				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				},
-			},
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
-				LastTransitionTime: time.Unix(2, 0),
-				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			},
+		loadPayloadStatus: LoadPayloadStatus{
+			Step:               "PayloadLoaded",
+			Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+			LastTransitionTime: time.Unix(4, 0),
+			Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
-		SyncWorkerStatus{
-			Reconciling: true,
-			Done:        2,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			Generation:   1,
-			LastProgress: time.Unix(2, 0),
-			CapabilitiesStatus: CapabilityStatus{
-				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				},
-			},
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
-				LastTransitionTime: time.Unix(3, 0),
-				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			},
-		},
-		SyncWorkerStatus{
-			Reconciling: true,
-			Completed:   2,
-			Done:        3,
-			Total:       3,
-			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Actual: configv1.Release{
-				Version: "1.0.1-abc",
-				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
-			},
-			LastProgress: time.Unix(3, 0),
-			Generation:   1,
-			CapabilitiesStatus: CapabilityStatus{
-				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				},
-			},
-			loadPayloadStatus: LoadPayloadStatus{
-				Step:               "PayloadLoaded",
-				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
-				LastTransitionTime: time.Unix(4, 0),
-				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
-			},
-		},
+	},
+		finalStatusIndicatorCompleted,
 	)
 }
 
@@ -3426,7 +3282,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	// Verify we observe the remaining changes in the first sync. Since timing is
 	// non-deterministic, use this instead of verifyAllStatus when don't know or
 	// care how many are done.
-	verifyAllStatusOptionalDone(t, true, worker.StatusCh(),
+	verifyAllStatusOptionalDone(t, "Step 4", true, worker.StatusCh(),
 		SyncWorkerStatus{
 			Reconciling: true,
 			Done:        2,
@@ -3901,17 +3757,61 @@ func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
 	}
 }
 
+func waitForPayloadLoaded(status SyncWorkerStatus) bool {
+	return status.loadPayloadStatus.Step == "PayloadLoaded"
+}
+
+func waitForVerifyPayload(status SyncWorkerStatus) bool {
+	return status.loadPayloadStatus.Step == "VerifyPayloadVersion"
+}
+
+func waitForStatus(t *testing.T, maxLoopCount int, timeOutSeconds time.Duration, ch <-chan SyncWorkerStatus, f func(s SyncWorkerStatus) bool) {
+	count := 0
+	for {
+		var status SyncWorkerStatus
+		select {
+		case status = <-ch:
+		case <-time.After(timeOutSeconds * time.Second):
+			t.Fatalf("never saw expected apply event")
+		}
+		if f(status) {
+			break
+		}
+		t.Log("Waiting for condition")
+		count++
+		if count > maxLoopCount {
+			t.Fatalf("saw too many sync events of the wrong form")
+		}
+	}
+}
+
 func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWorkerStatus) {
-	verifyAllStatusOptionalDone(t, false, ch, items...)
+	verifyAllStatusOptionalDone(t, "", false, ch, items...)
+}
+
+func clearAllStatusWithWait(t *testing.T, name string, timeOutSeconds time.Duration, ch <-chan SyncWorkerStatus) {
+	testName := t.Name() + ":" + name
+	t.Helper()
+	t.Logf("%s: Clearing all status...", testName)
+	select {
+	case <-ch:
+	case <-time.After(timeOutSeconds * time.Second):
+		break
+	}
 }
 
 // Since timing can be non-deterministic, use this instead of verifyAllStatus when
 // don't know or care how many are done.
-func verifyAllStatusOptionalDone(t *testing.T, ignoreDone bool, ch <-chan SyncWorkerStatus, items ...SyncWorkerStatus) {
-	t.Helper()
+func verifyAllStatusOptionalDone(t *testing.T, stepName string, ignoreDone bool, ch <-chan SyncWorkerStatus, items ...SyncWorkerStatus) {
+
+	testName := t.Name()
+	if stepName != "" {
+		testName = t.Name() + ":" + stepName
+	}
+
 	if len(items) == 0 {
 		if len(ch) > 0 {
-			t.Fatalf("expected status to be empty, got %#v", <-ch)
+			t.Fatalf("%s: expected status to be empty, got %#v", testName, <-ch)
 		}
 		return
 	}
@@ -3921,7 +3821,7 @@ func verifyAllStatusOptionalDone(t *testing.T, ignoreDone bool, ch <-chan SyncWo
 	for i, expect := range items {
 		actual, ok := <-ch
 		if !ok {
-			t.Fatalf("channel closed after reading only %d items", i)
+			t.Fatalf("%s: channel closed after reading only %d items", testName, i)
 		}
 
 		if nextTime := actual.LastProgress; !nextTime.Equal(lastTime) {
@@ -3947,9 +3847,49 @@ func verifyAllStatusOptionalDone(t *testing.T, ignoreDone bool, ch <-chan SyncWo
 		})
 
 		if !reflect.DeepEqual(expect, actual) {
-			t.Fatalf("unexpected status item %d\nExpected: %#v\nActual: %#v", i, expect, actual)
+			t.Fatalf("%s: unexpected status item %d\nExpected: %#v\nActual: %#v", testName, i, expect, actual)
 		}
 	}
+}
+
+func finalStatusIndicatorCompleted(status SyncWorkerStatus) bool {
+	return status.Completed == 3
+}
+
+func verifyFinalStatus(t *testing.T, name string, maxLoopCount int, ignoreFields bool, ch <-chan SyncWorkerStatus,
+	item SyncWorkerStatus, f func(SyncWorkerStatus) bool) {
+
+	testName := t.Name() + ":" + name
+
+	var status SyncWorkerStatus
+	found := false
+	for i := 0; i < maxLoopCount; i++ {
+		select {
+		case status = <-ch:
+			if f(status) {
+				if ignoreFields {
+					status = setIgnoredFields(status, item)
+				}
+				if !reflect.DeepEqual(status, item) {
+					t.Fatalf("%s: expected status not equal to actual:\n%#v\n%#v", testName, item, status)
+				}
+				found = true
+			}
+		case <-time.After(1 * time.Second):
+		}
+		if found {
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("%s: expected status was not found, expected:\n%#v", testName, item)
+	}
+}
+
+func setIgnoredFields(status SyncWorkerStatus, setTo SyncWorkerStatus) SyncWorkerStatus {
+	status.LastProgress = setTo.LastProgress
+	status.loadPayloadStatus.LastTransitionTime = setTo.loadPayloadStatus.LastTransitionTime
+	return status
 }
 
 // blockingResourceBuilder controls how quickly Apply() is executed and allows error
