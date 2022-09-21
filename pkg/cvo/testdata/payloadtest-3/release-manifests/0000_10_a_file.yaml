@@ -1,0 +1,6 @@
+kind: Test
+apiVersion: v1
+metadata:
+  name: file-yaml
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
