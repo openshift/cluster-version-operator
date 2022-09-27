@@ -3953,6 +3953,68 @@ func expectUpdateStatus(t *testing.T, a ktesting.Action, resource, namespace str
 	expectMutation(t, a, "update", resource, "status", namespace, obj)
 }
 
+// checkStatus is a generic function used to verify only a portion of a CreateAction as defined by the
+// generic type arguments.
+func checkStatus[S configv1.ClusterVersionCapabilitiesStatus | []configv1.ClusterOperatorStatusCondition | []configv1.UpdateHistory |
+	*configv1.ClusterVersion](t *testing.T, a ktesting.Action, verb string, resource, subresource, namespace string, expect S) {
+
+	t.Helper()
+	if verb != a.GetVerb() {
+		t.Fatalf("unexpected verb: %s", a.GetVerb())
+	}
+	if subresource != a.GetSubresource() {
+		t.Fatalf("unexpected subresource: %s", a.GetSubresource())
+	}
+	switch at := a.(type) {
+	case ktesting.CreateAction:
+		actual := at.GetObject()
+		if in, ok := actual.(*configv1.ClusterOperator); ok {
+			for i := range in.Status.Conditions {
+				in.Status.Conditions[i].LastTransitionTime.Time = time.Time{}
+			}
+		}
+		if in, ok := actual.(*configv1.ClusterVersion); ok {
+			for i := range in.Status.Conditions {
+				in.Status.Conditions[i].LastTransitionTime.Time = time.Time{}
+			}
+			for i, item := range in.Status.History {
+				if item.StartedTime.IsZero() {
+					in.Status.History[i].StartedTime.Time = time.Unix(0, 0)
+				} else {
+					in.Status.History[i].StartedTime.Time = time.Unix(1, 0)
+				}
+				if item.CompletionTime != nil {
+					in.Status.History[i].CompletionTime.Time = time.Unix(2, 0)
+				}
+			}
+
+			e, a := fmt.Sprintf("%s/%s", resource, namespace), fmt.Sprintf("%s/%s", at.GetResource().Resource, at.GetNamespace())
+			if e != a {
+				t.Fatalf("unexpected action: %#v", at)
+			}
+			if _, ok := any(expect).(*configv1.ClusterVersion); ok {
+				if !reflect.DeepEqual(expect, in) {
+					t.Fatalf("expected ClusterVersion not equal to actual:\n%v\n%v", expect, in)
+				}
+			} else if _, ok := any(expect).(configv1.ClusterVersionCapabilitiesStatus); ok {
+				if !reflect.DeepEqual(expect, in.Status.Capabilities) {
+					t.Fatalf("expected ClusterVersionCapabilitiesStatus not equal to actual:\n%v\n%v", expect, in.Status.Capabilities)
+				}
+			} else if _, ok := any(expect).([]configv1.UpdateHistory); ok {
+				if !reflect.DeepEqual(expect, in.Status.History) {
+					t.Fatalf("expected History not equal to actual:\n%v\n%v", expect, in.Status.History)
+				}
+			} else {
+				if !reflect.DeepEqual(expect, in.Status.Conditions) {
+					t.Fatalf("expected Conditions not equal to actual:\n%v\n%v", expect, in.Status.Conditions)
+				}
+			}
+		}
+	default:
+		t.Fatalf("unknown verb %T", a)
+	}
+}
+
 func expectMutation(t *testing.T, a ktesting.Action, verb string, resource, subresource, namespace string, obj interface{}) {
 	t.Helper()
 	if verb != a.GetVerb() {
