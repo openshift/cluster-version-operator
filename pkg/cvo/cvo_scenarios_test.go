@@ -631,7 +631,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Desired:            desired,
 			ObservedGeneration: 1,
 			History: []configv1.UpdateHistory{
-				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
+				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, AcceptedRisks: "The update cannot be verified: some random error"},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
@@ -670,6 +670,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(2, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -695,6 +696,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(3, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -721,6 +723,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(4, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -747,6 +750,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(5, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -797,7 +801,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -834,6 +838,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -860,6 +865,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(2, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -886,6 +892,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(3, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -913,6 +920,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(4, 0),
 				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
@@ -1515,6 +1523,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -1558,7 +1567,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -2344,6 +2353,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(1, 0),
 				Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
@@ -2388,7 +2398,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -2429,6 +2439,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		loadPayloadStatus: LoadPayloadStatus{
 			Step:               "PayloadLoaded",
 			Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+			AcceptedRisks:      "The update cannot be verified: some random error",
 			LastTransitionTime: time.Unix(4, 0),
 			Release:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
 		},
@@ -2708,6 +2719,152 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 			},
 		},
+	})
+}
+
+func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest-2")
+
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	//
+	o.release.Image = "image/image:0"
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+			Generation:      1,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID:     clusterUID,
+			Channel:       "fast",
+			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     desired,
+			VersionHash: "DL-FFQ2Uem8=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+
+	worker := o.configSync.(*SyncWorker)
+	worker.preconditions = []precondition.Precondition{&testPreconditionAlwaysFail{PreConditionName: "PreCondition1"}, &testPreconditionAlwaysFail{PreConditionName: "PreCondition2"}}
+
+	go worker.Start(ctx, 1, o.name, o.cvLister)
+
+	// Step 1: The operator should report that it is blocked on precondition checks failing
+	//
+	client.ClearActions()
+	err := o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions := client.Actions()
+	verifyCVSingleUpdate(t, actions)
+
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Actual:     configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation: 1,
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "RetrievePayload",
+				Message:            "Retrieving and verifying payload version=\"1.0.1-abc\" image=\"image/image:1\"",
+				LastTransitionTime: time.Unix(1, 0),
+				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+			},
+		},
+		SyncWorkerStatus{
+			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
+			Generation:   1,
+			LastProgress: time.Unix(1, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PreconditionChecks",
+				Message:            "Preconditions failed for payload loaded version=\"1.0.1-abc\" image=\"image/image:1\": Multiple precondition checks failed:\n* Precondition \"PreCondition1\" failed because of \"CheckFailure\": PreCondition1 will always fail.\n* Precondition \"PreCondition2\" failed because of \"CheckFailure\": PreCondition2 will always fail.",
+				LastTransitionTime: time.Unix(2, 0),
+				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
+				Failure:            &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Multiple precondition checks failed:\n* Precondition \"PreCondition1\" failed because of \"CheckFailure\": PreCondition1 will always fail.\n* Precondition \"PreCondition2\" failed because of \"CheckFailure\": PreCondition2 will always fail.", Name: "PreconditionCheck"},
+			},
+		},
+	)
+
+	client.ClearActions()
+	err = o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual := cvs["version"].(*configv1.ClusterVersion)
+
+	// Step 2: Force through precondtion failures and ensure accepted risks are populated
+	//
+	// set an update
+	copied := configv1.Update{
+		Version: desired.Version,
+		Image:   desired.Image,
+		Force:   true,
+	}
+	actual.Spec.DesiredUpdate = &copied
+	//
+	// ensure the sync worker tells the sync loop about it
+	err = o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	waitForStatus(t, 8, 3, worker.StatusCh(), waitForPayloadLoaded)
+	verifyFinalStatus(t, "Step 2", 10, true, worker.StatusCh(), SyncWorkerStatus{
+		Total:       3,
+		VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
+		Actual: configv1.Release{
+			Version: "1.0.1-abc",
+			Image:   "image/image:1",
+			URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+		},
+		LastProgress: time.Unix(2, 0),
+		Generation:   1,
+		CapabilitiesStatus: CapabilityStatus{
+			Status: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+			},
+		},
+		loadPayloadStatus: LoadPayloadStatus{
+			Step:               "PayloadLoaded",
+			Message:            "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+			AcceptedRisks:      "Forced through blocking failures: Multiple precondition checks failed:\n* Precondition \"PreCondition1\" failed because of \"CheckFailure\": PreCondition1 will always fail.\n* Precondition \"PreCondition2\" failed because of \"CheckFailure\": PreCondition2 will always fail.",
+			LastTransitionTime: time.Unix(3, 0),
+			Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
+		},
+	},
+		acceptedRisksPopulated,
+	)
+
+	// wait for loaded payload to be sync'ed
+	waitForStatus(t, 8, 3, worker.StatusCh(), waitForCompleted)
+	actions = client.Actions()
+	t.Logf("%#v", actions)
+
+	// confirm history updated
+	checkStatus(t, actions[2], "update", "clusterversions", "status", "", []configv1.UpdateHistory{
+		{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, AcceptedRisks: "Forced through blocking failures: Multiple precondition checks failed:\n* Precondition \"PreCondition1\" failed because of \"CheckFailure\": PreCondition1 will always fail.\n* Precondition \"PreCondition2\" failed because of \"CheckFailure\": PreCondition2 will always fail."},
+		{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, Verified: true},
 	})
 }
 
@@ -3854,6 +4011,10 @@ func verifyAllStatusOptionalDone(t *testing.T, stepName string, ignoreDone bool,
 
 func finalStatusIndicatorCompleted(status SyncWorkerStatus) bool {
 	return status.Completed == 3
+}
+
+func acceptedRisksPopulated(status SyncWorkerStatus) bool {
+	return status.loadPayloadStatus.AcceptedRisks != ""
 }
 
 func verifyFinalStatus(t *testing.T, name string, maxLoopCount int, ignoreFields bool, ch <-chan SyncWorkerStatus,

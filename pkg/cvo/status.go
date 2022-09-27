@@ -55,7 +55,7 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Releas
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time, completed bool) {
+func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time, completed bool, acceptedRisksMsg string) {
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
@@ -71,8 +71,9 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 			Version: desired.Version,
 			Image:   desired.Image,
 
-			State:       configv1.PartialUpdate,
-			StartedTime: now,
+			State:         configv1.PartialUpdate,
+			StartedTime:   now,
+			AcceptedRisks: acceptedRisksMsg,
 		})
 	}
 
@@ -90,6 +91,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 				last.CompletionTime = &now
 			}
 		}
+		last.AcceptedRisks = acceptedRisksMsg
 	} else {
 		klog.V(2).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
 		if last.CompletionTime == nil {
@@ -104,6 +106,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 					State:          configv1.CompletedUpdate,
 					StartedTime:    now,
 					CompletionTime: &now,
+					AcceptedRisks:  acceptedRisksMsg,
 				},
 			}, config.Status.History...)
 		} else {
@@ -112,8 +115,9 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 					Version: desired.Version,
 					Image:   desired.Image,
 
-					State:       configv1.PartialUpdate,
-					StartedTime: now,
+					State:         configv1.PartialUpdate,
+					StartedTime:   now,
+					AcceptedRisks: acceptedRisksMsg,
 				},
 			}, config.Status.History...)
 		}
@@ -209,7 +213,13 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		}
 	}
 	desired := optr.mergeReleaseMetadata(status.Actual)
-	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0)
+
+	risksMsg := ""
+	if desired.Image == status.loadPayloadStatus.Update.Image {
+		risksMsg = status.loadPayloadStatus.AcceptedRisks
+	}
+
+	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0, risksMsg)
 
 	config.Status.Capabilities = status.CapabilitiesStatus.Status
 
@@ -512,7 +522,7 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 		LastTransitionTime: now,
 	})
 
-	mergeOperatorHistory(config, optr.currentVersion(), false, now, false)
+	mergeOperatorHistory(config, optr.currentVersion(), false, now, false, "")
 
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)

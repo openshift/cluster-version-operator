@@ -92,6 +92,7 @@ func (w SyncWork) Empty() bool {
 type LoadPayloadStatus struct {
 	Step               string
 	Message            string
+	AcceptedRisks      string
 	Failure            error
 	Release            configv1.Release
 	Verified           bool
@@ -297,18 +298,24 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			})
 			return nil, err
 		}
+		acceptedRisksMsg := ""
 		if info.VerificationError != nil {
-			msg := ""
 			for err := info.VerificationError; err != nil; err = errors.Unwrap(err) {
 				details := err.Error()
-				if !strings.Contains(msg, details) {
-					// library-go/pkg/verify wraps the details, but does not include them
-					// in the top-level error string.  If we have an error like that,
-					// include the details here.
-					msg = fmt.Sprintf("%s\n%s", msg, details)
+
+				// library-go/pkg/verify wraps the details, but does not include them
+				// in the top-level error string.  If we have an error like that,
+				// include the details here.
+
+				if acceptedRisksMsg == "" {
+					acceptedRisksMsg = details
+					continue
+				}
+				if !strings.Contains(acceptedRisksMsg, details) {
+					acceptedRisksMsg = fmt.Sprintf("%s\n%s", acceptedRisksMsg, details)
 				}
 			}
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", msg)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
@@ -376,6 +383,12 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 					return nil, err
 				} else {
 					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
+
+					if acceptedRisksMsg == "" {
+						acceptedRisksMsg = err.Error()
+					} else {
+						acceptedRisksMsg = fmt.Sprintf("%s\n%s", acceptedRisksMsg, err.Error())
+					}
 				}
 			}
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
@@ -392,6 +405,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			Failure:            nil,
 			Step:               "PayloadLoaded",
 			Message:            msg,
+			AcceptedRisks:      acceptedRisksMsg,
 			Verified:           info.Verified,
 			Release:            desired,
 			LastTransitionTime: time.Now(),
