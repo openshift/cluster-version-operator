@@ -4025,7 +4025,7 @@ func expectUpdateStatus(t *testing.T, a ktesting.Action, resource, namespace str
 
 // checkStatus is a generic function used to verify only a portion of a CreateAction as defined by the
 // generic type arguments.
-func checkStatus[S configv1.ClusterVersionCapabilitiesStatus | []configv1.ClusterOperatorStatusCondition |
+func checkStatus[S configv1.ClusterVersionCapabilitiesStatus | []configv1.ClusterOperatorStatusCondition | []configv1.UpdateHistory |
 	*configv1.ClusterVersion](t *testing.T, a ktesting.Action, verb string, resource, subresource, namespace string, expect S) {
 
 	t.Helper()
@@ -4069,6 +4069,10 @@ func checkStatus[S configv1.ClusterVersionCapabilitiesStatus | []configv1.Cluste
 			} else if _, ok := any(expect).(configv1.ClusterVersionCapabilitiesStatus); ok {
 				if !reflect.DeepEqual(expect, in.Status.Capabilities) {
 					t.Fatalf("expected ClusterVersionCapabilitiesStatus not equal to actual:\n%v\n%v", expect, in.Status.Capabilities)
+				}
+			} else if _, ok := any(expect).([]configv1.UpdateHistory); ok {
+				if !reflect.DeepEqual(expect, in.Status.History) {
+					t.Fatalf("expected History not equal to actual:\n%v\n%v", expect, in.Status.History)
 				}
 			} else {
 				if !reflect.DeepEqual(expect, in.Status.Conditions) {

@@ -559,3 +559,20 @@ func (pf *testPrecondition) Run(_ context.Context, _ precondition.ReleaseContext
 		Name:    pf.Name(),
 	}
 }
+
+type testPreconditionAlwaysFail struct {
+	PreConditionName string
+}
+
+func (pf *testPreconditionAlwaysFail) Name() string {
+	return pf.PreConditionName
+}
+
+func (pf *testPreconditionAlwaysFail) Run(_ context.Context, _ precondition.ReleaseContext) error {
+	return &precondition.Error{
+		Nested:  nil,
+		Reason:  "CheckFailure",
+		Message: fmt.Sprintf("%s will always fail.", pf.Name()),
+		Name:    pf.Name(),
+	}
+}
