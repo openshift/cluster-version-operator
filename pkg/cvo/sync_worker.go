@@ -1007,7 +1007,10 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	// update the status
 	cr.Complete()
-	return apierrors.NewAggregate(reportEffectErrors)
+	if len(reportEffectErrors) > 0 {
+		_ = cr.Errors(reportEffectErrors)
+	}
+	return nil
 }
 
 var (
