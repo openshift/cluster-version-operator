@@ -908,14 +908,12 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	graph := payload.NewTaskGraph(tasks)
 	graph.Split(payload.SplitOnJobs)
-	var precreateObjects bool
 	switch work.State {
 	case payload.InitializingPayload:
 		// Create every component in parallel to maximize reaching steady
 		// state.
 		graph.Parallelize(payload.FlattenByNumberAndComponent)
 		maxWorkers = len(graph.Nodes)
-		precreateObjects = true
 	case payload.ReconcilingPayload:
 		// Run the graph in random order during reconcile so that we don't
 		// hang on any particular component - we seed from the number of
@@ -933,7 +931,6 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 		// perform an orderly roll out by payload order, using some parallelization
 		// but avoiding out of order creation so components have some base
 		graph.Parallelize(payload.ByNumberAndComponent)
-		precreateObjects = true
 	}
 	capabilities := capability.GetCapabilitiesStatus(work.Capabilities)
 
@@ -941,31 +938,28 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	// update each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
-		// in specific modes, attempt to precreate a set of known types (currently ClusterOperator) without
-		// retries
-		if precreateObjects {
-			for _, task := range tasks {
-				if err := ctx.Err(); err != nil {
-					return cr.ContextError(err)
-				}
-				if task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
-					continue
-				}
-				ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
-				if ok && ov.Unmanaged {
-					klog.V(2).Infof("Skipping precreation of %s as unmanaged", task)
-					continue
-				}
-				if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
-					klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
-					continue
-				}
-				if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
-					klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
-					continue
-				}
-				klog.V(2).Infof("Precreated resource %s", task)
+		// attempt to precreate a set of known types (currently ClusterOperator) without retries
+		for _, task := range tasks {
+			if err := ctx.Err(); err != nil {
+				return cr.ContextError(err)
 			}
+			if task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+				continue
+			}
+			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
+			if ok && ov.Unmanaged {
+				klog.V(2).Infof("Skipping precreation of %s as unmanaged", task)
+				continue
+			}
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
+				klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
+				continue
+			}
+			if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
+				klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
+				continue
+			}
+			klog.V(2).Infof("Precreated resource %s", task)
 		}
 
 		for _, task := range tasks {
