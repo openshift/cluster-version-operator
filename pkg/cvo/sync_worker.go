@@ -30,6 +30,7 @@ import (
 )
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
+//
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
 	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, cvoOptrName string) *SyncWorkerStatus
