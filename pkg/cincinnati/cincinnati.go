@@ -59,13 +59,13 @@ func (err *Error) Error() string {
 // GetUpdates fetches the current and next-applicable update payloads from the specified
 // upstream Cincinnati stack given the current version and channel. The command:
 //
-// 1. Downloads the update graph from the requested URI for the requested arch and channel.
-// 2. Finds the current version entry under .nodes.
-// 3. Finds recommended next-hop updates by searching .edges for updates from the current
-//    version. Returns a slice of target Releases with these unconditional recommendations.
-// 4. Finds conditionally recommended next-hop updates by searching .conditionalEdges for
-//    updates from the current version.  Returns a slice of ConditionalUpdates with these
-//    conditional recommendations.
+//  1. Downloads the update graph from the requested URI for the requested arch and channel.
+//  2. Finds the current version entry under .nodes.
+//  3. Finds recommended next-hop updates by searching .edges for updates from the current
+//     version. Returns a slice of target Releases with these unconditional recommendations.
+//  4. Finds conditionally recommended next-hop updates by searching .conditionalEdges for
+//     updates from the current version.  Returns a slice of ConditionalUpdates with these
+//     conditional recommendations.
 func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, error) {
 	var current configv1.Release
 	// Prepare parametrized cincinnati query.
