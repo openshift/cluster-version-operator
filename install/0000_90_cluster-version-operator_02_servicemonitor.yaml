@@ -59,8 +59,8 @@ spec:
         (
           (
             time()-cluster_version_operator_update_retrieval_timestamp_seconds
-          ) >= 3600
-          and ignoring(condition, name, reason)
+          ) >= 3600 
+          and ignoring(condition, name, reason) 
           (cluster_operator_conditions{name="version", condition="RetrievedUpdates", endpoint="metrics", reason!="NoChannel"})
         )
       labels:
