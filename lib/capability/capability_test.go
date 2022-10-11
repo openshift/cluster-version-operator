@@ -41,6 +41,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 			wantEnabledKeys: []string{},
 		},
@@ -60,6 +61,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -83,6 +85,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -91,6 +94,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 		},
 		{name: "set capabilities None with additional",
@@ -109,6 +113,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 			wantEnabledKeys: []string{"cap1", "cap2", "cap3"},
 		},
@@ -128,6 +133,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityConsole),
 				string(configv1.ClusterVersionCapabilityInsights),
 				string(configv1.ClusterVersionCapabilityStorage),
+				string(configv1.ClusterVersionCapabilityCSISnapshot),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),

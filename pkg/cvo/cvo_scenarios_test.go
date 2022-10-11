@@ -217,8 +217,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -274,8 +274,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -300,8 +300,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -326,8 +326,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -353,8 +353,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -395,8 +395,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -429,8 +429,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -455,8 +455,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -481,8 +481,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -508,8 +508,8 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -634,8 +634,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, AcceptedRisks: "The update cannot be verified: some random error"},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -689,8 +689,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -716,8 +716,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -743,8 +743,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -797,8 +797,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -831,8 +831,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -858,8 +858,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -885,8 +885,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -913,8 +913,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1030,8 +1030,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -1090,8 +1090,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -1116,8 +1116,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 		},
@@ -1136,8 +1136,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1188,8 +1188,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1222,8 +1222,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1248,8 +1248,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1274,8 +1274,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1301,8 +1301,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1516,8 +1516,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1563,8 +1563,8 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -1777,8 +1777,8 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1811,8 +1811,8 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 			Desired:            desired,
 			VersionHash:        "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1949,7 +1949,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	// confirm capabilities are updated
 	checkStatus(t, actions[1], "update", "clusterversions", "status", "", configv1.ClusterVersionCapabilitiesStatus{
 		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
-		KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+		KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 	})
 	clearAllStatusWithWait(t, "final sync", 3, worker.StatusCh())
 	err = o.sync(ctx, o.queueKey())
@@ -1986,7 +1986,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -2035,7 +2035,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			},
 			// Emulates capabilities status set by a previous pod
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 		},
@@ -2100,10 +2100,10 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
-				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2143,11 +2143,11 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
-				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: Console, Insights, Storage, marketplace, openshift-samples"},
+				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: CSISnapshot, Console, Insights, Storage, marketplace, openshift-samples"},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
 					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: "Available", Status: "False"},
@@ -2355,8 +2355,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2403,8 +2403,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -2424,7 +2424,6 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 
 	// Step 5: Wait for the SyncWorker to trigger a reconcile (500ms after the first)
 	//
-
 	verifyFinalStatus(t, "Step 5", 10, true, worker.StatusCh(), SyncWorkerStatus{
 		Reconciling:  true,
 		Completed:    3,
@@ -2441,8 +2440,8 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		Generation:   1,
 		CapabilitiesStatus: CapabilityStatus{
 			Status: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 		},
 		loadPayloadStatus: LoadPayloadStatus{
@@ -2616,8 +2615,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2640,8 +2639,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2664,8 +2663,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2711,8 +2710,8 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2850,8 +2849,8 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 		Generation:   1,
 		CapabilitiesStatus: CapabilityStatus{
 			Status: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 		},
 		loadPayloadStatus: LoadPayloadStatus{
@@ -2969,8 +2968,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -3101,8 +3100,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3126,8 +3125,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3151,8 +3150,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(4, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3194,8 +3193,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3218,8 +3217,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(2, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3243,8 +3242,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(3, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3268,8 +3267,8 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			LastProgress: time.Unix(4, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3427,8 +3426,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3463,8 +3462,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3514,8 +3513,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			LastProgress: time.Unix(1, 0),
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3555,8 +3554,8 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -3683,8 +3682,8 @@ func TestCVO_ParallelError(t *testing.T) {
 					Generation:   1,
 					CapabilitiesStatus: CapabilityStatus{
 						Status: configv1.ClusterVersionCapabilitiesStatus{
-							EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-							KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+							EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+							KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 						},
 					},
 					loadPayloadStatus: LoadPayloadStatus{
@@ -3719,8 +3718,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			Generation:   1,
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+					KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3763,8 +3762,8 @@ func TestCVO_ParallelError(t *testing.T) {
 			Desired:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
 			VersionHash:        "Gyh2W6qcDO4=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
