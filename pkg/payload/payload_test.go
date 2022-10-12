@@ -164,6 +164,18 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			wantImplicitLen: 1,
 		},
 		{
+			name:    "basic with unknown cap",
+			pathExt: "test1",
+			capabilities: capability.ClusterCapabilities{
+				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+			},
+			wantImplicit: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapability("cap2"),
+			},
+			wantImplicitLen: 1,
+		},
+		{
 			name:    "different manifest",
 			pathExt: "test2",
 		},

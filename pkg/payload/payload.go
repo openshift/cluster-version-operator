@@ -199,6 +199,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, includeTechPreview 
 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
+
 			for _, manifest := range ms {
 				if err := manifest.Include(&excludeIdentifier, &includeTechPreview, &profile, onlyKnownCaps); err != nil {
 					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
@@ -236,11 +237,11 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
 
-	// Initialize so it contains existng implicitly enabled capabilities
+	// Initialize so it contains existing implicitly enabled capabilities
 	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
 
 	for _, updateManifest := range updatePayloadManifests {
-		updateManErr := updateManifest.Include(nil, nil, nil, &clusterCaps)
+		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, true)
 
 		// update manifest is enabled, no need to check
 		if updateManErr == nil {
@@ -252,7 +253,7 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			}
 
 			// current manifest is disabled, no need to check
-			if err := currentManifest.Include(nil, nil, nil, &clusterCaps); err != nil {
+			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, true); err != nil {
 				continue
 			}
 			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
