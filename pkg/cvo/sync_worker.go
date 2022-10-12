@@ -321,8 +321,11 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.requiredFeatureSet, w.clusterProfile,
-			capability.GetKnownCapabilities())
+
+		// Capability filtering is not done here since unknown capabilities are allowed
+		// during updated payload load and enablement checking only occurs during apply.
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.requiredFeatureSet, w.clusterProfile, nil)
+
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
