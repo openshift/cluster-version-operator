@@ -1640,6 +1640,26 @@ func TestEnsureEnvVar(t *testing.T) {
 			},
 			expectedModified: false,
 		},
+		{
+			name: "CVO can inject LB into ENVVAR",
+			existing: []corev1.EnvVar{
+				{Name: "ENVVAR", Value: "127.0.0.1"},
+			},
+			input: []corev1.EnvVar{
+				{Name: "ENVVAR", Value: "api-int.ci-ln-vqs15yk-72292.gcp-2.ci.openshift.org"},
+			},
+			expectedModified: true,
+		},
+		{
+			name: "CVO can inject LB into KUBERNETES_SERVICE_HOST",
+			existing: []corev1.EnvVar{
+				{Name: "KUBERNETES_SERVICE_HOST", Value: "127.0.0.1"},
+			},
+			input: []corev1.EnvVar{
+				{Name: "KUBERNETES_SERVICE_HOST", Value: "api-int.ci-ln-vqs15yk-72292.gcp-2.ci.openshift.org"},
+			},
+			expectedModified: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
