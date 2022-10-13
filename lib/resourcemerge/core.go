@@ -112,13 +112,6 @@ func ensureContainer(modified *bool, existing *corev1.Container, required corev1
 
 func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.EnvVar) {
 	for envidx := range required {
-		// Currently only CVO deployment uses this variable to inject internal LB host.
-		// This may result in an IP address being returned by API so assuming the
-		// returned value is correct.
-		if required[envidx].Name == "KUBERNETES_SERVICE_HOST" {
-			ensureEnvVarKubeService(*existing, &required[envidx])
-		}
-
 		if required[envidx].ValueFrom != nil {
 			ensureEnvVarSourceFieldRefDefault(required[envidx].ValueFrom.FieldRef)
 		}
@@ -126,14 +119,6 @@ func ensureEnvVar(modified *bool, existing *[]corev1.EnvVar, required []corev1.E
 	if !equality.Semantic.DeepEqual(required, *existing) {
 		*existing = required
 		*modified = true
-	}
-}
-
-func ensureEnvVarKubeService(existing []corev1.EnvVar, required *corev1.EnvVar) {
-	for envidx := range existing {
-		if existing[envidx].Name == required.Name {
-			required.Value = existing[envidx].Value
-		}
 	}
 }
 
