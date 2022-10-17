@@ -144,7 +144,7 @@ github.com/openshift/client-go/security/applyconfigurations/internal
 github.com/openshift/client-go/security/applyconfigurations/security/v1
 github.com/openshift/client-go/security/clientset/versioned/scheme
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1
-# github.com/openshift/library-go v0.0.0-20221012165547-f859132ee700
+# github.com/openshift/library-go v0.0.0-20221017195819-7f7c08fa1941
 ## explicit; go 1.18
 github.com/openshift/library-go/pkg/config/clusterstatus
 github.com/openshift/library-go/pkg/config/leaderelection

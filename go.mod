@@ -10,7 +10,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/openshift/api v0.0.0-20220919112502-5eaf4250c423
 	github.com/openshift/client-go v0.0.0-20220915152853-9dfefb19db2e
-	github.com/openshift/library-go v0.0.0-20221012165547-f859132ee700
+	github.com/openshift/library-go v0.0.0-20221017195819-7f7c08fa1941
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.12.1
 	github.com/prometheus/client_model v0.2.0
