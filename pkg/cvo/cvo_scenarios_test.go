@@ -664,7 +664,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(2, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -690,7 +691,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(3, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -717,7 +719,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(4, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -744,7 +747,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(5, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 	)
@@ -832,7 +836,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(1, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -859,7 +864,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(2, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -886,7 +892,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(3, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -914,7 +921,8 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
 				AcceptedRisks:      "The update cannot be verified: some random error",
 				LastTransitionTime: time.Unix(4, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 	)
@@ -1059,7 +1067,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(2, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1078,7 +1087,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(3, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
@@ -1104,7 +1114,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(4, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
@@ -1136,7 +1147,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(5, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 	)
@@ -1222,7 +1234,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(1, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1248,7 +1261,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(2, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1274,7 +1288,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(3, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 		SyncWorkerStatus{
@@ -1301,7 +1316,8 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Step:               "PayloadLoaded",
 				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\"",
 				LastTransitionTime: time.Unix(4, 0),
-				Release:            configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"},
+				Local:              true,
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
 		},
 	)

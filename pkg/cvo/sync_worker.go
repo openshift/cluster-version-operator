@@ -96,6 +96,7 @@ type LoadPayloadStatus struct {
 	Failure            error
 	Release            configv1.Release
 	Verified           bool
+	Local              bool
 	LastTransitionTime time.Time
 }
 
@@ -292,7 +293,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Failure:            err,
 				Step:               "RetrievePayload",
 				Message:            msg,
-				Release:            desired,
+				Update:             desired,
+				Local:              info.Local,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -331,7 +333,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "LoadPayload",
 				Message:            msg,
 				Verified:           info.Verified,
-				Release:            desired,
+				Local:              info.Local,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -352,7 +355,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "VerifyPayloadVersion",
 				Message:            msg,
 				Verified:           info.Verified,
-				Release:            desired,
+				Local:              info.Local,
+				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -376,7 +380,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 						Step:               "PreconditionChecks",
 						Message:            msg,
 						Verified:           info.Verified,
-						Release:            desired,
+						Local:              info.Local,
+						Update:             desired,
 						LastTransitionTime: time.Now(),
 					})
 					return nil, err
@@ -405,7 +410,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			Message:            msg,
 			AcceptedRisks:      acceptedRisksMsg,
 			Verified:           info.Verified,
-			Release:            desired,
+			Local:              info.Local,
+			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
 		klog.V(2).Infof("Payload loaded from %s with hash %s", desired.Image, payloadUpdate.ManifestHash)

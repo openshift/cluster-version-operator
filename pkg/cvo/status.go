@@ -55,7 +55,9 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Releas
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time, completed bool, acceptedRisksMsg string) {
+func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time,
+	completed bool, acceptedRisksMsg string, localPayload bool) {
+
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
@@ -91,7 +93,11 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 				last.CompletionTime = &now
 			}
 		}
-		last.AcceptedRisks = acceptedRisksMsg
+		// Don't overwrite accepted risks if local payload since signature verification and preconditions are not
+		// performed on a local payload.
+		if !localPayload {
+			last.AcceptedRisks = acceptedRisksMsg
+		}
 	} else {
 		klog.V(2).Infof("must add a new history entry completed=%t desired=%#v != last=%#v", completed, desired, last)
 		if last.CompletionTime == nil {
@@ -219,7 +225,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		risksMsg = status.loadPayloadStatus.AcceptedRisks
 	}
 
-	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0, risksMsg)
+	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0, risksMsg, status.loadPayloadStatus.Local)
 
 	config.Status.Capabilities = status.CapabilitiesStatus.Status
 
@@ -522,7 +528,7 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 		LastTransitionTime: now,
 	})
 
-	mergeOperatorHistory(config, optr.currentVersion(), false, now, false, "")
+	mergeOperatorHistory(config, optr.currentVersion(), false, now, false, "", false)
 
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
