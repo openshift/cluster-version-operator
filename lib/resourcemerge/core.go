@@ -554,7 +554,7 @@ func ensureSeccompProfilePtr(modified *bool, existing **corev1.SeccompProfile, r
 }
 
 func ensureSeccompProfile(modified *bool, existing *corev1.SeccompProfile, required corev1.SeccompProfile) {
-	if equality.Semantic.DeepEqual(existing, required) {
+	if equality.Semantic.DeepEqual(*existing, required) {
 		return
 	}
 
