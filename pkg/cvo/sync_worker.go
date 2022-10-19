@@ -141,19 +141,18 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 //
 // State transitions:
 //
-//   Initial: wait for valid Update(), report empty status
-//     Update() -> Sync
-//   Sync: attempt to invoke the apply() method
-//     apply() returns an error -> Error
-//     apply() returns nil -> Reconciling
-//   Reconciling: invoke apply() no more often than reconcileInterval
-//     Update() with different values -> Sync
-//     apply() returns an error -> Error
-//     apply() returns nil -> Reconciling
-//   Error: backoff until we are attempting every reconcileInterval
-//     apply() returns an error -> Error
-//     apply() returns nil -> Reconciling
-//
+//	Initial: wait for valid Update(), report empty status
+//	  Update() -> Sync
+//	Sync: attempt to invoke the apply() method
+//	  apply() returns an error -> Error
+//	  apply() returns nil -> Reconciling
+//	Reconciling: invoke apply() no more often than reconcileInterval
+//	  Update() with different values -> Sync
+//	  apply() returns an error -> Error
+//	  apply() returns nil -> Reconciling
+//	Error: backoff until we are attempting every reconcileInterval
+//	  apply() returns an error -> Error
+//	  apply() returns nil -> Reconciling
 type SyncWorker struct {
 	backoff       wait.Backoff
 	retriever     PayloadRetriever
@@ -312,8 +311,11 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		}
 
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile,
-			capability.GetKnownCapabilities())
+
+		// Capability filtering is not done here since unknown capabilities are allowed
+		// during updated payload load and enablement checking only occurs during apply.
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.includeTechPreview, w.clusterProfile, nil)
+
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
@@ -417,7 +419,7 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork,
 // ignored unless this is the first time that Update has been called. The returned status represents either
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
-//   giving the sync loop the opportunity to observe our change and begin working towards it.
+// giving the sync loop the opportunity to observe our change and begin working towards it.
 func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion,
 	state payload.State, cvoOptrName string) *SyncWorkerStatus {
 
