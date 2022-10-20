@@ -646,13 +646,13 @@ func ensureAffinity(modified *bool, existing *corev1.Affinity, required corev1.A
 }
 
 func ensurePodSecurityContextPtr(modified *bool, existing **corev1.PodSecurityContext, required *corev1.PodSecurityContext) {
-	if *existing == nil && required == nil {
+	if (*existing == nil || equality.Semantic.DeepEqual(*existing, &corev1.PodSecurityContext{})) && required == nil {
 		return
 	}
 
 	// Check if we can simply set to required. This can be done if existing is not set or it is set
 	// but required is not set.
-	if *existing == nil || (required == nil && *existing != nil) {
+	if *existing == nil || required == nil {
 		*modified = true
 		*existing = required
 		return

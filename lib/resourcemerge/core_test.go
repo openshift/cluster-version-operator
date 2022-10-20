@@ -62,6 +62,15 @@ func TestEnsurePodSpec(t *testing.T) {
 				SecurityContext: &corev1.PodSecurityContext{}},
 		},
 		{
+			name: "Existing PodSecurityContext empty, desired nil => do not modify",
+			existing: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+			input:            corev1.PodSpec{SecurityContext: nil},
+			expectedModified: false,
+			expected: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+		},
+		{
 			name: "PodSecurityContext no changes",
 			existing: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
