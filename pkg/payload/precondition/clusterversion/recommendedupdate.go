@@ -37,10 +37,11 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	}
 	if err != nil {
 		return &precondition.Error{
-			Nested:  err,
-			Reason:  "UnknownError",
-			Message: err.Error(),
-			Name:    ru.Name(),
+			Nested:             err,
+			Reason:             "UnknownError",
+			Message:            err.Error(),
+			Name:               ru.Name(),
+			NonBlockingWarning: true,
 		}
 	}
 	for _, recommended := range clusterVersion.Status.AvailableUpdates {
@@ -61,7 +62,8 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 							Reason: condition.Reason,
 							Message: fmt.Sprintf("Update from %s to %s is not recommended:\n\n%s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion, condition.Message),
-							Name: ru.Name(),
+							Name:               ru.Name(),
+							NonBlockingWarning: true,
 						}
 					default:
 						return &precondition.Error{
@@ -69,7 +71,8 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 							Message: fmt.Sprintf("Update from %s to %s is %s=%s: %s: %s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion,
 								condition.Type, condition.Status, condition.Reason, condition.Message),
-							Name: ru.Name(),
+							Name:               ru.Name(),
+							NonBlockingWarning: true,
 						}
 					}
 				}
@@ -78,7 +81,8 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 				Reason: "UnknownConditionType",
 				Message: fmt.Sprintf("Update from %s to %s has a status.conditionalUpdates entry, but no Recommended condition.",
 					clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
-				Name: ru.Name(),
+				Name:               ru.Name(),
+				NonBlockingWarning: true,
 			}
 		}
 	}
@@ -88,13 +92,13 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 			Reason: "NoChannel",
 			Message: fmt.Sprintf("Configured channel is unset, so the recommended status of updating from %s to %s is unknown.",
 				clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
-			Name: ru.Name(),
+			Name:               ru.Name(),
+			NonBlockingWarning: true,
 		}
 	}
 
 	reason := "UnknownUpdate"
 	msg := ""
-
 	if retrieved := resourcemerge.FindOperatorStatusCondition(clusterVersion.Status.Conditions, configv1.RetrievedUpdates); retrieved == nil {
 		msg = fmt.Sprintf("No %s, so the recommended status of updating from %s to %s is unknown.", configv1.RetrievedUpdates,
 			clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion)
@@ -108,9 +112,10 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 
 	if msg != "" {
 		return &precondition.Error{
-			Reason:  reason,
-			Message: msg,
-			Name:    ru.Name(),
+			Reason:             reason,
+			Message:            msg,
+			Name:               ru.Name(),
+			NonBlockingWarning: true,
 		}
 	}
 	return nil
