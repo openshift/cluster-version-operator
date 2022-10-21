@@ -96,6 +96,7 @@ type LoadPayloadStatus struct {
 	Failure            error
 	Update             configv1.Update
 	Verified           bool
+	Local              bool
 	LastTransitionTime time.Time
 }
 
@@ -296,6 +297,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "RetrievePayload",
 				Message:            msg,
 				Update:             desired,
+				Local:              info.Local,
 				LastTransitionTime: time.Now(),
 			})
 			return nil, err
@@ -334,6 +336,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "LoadPayload",
 				Message:            msg,
 				Verified:           info.Verified,
+				Local:              info.Local,
 				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
@@ -355,6 +358,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 				Step:               "VerifyPayloadVersion",
 				Message:            msg,
 				Verified:           info.Verified,
+				Local:              info.Local,
 				Update:             desired,
 				LastTransitionTime: time.Now(),
 			})
@@ -379,6 +383,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 						Step:               "PreconditionChecks",
 						Message:            msg,
 						Verified:           info.Verified,
+						Local:              info.Local,
 						Update:             desired,
 						LastTransitionTime: time.Now(),
 					})
@@ -409,6 +414,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 			Message:            msg,
 			AcceptedRisks:      acceptedRisksMsg,
 			Verified:           info.Verified,
+			Local:              info.Local,
 			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
