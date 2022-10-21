@@ -12,10 +12,11 @@ import (
 
 // Error is a wrapper for errors that occur during a precondition check for payload.
 type Error struct {
-	Nested  error
-	Reason  string
-	Message string
-	Name    string
+	Nested             error
+	Reason             string
+	Message            string
+	Name               string
+	NonBlockingWarning bool // For some errors we do not want to fail the precondition check but we want to communicate about it
 }
 
 // Error returns the message
@@ -71,12 +72,17 @@ func Summarize(errs []error, force bool) (bool, error) {
 		return false, nil
 	}
 	var msgs []string
+	var isWarning = true
 	for _, e := range errs {
 		if pferr, ok := e.(*Error); ok {
 			msgs = append(msgs, fmt.Sprintf("Precondition %q failed because of %q: %v", pferr.Name, pferr.Reason, pferr.Error()))
+			if !pferr.NonBlockingWarning {
+				isWarning = false
+			}
 			continue
 		}
 		msgs = append(msgs, e.Error())
+
 	}
 	msg := ""
 	if len(msgs) == 1 {
@@ -87,9 +93,10 @@ func Summarize(errs []error, force bool) (bool, error) {
 
 	if force {
 		msg = fmt.Sprintf("Forced through blocking failures: %s", msg)
+		isWarning = true
 	}
 
-	return !force, &payload.UpdateError{
+	return !isWarning, &payload.UpdateError{
 		Nested:  nil,
 		Reason:  "UpgradePreconditionCheckFailed",
 		Message: msg,
