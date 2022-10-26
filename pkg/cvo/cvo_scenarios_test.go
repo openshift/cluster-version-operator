@@ -1967,54 +1967,6 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
 		KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 	})
-	clearAllStatusWithWait(t, "final sync", 3, worker.StatusCh())
-	err = o.sync(ctx, o.queueKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	// wait for originally loaded payload to be sync'ed
-	waitForStatus(t, 8, 3, worker.StatusCh(), waitForCompleted)
-	actions = client.Actions()
-
-	expectFinalUpdateStatus(t, actions, "clusterversions", "", &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "version",
-			ResourceVersion: "4",
-			Generation:      1,
-		},
-		Spec: configv1.ClusterVersionSpec{
-			ClusterID:     clusterUID,
-			Channel:       "fast",
-			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
-			Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
-				BaselineCapabilitySet:         configv1.ClusterVersionCapabilitySetNone,
-				AdditionalEnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
-			},
-		},
-		Status: configv1.ClusterVersionStatus{
-			// Prefers the image version over the operator's version (although in general they will remain in sync)
-			ObservedGeneration: 1,
-			Desired:            configv1.Release{Version: "1.0.1-abc", Image: "image/image:1", URL: "https://example.com/v1.0.1-abc"},
-			VersionHash:        "Y9500_0QNis=",
-			History: []configv1.UpdateHistory{
-				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
-			},
-			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
-			},
-			Conditions: []configv1.ClusterOperatorStatusCondition{
-				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
-				{Type: DesiredReleaseAccepted, Status: configv1.ConditionFalse, Reason: "VerifyPayloadVersion",
-					Message: "Verifying payload failed version=\"1.0.0-abc\" image=\"image/image:0\" failure=release image version 1.0.1-abc does not match the expected upstream version 1.0.0-abc"},
-				{Type: "Available", Status: "True", Message: "Done applying 1.0.1-abc"},
-				{Type: "Failing", Status: "False"},
-				{Type: "Progressing", Status: "False", Message: "Cluster version is 1.0.1-abc"},
-				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-			},
-		},
-	})
 }
 
 func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
@@ -2134,7 +2086,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 		t.Fatalf("%s", spew.Sdump(actions))
 	}
 	expectGet(t, actions[1], "clusterversions", "", "version")
-	expectUpdateStatus(t, actions[2], "clusterversions", "", &configv1.ClusterVersion{
+	expectFinalUpdateStatus(t, actions, "clusterversions", "", &configv1.ClusterVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "version",
 			ResourceVersion: "1",
