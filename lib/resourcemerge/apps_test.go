@@ -107,7 +107,7 @@ func TestEnsureDeployment(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defaultDeployment(&test.existing, test.existing)
 			defaultDeployment(&test.expected, test.expected)
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			EnsureDeployment(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -122,6 +122,6 @@ func TestEnsureDeployment(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultDeployment(in *appsv1.Deployment, from appsv1.Deployment) {
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	EnsureDeployment(modified, in, from)
 }

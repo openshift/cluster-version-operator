@@ -3,13 +3,13 @@ package resourcemerge
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/utils/pointer"
 )
 
-func TestEnsureClusterRoleBindingsv1(t *testing.T) {
+func TestEnsureClusterRole2Bindingsv1(t *testing.T) {
 	tests := []struct {
 		name     string
 		existing rbacv1.ClusterRoleBinding
@@ -264,14 +264,14 @@ func TestEnsureClusterRoleBindingsv1(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			EnsureClusterRoleBinding(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
 			}
 
 			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
-				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+				t.Errorf("unexpected: %s", cmp.Diff(test.expected, test.existing))
 			}
 		})
 	}
