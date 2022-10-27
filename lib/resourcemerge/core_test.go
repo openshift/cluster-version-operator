@@ -62,6 +62,37 @@ func TestEnsurePodSpec(t *testing.T) {
 				SecurityContext: &corev1.PodSecurityContext{}},
 		},
 		{
+			name: "Existing PodSecurityContext empty, desired nil => do not modify",
+			existing: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+			input:            corev1.PodSpec{SecurityContext: nil},
+			expectedModified: false,
+			expected: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{}},
+		},
+		{
+			name: "PodSecurityContext no changes",
+			existing: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
+					RunAsUser:      int64Ptr(int64(1234)),
+					RunAsGroup:     int64Ptr(int64(4321)),
+					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}},
+			},
+			input: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
+					RunAsUser:      int64Ptr(int64(1234)),
+					RunAsGroup:     int64Ptr(int64(4321)),
+					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}},
+			},
+			expectedModified: false,
+			expected: corev1.PodSpec{
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
+					RunAsUser:      int64Ptr(int64(1234)),
+					RunAsGroup:     int64Ptr(int64(4321)),
+					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}},
+			},
+		},
+		{
 			name: "PodSecurityContext changes",
 			existing: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),

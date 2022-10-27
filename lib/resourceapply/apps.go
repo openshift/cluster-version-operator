@@ -29,13 +29,19 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return nil, false, nil
 	}
 
+	var original appsv1.Deployment
+	existing.DeepCopyInto(&original)
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating Deployment %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)
+		}
 	}
 
 	actual, err := client.Deployments(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
