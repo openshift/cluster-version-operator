@@ -21,7 +21,7 @@ func TestSummarize(t *testing.T) {
 	}, {
 		name:          "unrecognized error type",
 		errors:        []error{fmt.Errorf("random error")},
-		expectedBlock: true,
+		expectedBlock: false,
 		expectedError: "random error",
 	}, {
 		name:          "forced unrecognized error type",
@@ -42,7 +42,7 @@ func TestSummarize(t *testing.T) {
 	}, {
 		name:          "two unrecognized error types",
 		errors:        []error{fmt.Errorf("random error"), fmt.Errorf("random error 2")},
-		expectedBlock: true,
+		expectedBlock: false,
 		expectedError: `Multiple precondition checks failed:
 * random error
 * random error 2`,
