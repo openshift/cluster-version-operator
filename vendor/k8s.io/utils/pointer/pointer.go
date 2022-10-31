@@ -233,6 +233,7 @@ func Bool(b bool) *bool {
 }
 
 // BoolPtr is a function variable referring to Bool.
+//
 // Deprecated: Use Bool instead.
 var BoolPtr = Bool // for back-compat
 
