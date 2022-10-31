@@ -76,35 +76,35 @@ func TestMergeOwnerRefs(t *testing.T) {
 			UID: types.UID("uid-1"),
 		}},
 		input: []metav1.OwnerReference{{
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 			UID:        types.UID("uid-1"),
 		}},
 
 		expectedModified: true,
 		expected: []metav1.OwnerReference{{
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 			UID:        types.UID("uid-1"),
 		}},
 	}, {
 		existing: []metav1.OwnerReference{{
-			Controller: pointer.BoolPtr(false),
+			Controller: pointer.Bool(false),
 			UID:        types.UID("uid-1"),
 		}},
 		input: []metav1.OwnerReference{{
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 			UID:        types.UID("uid-1"),
 		}},
 
 		expectedModified: true,
 		expected: []metav1.OwnerReference{{
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 			UID:        types.UID("uid-1"),
 		}},
 	}}
 
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			mergeOwnerRefs(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
 				t.Fatalf("mismatch modified got: %v want: %v", *modified, test.expectedModified)

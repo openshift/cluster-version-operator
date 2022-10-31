@@ -3,12 +3,12 @@ package resourcemerge
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/utils/pointer"
 )
 
@@ -863,10 +863,10 @@ func TestEnsurePodSpec(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defaultPodSpec(&test.existing, test.existing)
 			defaultPodSpec(&test.expected, test.expected)
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			ensurePodSpec(modified, &test.existing, test.input)
 
-			// This has to be done again to get defaults set on structures that didn't exixt before
+			// This has to be done again to get defaults set on structures that didn't exist before
 			// running ensurePodSpec (e.g. ContainerPort)
 			defaultPodSpec(&test.existing, test.existing)
 
@@ -875,7 +875,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			}
 
 			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
-				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+				t.Errorf("unexpected: %s", cmp.Diff(test.expected, test.existing))
 			}
 		})
 	}
@@ -1312,14 +1312,14 @@ func TestEnsureServicePorts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			EnsureServicePorts(modified, &test.existing.Spec.Ports, test.input.Spec.Ports)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
 			}
 
 			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
-				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+				t.Errorf("unexpected: %s", cmp.Diff(test.expected, test.existing))
 			}
 		})
 	}
@@ -1422,7 +1422,7 @@ func TestEnsureServiceType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			EnsureServiceType(modified, &test.existing.Spec.Type, test.input.Spec.Type)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -1529,17 +1529,17 @@ func TestEnsureTolerations(t *testing.T) {
 				Key:               "node.kubernetes.io/not-ready",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}, {
 				Key:               "node.kubernetes.io/unreachable",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}, {
 				Key:               "node.kubernetes.io/not-ready",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}},
 			input: []corev1.Toleration{{
 				Key:      "node-role.kubernetes.io/master",
@@ -1561,12 +1561,12 @@ func TestEnsureTolerations(t *testing.T) {
 				Key:               "node.kubernetes.io/unreachable",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}, {
 				Key:               "node.kubernetes.io/not-ready",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}},
 			expectedModified: true,
 			expected: []corev1.Toleration{{
@@ -1585,12 +1585,12 @@ func TestEnsureTolerations(t *testing.T) {
 				Key:               "node.kubernetes.io/not-ready",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}, {
 				Key:               "node.kubernetes.io/unreachable",
 				Operator:          corev1.TolerationOpExists,
 				Effect:            corev1.TaintEffectNoExecute,
-				TolerationSeconds: pointer.Int64Ptr(120),
+				TolerationSeconds: pointer.Int64(120),
 			}, {
 				Key:      "node.kubernetes.io/not-ready",
 				Operator: corev1.TolerationOpExists,
@@ -1600,13 +1600,13 @@ func TestEnsureTolerations(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			ensureTolerations(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
 			}
 			if !equality.Semantic.DeepEqual(test.existing, test.expected) {
-				t.Errorf("unexpected: %s", diff.ObjectReflectDiff(test.expected, test.existing))
+				t.Errorf("unexpected: %s", cmp.Diff(test.expected, test.existing))
 			}
 		})
 	}
@@ -1643,7 +1643,7 @@ func TestEnsureEnvVar(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 
 			ensureEnvVar(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
@@ -1655,7 +1655,7 @@ func TestEnsureEnvVar(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultPodSpec(in *corev1.PodSpec, from corev1.PodSpec) {
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	ensurePodSpec(modified, in, from)
 }
 

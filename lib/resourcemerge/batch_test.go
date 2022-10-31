@@ -6,7 +6,7 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	pointer "k8s.io/utils/pointer"
+	"k8s.io/utils/pointer"
 )
 
 func TestEnsureJob(t *testing.T) {
@@ -24,40 +24,40 @@ func TestEnsureJob(t *testing.T) {
 			name: "different backofflimit count",
 			existing: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(2)}},
+					BackoffLimit: pointer.Int32(2)}},
 			required: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(3)}},
+					BackoffLimit: pointer.Int32(3)}},
 
 			expectedModified: true,
 			expected: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(3)}},
+					BackoffLimit: pointer.Int32(3)}},
 		},
 		{
 			name: "same backofflimit count",
 			existing: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(2)}},
+					BackoffLimit: pointer.Int32(2)}},
 			required: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(2)}},
+					BackoffLimit: pointer.Int32(2)}},
 
 			expectedModified: false,
 			expected: batchv1.Job{
 				Spec: batchv1.JobSpec{
-					BackoffLimit: pointer.Int32Ptr(2)}},
+					BackoffLimit: pointer.Int32(2)}},
 		},
 		{
 			name: "required-Selector not nil",
 			existing: batchv1.Job{
 				Spec: batchv1.JobSpec{
 					Selector:       &labelSelector,
-					ManualSelector: pointer.BoolPtr(false)}},
+					ManualSelector: pointer.Bool(false)}},
 			required: batchv1.Job{
 				Spec: batchv1.JobSpec{
 					Selector:       &labelSelector,
-					ManualSelector: pointer.BoolPtr(true)}},
+					ManualSelector: pointer.Bool(true)}},
 
 			expectedPanic: true,
 		},
@@ -79,7 +79,7 @@ func TestEnsureJob(t *testing.T) {
 			}()
 			defaultJob(&test.existing, test.existing)
 			defaultJob(&test.expected, test.expected)
-			modified := pointer.BoolPtr(false)
+			modified := pointer.Bool(false)
 			EnsureJob(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -94,6 +94,6 @@ func TestEnsureJob(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultJob(in *batchv1.Job, from batchv1.Job) {
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	EnsureJob(modified, in, from)
 }
