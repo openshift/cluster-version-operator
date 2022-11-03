@@ -37,7 +37,12 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	}
 
 	channel := config.Spec.Channel
-	arch := optr.getArchitecture()
+	desiredArch := optr.getDesiredArchitecture(config.Spec.DesiredUpdate)
+	currentArch := optr.getArchitecture()
+
+	if desiredArch == "" {
+		desiredArch = currentArch
+	}
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getAvailableUpdates()
@@ -47,9 +52,9 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, u.LastAttempt)
 	} else if channel != u.Channel {
 		klog.V(2).Infof("Retrieving available updates again, because the channel has changed from %q to %q", u.Channel, channel)
-	} else if arch != u.Architecture {
+	} else if desiredArch != u.Architecture {
 		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q",
-			u.Architecture, arch)
+			u.Architecture, desiredArch)
 	} else if upstream == u.Upstream || (upstream == optr.defaultUpstreamServer && u.Upstream == "") {
 		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, u.LastAttempt)
 		return nil
@@ -62,7 +67,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		return err
 	}
 
-	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version)
+	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID),
+		transport, upstream, desiredArch, currentArch, channel, optr.release.Version)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -71,7 +77,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	au := &availableUpdates{
 		Upstream:           upstream,
 		Channel:            config.Spec.Channel,
-		Architecture:       arch,
+		Architecture:       desiredArch,
 		Current:            current,
 		Updates:            updates,
 		ConditionalUpdates: conditionalUpdates,
@@ -198,7 +204,17 @@ func (optr *Operator) SetArchitecture(architecture string) {
 	optr.architecture = architecture
 }
 
-func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, configv1.ClusterOperatorStatusCondition) {
+func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
+	if update != nil {
+		return string(update.Architecture)
+	}
+	return ""
+}
+
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, desiredArch,
+	currentArch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate,
+	configv1.ClusterOperatorStatusCondition) {
+
 	var cvoCurrent configv1.Release
 	if len(upstream) == 0 {
 		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
@@ -223,10 +239,10 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	if len(arch) == 0 {
+	if len(desiredArch) == 0 {
 		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
 			Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse, Reason: noArchitecture,
-			Message: "The set of architectures has not been configured.",
+			Message: "Architecture has not been configured.",
 		}
 	}
 
@@ -253,7 +269,9 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
+	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, desiredArch,
+		currentArch, channel, currentVersion)
+
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {

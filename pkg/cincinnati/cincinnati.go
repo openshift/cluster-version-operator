@@ -57,20 +57,31 @@ func (err *Error) Error() string {
 }
 
 // GetUpdates fetches the current and next-applicable update payloads from the specified
-// upstream Cincinnati stack given the current version and channel. The command:
+// upstream Cincinnati stack given the current version, desired architecture, and channel.
+// The command:
 //
-//  1. Downloads the update graph from the requested URI for the requested arch and channel.
+//  1. Downloads the update graph from the requested URI for the requested desired arch and channel.
 //  2. Finds the current version entry under .nodes.
-//  3. Finds recommended next-hop updates by searching .edges for updates from the current
+//  3. If a transition from single to multi architecture has been requested, the only valid
+//     version is the current version so it's returned.
+//  4. Finds recommended next-hop updates by searching .edges for updates from the current
 //     version. Returns a slice of target Releases with these unconditional recommendations.
-//  4. Finds conditionally recommended next-hop updates by searching .conditionalEdges for
+//  5. Finds conditionally recommended next-hop updates by searching .conditionalEdges for
 //     updates from the current version.  Returns a slice of ConditionalUpdates with these
 //     conditional recommendations.
-func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, channel string, version semver.Version) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, error) {
+func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, currentArch, channel string,
+	version semver.Version) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, error) {
+
 	var current configv1.Release
+
+	releaseArch := desiredArch
+	if desiredArch == string(configv1.ClusterVersionArchitectureMulti) {
+		releaseArch = "multi"
+	}
+
 	// Prepare parametrized cincinnati query.
 	queryParams := uri.Query()
-	queryParams.Add("arch", arch)
+	queryParams.Add("arch", releaseArch)
 	queryParams.Add("channel", channel)
 	queryParams.Add("id", c.id.String())
 	queryParams.Add("version", version.String())
@@ -137,6 +148,12 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 					Reason:  "ResponseInvalid",
 					Message: fmt.Sprintf("invalid current node: %s", err),
 				}
+			}
+
+			// Migrating from single to multi architecture. Only valid update for required heterogeneous graph
+			// is heterogeneous version of current version.
+			if desiredArch == string(configv1.ClusterVersionArchitectureMulti) && currentArch != desiredArch {
+				return current, []configv1.Release{current}, nil, nil
 			}
 			break
 		}

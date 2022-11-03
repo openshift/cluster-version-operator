@@ -2397,7 +2397,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
 					Reason:  noArchitecture,
-					Message: "The set of architectures has not been configured.",
+					Message: "Architecture has not been configured.",
 				},
 			},
 		},

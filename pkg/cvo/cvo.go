@@ -591,7 +591,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, ok := findUpdateFromConfig(config)
+	desired, ok := findUpdateFromConfig(config, optr.getArchitecture())
 	if ok {
 		klog.V(2).Infof("Desired version from spec is %#v", desired)
 	} else {

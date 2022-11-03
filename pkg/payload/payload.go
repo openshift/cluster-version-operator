@@ -69,8 +69,8 @@ const (
 	// error conditions.
 	PrecreatingPayload
 
-	// heterogeneousArchitectureID identifies a payload architecture as heterogeneous.
-	heterogeneousArchitectureID = "multi"
+	// releaseMultiArchID identifies a multi architecture release.
+	releaseMultiArchID = "multi"
 )
 
 // Initializing is true if the state is InitializingPayload.
@@ -388,13 +388,13 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error
 	var arch string
 	if archInterface, ok := metadata.Metadata["release.openshift.io/architecture"]; ok {
 		if archString, ok := archInterface.(string); ok {
-			if archString == heterogeneousArchitectureID {
-				arch = archString
+			if archString == releaseMultiArchID {
+				arch = string(configv1.ClusterVersionArchitectureMulti)
 			} else {
 				return release, "", fmt.Errorf("Architecture from %s (%s) contains invalid value: %q. Valid value is %q.",
-					cincinnatiJSONFile, release.Version, archString, heterogeneousArchitectureID)
+					cincinnatiJSONFile, release.Version, archString, releaseMultiArchID)
 			}
-			klog.V(2).Infof("Architecture from %s (%s) is heterogeneous: %q", cincinnatiJSONFile, release.Version, arch)
+			klog.V(2).Infof("Architecture from %s (%s) is multi: %q", cincinnatiJSONFile, release.Version, archString)
 		} else {
 			return release, "", fmt.Errorf("Architecture from %s (%s) is not a string: %v",
 				cincinnatiJSONFile, release.Version, archInterface)

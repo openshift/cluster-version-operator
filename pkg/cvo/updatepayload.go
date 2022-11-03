@@ -314,15 +314,25 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 	return nil
 }
 
-// findUpdateFromConfig identifies a desired update from user input or returns false. It will
-// resolve payload if the user specifies a version and a matching available update.
-func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
+// findUpdateFromConfig identifies a desired update from user input or returns false. If
+// image is specified it simply returns the desired update since image will be used. If
+// the desired architecture is changed to multi it resolves the payload using the current
+// version since that's the only valid available update. Otherwise it attempts to resolve
+// the payload using the specified desired version.
+func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch string) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
 		return configv1.Update{}, false
 	}
 	if len(update.Image) == 0 {
-		return findUpdateFromConfigVersion(config, update.Version, update.Force)
+		version := update.Version
+
+		// Architecture changed to multi so only valid update is the multi arch version of current version
+		if update.Architecture == configv1.ClusterVersionArchitectureMulti &&
+			currentArch != string(configv1.ClusterVersionArchitectureMulti) {
+			version = config.Status.Desired.Version
+		}
+		return findUpdateFromConfigVersion(config, version, update.Force)
 	}
 	return *update, true
 }

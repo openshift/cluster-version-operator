@@ -144,6 +144,81 @@ func TestLoadUpdate(t *testing.T) {
 	}
 }
 
+func TestLoadUpdateArchitecture(t *testing.T) {
+	type args struct {
+		dir          string
+		releaseImage string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *Update
+		wantErr bool
+	}{
+		{
+			name: "set Multi architecture from payload metadata",
+			args: args{
+				dir:          filepath.Join("..", "cvo", "testdata", "payloadtestarch"),
+				releaseImage: "image:1",
+			},
+			want: &Update{
+				Release: configv1.Release{
+					Version:  "1.0.0-abc",
+					Image:    "image:1",
+					URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+					Channels: []string{"channel-a", "channel-b", "channel-c"},
+				},
+				ImageRef: &imagev1.ImageStream{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "ImageStream",
+						APIVersion: "image.openshift.io/v1",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "1.0.0-abc",
+					},
+				},
+				Architecture: "Multi",
+				ManifestHash: "fvnVhLw92pE=",
+				Manifests: []manifest.Manifest{
+					{
+						OriginalFilename: "0000_10_a_file.json",
+						Raw:              mustRead(filepath.Join("..", "cvo", "testdata", "payloadtestarch", "release-manifests", "0000_10_a_file.json")),
+						GVK: schema.GroupVersionKind{
+							Kind:    "Test",
+							Version: "v1",
+						},
+						Obj: &unstructured.Unstructured{
+							Object: map[string]interface{}{
+								"kind":       "Test",
+								"apiVersion": "v1",
+								"metadata": map[string]interface{}{
+									"name":        "file",
+									"annotations": map[string]interface{}{"include.release.openshift.io/self-managed-high-availability": "true"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			// Manifest holds an unexported type of 'resourceID' with a field name of 'id'
+			// DeepEqual fails, so here we use cmp.Diff to ignore just that field to avoid false positives
+			stringDiff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id"))
+			if !reflect.DeepEqual(got, tt.want) && stringDiff != "" {
+				t.Errorf("loadUpdatePayload() = %s", stringDiff)
+			}
+		})
+	}
+}
+
 func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 	const testsPath = "../cvo/testdata/payloadcapabilitytest/"
 
