@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -133,19 +134,37 @@ func (o *Options) Run(ctx context.Context) error {
 	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
 	// to be off.  If this value changes, the binary will shutdown and expect the pod lifecycle to restart it.
 	startingFeatureSet := ""
-	gate, err := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
-	switch {
-	case apierrors.IsNotFound(err):
-		// if we have no featuregates, then the cluster is using the default featureset, which is "".
-		// This excludes everything that could possibly depend on a different feature set.
-		startingFeatureSet = ""
-	case err != nil:
-		// client-go automatically retries network blip errors on GETs for 30s by default.  If we fail longer than that
-		// the operator won't be able to do work anyway.  Return the error and crashloop.
-		return err
 
-	default:
-		startingFeatureSet = string(gate.Spec.FeatureSet)
+	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
+	// retry the remaining ones ourselves. If we fail longer than that, the operator won't be able to do work
+	// anyway. Return the error and crashloop.
+	//
+	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
+	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
+	fgCtx, fgCancel := context.WithTimeout(ctx, 25*time.Second)
+	defer fgCancel()
+	var lastError error
+	if err := wait.PollImmediateInfiniteWithContext(fgCtx, 2*time.Second, func(ctx context.Context) (bool, error) {
+		gate, fgErr := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
+		switch {
+		case apierrors.IsNotFound(fgErr):
+			// if we have no featuregates, then the cluster is using the default featureset, which is "".
+			// This excludes everything that could possibly depend on a different feature set.
+			startingFeatureSet = ""
+			return true, nil
+		case fgErr != nil:
+			lastError = fgErr
+			klog.Warningf("Failed to get FeatureGate from cluster: %v", fgErr)
+			return false, nil
+		default:
+			startingFeatureSet = string(gate.Spec.FeatureSet)
+			return true, nil
+		}
+	}); err != nil {
+		if lastError != nil {
+			return lastError
+		}
+		return err
 	}
 
 	lock, err := createResourceLock(cb, o.Namespace, o.Name)
