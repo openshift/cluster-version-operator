@@ -4,6 +4,13 @@ approvers:
   - wking
   - jottofar
   - LalatenduMohanty
+  - petr-muller
+reviewers:
+  - wking
+  - jottofar
+  - LalatenduMohanty
+  - petr-muller
+  - Davoska
 emeritus_approvers:
   - smarterclayton
   - abhinavdahiya
