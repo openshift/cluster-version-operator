@@ -590,19 +590,16 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	// prevents us from loading clearly malformed payloads
 	config := validation.ClearInvalidFields(original, errs)
 
-	// identify the desired next version
-	desired, ok := findUpdateFromConfig(config)
-	if ok {
-		klog.V(2).Infof("Desired version from spec is %#v", desired)
-	} else {
-		currentVersion := optr.currentVersion()
-		desired = configv1.Update{
-			Version: currentVersion.Version,
-			Image:   currentVersion.Image,
-		}
-		klog.V(2).Infof("Desired version from operator is %#v", desired)
-	}
+	// identify the desired next version.  findDesiredUpdate
+	// always returns a 'desired' target, which could match the
+	// currently-reconciling target, even if there are issues looking
+	// up spec.desiredUpdate.
+	desired, findUpdateWarning := findDesiredUpdate(config, optr.currentVersion())
+	if findUpdateWarning != nil {
+		klog.Warningf("Deprecated desired update matching: %v", findUpdateWarning)
+	} // FIXME: plumb findUpdateWarning through to acceptedRisks, or otherwise expose for Insights/Telemetry
 
+	klog.V(2).Infof("Desired version is %#v", desired)
 	// handle the case of a misconfigured CVO by doing nothing
 	if len(desired.Image) == 0 {
 		return optr.syncStatus(ctx, original, config, &SyncWorkerStatus{

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -314,28 +315,115 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 	return nil
 }
 
-// findUpdateFromConfig identifies a desired update from user input or returns false. It will
-// resolve payload if the user specifies a version and a matching available update.
-func findUpdateFromConfig(config *configv1.ClusterVersion) (configv1.Update, bool) {
-	update := config.Spec.DesiredUpdate
-	if update == nil {
-		return configv1.Update{}, false
+// findDesiredUpdate always returns a desired release target, which
+// may match our current release, even if there are issues looking up
+// spec.desiredUpdate.
+func findDesiredUpdate(config *configv1.ClusterVersion, current configv1.Release) (configv1.Update, error) {
+	currentUpdate := configv1.Update{
+		Version: current.Version,
+		Image:   current.Image,
 	}
-	if len(update.Image) == 0 {
-		return findUpdateFromConfigVersion(config, update.Version, update.Force)
+	if config == nil {
+		return currentUpdate, nil
 	}
-	return *update, true
-}
 
-func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
-	for _, update := range config.Status.AvailableUpdates {
-		if update.Version == version && len(update.Image) > 0 {
-			return configv1.Update{
-				Version: version,
-				Image:   update.Image,
-				Force:   force,
-			}, true
+	update := config.Spec.DesiredUpdate
+	if update == nil || (update.Image == "" && update.Version == "") {
+		return currentUpdate, nil
+	}
+
+	// if we get this far, the spec has opinions, which may or may not match our current release
+
+	matches := []configv1.Release{}
+	foundImage := false
+	var mismatchedVersionWarning error
+
+	if warning, err := releaseMatchesUpdate(&current, update); err != nil {
+		klog.V(2).Infof("Excluding current release %s from matching: %s", current.Version, err)
+	} else {
+		if warning != nil {
+			mismatchedVersionWarning = warning
+		}
+		matches = append(matches, current)
+		if equalDigest(update.Image, current.Image) {
+			foundImage = true
 		}
 	}
-	return configv1.Update{}, false
+
+	for _, release := range config.Status.AvailableUpdates {
+		if warning, err := releaseMatchesUpdate(&release, update); err != nil {
+			klog.V(2).Infof("Excluding recommended update %s from matching: %s", release.Version, err)
+			continue
+		} else if warning != nil {
+			mismatchedVersionWarning = warning
+		}
+		matches = append(matches, release)
+		if equalDigest(update.Image, release.Image) {
+			foundImage = true
+		}
+	}
+
+	if len(update.Image) > 0 && !foundImage {
+		// extend the set of candidates with the spec's explicit image
+		matches = append(matches, configv1.Release{
+			Version: update.Version,
+			Image:   update.Image,
+		})
+	}
+
+	var updateString string
+	if updateBytes, err := json.Marshal(update); err != nil {
+		updateString = fmt.Sprintf("%v", update)
+	} else {
+		updateString = string(updateBytes)
+	}
+
+	if len(matches) == 0 {
+		return currentUpdate, fmt.Errorf("no available updates found matching %s", updateString)
+	}
+
+	if len(matches) > 1 {
+		if mismatchedVersionWarning != nil {
+			return currentUpdate, fmt.Errorf("multiple available updates found matching %v: %w", update, mismatchedVersionWarning)
+		}
+		return currentUpdate, fmt.Errorf("multiple available updates found matching %s", updateString)
+	}
+
+	// Single match happy case.  Fill in any properties in the request that were left implicit
+
+	desired := *update
+	if desired.Version == "" {
+		desired.Version = matches[0].Version
+	}
+	if desired.Image == "" {
+		desired.Image = matches[0].Image
+	} else if mismatchedVersionWarning != nil {
+		desired.Version = "" // avoid tripping VerifyPayloadVersionFailed.  TODO: eventually drop this, if we can demonstrate that incompatible (image, version) pairs are uncommon in the wild
+	}
+
+	return desired, mismatchedVersionWarning
+}
+
+// releaseMatchesUpdate returns true if and only if the release
+// matches the update filters.  Includes both warning and error modes,
+// to allow backwards compatibilty with updates that specify a release
+// image and an incompatible version.
+func releaseMatchesUpdate(release *configv1.Release, update *configv1.Update) (error, error) {
+	if release == nil || release.Image == "" {
+		return nil, fmt.Errorf("releases without images never match: %#v", release)
+	}
+
+	var mismatchedVersionError error
+	if update.Version != "" && release.Version != update.Version {
+		mismatchedVersionError = fmt.Errorf("release version %q does not match desired update %q", release.Version, update.Version)
+		if update.Image == "" { // TODO: eventually drop the image-check here, if we can demonstrate that incompatible (image, version) pairs are uncommon in the wild
+			return nil, mismatchedVersionError
+		}
+	}
+
+	if update.Image != "" && !equalDigest(release.Image, update.Image) {
+		return nil, fmt.Errorf("release digest for %q does not match desired update digest for %q", release.Image, update.Image)
+	}
+
+	return mismatchedVersionError, nil
 }
