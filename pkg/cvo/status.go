@@ -250,6 +250,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorAvailable,
 			Status:             configv1.ConditionTrue,
+			Reason:             "AsExpected",
 			Message:            fmt.Sprintf("Done applying %s", version),
 			LastTransitionTime: now,
 		})
@@ -259,6 +260,8 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorAvailable,
 			Status:             configv1.ConditionFalse,
+			Reason:             "Unavailable",
+			Message:            fmt.Sprintf("No previous Available condition, and have not completely reconciled %s", version),
 			LastTransitionTime: now,
 		})
 	}
@@ -266,7 +269,6 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	progressReason, progressMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
 
 	if err := status.Failure; err != nil && !skipFailure {
-		var reason string
 		msg := progressMessage
 		if uErr, ok := err.(*payload.UpdateError); ok {
 			reason = uErr.Reason
@@ -274,6 +276,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 				msg = payload.SummaryForReason(reason, uErr.Name)
 			}
 		} else if msg == "" {
+			reason = "UnknownError"
 			msg = "an error occurred"
 		}
 
@@ -307,13 +310,21 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	} else {
 		// clear the failure condition
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
+		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               ClusterStatusFailing,
+			Status:             configv1.ConditionFalse,
+			Reason:             "AsExpected",
+			Message:            "All is well.",
+			LastTransitionTime: now,
+		})
 
 		// update progressing
 		if status.Reconciling {
 			message := fmt.Sprintf("Cluster version is %s", version)
 			if len(validationErrs) > 0 {
 				message = fmt.Sprintf("Stopped at %s: the cluster version is invalid", version)
+			} else {
+				reason = "ReconcilingCompletedRelease"
 			}
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
@@ -333,12 +344,14 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete), %s", version,
 					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)), progressMessage)
 			case fractionComplete > 0:
+				reason = "Updating"
 				message = fmt.Sprintf("Working towards %s: %d of %d done (%.0f%% complete)", version,
 					status.Done, status.Total, math.Trunc(float64(fractionComplete*100)))
 			case skipFailure:
 				reason = progressReason
 				message = fmt.Sprintf("Working towards %s: %s", version, progressMessage)
 			default:
+				reason = "Updating"
 				message = fmt.Sprintf("Working towards %s", version)
 			}
 			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
