@@ -94,8 +94,8 @@ version for 'cluster', or empty for 'initial'.
 		}, []string{"name"}),
 		clusterOperatorUp: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_up",
-			Help: "Reports key highlights of the active cluster operators.",
-		}, []string{"name", "version"}),
+			Help: "1 if a cluster operator is Available=True.  0 otherwise, including if a cluster operator sets no Available condition.  The 'version' label tracks the 'operator' version.  The 'reason' label is passed through from the Available condition, unless the cluster operator sets no Available condition, in which case NoAvailableCondition is used.",
+		}, []string{"name", "version", "reason"}),
 		clusterOperatorConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_conditions",
 			Help: "Report the conditions for active cluster operators. 0 is False and 1 is True.",
@@ -339,7 +339,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.version.WithLabelValues("", "", "", "").Desc()
 	ch <- m.availableUpdates.WithLabelValues("", "").Desc()
 	ch <- m.capability.WithLabelValues("").Desc()
-	ch <- m.clusterOperatorUp.WithLabelValues("", "").Desc()
+	ch <- m.clusterOperatorUp.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
@@ -489,12 +489,16 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		if version == "" {
 			klog.V(2).Infof("ClusterOperator %s is not setting the 'operator' version", op.Name)
 		}
-		g := m.clusterOperatorUp.WithLabelValues(op.Name, version)
-		if resourcemerge.IsOperatorStatusConditionTrue(op.Status.Conditions, configv1.OperatorAvailable) {
-			g.Set(1)
-		} else {
-			g.Set(0)
+		var isUp float64
+		reason := "NoAvailableCondition"
+		if condition := resourcemerge.FindOperatorStatusCondition(op.Status.Conditions, configv1.OperatorAvailable); condition != nil {
+			reason = condition.Reason
+			if condition.Status == configv1.ConditionTrue {
+				isUp = 1
+			}
 		}
+		g := m.clusterOperatorUp.WithLabelValues(op.Name, version, reason)
+		g.Set(isUp)
 		ch <- g
 		for _, condition := range op.Status.Conditions {
 			if condition.Status != configv1.ConditionFalse && condition.Status != configv1.ConditionTrue {
