@@ -16,6 +16,8 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"github.com/openshift/library-go/pkg/manifest"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+	operatorsclientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -45,6 +47,7 @@ type builder struct {
 	imageClientv1           *imageclientv1.ImageV1Client
 	rbacClientv1            *rbacclientv1.RbacV1Client
 	securityClientv1        *securityclientv1.SecurityV1Client
+	operatorsClientv1       *operatorsclientv1.OperatorsV1Client
 }
 
 func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
@@ -60,6 +63,7 @@ func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 		imageClientv1:           imageclientv1.NewForConfigOrDie(config),
 		rbacClientv1:            rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		securityClientv1:        securityclientv1.NewForConfigOrDie(config),
+		operatorsClientv1:       operatorsclientv1.NewForConfigOrDie(config),
 	}
 }
 
@@ -261,6 +265,18 @@ func (b *builder) Do(ctx context.Context) error {
 				return b.checkCustomResourceDefinitionHealth(ctx, actual)
 			}
 		}
+	case *operatorsv1.OperatorGroup:
+		if b.modifier != nil {
+			b.modifier(typedObject)
+		}
+		if deleteReq, err := resourcedelete.DeleteOperatorGroupv1(ctx, b.operatorsClientv1, typedObject,
+			updatingMode); err != nil {
+			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyOperatorGroupv1(ctx, b.operatorsClientv1, typedObject, reconcilingMode); err != nil {
+				return err
+			}
+		}
 	default:
 		return fmt.Errorf("unrecognized manifest type: %T", obj)
 	}
@@ -284,5 +300,6 @@ func init() {
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("Role"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"), newBuilder)
 	rm.RegisterGVK(securityv1.SchemeGroupVersion.WithKind("SecurityContextConstraints"), newBuilder)
+	rm.RegisterGVK(operatorsv1.SchemeGroupVersion.WithKind("OperatorGroup"), newBuilder)
 	rm.AddToMap(Mapper)
 }

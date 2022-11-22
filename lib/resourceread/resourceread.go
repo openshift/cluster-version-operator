@@ -6,6 +6,7 @@ package resourceread
 import (
 	imagev1 "github.com/openshift/api/image/v1"
 	securityv1 "github.com/openshift/api/security/v1"
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -43,6 +44,9 @@ func init() {
 	if err := securityv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
+	if err := operatorsv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
 	decoder = codecs.UniversalDecoder(
 		apiextensionsv1.SchemeGroupVersion,
 		appsv1.SchemeGroupVersion,
@@ -51,6 +55,7 @@ func init() {
 		imagev1.SchemeGroupVersion,
 		rbacv1.SchemeGroupVersion,
 		securityv1.SchemeGroupVersion,
+		operatorsv1.SchemeGroupVersion,
 	)
 }
 
