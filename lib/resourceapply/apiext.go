@@ -28,14 +28,20 @@ func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.
 		return nil, false, nil
 	}
 
-	modified := pointer.BoolPtr(false)
+	var original apiextv1.CustomResourceDefinition
+	existing.DeepCopyInto(&original)
+
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureCustomResourceDefinitionV1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
-
 	if reconciling {
-		klog.V(2).Infof("Updating CRD %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating CRD %s due to diff: %v", required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating CRD %s with empty diff: possible hotloop after wrong comparison", required.Name)
+		}
 	}
 
 	actual, err := client.CustomResourceDefinitions().Update(ctx, existing, metav1.UpdateOptions{})
