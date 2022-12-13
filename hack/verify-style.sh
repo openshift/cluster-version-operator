@@ -36,8 +36,5 @@ echo "Running yamllint..."
 YAMLS=$(find . -path ./vendor -prune -o -name '*.yaml' | grep -v vendor)
 yamllint -c hack/yamllint-config.yaml -s $YAMLS
 
-echo "Running verify code-generators"
-(cd hack && ./verify-codegen.sh)
-
 echo "Done!"
 exit ${rc}

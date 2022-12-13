@@ -10,5 +10,3 @@ cd "$(git rev-parse --show-cdup)"
 # Run dep.
 go mod vendor
 go mod verify
-
-(cd hack && ./update-codegen.sh)

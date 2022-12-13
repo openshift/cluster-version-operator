@@ -23,14 +23,3 @@ clean:
 	rm -rf _output/
 	rm -rf bin
 .PHONY: clean
-
-update-codegen:
-	./hack/update-codegen.sh
-.PHONY: update-codegen
-
-verify-codegen:
-	./hack/verify-codegen.sh
-.PHONY: verify-codegen
-
-verify: verify-codegen
-.PHONY: verify
