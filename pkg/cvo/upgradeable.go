@@ -403,11 +403,27 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 	}
 }
 
+// setUpgradableConditionsIfSynced calls setUpgradableConditions if all informers were synced at least once, otherwise
+// it queues a full upgradable sync that will eventually execute
+//
+// This method is needed because it is called in an informer handler, but setUpgradeableConditions uses a lister
+// itself, so it races on startup (it can get triggered while one informer's cache is being synced, but depends
+// on another informer's cache already synced
+func (optr *Operator) setUpgradableConditionsIfSynced() {
+	for _, synced := range optr.cacheSynced {
+		if !synced() {
+			optr.upgradeableQueue.Add(optr.queueKey())
+			return
+		}
+	}
+	optr.setUpgradeableConditions()
+}
+
 func (optr *Operator) addFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		klog.V(2).Infof("ConfigMap %s/%s added.", cm.Namespace, cm.Name)
-		optr.setUpgradeableConditions()
+		optr.setUpgradableConditionsIfSynced()
 	}
 }
 
@@ -417,7 +433,7 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 		oldCm := oldObj.(*corev1.ConfigMap)
 		if !equality.Semantic.DeepEqual(cm, oldCm) {
 			klog.V(2).Infof("ConfigMap %s/%s updated.", cm.Namespace, cm.Name)
-			optr.setUpgradeableConditions()
+			optr.setUpgradableConditionsIfSynced()
 		}
 	}
 }
@@ -426,7 +442,7 @@ func (optr *Operator) deleteFunc(obj interface{}) {
 	cm := obj.(*corev1.ConfigMap)
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		klog.V(2).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
-		optr.setUpgradeableConditions()
+		optr.setUpgradableConditionsIfSynced()
 	}
 }
 
