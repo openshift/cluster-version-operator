@@ -11,16 +11,15 @@ test:
 	go test ./...
 .PHONY: test
 
+integration-test:
+	./hack/integration-test.sh
+.PHONY: integration-test
+
+format:
+	go fmt ./...
+.PHONY: format
+
 clean:
 	rm -rf _output/
 	rm -rf bin
 .PHONY: clean
-
-update-codegen-crds:
-	go run ./vendor/github.com/openshift/library-go/cmd/crd-schema-gen/main.go --domain openshift.io --apis-dir vendor/github.com/openshift/api --manifests-dir install/
-update-codegen: update-codegen-crds
-verify-codegen-crds:
-	go run ./vendor/github.com/openshift/library-go/cmd/crd-schema-gen/main.go --domain openshift.io --apis-dir vendor/github.com/openshift/api --manifests-dir install/ --verify-only
-verify-codegen: verify-codegen-crds
-verify: verify-codegen
-.PHONY: update-codegen-crds update-codegen verify-codegen-crds verify-codegen verify

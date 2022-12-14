@@ -22,20 +22,18 @@ For contributors who want to work up pull requests, the workflow is roughly:
 1. Create a topic branch from where you want to base your work (usually master).
 2. Make commits of logical units.
 3. Make sure your commit messages are in the proper format (see [below](#commit-message-format)).
-4. If necessary, you may use `make update-codegen` to update generated code.
-5. Make sure the tests pass (`go test ./...`), and add any new tests as appropriate.
+4. Make sure your [code builds][build-cvo] and follows the [coding style](#coding-style)
+5. Make sure the [tests pass][test-cvo] and add any new tests as appropriate.
 6. Push your changes to a topic branch in your fork of the repository.
 7. Submit a pull request to the original repository.
-8. The [repo owners](OWNERS) will respond to your issue promptly, following [the ususal Prow workflow][prow-review].
+8. The [repo owners](OWNERS) will respond to your issue promptly, following [the usual Prow workflow][prow-review].
 
 Thanks for your contributions!
 
 ## Coding Style
 
-The coding style suggested by the Golang community is used in installer.
-See the [style doc][golang-style] for details.
-Please follow them when working on your contributions.
-You may also `go fmt ./...` to have Go automatically format your .
+The Cluster Version Operator follows the common Golang [coding style][golang-style]. Please follow them when working
+on your contributions. Use `go fmt ./...` to format your code.
 
 ## Commit Message Format
 
@@ -68,3 +66,5 @@ This allows the message to be easier to read on GitHub as well as in various Git
 [new-issue]: https://github.com/openshift/cluster-version-operator/issues/new
 [prow-review]: https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md#the-code-review-process
 [security]: https://access.redhat.com/security/team/contact
+[build-cvo]: ./docs/dev/README.md#building-cvo
+[test-cvo]: ./docs/dev/README.md#testing-cvo
