@@ -81,6 +81,7 @@ func Summarize(errs []error, force bool) (bool, error) {
 			}
 			continue
 		}
+		isWarning = false
 		msgs = append(msgs, e.Error())
 
 	}
@@ -91,7 +92,7 @@ func Summarize(errs []error, force bool) (bool, error) {
 		msg = fmt.Sprintf("Multiple precondition checks failed:\n* %s", strings.Join(msgs, "\n* "))
 	}
 
-	if force {
+	if force && !isWarning {
 		msg = fmt.Sprintf("Forced through blocking failures: %s", msg)
 		isWarning = true
 	}
