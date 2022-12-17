@@ -193,7 +193,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
 				expectMetric(t, metrics[0], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1"})
+				expectMetric(t, metrics[1], 0, map[string]string{"name": "test", "version": "10.1.5-1", "reason": "NoAvailableCondition"})
 				expectMetric(t, metrics[2], 1, map[string]string{"type": ""})
 			},
 		},
