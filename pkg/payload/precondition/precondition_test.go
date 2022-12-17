@@ -21,7 +21,7 @@ func TestSummarize(t *testing.T) {
 	}, {
 		name:          "unrecognized error type",
 		errors:        []error{fmt.Errorf("random error")},
-		expectedBlock: false,
+		expectedBlock: true,
 		expectedError: "random error",
 	}, {
 		name:          "forced unrecognized error type",
@@ -29,6 +29,28 @@ func TestSummarize(t *testing.T) {
 		force:         true,
 		expectedBlock: false,
 		expectedError: "Forced through blocking failures: random error",
+	}, {
+		name: "unforced warning",
+		errors: []error{&Error{
+			Nested:             nil,
+			Reason:             "UnknownUpdate",
+			Message:            "update from A to B is probably neither recommended nor supported.",
+			NonBlockingWarning: true,
+			Name:               "ClusterVersionRecommendedUpdate",
+		}},
+		expectedBlock: false,
+		expectedError: `Precondition "ClusterVersionRecommendedUpdate" failed because of "UnknownUpdate": update from A to B is probably neither recommended nor supported.`,
+	}, {
+		name: "forced through warning",
+		errors: []error{&Error{
+			Nested:             nil,
+			Reason:             "UnknownUpdate",
+			Message:            "update from A to B is probably neither recommended nor supported.",
+			NonBlockingWarning: true,
+			Name:               "ClusterVersionRecommendedUpdate",
+		}},
+		force:         true,
+		expectedError: `Precondition "ClusterVersionRecommendedUpdate" failed because of "UnknownUpdate": update from A to B is probably neither recommended nor supported.`,
 	}, {
 		name: "single feature-gate error",
 		errors: []error{&Error{
@@ -42,7 +64,7 @@ func TestSummarize(t *testing.T) {
 	}, {
 		name:          "two unrecognized error types",
 		errors:        []error{fmt.Errorf("random error"), fmt.Errorf("random error 2")},
-		expectedBlock: false,
+		expectedBlock: true,
 		expectedError: `Multiple precondition checks failed:
 * random error
 * random error 2`,
