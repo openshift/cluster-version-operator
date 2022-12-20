@@ -8,7 +8,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.5.6
 	github.com/google/uuid v1.2.0
-	github.com/openshift/api v0.0.0-20220919112502-5eaf4250c423
+	github.com/openshift/api v0.0.0-20221207195358-a671aa80d995
 	github.com/openshift/client-go v0.0.0-20220915152853-9dfefb19db2e
 	github.com/openshift/library-go v0.0.0-20221012165547-f859132ee700
 	github.com/operator-framework/api v0.17.1

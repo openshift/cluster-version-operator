@@ -176,8 +176,9 @@ func (ctrl *Controller) sync(ctx context.Context, key string) error {
 	}
 	up := nextUpdate(clusterversion.Status.AvailableUpdates)
 	clusterversion.Spec.DesiredUpdate = &v1.Update{
-		Version: up.Version,
-		Image:   up.Image,
+		Architecture: clusterversion.Spec.DesiredUpdate.Architecture,
+		Version:      up.Version,
+		Image:        up.Image,
 	}
 
 	_, updated, err := resourceapply.ApplyClusterVersionFromCache(ctx, ctrl.cvLister, ctrl.client.ConfigV1(), clusterversion)

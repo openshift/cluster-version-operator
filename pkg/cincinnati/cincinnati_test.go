@@ -20,11 +20,12 @@ import (
 
 func TestGetUpdates(t *testing.T) {
 	clientID := uuid.Must(uuid.Parse("01234567-0123-0123-0123-0123456789ab"))
-	arch := "test-arch"
 	channelName := "test-channel"
 	tests := []struct {
-		name    string
-		version string
+		name        string
+		version     string
+		arch        string
+		currentArch string
 
 		expectedQuery      string
 		graph              string
@@ -170,6 +171,146 @@ func TestGetUpdates(t *testing.T) {
 			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.0-0.okd-0",
 			URL:      "https://example.com/errata/4.1.0-0.okd-0",
 			Channels: []string{"channel-a", "test-channel"},
+		},
+	}, {
+		name:        "single to multi arch, only current version available",
+		version:     "4.1.2",
+		arch:        "Multi",
+		currentArch: "test-arch",
+		graph: `{
+  "nodes": [
+    {
+      "version": "4.1.0",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.0",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.0",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.1",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.1",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.1",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.2",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.2",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.2",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.3",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.3",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.3",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    }
+  ],
+  "edges": [[0,1]]
+}`,
+		expectedQuery: "arch=multi&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.1.2",
+		current: configv1.Release{
+			Version:  "4.1.2",
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.2",
+			URL:      "https://example.com/errata/4.1.2",
+			Channels: []string{"test-channel"},
+		},
+		available: []configv1.Release{
+			{
+				Version:  "4.1.2",
+				Image:    "quay.io/openshift-release-dev/ocp-release:4.1.2",
+				URL:      "https://example.com/errata/4.1.2",
+				Channels: []string{"test-channel"},
+			},
+		},
+	}, {
+		name:        "single to multi arch, current version not found",
+		version:     "4.1.2",
+		arch:        "Multi",
+		currentArch: "test-arch",
+		graph: `{
+  "nodes": [
+    {
+      "version": "4.1.0",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.0",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.0",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.1",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.1",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.1",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.3",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.3",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.3",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    }
+  ],
+  "edges": [[0,1]]
+}`,
+		expectedQuery: "arch=multi&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.1.2",
+		current: configv1.Release{
+			Version:  "4.1.2",
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.2",
+			URL:      "https://example.com/errata/4.1.2",
+			Channels: []string{"test-channel"},
+		},
+		err: "VersionNotFound: currently reconciling cluster version 4.1.2 not found in the \"test-channel\" channel",
+	}, {
+		name:        "multi to multi arch, one update available",
+		version:     "4.1.0",
+		arch:        "Multi",
+		currentArch: "Multi",
+		graph: `{
+  "nodes": [
+    {
+      "version": "4.1.0",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.0",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.0",
+        "io.openshift.upgrades.graph.release.channels": "test-channel,channel-a"
+      }
+    },
+    {
+      "version": "4.1.1",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.1",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.1",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    }
+  ],
+  "edges": [[0,1]]
+}`,
+		expectedQuery: "arch=multi&channel=test-channel&id=01234567-0123-0123-0123-0123456789ab&version=4.1.0",
+		current: configv1.Release{
+			Version:  "4.1.0",
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.0",
+			URL:      "https://example.com/errata/4.1.0",
+			Channels: []string{"channel-a", "test-channel"},
+		},
+		available: []configv1.Release{
+			{
+				Version:  "4.1.1",
+				Image:    "quay.io/openshift-release-dev/ocp-release:4.1.1",
+				URL:      "https://example.com/errata/4.1.1",
+				Channels: []string{"test-channel"},
+			},
 		},
 	}, {
 		name:    "conditional updates available",
@@ -611,7 +752,13 @@ func TestGetUpdates(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			current, updates, conditionalUpdates, err := c.GetUpdates(context.Background(), uri, arch, channelName, semver.MustParse(test.version))
+			if test.arch == "" {
+				test.arch = "test-arch"
+			}
+			if test.currentArch == "" {
+				test.currentArch = test.arch
+			}
+			current, updates, conditionalUpdates, err := c.GetUpdates(context.Background(), uri, test.arch, test.currentArch, channelName, semver.MustParse(test.version))
 			if test.err == "" {
 				if err != nil {
 					t.Fatalf("expected nil error, got: %v", err)
