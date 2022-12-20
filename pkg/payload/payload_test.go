@@ -3,10 +3,8 @@ package payload
 import (
 	"errors"
 	"flag"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"testing"
 
@@ -136,9 +134,8 @@ func TestLoadUpdate(t *testing.T) {
 			}
 			// Manifest holds an unexported type of 'resourceID' with a field name of 'id'
 			// DeepEqual fails, so here we use cmp.Diff to ignore just that field to avoid false positives
-			stringDiff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id"))
-			if !reflect.DeepEqual(got, tt.want) && stringDiff != "" {
-				t.Errorf("loadUpdatePayload() = %s", stringDiff)
+			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id")); diff != "" {
+				t.Errorf("loadUpdatePayload() = %s", diff)
 			}
 		})
 	}
@@ -211,9 +208,8 @@ func TestLoadUpdateArchitecture(t *testing.T) {
 			}
 			// Manifest holds an unexported type of 'resourceID' with a field name of 'id'
 			// DeepEqual fails, so here we use cmp.Diff to ignore just that field to avoid false positives
-			stringDiff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id"))
-			if !reflect.DeepEqual(got, tt.want) && stringDiff != "" {
-				t.Errorf("loadUpdatePayload() = %s", stringDiff)
+			if diff := cmp.Diff(tt.want, got, cmpopts.IgnoreFields(manifest.Manifest{}, "id")); diff != "" {
+				t.Errorf("loadUpdatePayload() = %s", diff)
 			}
 		})
 	}
@@ -430,7 +426,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 }
 
 func readManifestFiles(path string) ([]manifest.Manifest, error) {
-	readFiles, err := ioutil.ReadDir(path)
+	readFiles, err := os.ReadDir(path)
 
 	// no dir for nil tests
 	if errors.Is(err, os.ErrNotExist) {
@@ -451,7 +447,7 @@ func readManifestFiles(path string) ([]manifest.Manifest, error) {
 }
 
 func mustRead(path string) []byte {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}

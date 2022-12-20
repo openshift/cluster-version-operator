@@ -3,7 +3,6 @@ package payload
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -64,7 +63,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
 	}
-	files, err := ioutil.ReadDir(idir)
+	files, err := os.ReadDir(idir)
 	if err != nil {
 		return err
 	}
@@ -78,7 +77,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 		}
 
 		ipath := filepath.Join(idir, file.Name())
-		iraw, err := ioutil.ReadFile(ipath)
+		iraw, err := os.ReadFile(ipath)
 		if err != nil {
 			errs = append(errs, err)
 			continue
@@ -91,7 +90,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 		}
 
 		opath := filepath.Join(odir, file.Name())
-		if err := ioutil.WriteFile(opath, rraw, 0666); err != nil {
+		if err := os.WriteFile(opath, rraw, 0666); err != nil {
 			errs = append(errs, err)
 			continue
 		}

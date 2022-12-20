@@ -4,10 +4,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 )
 
 func TestTaskString(t *testing.T) {
@@ -162,7 +162,7 @@ func TestTaskString(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.task.String(); !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, got))
+				t.Fatalf("%s", cmp.Diff(tt.want, got))
 			}
 		})
 	}
