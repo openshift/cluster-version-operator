@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -160,7 +159,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 	var manifests []manifest.Manifest
 	var errs []error
 	for _, task := range tasks {
-		files, err := ioutil.ReadDir(task.idir)
+		files, err := os.ReadDir(task.idir)
 		if err != nil {
 			return nil, err
 		}
@@ -181,7 +180,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 				continue
 			}
 
-			raw, err := ioutil.ReadFile(p)
+			raw, err := os.ReadFile(p)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -361,7 +360,7 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []
 func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error) {
 	var release configv1.Release
 	path := filepath.Join(releaseDir, cincinnatiJSONFile)
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return release, "", err
 	}
@@ -424,7 +423,7 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error
 
 func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
 	irf := filepath.Join(releaseDir, imageReferencesFile)
-	imageRefData, err := ioutil.ReadFile(irf)
+	imageRefData, err := os.ReadFile(irf)
 	if err != nil {
 		return nil, err
 	}

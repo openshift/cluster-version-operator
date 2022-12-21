@@ -15,7 +15,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	manifest "github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 var (

@@ -12,10 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
-
+	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/manifest"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func Test_TaskGraph_Split(t *testing.T) {
@@ -227,7 +226,7 @@ func TestByNumberAndComponent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ByNumberAndComponent(tt.tasks); !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, got))
+				t.Fatalf("%s", cmp.Diff(tt.want, got))
 			}
 		})
 	}
@@ -339,7 +338,7 @@ func TestShiftOrder(t *testing.T) {
 				return test.tasks
 			}
 			if out := ShiftOrder(fn, test.step, test.stride)(nil); !reflect.DeepEqual(test.want, out) {
-				t.Errorf("%s", diff.ObjectReflectDiff(test.want, out))
+				t.Errorf("%s", cmp.Diff(test.want, out))
 			}
 		})
 	}
@@ -476,7 +475,7 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FlattenByNumberAndComponent(tt.tasks); !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, got))
+				t.Fatalf("%s", cmp.Diff(tt.want, got))
 			}
 		})
 	}
@@ -921,7 +920,7 @@ func TestRunGraph(t *testing.T) {
 			})
 			if tt.order != nil {
 				if !reflect.DeepEqual(tt.order, order.items) {
-					t.Fatal(diff.ObjectReflectDiff(tt.order, order.items))
+					t.Fatal(cmp.Diff(tt.order, order.items))
 				}
 			}
 			if tt.invariants != nil {
@@ -931,7 +930,7 @@ func TestRunGraph(t *testing.T) {
 				sort.Strings(tt.want)
 				sort.Strings(order.items)
 				if !reflect.DeepEqual(tt.want, order.items) {
-					t.Fatal(diff.ObjectReflectDiff(tt.want, order.items))
+					t.Fatal(cmp.Diff(tt.want, order.items))
 				}
 			}
 
