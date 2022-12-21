@@ -94,10 +94,12 @@ func TestCache(t *testing.T) {
 
 	for i := 0; i < maxConcurrence; i++ {
 		name := fmt.Sprintf("condition %d", i)
-		condition := configv1.ClusterCondition{Type: name}
+		condition := &configv1.ClusterCondition{Type: name}
 		var previousCall *mock.Call
+		found := false
 		for j, call := range m.Calls {
 			if reflect.DeepEqual(call.Condition, condition) {
+				found = true
 				if previousCall != nil {
 					spaceBetweenCalls := call.When.Sub(previousCall.When)
 					if spaceBetweenCalls < c.MinForCondition {
@@ -106,6 +108,9 @@ func TestCache(t *testing.T) {
 				}
 				previousCall = &m.Calls[j]
 			}
+		}
+		if !found {
+			t.Errorf("condition %v not found in recorded calls", condition)
 		}
 	}
 }
@@ -161,7 +166,7 @@ func Test_calculateMostStale(t *testing.T) {
 			expectedKey: `{"type": "a"}`,
 		},
 		{
-			name: "two entries, both old evaluatations, clear evaluation winner",
+			name: "two entries, both old evaluations, clear evaluation winner",
 			cache: map[string]*MatchResult{
 				`{"type": "a"}`: {When: now.Add(-2 * time.Hour), Access: now, Match: true, Error: nil},
 				`{"type": "b"}`: {When: now.Add(-time.Hour), Access: now.Add(-time.Minute), Match: true, Error: nil},

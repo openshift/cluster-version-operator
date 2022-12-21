@@ -28,7 +28,7 @@ type Call struct {
 	Method string
 
 	// Condition records the condition configuration passed to the method call.
-	Condition configv1.ClusterCondition
+	Condition *configv1.ClusterCondition
 }
 
 // Mock implements a cluster condition with mock responses.
@@ -48,7 +48,7 @@ func (m *Mock) Valid(ctx context.Context, condition *configv1.ClusterCondition) 
 	m.Calls = append(m.Calls, Call{
 		When:      time.Now(),
 		Method:    "Valid",
-		Condition: *condition,
+		Condition: condition.DeepCopy(),
 	})
 
 	if len(m.ValidQueue) == 0 {
@@ -65,7 +65,7 @@ func (m *Mock) Match(ctx context.Context, condition *configv1.ClusterCondition) 
 	m.Calls = append(m.Calls, Call{
 		When:      time.Now(),
 		Method:    "Match",
-		Condition: *condition,
+		Condition: condition.DeepCopy(),
 	})
 
 	if len(m.MatchQueue) == 0 {
