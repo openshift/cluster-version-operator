@@ -89,22 +89,12 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	if index := strings.LastIndex(update.Image, "@"); index != -1 {
 		releaseDigest = update.Image[index+1:]
 	}
-	verifyCtx := ctx
 
-	// if 'force' specified, ensure call to verify payload signature times out well before parent context
-	// to allow time to perform forced update
-	if update.Force {
-		timeout := time.Minute * 2
-		if deadline, deadlineSet := ctx.Deadline(); deadlineSet {
-			timeout = time.Until(deadline) / 2
-		}
-		klog.V(2).Infof("Forced update so reducing payload signature verification timeout to %s", timeout)
-		var cancel context.CancelFunc
-		verifyCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
-	}
+	// set up a new context with reasonable timeout for signature and payload retrieval
+	retrieveCtx, cancel := context.WithTimeout(ctx, time.Minute*4)
+	defer cancel()
 
-	if err := r.verifier.Verify(verifyCtx, releaseDigest); err != nil {
+	if err := r.verifier.Verify(retrieveCtx, releaseDigest); err != nil {
 		vErr := &payload.UpdateError{
 			Reason:  "ImageVerificationFailed",
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
@@ -122,7 +112,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 
 	// download the payload to the directory
 	var err error
-	info.Directory, err = r.targetUpdatePayloadDir(ctx, update)
+	info.Directory, err = r.targetUpdatePayloadDir(retrieveCtx, update)
 	if err != nil {
 		return PayloadInfo{}, &payload.UpdateError{
 			Reason:  "UpdatePayloadRetrievalFailed",
