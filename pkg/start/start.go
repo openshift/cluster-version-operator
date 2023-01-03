@@ -23,7 +23,6 @@ import (
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/flowcontrol"
@@ -226,62 +225,103 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 	go func() {
 		defer utilruntime.HandleCrash()
 		var firstError error
-		leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
-			Lock:            lock,
-			ReleaseOnCancel: true,
-			LeaseDuration:   o.leaderElection.LeaseDuration.Duration,
-			RenewDeadline:   o.leaderElection.RenewDeadline.Duration,
-			RetryPeriod:     o.leaderElection.RetryPeriod.Duration,
-			Callbacks: leaderelection.LeaderCallbacks{
-				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
-					launchedMain = true
-					if o.ListenAddr != "" {
-						resultChannelCount++
-						go func() {
-							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
-							resultChannel <- asyncResult{name: "metrics server", error: err}
-						}()
-					}
-					if err := controllerCtx.CVO.InitializeFromPayload(runContext, restConfig, burstRestConfig); err != nil {
-						if firstError == nil {
-							firstError = err
-						}
-						klog.Infof("Failed to initialize from payload; shutting down: %v", err)
-						resultChannel <- asyncResult{name: "payload initialization", error: firstError}
-					}
+		launchedMain = true
+		if o.ListenAddr != "" {
+			resultChannelCount++
+			go func() {
+				defer utilruntime.HandleCrash()
+				err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
+				resultChannel <- asyncResult{name: "metrics server", error: err}
+			}()
+		}
+		if err := controllerCtx.CVO.InitializeFromPayload(runContext, restConfig, burstRestConfig); err != nil {
+			if firstError == nil {
+				firstError = err
+			}
+			klog.Infof("Failed to initialize from payload; shutting down: %v", err)
+			resultChannel <- asyncResult{name: "payload initialization", error: firstError}
+		}
 
-					resultChannelCount++
-					go func() {
-						defer utilruntime.HandleCrash()
-						err := controllerCtx.CVO.Run(runContext, shutdownContext)
-						resultChannel <- asyncResult{name: "main operator", error: err}
-					}()
+		resultChannelCount++
+		go func() {
+			defer utilruntime.HandleCrash()
+			err := controllerCtx.CVO.Run(runContext, shutdownContext)
+			resultChannel <- asyncResult{name: "main operator", error: err}
+		}()
 
-					resultChannelCount++
-					go func() {
-						defer utilruntime.HandleCrash()
-						err := controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
-						resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: err}
-					}()
+		resultChannelCount++
+		go func() {
+			defer utilruntime.HandleCrash()
+			err := controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
+			resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: err}
+		}()
 
-					if controllerCtx.AutoUpdate != nil {
-						resultChannelCount++
-						go func() {
-							defer utilruntime.HandleCrash()
-							err := controllerCtx.AutoUpdate.Run(runContext, 2)
-							resultChannel <- asyncResult{name: "auto-update controller", error: err}
-						}()
-					}
-				},
-				OnStoppedLeading: func() {
-					klog.Info("Stopped leading; shutting down.")
-					runCancel()
-				},
-			},
-		})
-		resultChannel <- asyncResult{name: "leader controller", error: firstError}
+		if controllerCtx.AutoUpdate != nil {
+			resultChannelCount++
+			go func() {
+				defer utilruntime.HandleCrash()
+				err := controllerCtx.AutoUpdate.Run(runContext, 2)
+				resultChannel <- asyncResult{name: "auto-update controller", error: err}
+			}()
+		}
 	}()
+
+	//	leaderelection.RunOrDie(postMainContext, leaderelection.LeaderElectionConfig{
+	//		Lock:            lock,
+	//		ReleaseOnCancel: true,
+	//		LeaseDuration:   o.leaderElection.LeaseDuration.Duration,
+	//		RenewDeadline:   o.leaderElection.RenewDeadline.Duration,
+	//		RetryPeriod:     o.leaderElection.RetryPeriod.Duration,
+	//		Callbacks: leaderelection.LeaderCallbacks{
+	//			OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
+	//				launchedMain = true
+	//				if o.ListenAddr != "" {
+	//					resultChannelCount++
+	//					go func() {
+	//						defer utilruntime.HandleCrash()
+	//						err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
+	//						resultChannel <- asyncResult{name: "metrics server", error: err}
+	//					}()
+	//				}
+	//				if err := controllerCtx.CVO.InitializeFromPayload(runContext, restConfig, burstRestConfig); err != nil {
+	//					if firstError == nil {
+	//						firstError = err
+	//					}
+	//					klog.Infof("Failed to initialize from payload; shutting down: %v", err)
+	//					resultChannel <- asyncResult{name: "payload initialization", error: firstError}
+	//				}
+	//
+	//				resultChannelCount++
+	//				go func() {
+	//					defer utilruntime.HandleCrash()
+	//					err := controllerCtx.CVO.Run(runContext, shutdownContext)
+	//					resultChannel <- asyncResult{name: "main operator", error: err}
+	//				}()
+	//
+	//				resultChannelCount++
+	//				go func() {
+	//					defer utilruntime.HandleCrash()
+	//					err := controllerCtx.StopOnFeatureGateChange.Run(runContext, runCancel)
+	//					resultChannel <- asyncResult{name: "stop-on-techpreview-change controller", error: err}
+	//				}()
+	//
+	//				if controllerCtx.AutoUpdate != nil {
+	//					resultChannelCount++
+	//					go func() {
+	//						defer utilruntime.HandleCrash()
+	//						err := controllerCtx.AutoUpdate.Run(runContext, 2)
+	//						resultChannel <- asyncResult{name: "auto-update controller", error: err}
+	//					}()
+	//				}
+	//			},
+	//			OnStoppedLeading: func() {
+	//				klog.Info("Stopped leading; shutting down.")
+	//				runCancel()
+	//			},
+	//		},
+	//	})
+	//	resultChannel <- asyncResult{name: "leader controller", error: firstError}
+	//}()
 
 	var shutdownTimer *time.Timer
 	for resultChannelCount > 0 {
