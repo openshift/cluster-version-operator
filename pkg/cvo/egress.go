@@ -10,7 +10,18 @@ import (
 
 	"golang.org/x/net/http/httpproxy"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
+
+// Returns a User-Agent to be used for outgoing HTTP requests.
+//
+// https://www.rfc-editor.org/rfc/rfc7231#section-5.5.3
+func (optr *Operator) getUserAgent() string {
+	token := "ClusterVersionOperator"
+	productVersion := version.Version
+	return fmt.Sprintf("%s/%s", token, productVersion)
+}
 
 // getTransport constructs an HTTP transport configuration, including
 // any custom proxy configuration.

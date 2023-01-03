@@ -32,11 +32,20 @@ const (
 type Client struct {
 	id        uuid.UUID
 	transport *http.Transport
+
+	// userAgent configures the User-Agent header for upstream
+	// requests.  If empty, the User-Agent header will not be
+	// populated.
+	userAgent string
 }
 
 // NewClient creates a new Cincinnati client with the given client identifier.
-func NewClient(id uuid.UUID, transport *http.Transport) Client {
-	return Client{id: id, transport: transport}
+func NewClient(id uuid.UUID, transport *http.Transport, userAgent string) Client {
+	return Client{
+		id:        id,
+		transport: transport,
+		userAgent: userAgent,
+	}
 }
 
 // Error is returned when are unable to get updates.
@@ -92,7 +101,11 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	if err != nil {
 		return current, nil, nil, &Error{Reason: "InvalidRequest", Message: err.Error(), cause: err}
 	}
-	req.Header.Add("Accept", GraphMediaType)
+
+	if c.userAgent != "" {
+		req.Header.Set("User-Agent", c.userAgent)
+	}
+	req.Header.Set("Accept", GraphMediaType)
 	if c.transport != nil && c.transport.TLSClientConfig != nil {
 		if c.transport.TLSClientConfig.ClientCAs == nil {
 			klog.V(2).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)

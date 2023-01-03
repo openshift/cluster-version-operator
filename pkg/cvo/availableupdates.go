@@ -67,8 +67,10 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		return err
 	}
 
+	userAgent := optr.getUserAgent()
+
 	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID),
-		transport, upstream, desiredArch, currentArch, channel, optr.release.Version)
+		transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -211,7 +213,7 @@ func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
 	return ""
 }
 
-func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, desiredArch,
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, userAgent, upstream, desiredArch,
 	currentArch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate,
 	configv1.ClusterOperatorStatusCondition) {
 
@@ -269,7 +271,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, desiredArch,
+	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport, userAgent).GetUpdates(ctx, upstreamURI, desiredArch,
 		currentArch, channel, currentVersion)
 
 	if err != nil {

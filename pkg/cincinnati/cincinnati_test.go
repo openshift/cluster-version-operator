@@ -745,7 +745,7 @@ func TestGetUpdates(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(handler))
 			defer ts.Close()
 
-			c := NewClient(clientID, nil)
+			c := NewClient(clientID, nil, "")
 
 			uri, err := url.Parse(ts.URL)
 			if err != nil {
