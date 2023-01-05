@@ -180,7 +180,7 @@ func New(
 		},
 
 		statusInterval:             15 * time.Second,
-		minimumUpdateCheckInterval: minimumInterval,
+		minimumUpdateCheckInterval: 15 * time.Minute,
 		payloadDir:                 overridePayloadDir,
 		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
 
