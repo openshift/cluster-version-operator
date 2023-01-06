@@ -38,7 +38,7 @@ var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 func (optr *Operator) syncUpgradeable() error {
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	u := optr.getUpgradeable()
-	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
+	if u != nil && u.RecentlyChanged(time.Minute) {
 		klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
