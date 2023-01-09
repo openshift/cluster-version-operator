@@ -29,17 +29,18 @@ import (
 const (
 	adminAckGateFmt             string = "^ack-[4-5][.]([0-9]{1,})-[^-]"
 	upgradeableAdminAckRequired        = configv1.ClusterStatusConditionType("UpgradeableAdminAckRequired")
+	checkThrottlePeriod                = 2 * time.Minute
 )
 
 var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 
 // syncUpgradeable synchronizes the upgradeable status only if it has been more than
-// the minimumUpdateCheckInterval since the last synchronization or the precondition
+// the checkThrottlePeriod since the last synchronization or the precondition
 // checks on the payload are failing for less than minimumUpdateCheckInterval, and it has
 // been more than the minimumUpgradeableCheckInterval since the last synchronization.
 func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
 	u := optr.getUpgradeable()
-	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) && !shouldSyncUpgradeableDueToPreconditionChecks(optr, config, u) {
+	if u != nil && u.RecentlyChanged(checkThrottlePeriod) && !shouldSyncUpgradeableDueToPreconditionChecks(optr, config, u) {
 		klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
 		return nil
 	}
