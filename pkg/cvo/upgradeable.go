@@ -33,15 +33,41 @@ const (
 
 var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 
-// syncUpgradeable synchronizes the upgradeable status only if it has been more than
-// the minimumUpdateCheckInterval since the last synchronization or the precondition
-// checks on the payload are failing for less than minimumUpdateCheckInterval, and it has
-// been more than the minimumUpgradeableCheckInterval since the last synchronization.
-func (optr *Operator) syncUpgradeable(config *configv1.ClusterVersion) error {
-	u := optr.getUpgradeable()
-	if u != nil && u.RecentlyChanged(optr.minimumUpdateCheckInterval) && !shouldSyncUpgradeableDueToPreconditionChecks(optr, config, u) {
-		klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
-		return nil
+// upgradeableCheckIntervals holds the time intervals that drive how often CVO checks for upgradeability
+type upgradeableCheckIntervals struct {
+	// min is the base minimum interval between upgradeability checks, applied under normal circumstances
+	min time.Duration
+
+	// minOnFailedPreconditions is the minimum interval between upgradeability checks when precondition checks are
+	// failing and were recently (see afterPreconditionsFailed) changed. This should be lower than min because we want CVO
+	// to check upgradeability more often
+	minOnFailedPreconditions time.Duration
+
+	// afterFailingPreconditions is the period of time after preconditions failed when minOnFailedPreconditions is
+	// applied instead of min
+	afterPreconditionsFailed time.Duration
+}
+
+func defaultUpgradeableCheckIntervals() upgradeableCheckIntervals {
+	return upgradeableCheckIntervals{
+		// 2 minutes are here because it is a lower bound of previously nondeterministicly chosen interval
+		// TODO (OTA-860): Investigate our options of reducing this interval. We will need to investigate
+		// the API usage patterns of the underlying checks, there is anecdotal evidence that they hit
+		// apiserver instead of using local informer cache
+		min:                      2 * time.Minute,
+		minOnFailedPreconditions: 15 * time.Second,
+		afterPreconditionsFailed: 2 * time.Minute,
+	}
+}
+
+// syncUpgradeable synchronizes the upgradeable status only if the sufficient time passed since its last update. This
+// throttling period is dynamic and is driven by upgradeableCheckIntervals.
+func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion) error {
+	if u := optr.getUpgradeable(); u != nil {
+		if u.RecentlyChanged(optr.upgradeableCheckIntervals.throttlePeriod(cv)) {
+			klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
+			return nil
+		}
 	}
 	optr.setUpgradeableConditions()
 
@@ -466,21 +492,20 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 	}
 }
 
-// shouldSyncUpgradeableDueToPreconditionChecks checks if the upgradeable status should
-// be synchronized due to the precondition checks. It checks whether the precondition
-// checks on the payload are failing for less than minimumUpdateCheckInterval, and it has
-// been more than the minimumUpgradeableCheckInterval since the last synchronization.
-// This means, upon precondition failure, we will synchronize the upgradeable status
-// more frequently at beginning of an upgrade.
+// throttlePeriod returns the duration for which upgradeable status should be considered recent
+// enough and unnecessary to update. The baseline duration is min. When the precondition checks
+// on the payload are failing for less than afterPreconditionsFailed we want to synchronize
+// the upgradeable status more frequently at beginning of an upgrade and return
+// minOnFailedPreconditions which is expected to be lower than min.
 //
-// shouldSyncUpgradeableDueToPreconditionChecks expects the parameters not to be nil.
-//
-// Function returns true if the synchronization should happen, returns false otherwise.
-func shouldSyncUpgradeableDueToPreconditionChecks(optr *Operator, config *configv1.ClusterVersion, u *upgradeable) bool {
-	cond := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, DesiredReleaseAccepted)
-	if cond != nil && cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse &&
-		hasPassedDurationSinceTime(u.At, optr.minimumUpgradeableCheckInterval) && !hasPassedDurationSinceTime(cond.LastTransitionTime.Time, optr.minimumUpdateCheckInterval) {
-		return true
+// The cv parameter is expected to be non-nil.
+func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterVersion) time.Duration {
+	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, DesiredReleaseAccepted); cond != nil {
+		// Function returns true if the synchronization should happen, returns false otherwise.
+		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse &&
+			!hasPassedDurationSinceTime(cond.LastTransitionTime.Time, intervals.afterPreconditionsFailed) {
+			return intervals.minOnFailedPreconditions
+		}
 	}
-	return false
+	return intervals.min
 }
