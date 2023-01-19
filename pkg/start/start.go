@@ -354,11 +354,9 @@ func createResourceLock(cb *ClientBuilder, namespace, name string) (resourcelock
 	})
 }
 
-func resyncPeriod(minResyncPeriod time.Duration) func() time.Duration {
-	return func() time.Duration {
-		factor := rand.Float64() + 1
-		return time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
-	}
+func resyncPeriod(minResyncPeriod time.Duration) time.Duration {
+	factor := rand.Float64() + 1
+	return time.Duration(float64(minResyncPeriod.Nanoseconds()) * factor)
 }
 
 // ClientBuilder simplifies returning Kubernetes client and client configs with
@@ -452,13 +450,13 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
-	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)(), "", func(opts *metav1.ListOptions) {
+	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
-	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigNamespace))
-	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval)(), informers.WithNamespace(internal.ConfigManagedNamespace))
+	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigNamespace))
+	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigManagedNamespace))
 
-	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval)())
+	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
 
 	coInformer := sharedInformers.Config().V1().ClusterOperators()
 	ctx := &Context{
@@ -472,7 +470,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 			o.Namespace, o.Name,
 			o.ReleaseImage,
 			o.PayloadOverride,
-			resyncPeriod(o.ResyncInterval)(),
+			resyncPeriod(o.ResyncInterval),
 			cvInformer.Config().V1().ClusterVersions(),
 			coInformer,
 			openshiftConfigInformer.Core().V1().ConfigMaps(),
