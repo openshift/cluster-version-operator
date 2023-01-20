@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
@@ -69,7 +70,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		return nil
 	}
 	if up.Status != configv1.ConditionFalse {
-		klog.V(2).Infof("Precondition %s passed: Upgradeable %s since %v: %s: %s", pf.Name(), up.Status, up.LastTransitionTime, up.Reason, up.Message)
+		klog.V(2).Infof("Precondition %s passed: Upgradeable %s since %s: %s: %s", pf.Name(), up.Status, up.LastTransitionTime.Format(time.RFC3339), up.Reason, up.Message)
 		return nil
 	}
 
