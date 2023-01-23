@@ -64,8 +64,9 @@ func defaultUpgradeableCheckIntervals() upgradeableCheckIntervals {
 // throttling period is dynamic and is driven by upgradeableCheckIntervals.
 func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion) error {
 	if u := optr.getUpgradeable(); u != nil {
-		if u.RecentlyChanged(optr.upgradeableCheckIntervals.throttlePeriod(cv)) {
-			klog.V(2).Infof("Upgradeable conditions were recently checked, will try later.")
+		throttleFor := optr.upgradeableCheckIntervals.throttlePeriod(cv)
+		if earliestNext := u.At.Add(throttleFor); time.Now().Before(earliestNext) {
+			klog.V(2).Infof("Upgradeability last checked %s ago, will not re-check until %s", time.Since(u.At), earliestNext.Format(time.RFC3339))
 			return nil
 		}
 	}
@@ -81,12 +82,14 @@ func (optr *Operator) setUpgradeableConditions() {
 	var conds []configv1.ClusterOperatorStatusCondition
 	var reasons []string
 	var msgs []string
+	klog.V(4).Infof("Checking upgradeability conditions")
 	for _, check := range optr.upgradeableChecks {
 		if cond := check.Check(); cond != nil {
 			reasons = append(reasons, cond.Reason)
 			msgs = append(msgs, cond.Message)
 			cond.LastTransitionTime = now
 			conds = append(conds, *cond)
+			klog.V(2).Infof("Upgradeability condition failed (type='%s' reason='%s' message='%s')", cond.Type, cond.Reason, cond.Message)
 		}
 	}
 	if len(conds) == 1 {
@@ -105,6 +108,8 @@ func (optr *Operator) setUpgradeableConditions() {
 			Message:            fmt.Sprintf("Cluster should not be upgraded between minor versions for multiple reasons: %s\n* %s", strings.Join(reasons, ","), strings.Join(msgs, "\n* ")),
 			LastTransitionTime: now,
 		})
+	} else {
+		klog.V(2).Infof("All upgradeability conditions are passing")
 	}
 	sort.Slice(conds, func(i, j int) bool { return conds[i].Type < conds[j].Type })
 	optr.setUpgradeable(&upgradeable{
@@ -117,16 +122,6 @@ type upgradeable struct {
 
 	// these are sorted by Type
 	Conditions []configv1.ClusterOperatorStatusCondition
-}
-
-// hasPassedDurationSinceTime checks if a certain amount of time specified by duration
-// has passed since time. Returns true if the duration has passed, returns false otherwise.
-func hasPassedDurationSinceTime(t time.Time, duration time.Duration) bool {
-	return time.Now().After(t.Add(duration))
-}
-
-func (u *upgradeable) RecentlyChanged(interval time.Duration) bool {
-	return !hasPassedDurationSinceTime(u.At, interval)
 }
 
 func (u *upgradeable) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
@@ -501,9 +496,8 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 // The cv parameter is expected to be non-nil.
 func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterVersion) time.Duration {
 	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, DesiredReleaseAccepted); cond != nil {
-		// Function returns true if the synchronization should happen, returns false otherwise.
-		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse &&
-			!hasPassedDurationSinceTime(cond.LastTransitionTime.Time, intervals.afterPreconditionsFailed) {
+		deadline := cond.LastTransitionTime.Time.Add(intervals.afterPreconditionsFailed)
+		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse && time.Now().Before(deadline) {
 			return intervals.minOnFailedPreconditions
 		}
 	}
