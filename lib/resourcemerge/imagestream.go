@@ -30,6 +30,7 @@ func EnsureImagestreamv1(modified *bool, existing *imagev1.ImageStream, required
 }
 
 func ensureTagReferencev1(modified *bool, existing *imagev1.TagReference, required imagev1.TagReference) {
+	ensureTagReferencev1Defaults(&required)
 	if !equality.Semantic.DeepEqual(existing.ImportPolicy, required.ImportPolicy) {
 		*modified = true
 		existing.ImportPolicy = required.ImportPolicy
@@ -37,5 +38,14 @@ func ensureTagReferencev1(modified *bool, existing *imagev1.TagReference, requir
 	if !equality.Semantic.DeepEqual(existing.From, required.From) {
 		*modified = true
 		existing.From = required.From
+	}
+}
+
+func ensureTagReferencev1Defaults(required *imagev1.TagReference) {
+	if required.ImportPolicy.ImportMode == "" {
+		required.ImportPolicy.ImportMode = imagev1.ImportModeLegacy
+	}
+	if required.ReferencePolicy.Type == "" {
+		required.ReferencePolicy.Type = imagev1.SourceTagReferencePolicy
 	}
 }
