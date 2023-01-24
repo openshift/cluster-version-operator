@@ -283,6 +283,7 @@ if __name__ == '__main__':
         'github.com/openshift/api/image/v1': {'ImageStream'}, # for payload loading
         'github.com/openshift/api/security/v1': {'SecurityContextConstraints'},
         'github.com/operator-framework/api/pkg/operators/v1': {'OperatorGroup'},
+        'k8s.io/api/admissionregistration/v1': {'ValidatingWebhookConfiguration'},
         'k8s.io/api/apps/v1': {'DaemonSet', 'Deployment'},
         'k8s.io/api/batch/v1': {'Job'},
         'k8s.io/api/core/v1': {'ConfigMap', 'Namespace', 'Service', 'ServiceAccount'},
@@ -294,6 +295,7 @@ if __name__ == '__main__':
         'github.com/openshift/api/config/v1': {'package': 'github.com/openshift/client-go/config/clientset/versioned/typed/config/v1', 'type': 'ConfigV1Client'},
         'github.com/openshift/api/image/v1': {'package': 'github.com/openshift/client-go/image/clientset/versioned/typed/image/v1', 'type': 'ImageV1Client'},
         'github.com/operator-framework/api/pkg/operators/v1': {'package': 'github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1', 'type': 'OperatorsV1Client'},
+        'k8s.io/api/admissionregistration/v1': {'package': 'k8s.io/client-go/kubernetes/typed/admissionregistration/v1', 'type': 'AdmissionregistrationV1Client'},
         'k8s.io/api/apps/v1': {'package': 'k8s.io/client-go/kubernetes/typed/apps/v1', 'type': 'AppsV1Client'},
         'k8s.io/api/batch/v1': {'package': 'k8s.io/client-go/kubernetes/typed/batch/v1', 'type': 'BatchV1Client'},
         'k8s.io/api/core/v1': {'package': 'k8s.io/client-go/kubernetes/typed/core/v1', 'type': 'CoreV1Client'},

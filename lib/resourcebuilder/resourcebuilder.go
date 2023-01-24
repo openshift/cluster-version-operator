@@ -18,12 +18,14 @@ import (
 	"github.com/openshift/library-go/pkg/manifest"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsclientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
+	admissionregistrationclientv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -38,32 +40,34 @@ type builder struct {
 	mode     Mode
 	modifier MetaV1ObjectModifierFunc
 
-	apiextensionsClientv1   *apiextensionsclientv1.ApiextensionsV1Client
-	apiregistrationClientv1 *apiregistrationclientv1.ApiregistrationV1Client
-	appsClientv1            *appsclientv1.AppsV1Client
-	batchClientv1           *batchclientv1.BatchV1Client
-	configClientv1          *configclientv1.ConfigV1Client
-	coreClientv1            *coreclientv1.CoreV1Client
-	imageClientv1           *imageclientv1.ImageV1Client
-	operatorsClientv1       *operatorsclientv1.OperatorsV1Client
-	rbacClientv1            *rbacclientv1.RbacV1Client
-	securityClientv1        *securityclientv1.SecurityV1Client
+	admissionregistrationClientv1 *admissionregistrationclientv1.AdmissionregistrationV1Client
+	apiextensionsClientv1         *apiextensionsclientv1.ApiextensionsV1Client
+	apiregistrationClientv1       *apiregistrationclientv1.ApiregistrationV1Client
+	appsClientv1                  *appsclientv1.AppsV1Client
+	batchClientv1                 *batchclientv1.BatchV1Client
+	configClientv1                *configclientv1.ConfigV1Client
+	coreClientv1                  *coreclientv1.CoreV1Client
+	imageClientv1                 *imageclientv1.ImageV1Client
+	operatorsClientv1             *operatorsclientv1.OperatorsV1Client
+	rbacClientv1                  *rbacclientv1.RbacV1Client
+	securityClientv1              *securityclientv1.SecurityV1Client
 }
 
 func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &builder{
 		raw: m.Raw,
 
-		apiextensionsClientv1:   apiextensionsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		apiregistrationClientv1: apiregistrationclientv1.NewForConfigOrDie(config),
-		appsClientv1:            appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		batchClientv1:           batchclientv1.NewForConfigOrDie(withProtobuf(config)),
-		configClientv1:          configclientv1.NewForConfigOrDie(config),
-		coreClientv1:            coreclientv1.NewForConfigOrDie(withProtobuf(config)),
-		imageClientv1:           imageclientv1.NewForConfigOrDie(config),
-		operatorsClientv1:       operatorsclientv1.NewForConfigOrDie(config),
-		rbacClientv1:            rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
-		securityClientv1:        securityclientv1.NewForConfigOrDie(config),
+		admissionregistrationClientv1: admissionregistrationclientv1.NewForConfigOrDie(withProtobuf(config)),
+		apiextensionsClientv1:         apiextensionsclientv1.NewForConfigOrDie(withProtobuf(config)),
+		apiregistrationClientv1:       apiregistrationclientv1.NewForConfigOrDie(config),
+		appsClientv1:                  appsclientv1.NewForConfigOrDie(withProtobuf(config)),
+		batchClientv1:                 batchclientv1.NewForConfigOrDie(withProtobuf(config)),
+		configClientv1:                configclientv1.NewForConfigOrDie(config),
+		coreClientv1:                  coreclientv1.NewForConfigOrDie(withProtobuf(config)),
+		imageClientv1:                 imageclientv1.NewForConfigOrDie(config),
+		operatorsClientv1:             operatorsclientv1.NewForConfigOrDie(config),
+		rbacClientv1:                  rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
+		securityClientv1:              securityclientv1.NewForConfigOrDie(config),
 	}
 }
 
@@ -116,6 +120,18 @@ func (b *builder) Do(ctx context.Context) error {
 			return err
 		} else if !deleteReq {
 			if _, _, err := resourceapply.ApplyOperatorGroupv1(ctx, b.operatorsClientv1, typedObject, reconcilingMode); err != nil {
+				return err
+			}
+		}
+	case *admissionregistrationv1.ValidatingWebhookConfiguration:
+		if b.modifier != nil {
+			b.modifier(typedObject)
+		}
+		if deleteReq, err := resourcedelete.DeleteValidatingWebhookConfigurationv1(ctx, b.admissionregistrationClientv1, typedObject,
+			updatingMode); err != nil {
+			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyValidatingWebhookConfigurationv1(ctx, b.admissionregistrationClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -286,6 +302,7 @@ func (b *builder) Do(ctx context.Context) error {
 
 func init() {
 	rm := NewResourceMapper()
+	rm.RegisterGVK(admissionregistrationv1.SchemeGroupVersion.WithKind("ValidatingWebhookConfiguration"), newBuilder)
 	rm.RegisterGVK(apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("DaemonSet"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newBuilder)
