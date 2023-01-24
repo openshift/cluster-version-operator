@@ -434,6 +434,189 @@ func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "respect injected caBundle when the annotation `...inject-cabundle=true` is set",
+			existing: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+			required: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+				},
+			},
+
+			expectedModified: false,
+			expected: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "respect injected caBundle when the annotation `...inject-cabundle=true` is set by the user",
+			existing: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+			required: admissionregv1.ValidatingWebhookConfiguration{
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+				},
+			},
+
+			expectedModified: false,
+			expected: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "remove injected caBundle when the annotation `...inject-cabundle=true` is not set",
+			existing: admissionregv1.ValidatingWebhookConfiguration{
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the user"),
+						},
+					},
+				},
+			},
+			required: admissionregv1.ValidatingWebhookConfiguration{
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+				},
+			},
+
+			expectedModified: true,
+			expected: admissionregv1.ValidatingWebhookConfiguration{
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "respect injected caBundles in all webhooks when the annotation `...inject-cabundle=true` is set",
+			existing: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+			required: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: nil,
+						},
+					},
+				},
+			},
+
+			expectedModified: false,
+			expected: admissionregv1.ValidatingWebhookConfiguration{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						injectCABundleAnnotation: "true",
+					},
+				},
+				Webhooks: []admissionregv1.ValidatingWebhook{
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+					{
+						ClientConfig: admissionregv1.WebhookClientConfig{
+							CABundle: []byte("CA bundle injected by the ca operator"),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

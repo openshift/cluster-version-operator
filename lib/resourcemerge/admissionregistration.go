@@ -12,6 +12,7 @@ import (
 func EnsureValidatingWebhookConfiguration(modified *bool, existing *admissionregv1.ValidatingWebhookConfiguration, required admissionregv1.ValidatingWebhookConfiguration) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureValidatingWebhookConfigurationDefaults(&required)
+	ensureValidatingWebhookConfigurationCaBundle(&required, *existing)
 	if !equality.Semantic.DeepEqual(existing.Webhooks, required.Webhooks) {
 		*modified = true
 		existing.Webhooks = required.Webhooks
@@ -54,3 +55,18 @@ func ensureRuleWithOperationsDefaults(required *admissionregv1.RuleWithOperation
 	}
 }
 
+// ensureValidatingWebhookConfigurationCaBundle ensures that the clientConfig.caBundle
+// field of each webhook is not managed by the CVO when the service-ca controller is
+// responsible for the fields.
+func ensureValidatingWebhookConfigurationCaBundle(required *admissionregv1.ValidatingWebhookConfiguration, existing admissionregv1.ValidatingWebhookConfiguration) {
+	if val, ok := existing.ObjectMeta.Annotations[injectCABundleAnnotation]; !ok || val != "true" {
+		return
+	}
+	if len(existing.Webhooks) == 0 {
+		return
+	}
+	caBundle := existing.Webhooks[0].ClientConfig.CABundle // The same CA bundle is injected into all webhooks
+	for i := range required.Webhooks {
+		required.Webhooks[i].ClientConfig.CABundle = caBundle
+	}
+}
