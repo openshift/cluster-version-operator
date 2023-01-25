@@ -41,7 +41,7 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 			switch countPayloadsForVersion(config, u.Version) {
 			case 0:
 				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version,
-					"when image is empty the update must be a previous version or an available update"))
+					"when image is empty the update must be an available update"))
 			case 1:
 			default:
 				errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version,
