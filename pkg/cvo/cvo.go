@@ -567,7 +567,7 @@ func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err e
 // It returns an error if it could not update the cluster version object.
 func (optr *Operator) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing cluster version %q, spec changes, status, and payload (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing cluster version %q, spec changes, status, and payload", key)
 	defer func() {
 		klog.V(2).Infof("Finished syncing cluster version %q (%v)", key, time.Since(startTime))
 	}()
@@ -636,7 +636,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 // sync available updates. It only modifies cluster version.
 func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing available updates %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing available updates %q", key)
 	defer func() {
 		klog.V(2).Infof("Finished syncing available updates %q (%v)", key, time.Since(startTime))
 	}()
@@ -655,7 +655,7 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 // sync upgradeableCondition. It only modifies cluster version.
 func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing upgradeable %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing upgradeable %q", key)
 	defer func() {
 		klog.V(2).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
 	}()

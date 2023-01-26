@@ -153,7 +153,7 @@ func (ctrl *Controller) handleErr(err error, key interface{}) {
 
 func (ctrl *Controller) sync(ctx context.Context, key string) error {
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing auto-updates %q (%v)", key, startTime)
+	klog.V(2).Infof("Started syncing auto-updates %q", key)
 	defer func() {
 		klog.V(2).Infof("Finished syncing auto-updates %q (%v)", key, time.Since(startTime))
 	}()

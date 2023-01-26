@@ -104,14 +104,14 @@ func GetDeleteProgress(resource Resource, getError error) (bool, error) {
 	if deletionTimes, ok := getDeleteTimes(resource); ok {
 		if !deletionTimes.Verified.IsZero() {
 			if getError == nil || !apierrors.IsNotFound(getError) {
-				klog.Warningf("%s has reappeared after having been deleted at %s.", resource, deletionTimes.Verified)
+				klog.Warningf("%s has reappeared after having been deleted at %s.", resource, deletionTimes.Verified.Format(time.RFC3339))
 			}
 		} else {
 			if apierrors.IsNotFound(getError) {
 				SetDeleteVerified(resource)
 			} else {
 				if deletionTimes.Expected != nil {
-					klog.V(2).Infof("Delete of %s is expected by %s.", resource, deletionTimes.Expected.String())
+					klog.V(2).Infof("Delete of %s is expected by %s.", resource, deletionTimes.Expected.Format(time.RFC3339))
 				} else {
 					klog.V(2).Infof("Delete of %s has already been requested.", resource)
 				}
