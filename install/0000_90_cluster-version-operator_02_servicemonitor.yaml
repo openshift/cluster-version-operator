@@ -43,7 +43,7 @@ spec:
     - alert: ClusterVersionOperatorDown
       annotations:
         summary: Cluster version operator has disappeared from Prometheus target discovery.
-        description: The operator may be down or disabled. The cluster will not be kept up to date and upgrades will not be possible. Inspect the openshift-cluster-version namespace for events or changes to the cluster-version-operator deployment or pods to diagnose and repair. {{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} For more information refer to {{ label \"url\" (first $console_url ) }}/k8s/cluster/projects/openshift-cluster-version.{{ end }}{{ end }}" }}
+        description: The operator may be down or disabled. The cluster will not be kept up to date and upgrades will not be possible. Inspect the openshift-cluster-version namespace for events or changes to the cluster-version-operator deployment (which should have 1 replica) or pods to diagnose and repair. {{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} For more information refer to {{ label \"url\" (first $console_url ) }}/k8s/cluster/projects/openshift-cluster-version.{{ end }}{{ end }}" }}
       expr: |
         absent(up{job="cluster-version-operator"} == 1)
       for: 10m
