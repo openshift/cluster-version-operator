@@ -38,13 +38,13 @@ func init() {
 	if err := imagev1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
+	if err := operatorsv1.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
 	if err := rbacv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	if err := securityv1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
-	if err := operatorsv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
 	decoder = codecs.UniversalDecoder(
@@ -53,9 +53,9 @@ func init() {
 		batchv1.SchemeGroupVersion,
 		corev1.SchemeGroupVersion,
 		imagev1.SchemeGroupVersion,
+		operatorsv1.SchemeGroupVersion,
 		rbacv1.SchemeGroupVersion,
 		securityv1.SchemeGroupVersion,
-		operatorsv1.SchemeGroupVersion,
 	)
 }
 

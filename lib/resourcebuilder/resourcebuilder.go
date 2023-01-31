@@ -45,9 +45,9 @@ type builder struct {
 	configClientv1          *configclientv1.ConfigV1Client
 	coreClientv1            *coreclientv1.CoreV1Client
 	imageClientv1           *imageclientv1.ImageV1Client
+	operatorsClientv1       *operatorsclientv1.OperatorsV1Client
 	rbacClientv1            *rbacclientv1.RbacV1Client
 	securityClientv1        *securityclientv1.SecurityV1Client
-	operatorsClientv1       *operatorsclientv1.OperatorsV1Client
 }
 
 func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
@@ -61,9 +61,9 @@ func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 		configClientv1:          configclientv1.NewForConfigOrDie(config),
 		coreClientv1:            coreclientv1.NewForConfigOrDie(withProtobuf(config)),
 		imageClientv1:           imageclientv1.NewForConfigOrDie(config),
+		operatorsClientv1:       operatorsclientv1.NewForConfigOrDie(config),
 		rbacClientv1:            rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
 		securityClientv1:        securityclientv1.NewForConfigOrDie(config),
-		operatorsClientv1:       operatorsclientv1.NewForConfigOrDie(config),
 	}
 }
 
@@ -104,6 +104,18 @@ func (b *builder) Do(ctx context.Context) error {
 			return err
 		} else if !deleteReq {
 			if _, _, err := resourceapply.ApplySecurityContextConstraintsv1(ctx, b.securityClientv1, typedObject, reconcilingMode); err != nil {
+				return err
+			}
+		}
+	case *operatorsv1.OperatorGroup:
+		if b.modifier != nil {
+			b.modifier(typedObject)
+		}
+		if deleteReq, err := resourcedelete.DeleteOperatorGroupv1(ctx, b.operatorsClientv1, typedObject,
+			updatingMode); err != nil {
+			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyOperatorGroupv1(ctx, b.operatorsClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
 		}
@@ -265,18 +277,6 @@ func (b *builder) Do(ctx context.Context) error {
 				return b.checkCustomResourceDefinitionHealth(ctx, actual)
 			}
 		}
-	case *operatorsv1.OperatorGroup:
-		if b.modifier != nil {
-			b.modifier(typedObject)
-		}
-		if deleteReq, err := resourcedelete.DeleteOperatorGroupv1(ctx, b.operatorsClientv1, typedObject,
-			updatingMode); err != nil {
-			return err
-		} else if !deleteReq {
-			if _, _, err := resourceapply.ApplyOperatorGroupv1(ctx, b.operatorsClientv1, typedObject, reconcilingMode); err != nil {
-				return err
-			}
-		}
 	default:
 		return fmt.Errorf("unrecognized manifest type: %T", obj)
 	}
@@ -295,11 +295,11 @@ func init() {
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Service"), newBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ServiceAccount"), newBuilder)
 	rm.RegisterGVK(imagev1.SchemeGroupVersion.WithKind("ImageStream"), newBuilder)
+	rm.RegisterGVK(operatorsv1.SchemeGroupVersion.WithKind("OperatorGroup"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRole"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("ClusterRoleBinding"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("Role"), newBuilder)
 	rm.RegisterGVK(rbacv1.SchemeGroupVersion.WithKind("RoleBinding"), newBuilder)
 	rm.RegisterGVK(securityv1.SchemeGroupVersion.WithKind("SecurityContextConstraints"), newBuilder)
-	rm.RegisterGVK(operatorsv1.SchemeGroupVersion.WithKind("OperatorGroup"), newBuilder)
 	rm.AddToMap(Mapper)
 }
