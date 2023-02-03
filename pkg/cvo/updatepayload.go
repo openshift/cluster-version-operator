@@ -90,19 +90,29 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		return PayloadInfo{}, fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
 	}
 
-	var info PayloadInfo
-
 	// verify the provided payload
 	var releaseDigest string
 	if index := strings.LastIndex(update.Image, "@"); index != -1 {
 		releaseDigest = update.Image[index+1:]
 	}
 
-	// set up a new context with reasonable timeout for signature and payload retrieval
-	retrieveCtx, cancel := context.WithTimeout(ctx, r.verifyTimeoutOnForce+r.downloadTimeout)
-	defer cancel()
+	var downloadCtx context.Context
+	var downloadCtxCancel context.CancelFunc
+	var verifyTimeout time.Duration
 
-	if err := r.verifier.Verify(retrieveCtx, releaseDigest); err != nil {
+	if deadline, ok := ctx.Deadline(); ok {
+		verifyTimeout = time.Until(deadline) / 2
+		downloadCtx = ctx
+	} else {
+		verifyTimeout = r.verifyTimeoutOnForce
+		downloadCtx, downloadCtxCancel = context.WithTimeout(ctx, r.verifyTimeoutOnForce+r.downloadTimeout)
+		defer downloadCtxCancel()
+	}
+	verifyCtx, verifyCtxCancel := context.WithTimeout(ctx, verifyTimeout)
+	defer verifyCtxCancel()
+
+	var info PayloadInfo
+	if err := r.verifier.Verify(verifyCtx, releaseDigest); err != nil {
 		vErr := &payload.UpdateError{
 			Reason:  "ImageVerificationFailed",
 			Message: fmt.Sprintf("The update cannot be verified: %v", err),
@@ -121,10 +131,9 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	if r.downloader == nil {
 		r.downloader = r.targetUpdatePayloadDir
 	}
-
 	// download the payload to the directory
 	var err error
-	info.Directory, err = r.downloader(retrieveCtx, update)
+	info.Directory, err = r.downloader(downloadCtx, update)
 	if err != nil {
 		return PayloadInfo{}, &payload.UpdateError{
 			Reason:  "UpdatePayloadRetrievalFailed",
