@@ -38,20 +38,24 @@ func (optr *Operator) defaultPayloadDir() string {
 
 func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
 	return &payloadRetriever{
-		kubeClient:   optr.kubeClient,
-		operatorName: optr.name,
-		releaseImage: optr.release.Image,
-		namespace:    optr.namespace,
-		nodeName:     optr.nodename,
-		payloadDir:   optr.defaultPayloadDir(),
-		workingDir:   targetUpdatePayloadsDir,
-		verifier:     optr.verifier,
+		kubeClient:           optr.kubeClient,
+		operatorName:         optr.name,
+		releaseImage:         optr.release.Image,
+		namespace:            optr.namespace,
+		nodeName:             optr.nodename,
+		payloadDir:           optr.defaultPayloadDir(),
+		workingDir:           targetUpdatePayloadsDir,
+		verifier:             optr.verifier,
+		verifyTimeoutOnForce: 2 * time.Minute,
+		downloadTimeout:      2 * time.Minute,
 	}
 }
 
 const (
 	targetUpdatePayloadsDir = "/etc/cvo/updatepayloads"
 )
+
+type downloadFunc func(context.Context, configv1.Update) (string, error)
 
 type payloadRetriever struct {
 	// releaseImage and payloadDir are the default payload identifiers - updates that point
@@ -67,7 +71,11 @@ type payloadRetriever struct {
 	operatorName string
 
 	// verifier guards against invalid remote data being accessed
-	verifier verify.Interface
+	verifier             verify.Interface
+	verifyTimeoutOnForce time.Duration
+
+	downloader      downloadFunc
+	downloadTimeout time.Duration
 }
 
 func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (PayloadInfo, error) {
@@ -94,7 +102,7 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 	// if 'force' specified, ensure call to verify payload signature times out well before parent context
 	// to allow time to perform forced update
 	if update.Force {
-		timeout := time.Minute * 2
+		timeout := r.verifyTimeoutOnForce
 		if deadline, deadlineSet := ctx.Deadline(); deadlineSet {
 			timeout = time.Until(deadline) / 2
 		}
@@ -120,9 +128,13 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		info.Verified = true
 	}
 
+	if r.downloader == nil {
+		r.downloader = r.targetUpdatePayloadDir
+	}
+
 	// download the payload to the directory
 	var err error
-	info.Directory, err = r.targetUpdatePayloadDir(ctx, update)
+	info.Directory, err = r.downloader(ctx, update)
 	if err != nil {
 		return PayloadInfo{}, &payload.UpdateError{
 			Reason:  "UpdatePayloadRetrievalFailed",
