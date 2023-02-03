@@ -272,7 +272,7 @@ func TestPayloadRetrieverRetrievePayload(t *testing.T) {
 			expectedErr: errors.New("Unable to download and prepare the update: download was canceled"),
 		},
 		{
-			name: "when sha digest pullspec image fails to verify until timeout then it allows enough time for download and it returns successfully",
+			name: "when sha digest pullspec image fails to verify until timeout but is forced then it allows enough time for download and it returns successfully",
 			verifier: &mockVerifier{
 				expectVerifyDigest: "sha256:08ef16270e643a001454410b22864db6246d782298be267688a4433d83f404f4",
 				expectVerifyCancel: true,
