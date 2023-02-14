@@ -314,10 +314,9 @@ func TestPayloadRetrieverRetrievePayload(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			retriever := payloadRetriever{
-				releaseImage:         "releaseImage",
-				payloadDir:           "/local/payload/dir",
-				verifyTimeoutOnForce: time.Second,
-				downloadTimeout:      time.Second,
+				releaseImage:    "releaseImage",
+				payloadDir:      "/local/payload/dir",
+				retrieveTimeout: 2 * time.Second,
 			}
 
 			if tc.verifier != nil {
