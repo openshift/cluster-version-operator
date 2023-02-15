@@ -237,7 +237,7 @@ func (w *SyncWorker) NotifyAboutManagedResourceActivity(obj interface{}, message
 	case w.notify <- message:
 		klog.V(2).Infof("Notify the sync worker: %s", message)
 	default:
-		klog.V(2).Info("The sync worker already has a pending notification, so do not notify about:no need to inform about: %s", message)
+		klog.V(2).Infof("The sync worker already has a pending notification, so no need to inform about: %s", message)
 	}
 }
 
