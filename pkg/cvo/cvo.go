@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -318,14 +319,16 @@ func (optr *Operator) ownerReferenceModifier(object metav1.Object) {
 		object.SetOwnerReferences(nonCVORefs)
 	} else {
 		// otherwise set the current CV as the owner reference
-		object.SetOwnerReferences([]metav1.OwnerReference{
-			{
-				APIVersion: configv1.GroupVersion.Identifier(),
-				Kind:       "ClusterVersion",
-				Name:       optr.name,
-				UID:        optr.uid,
-			},
-		})
+		cvoRef := metav1.OwnerReference{
+			APIVersion: configv1.GroupVersion.Identifier(),
+			Kind:       "ClusterVersion",
+			Name:       optr.name,
+			UID:        optr.uid,
+		}
+		if value, ok := object.GetAnnotations()["release.openshift.io/create-only"]; !ok || value != "true" {
+			cvoRef.Controller = pointer.Bool(true)
+		}
+		object.SetOwnerReferences([]metav1.OwnerReference{cvoRef})
 	}
 }
 
