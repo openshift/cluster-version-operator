@@ -26,8 +26,6 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -484,13 +482,13 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 }
 
 // Inform the sync worker about activity for a managed resource.
-func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(obj interface{}, message string) {
+func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(message string) {
 }
 
-func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
+func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {
 }
 
-func (r *fakeSyncRecorder) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, cvoOptrName string) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }

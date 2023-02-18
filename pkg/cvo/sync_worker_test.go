@@ -218,7 +218,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-A is degraded",
 		PluralMessageFormat: "Cluster operators %s are degraded",
 		Name:                "test-co-A",
-		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-A", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 	coANotAvailable := &payload.UpdateError{
 		UpdateEffect:        payload.UpdateEffectFail,
@@ -227,7 +227,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-A is not available",
 		PluralMessageFormat: "Cluster operators %s are not available",
 		Name:                "test-co-A",
-		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-A", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 	coAUpdating := &payload.UpdateError{
 		UpdateEffect:        payload.UpdateEffectNone,
@@ -236,7 +236,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-A is updating versions",
 		PluralMessageFormat: "Cluster operators %s are updating versions",
 		Name:                "test-co-A",
-		Task:                task("test-co-A", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-A", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 	coBDegradedFail := &payload.UpdateError{
 		UpdateEffect:        payload.UpdateEffectFail,
@@ -245,7 +245,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-B is degraded",
 		PluralMessageFormat: "Cluster operators %s are degraded",
 		Name:                "test-co-B",
-		Task:                task("test-co-B", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-B", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 	coBUpdating := &payload.UpdateError{
 		UpdateEffect:        payload.UpdateEffectNone,
@@ -254,7 +254,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-B is updating versions",
 		PluralMessageFormat: "Cluster operators %s are updating versions",
 		Name:                "test-co-B",
-		Task:                task("test-co-B", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-B", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 	coCDegradedFailAfterInterval := &payload.UpdateError{
 		UpdateEffect:        payload.UpdateEffectFailAfterInterval,
@@ -263,7 +263,7 @@ func Test_condenseClusterOperators(t *testing.T) {
 		Message:             "Cluster operator test-co-C is degraded",
 		PluralMessageFormat: "Cluster operators %s are degraded",
 		Name:                "test-co-C",
-		Task:                task("test-co-C", configv1.SchemeGroupVersion.WithKind("ClusterOperator")),
+		Task:                task("test-co-C", configv1.GroupVersion.WithKind("ClusterOperator")),
 	}
 
 	tests := []struct {

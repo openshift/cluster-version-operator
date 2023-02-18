@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
@@ -31,12 +30,12 @@ import (
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
-	Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister)
-	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, cvoOptrName string) *SyncWorkerStatus
+	Start(ctx context.Context, maxWorkers int)
+	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 
-	// Inform the sync worker about activity for a managed resource.
-	NotifyAboutManagedResourceActivity(obj interface{}, msg string)
+	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
+	NotifyAboutManagedResourceActivity(msg string)
 }
 
 // PayloadInfo returns details about the payload when it was retrieved.
@@ -231,8 +230,8 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
-// Inform the sync worker about activity for a managed resource.
-func (w *SyncWorker) NotifyAboutManagedResourceActivity(obj interface{}, message string) {
+// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
+func (w *SyncWorker) NotifyAboutManagedResourceActivity(message string) {
 	select {
 	case w.notify <- message:
 		klog.V(2).Infof("Notify the sync worker: %s", message)
@@ -425,8 +424,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 }
 
 // loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
-func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork,
-	cvoOptrName string) ([]configv1.ClusterVersionCapability, error) {
+func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
 
 	// reporter hides status updates that occur earlier than the previous failure,
 	// so that we don't fail, then immediately start reporting an earlier status
@@ -446,7 +444,7 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork,
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 // giving the sync loop the opportunity to observe our change and begin working towards it.
 func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion,
-	state payload.State, cvoOptrName string) *SyncWorkerStatus {
+	state payload.State) *SyncWorkerStatus {
 
 	w.lock.Lock()
 	defer w.lock.Unlock()
@@ -487,7 +485,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 
 		if !equalUpdate(w.work.Desired, w.status.loadPayloadStatus.Update) {
 			// this will only reset payload status to currently loaded payload
-			_, err := w.loadUpdatedPayload(ctx, w.work, cvoOptrName)
+			_, err := w.loadUpdatedPayload(ctx, w.work)
 			if err != nil {
 				klog.Warningf("Error when attempting to reset payload status to currently loaded payload: %v.", err)
 			}
@@ -519,7 +517,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		}
 	}
 
-	implicit, err := w.loadUpdatedPayload(ctx, work, cvoOptrName)
+	implicit, err := w.loadUpdatedPayload(ctx, work)
 	if err != nil {
 		// save override and capability changes if not first time through
 		if w.work != nil {
@@ -566,7 +564,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // apply() has succeeded for a given input (we are said to be "reconciling").
-func (w *SyncWorker) Start(ctx context.Context, maxWorkers int, cvoOptrName string, lister configlistersv1.ClusterVersionLister) {
+func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	klog.V(2).Infof("Start: starting sync worker")
 
 	work := &SyncWork{}
@@ -751,7 +749,7 @@ func (w *SyncWorker) calculateNext(work *SyncWork) bool {
 }
 
 // equalUpdate returns true if two updates are semantically equivalent.
-// It checks if the updates have have the same force and image values.
+// It checks if the updates have the same force and image values.
 //
 // We require complete pullspec equality, not just digest equality,
 // because we want to go through the usual update process even if it's
@@ -864,16 +862,6 @@ func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
 	}
 }
 
-// Desired returns the state the SyncWorker is trying to achieve.
-func (w *SyncWorker) Desired() configv1.Update {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-	if w.work == nil {
-		return configv1.Update{}
-	}
-	return w.work.Desired
-}
-
 // Status returns a copy of the current worker status.
 func (w *SyncWorker) Status() *SyncWorkerStatus {
 	w.lock.Lock()
@@ -965,7 +953,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			if err := ctx.Err(); err != nil {
 				return cr.ContextError(err)
 			}
-			if task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+			if task.Manifest.GVK != configv1.GroupVersion.WithKind("ClusterOperator") {
 				continue
 			}
 			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
@@ -1077,18 +1065,6 @@ func (r *consistentReporter) Update() {
 	r.reporter.Report(copied)
 }
 
-func (r *consistentReporter) Error(err error) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	copied := r.status
-	copied.Done = r.done
-	copied.Total = r.total
-	if !isContextError(err) {
-		copied.Failure = err
-	}
-	r.reporter.Report(copied)
-}
-
 func (r *consistentReporter) Errors(errs []error) error {
 	err := summarizeTaskGraphErrors(errs)
 
@@ -1196,7 +1172,7 @@ func condenseClusterOperators(errs []error) []error {
 	reasons := make([]string, 0, len(errs))
 	for _, err := range errs {
 		uErr, ok := err.(*payload.UpdateError)
-		if !ok || uErr.Task == nil || uErr.Task.Manifest == nil || uErr.Task.Manifest.GVK != configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+		if !ok || uErr.Task == nil || uErr.Task.Manifest == nil || uErr.Task.Manifest.GVK != configv1.GroupVersion.WithKind("ClusterOperator") {
 			// error is not a ClusterOperator error, so pass it through
 			condensed = append(condensed, err)
 			continue
