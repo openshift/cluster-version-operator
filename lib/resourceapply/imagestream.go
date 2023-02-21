@@ -27,15 +27,21 @@ func ApplyImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGe
 		return nil, false, nil
 	}
 
+	var original imagev1.ImageStream
+	existing.DeepCopyInto(&original)
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureImagestreamv1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
 	}
-
 	if reconciling {
-		klog.V(2).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating ImageStream %s/%s due to diff: %v", required.Namespace, required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating ImageStream %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)
+		}
 	}
+
 	actual, err := client.ImageStreams(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
 }
