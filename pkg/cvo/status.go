@@ -27,8 +27,7 @@ import (
 
 const (
 	// ClusterStatusFailing is set on the ClusterVersion status when a cluster
-	// cannot reach the desired state. It is considered more serious than Degraded
-	// and indicates the cluster is not healthy.
+	// cannot reach the desired state. It indicates the cluster is not healthy.
 	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
 
 	// MaxHistory is the maximum size of ClusterVersion history. Once exceeded
