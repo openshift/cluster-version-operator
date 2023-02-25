@@ -73,6 +73,15 @@ spec:
         sum by (channel, namespace, upstream) (cluster_version_available_updates) > 0
       labels:
         severity: info
+    - alert: ClusterReleaseNotAccepted
+      annotations:
+        summary: The desired cluster release has not been accepted for at least an hour.
+        description: The desired cluster release has not been accepted because {{ "${{ $labels.reason }}" }}, and the cluster will continue to reconcile an earlier release instead of moving towards that desired release.  For more information refer to 'oc adm upgrade'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+      expr: |
+        max by (namespace, name, reason) (cluster_operator_conditions{name="version", condition="ReleaseAccepted", endpoint="metrics"} == 0)
+      for: 60m
+      labels:
+        severity: warning
   - name: cluster-operators
     rules:
     - alert: ClusterNotUpgradeable
