@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -4190,7 +4189,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		if tt.fileName != "" {
-			raw, err := ioutil.ReadFile(filepath.Join("testdata", "manifests", tt.fileName))
+			raw, err := os.ReadFile(filepath.Join("testdata", "manifests", tt.fileName))
 			if err != nil {
 				t.Fatal(err)
 			}

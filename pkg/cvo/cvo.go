@@ -238,7 +238,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		var err error
 
 		// ensure the cluster version exists
-		_, _, err = optr.getClusterVersion(ctx)
+		_, _, err = optr.getClusterVersion()
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				klog.V(2).Infof("No cluster version object, waiting for one")
@@ -386,7 +386,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
-		optr.configSync.Start(runContext, 16, optr.name, optr.cvLister)
+		optr.configSync.Start(runContext, 16)
 		resultChannel <- asyncResult{name: "sync worker"}
 	}()
 
@@ -510,7 +510,7 @@ func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 			newVersion := clusterOperatorVersion(newStruct, versionName)
 			if oldVersion != newVersion {
 				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.ObjectMeta.Name, versionName, oldVersion, newVersion)
-				optr.configSync.NotifyAboutManagedResourceActivity(new, msg)
+				optr.configSync.NotifyAboutManagedResourceActivity(msg)
 				return
 			}
 
@@ -522,7 +522,7 @@ func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 				newStatus := clusterOperatorConditionStatus(newStruct, cond)
 				if oldStatus != newStatus {
 					msg := fmt.Sprintf("Cluster operator %s changed %s from %q to %q", newStruct.ObjectMeta.Name, cond, oldStatus, newStatus)
-					optr.configSync.NotifyAboutManagedResourceActivity(new, msg)
+					optr.configSync.NotifyAboutManagedResourceActivity(msg)
 					return
 				}
 			}
@@ -611,7 +611,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}()
 
 	// ensure the cluster version exists and has not changed
-	original, changed, err := optr.getClusterVersion(ctx)
+	original, changed, err := optr.getClusterVersion()
 	if err != nil {
 		return err
 	}
@@ -662,7 +662,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(ctx, config.Generation, desired, config, state, optr.name)
+	status := optr.configSync.Update(ctx, config.Generation, desired, config, state)
 
 	optr.SetArchitecture(status.Architecture)
 
@@ -691,7 +691,7 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 
 // upgradeableSync is triggered on cluster version change (and periodic requeues) to
 // sync upgradeableCondition. It only modifies cluster version.
-func (optr *Operator) upgradeableSync(ctx context.Context, key string) error {
+func (optr *Operator) upgradeableSync(_ context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(2).Infof("Started syncing upgradeable %q", key)
 	defer func() {
@@ -741,7 +741,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 
 // getClusterVersion returns the cluster version object, with an indication of whether it's older
 // than the previousily returned and saved cluster version object, or an error.
-func (optr *Operator) getClusterVersion(ctx context.Context) (*configv1.ClusterVersion, bool, error) {
+func (optr *Operator) getClusterVersion() (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {
 		olderThanLastUpdate := optr.isOlderThanLastUpdate(obj)
@@ -858,7 +858,7 @@ func (b *resourceBuilder) builderFor(m *manifest.Manifest, state payload.State) 
 		config = b.burstConfig
 	}
 
-	if b.clusterOperators != nil && m.GVK == configv1.SchemeGroupVersion.WithKind("ClusterOperator") {
+	if b.clusterOperators != nil && m.GVK == configv1.GroupVersion.WithKind("ClusterOperator") {
 		client, err := clientset.NewForConfig(config)
 		if err != nil {
 			return nil, err

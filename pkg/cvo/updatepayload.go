@@ -189,7 +189,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		image           = update.Image
 		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
 		namespace       = r.namespace
-		deadline        = pointer.Int64Ptr(2 * 60)
+		deadline        = pointer.Int64(2 * 60)
 		nodeSelectorKey = "node-role.kubernetes.io/master"
 		nodename        = r.nodeName
 	)
@@ -204,8 +204,8 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			Name:      "payloads",
 		}}
 		container.SecurityContext = &corev1.SecurityContext{
-			Privileged:             pointer.BoolPtr(true),
-			ReadOnlyRootFilesystem: pointer.BoolPtr(false),
+			Privileged:             pointer.Bool(true),
+			ReadOnlyRootFilesystem: pointer.Bool(false),
 		}
 		container.Resources = corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

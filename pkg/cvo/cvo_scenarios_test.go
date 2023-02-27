@@ -142,7 +142,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
@@ -262,7 +262,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -288,7 +288,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -314,7 +314,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
@@ -341,7 +341,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(5, 0),
@@ -390,7 +390,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -424,7 +424,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			CapabilitiesStatus: CapabilityStatus{
@@ -449,7 +449,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
@@ -475,7 +475,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -502,7 +502,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -560,7 +560,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 		VerificationError: payloadErr,
 	}
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
@@ -683,7 +683,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -711,7 +711,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -739,7 +739,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
@@ -796,7 +796,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -829,7 +829,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation: 1,
@@ -856,7 +856,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation:   1,
@@ -884,7 +884,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation:   1,
@@ -913,7 +913,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -964,7 +964,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 		Directory: "testdata/payloadtest",
 		Local:     true,
 	}
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Ensure the CVO reports a status error if it has nothing to sync
 	//
@@ -1086,7 +1086,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -1113,7 +1113,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -1140,7 +1140,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
@@ -1195,7 +1195,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -1228,7 +1228,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			Generation: 1,
@@ -1254,7 +1254,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
@@ -1281,7 +1281,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -1309,7 +1309,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -1393,7 +1393,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -1527,7 +1527,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
@@ -1575,7 +1575,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			Desired: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
@@ -1652,7 +1652,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -1899,7 +1899,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	copied := configv1.Update{
 		Version: desired.Version,
@@ -2015,7 +2015,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -2062,7 +2062,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
-			Actual:      configv1.Release{Version: "1.0.1-abc", Image: "image/image:1", URL: configv1.URL("https://example.com/v1.0.1-abc")},
+			Actual:      configv1.Release{Version: "1.0.1-abc", Image: "image/image:1", URL: "https://example.com/v1.0.1-abc"},
 			Generation:  1,
 			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
@@ -2183,7 +2183,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on unverified content
 	//
@@ -2318,7 +2318,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
@@ -2367,7 +2367,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			Desired: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
@@ -2402,7 +2402,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		Actual: configv1.Release{
 			Version: "1.0.1-abc",
 			Image:   "image/image:1",
-			URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+			URL:     "https://example.com/v1.0.1-abc",
 		},
 		LastProgress: time.Unix(7, 0),
 		Generation:   1,
@@ -2470,7 +2470,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	worker.preconditions = []precondition.Precondition{&testPrecondition{SuccessAfter: 3}}
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on precondition checks failing
 	//
@@ -2578,7 +2578,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			Generation: 1,
 			CapabilitiesStatus: CapabilityStatus{
@@ -2601,7 +2601,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			LastProgress: time.Unix(1, 0),
 			Generation:   1,
@@ -2625,7 +2625,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Actual: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			LastProgress: time.Unix(2, 0),
 			Generation:   1,
@@ -2674,7 +2674,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			Desired: configv1.Release{
 				Version: "1.0.1-abc",
 				Image:   "image/image:1",
-				URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+				URL:     "https://example.com/v1.0.1-abc",
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
@@ -2744,7 +2744,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 	worker := o.configSync.(*SyncWorker)
 	worker.preconditions = []precondition.Precondition{&testPreconditionAlwaysFail{PreConditionName: "PreCondition1"}, &testPreconditionAlwaysFail{PreConditionName: "PreCondition2"}}
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: The operator should report that it is blocked on precondition checks failing
 	//
@@ -2788,7 +2788,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 	}
 	actual := cvs["version"].(*configv1.ClusterVersion)
 
-	// Step 2: Force through precondtion failures and ensure accepted risks are populated
+	// Step 2: Force through precondition failures and ensure accepted risks are populated
 	//
 	// set an update
 	copied := configv1.Update{
@@ -2811,7 +2811,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 		Actual: configv1.Release{
 			Version: "1.0.1-abc",
 			Image:   "image/image:1",
-			URL:     configv1.URL("https://example.com/v1.0.1-abc"),
+			URL:     "https://example.com/v1.0.1-abc",
 		},
 		LastProgress: time.Unix(2, 0),
 		Generation:   1,
@@ -2901,7 +2901,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	retriever.Set(PayloadInfo{}, payloadErr)
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
 
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 
 	// Step 1: Simulate a verified payload being retrieved and ensure the operator sets verified
 	//
@@ -2966,7 +2966,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	//
 	o.release.Image = "image/image:1"
 	o.release.Version = "1.0.0-abc"
-	o.release.URL = configv1.URL("https://example.com/v1.0.0-abc")
+	o.release.URL = "https://example.com/v1.0.0-abc"
 	o.release.Channels = []string{"channel-a", "channel-b", "channel-c"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
@@ -2984,7 +2984,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -3028,7 +3028,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 	// Step 2: Start the sync worker and verify the sequence of events, and then verify
 	//         the status does not change
 	//
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -3062,7 +3062,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -3087,7 +3087,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -3112,7 +3112,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
@@ -3155,7 +3155,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
@@ -3179,7 +3179,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(2, 0),
@@ -3204,7 +3204,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(3, 0),
@@ -3229,7 +3229,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(4, 0),
@@ -3274,7 +3274,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 	//
 	o.release.Image = "image/image:1"
 	o.release.Version = "1.0.0-abc"
-	o.release.URL = configv1.URL("https://example.com/v1.0.0-abc")
+	o.release.URL = "https://example.com/v1.0.0-abc"
 	o.release.Channels = []string{"channel-a", "channel-b", "channel-c"}
 	uid, _ := uuid.NewRandom()
 	clusterUID := configv1.ClusterID(uid.String())
@@ -3292,7 +3292,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -3330,7 +3330,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 		t.Fatalf("The worker should be reconciling: %v", worker.work)
 	}
 	//
-	go worker.Start(ctx, 1, o.name, o.cvLister)
+	go worker.Start(ctx, 1)
 	//
 	verifyAllStatus(t, worker.StatusCh(),
 		SyncWorkerStatus{
@@ -3389,7 +3389,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			CapabilitiesStatus: CapabilityStatus{
@@ -3424,7 +3424,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
@@ -3475,7 +3475,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Actual: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			LastProgress: time.Unix(1, 0),
@@ -3517,7 +3517,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Desired: configv1.Release{
 				Version:  "1.0.0-abc",
 				Image:    "image/image:1",
-				URL:      configv1.URL("https://example.com/v1.0.0-abc"),
+				URL:      "https://example.com/v1.0.0-abc",
 				Channels: []string{"channel-a", "channel-b", "channel-c"},
 			},
 			VersionHash: "DL-FFQ2Uem8=",
@@ -3612,7 +3612,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	cancellable, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go worker.Start(cancellable, 1, o.name, o.cvLister)
+	go worker.Start(cancellable, 1)
 
 	// wait until the new payload is applied
 	count := 0

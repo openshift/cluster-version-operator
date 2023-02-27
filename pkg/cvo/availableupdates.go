@@ -304,7 +304,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
-			u.removeUpdate(ctx, conditionalUpdate.Release.Image)
+			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
 				Type:   "Recommended",
@@ -319,7 +319,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	}
 }
 
-func (u *availableUpdates) removeUpdate(ctx context.Context, image string) {
+func (u *availableUpdates) removeUpdate(image string) {
 	for i, update := range u.Updates {
 		if update.Image == image {
 			u.Updates = append(u.Updates[:i], u.Updates[i+1:]...)
