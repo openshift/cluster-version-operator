@@ -301,6 +301,12 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return
 	}
 
+	sort.Slice(u.ConditionalUpdates, func(i, j int) bool {
+		vi := semver.MustParse(u.ConditionalUpdates[i].Release.Version)
+		vj := semver.MustParse(u.ConditionalUpdates[j].Release.Version)
+		return vi.GTE(vj)
+	})
+
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
