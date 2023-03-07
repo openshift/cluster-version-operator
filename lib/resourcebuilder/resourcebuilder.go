@@ -169,6 +169,18 @@ func (b *builder) Do(ctx context.Context) error {
 				return b.checkDeploymentHealth(ctx, actual)
 			}
 		}
+	case *batchv1.CronJob:
+		if b.modifier != nil {
+			b.modifier(typedObject)
+		}
+		if deleteReq, err := resourcedelete.DeleteCronJobv1(ctx, b.batchClientv1, typedObject,
+			updatingMode); err != nil {
+			return err
+		} else if !deleteReq {
+			if _, _, err := resourceapply.ApplyCronJobv1(ctx, b.batchClientv1, typedObject, reconcilingMode); err != nil {
+				return err
+			}
+		}
 	case *batchv1.Job:
 		if b.modifier != nil {
 			b.modifier(typedObject)
@@ -306,6 +318,7 @@ func init() {
 	rm.RegisterGVK(apiextensionsv1.SchemeGroupVersion.WithKind("CustomResourceDefinition"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("DaemonSet"), newBuilder)
 	rm.RegisterGVK(appsv1.SchemeGroupVersion.WithKind("Deployment"), newBuilder)
+	rm.RegisterGVK(batchv1.SchemeGroupVersion.WithKind("CronJob"), newBuilder)
 	rm.RegisterGVK(batchv1.SchemeGroupVersion.WithKind("Job"), newBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("ConfigMap"), newBuilder)
 	rm.RegisterGVK(corev1.SchemeGroupVersion.WithKind("Namespace"), newBuilder)

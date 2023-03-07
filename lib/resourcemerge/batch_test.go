@@ -436,3 +436,318 @@ func defaultJob(in *batchv1.Job, from batchv1.Job) {
 	modified := pointer.Bool(false)
 	EnsureJob(modified, in, from)
 }
+
+func TestEnsureCronJob_CronJobStatus(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing batchv1.CronJobStatus
+		required batchv1.CronJobStatus
+	}{
+		{
+			name: "cvo should ignore same status field",
+			existing: batchv1.CronJobStatus{
+				LastScheduleTime:   &metav1.Time{Time: time.Unix(20, 0)},
+				LastSuccessfulTime: &metav1.Time{Time: time.Unix(10, 0)},
+			},
+			required: batchv1.CronJobStatus{
+				LastScheduleTime:   &metav1.Time{Time: time.Unix(20, 0)},
+				LastSuccessfulTime: &metav1.Time{Time: time.Unix(10, 0)},
+			},
+		},
+		{
+			name: "cvo should ignore different status field",
+			existing: batchv1.CronJobStatus{
+				LastScheduleTime:   &metav1.Time{Time: time.Unix(20, 0)},
+				LastSuccessfulTime: &metav1.Time{Time: time.Unix(10, 0)},
+			},
+			required: batchv1.CronJobStatus{},
+		},
+	}
+
+	var expected batchv1.CronJob
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			existing := batchv1.CronJob{Status: test.existing}
+			required := batchv1.CronJob{Status: test.required}
+			defaultCronJob(&existing, existing)
+			existing.DeepCopyInto(&expected)
+			modified := pointer.Bool(false)
+			EnsureCronJob(modified, &existing, required)
+			if *modified != false {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, false)
+			}
+			if !equality.Semantic.DeepEqual(existing, expected) {
+				t.Errorf("unexpected: %s", cmp.Diff(expected, existing))
+			}
+		})
+	}
+}
+
+func TestEnsureCronJob_CronJobSpec(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing batchv1.CronJobSpec
+		required batchv1.CronJobSpec
+
+		expectedModified bool
+	}{
+		{
+			name: "same schedule",
+			existing: batchv1.CronJobSpec{
+				Schedule: "* * * * *",
+			},
+			required: batchv1.CronJobSpec{
+				Schedule: "* * * * *",
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different schedule",
+			existing: batchv1.CronJobSpec{
+				Schedule: "* * * * *",
+			},
+			required: batchv1.CronJobSpec{
+				Schedule: "0 0 1 1 *",
+			},
+			expectedModified: true,
+		},
+		{
+			name: "same time zone",
+			existing: batchv1.CronJobSpec{
+				TimeZone: pointer.String("Etc/UTC"),
+			},
+			required: batchv1.CronJobSpec{
+				TimeZone: pointer.String("Etc/UTC"),
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different time zone",
+			existing: batchv1.CronJobSpec{
+				TimeZone: pointer.String("Etc/UTC"),
+			},
+			required: batchv1.CronJobSpec{
+				TimeZone: pointer.String("Etc/GMT"),
+			},
+			expectedModified: true,
+		},
+		{
+			name: "same starting deadline seconds",
+			existing: batchv1.CronJobSpec{
+				StartingDeadlineSeconds: pointer.Int64(10),
+			},
+			required: batchv1.CronJobSpec{
+				StartingDeadlineSeconds: pointer.Int64(10),
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different starting deadline seconds",
+			existing: batchv1.CronJobSpec{
+				StartingDeadlineSeconds: pointer.Int64(10),
+			},
+			required: batchv1.CronJobSpec{
+				StartingDeadlineSeconds: pointer.Int64(20),
+			},
+			expectedModified: true,
+		},
+		{
+			name: "same concurrency policy",
+			existing: batchv1.CronJobSpec{
+				ConcurrencyPolicy: batchv1.ForbidConcurrent,
+			},
+			required: batchv1.CronJobSpec{
+				ConcurrencyPolicy: batchv1.ForbidConcurrent,
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different concurrency policy",
+			existing: batchv1.CronJobSpec{
+				ConcurrencyPolicy: batchv1.ForbidConcurrent,
+			},
+			required: batchv1.CronJobSpec{
+				ConcurrencyPolicy: batchv1.ReplaceConcurrent,
+			},
+			expectedModified: true,
+		},
+		{
+			name: "implicit concurrency policy",
+			existing: batchv1.CronJobSpec{
+				ConcurrencyPolicy: batchv1.AllowConcurrent,
+			},
+			required:         batchv1.CronJobSpec{},
+			expectedModified: false,
+		},
+		{
+			name: "same suspend",
+			existing: batchv1.CronJobSpec{
+				Suspend: pointer.Bool(true),
+			},
+			required: batchv1.CronJobSpec{
+				Suspend: pointer.Bool(true),
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different suspend",
+			existing: batchv1.CronJobSpec{
+				Suspend: pointer.Bool(true),
+			},
+			required: batchv1.CronJobSpec{
+				Suspend: pointer.Bool(false),
+			},
+			expectedModified: true,
+		},
+		{
+			name: "implicit suspend",
+			existing: batchv1.CronJobSpec{
+				Suspend: pointer.Bool(false),
+			},
+			required:         batchv1.CronJobSpec{},
+			expectedModified: false,
+		},
+		{
+			name: "same job template",
+			existing: batchv1.CronJobSpec{
+				JobTemplate: batchv1.JobTemplateSpec{
+					Spec: batchv1.JobSpec{
+						Template: v1.PodTemplateSpec{
+							Spec: v1.PodSpec{
+								Containers: []v1.Container{
+									{
+										Name:  "app",
+										Image: "app:latest",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			required: batchv1.CronJobSpec{
+				JobTemplate: batchv1.JobTemplateSpec{
+					Spec: batchv1.JobSpec{
+						Template: v1.PodTemplateSpec{
+							Spec: v1.PodSpec{
+								Containers: []v1.Container{
+									{
+										Name:  "app",
+										Image: "app:latest",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different job template",
+			existing: batchv1.CronJobSpec{
+				JobTemplate: batchv1.JobTemplateSpec{
+					Spec: batchv1.JobSpec{
+						Template: v1.PodTemplateSpec{
+							Spec: v1.PodSpec{
+								Containers: []v1.Container{
+									{
+										Name:  "app",
+										Image: "app:latest",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			required:         batchv1.CronJobSpec{},
+			expectedModified: true,
+		},
+		{
+			name: "same successful jobs history limit",
+			existing: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+			},
+			required: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different successful jobs history limit",
+			existing: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+			},
+			required: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: pointer.Int32(70),
+			},
+			expectedModified: true,
+		},
+		{
+			name: "implicit successful jobs history limit",
+			existing: batchv1.CronJobSpec{
+				SuccessfulJobsHistoryLimit: pointer.Int32(3),
+			},
+			required:         batchv1.CronJobSpec{},
+			expectedModified: false,
+		},
+		{
+			name: "same failed jobs history limit",
+			existing: batchv1.CronJobSpec{
+				FailedJobsHistoryLimit: pointer.Int32(50),
+			},
+			required: batchv1.CronJobSpec{
+				FailedJobsHistoryLimit: pointer.Int32(50),
+			},
+			expectedModified: false,
+		},
+		{
+			name: "different failed jobs history limit",
+			existing: batchv1.CronJobSpec{
+				FailedJobsHistoryLimit: pointer.Int32(50),
+			},
+			required: batchv1.CronJobSpec{
+				FailedJobsHistoryLimit: pointer.Int32(70),
+			},
+			expectedModified: true,
+		},
+		{
+			name: "implicit failed jobs history limit",
+			existing: batchv1.CronJobSpec{
+				FailedJobsHistoryLimit: pointer.Int32(1),
+			},
+			required:         batchv1.CronJobSpec{},
+			expectedModified: false,
+		},
+	}
+
+	for _, test := range tests {
+		var expected batchv1.CronJob
+		t.Run(test.name, func(t *testing.T) {
+			existing := batchv1.CronJob{Spec: test.existing}
+			required := batchv1.CronJob{Spec: test.required}
+			if test.expectedModified == false {
+				existing.DeepCopyInto(&expected)
+			} else {
+				required.DeepCopyInto(&expected)
+			}
+			defaultCronJob(&existing, existing)
+			defaultCronJob(&expected, expected)
+			modified := pointer.Bool(false)
+			EnsureCronJob(modified, &existing, required)
+			if *modified != test.expectedModified {
+				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
+			}
+			if !equality.Semantic.DeepEqual(existing, expected) {
+				t.Errorf("unexpected: %s", cmp.Diff(existing, expected))
+			}
+		})
+	}
+}
+
+// Ensures the structure contains any defaults not explicitly set by the test
+func defaultCronJob(in *batchv1.CronJob, from batchv1.CronJob) {
+	modified := pointer.Bool(false)
+	EnsureCronJob(modified, in, from)
+}
