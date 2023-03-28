@@ -236,6 +236,8 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
 					if o.ListenAddr != "" {
+						klog.Info("Sleeping forever to preserve early CVO logs until gather-time")
+						time.Sleep(100*time.Hour)
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
