@@ -38,20 +38,27 @@ func (optr *Operator) defaultPayloadDir() string {
 
 func (optr *Operator) defaultPayloadRetriever() PayloadRetriever {
 	return &payloadRetriever{
-		kubeClient:   optr.kubeClient,
-		operatorName: optr.name,
-		releaseImage: optr.release.Image,
-		namespace:    optr.namespace,
-		nodeName:     optr.nodename,
-		payloadDir:   optr.defaultPayloadDir(),
-		workingDir:   targetUpdatePayloadsDir,
-		verifier:     optr.verifier,
+		kubeClient:      optr.kubeClient,
+		operatorName:    optr.name,
+		releaseImage:    optr.release.Image,
+		namespace:       optr.namespace,
+		nodeName:        optr.nodename,
+		payloadDir:      optr.defaultPayloadDir(),
+		workingDir:      targetUpdatePayloadsDir,
+		verifier:        optr.verifier,
+		retrieveTimeout: 4 * time.Minute,
 	}
 }
 
 const (
 	targetUpdatePayloadsDir = "/etc/cvo/updatepayloads"
 )
+
+// downloadFunc downloads the requested update and returns either a path on the local filesystem
+// containing extracted manifests or an error
+// The type exists so that tests for payloadRetriever.RetrievePayload can mock this functionality
+// by setting payloadRetriever.downloader.
+type downloadFunc func(context.Context, configv1.Update) (string, error)
 
 type payloadRetriever struct {
 	// releaseImage and payloadDir are the default payload identifiers - updates that point
@@ -68,8 +75,22 @@ type payloadRetriever struct {
 
 	// verifier guards against invalid remote data being accessed
 	verifier verify.Interface
+
+	// downloader is called to download the requested update to local filesystem. It should only be
+	// set to non-nil value in tests. When this is nil, payloadRetriever.targetUpdatePayloadDir
+	// is called as a downloader.
+	downloader downloadFunc
+
+	// retrieveTimeout limits the time spent in payloadRetriever.RetrievePayload. This timeout is only
+	// applied when the context passed into that method is unbounded; otherwise the method respects
+	// the deadline set in the input context.
+	retrieveTimeout time.Duration
 }
 
+// RetrievePayload verifies, downloads and extracts to local filesystem the payload image specified
+// by update. If the input context has a deadline, it is respected, otherwise r.retrieveTimeout
+// applies. When update.Force is true, the verification is still performed, but the method proceeds
+// even when the image cannot be verified successfully.
 func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.Update) (PayloadInfo, error) {
 	if r.releaseImage == update.Image {
 		return PayloadInfo{
@@ -82,28 +103,28 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		return PayloadInfo{}, fmt.Errorf("no payload image has been specified and the contents of the payload cannot be retrieved")
 	}
 
-	var info PayloadInfo
-
 	// verify the provided payload
 	var releaseDigest string
 	if index := strings.LastIndex(update.Image, "@"); index != -1 {
 		releaseDigest = update.Image[index+1:]
 	}
-	verifyCtx := ctx
 
-	// if 'force' specified, ensure call to verify payload signature times out well before parent context
-	// to allow time to perform forced update
-	if update.Force {
-		timeout := time.Minute * 2
-		if deadline, deadlineSet := ctx.Deadline(); deadlineSet {
-			timeout = time.Until(deadline) / 2
-		}
-		klog.V(2).Infof("Forced update so reducing payload signature verification timeout to %s", timeout)
-		var cancel context.CancelFunc
-		verifyCtx, cancel = context.WithTimeout(ctx, timeout)
-		defer cancel()
+	var downloadCtx context.Context
+	downloadDeadline, ok := ctx.Deadline()
+	if ok {
+		downloadCtx = ctx
+	} else {
+		downloadDeadline = time.Now().Add(r.retrieveTimeout)
+		var downloadCtxCancel context.CancelFunc
+		downloadCtx, downloadCtxCancel = context.WithDeadline(ctx, downloadDeadline)
+		defer downloadCtxCancel()
 	}
 
+	verifyTimeout := time.Until(downloadDeadline) / 2
+	verifyCtx, verifyCtxCancel := context.WithTimeout(ctx, verifyTimeout)
+	defer verifyCtxCancel()
+
+	var info PayloadInfo
 	if err := r.verifier.Verify(verifyCtx, releaseDigest); err != nil {
 		vErr := &payload.UpdateError{
 			Reason:  "ImageVerificationFailed",
@@ -120,9 +141,12 @@ func (r *payloadRetriever) RetrievePayload(ctx context.Context, update configv1.
 		info.Verified = true
 	}
 
+	if r.downloader == nil {
+		r.downloader = r.targetUpdatePayloadDir
+	}
 	// download the payload to the directory
 	var err error
-	info.Directory, err = r.targetUpdatePayloadDir(ctx, update)
+	info.Directory, err = r.downloader(downloadCtx, update)
 	if err != nil {
 		return PayloadInfo{}, &payload.UpdateError{
 			Reason:  "UpdatePayloadRetrievalFailed",
