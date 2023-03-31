@@ -69,6 +69,11 @@ spec:
       # this pod is hostNetwork and uses the internal LB DNS name when possible, which the kubelet also uses.
       # this dnsPolicy allows us to use the same dnsConfig as the kubelet, without access to read it ourselves.
       dnsPolicy: Default
+      # The dnsConfig below doesn't work because the IP range for the service network is configurable.
+      # There is no easy spot to perform this injection, though the CVO could be made to look up and substitute the value.
+#      dnsConfig:
+#        nameservers:
+#          - 172.30.0.10
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
