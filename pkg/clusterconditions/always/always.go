@@ -8,7 +8,6 @@ import (
 	"errors"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 )
 
 // Always implements a cluster condition that always matches.
@@ -29,8 +28,4 @@ func (a *Always) Valid(ctx context.Context, condition *configv1.ClusterCondition
 // Match always returns true.
 func (a *Always) Match(ctx context.Context, condition *configv1.ClusterCondition) (bool, error) {
 	return true, nil
-}
-
-func init() {
-	clusterconditions.Register("Always", always)
 }
