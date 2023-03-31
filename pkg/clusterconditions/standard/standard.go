@@ -10,7 +10,7 @@ import (
 func NewConditionRegistry(kubeClient kubernetes.Interface) clusterconditions.ConditionRegistry {
 	conditionRegistry := clusterconditions.NewConditionRegistry()
 	conditionRegistry.Register("Always", &always.Always{})
-	conditionRegistry.Register("PromQL", promql.NewPromQL())
+	conditionRegistry.Register("PromQL", promql.NewPromQL(kubeClient))
 
 	return conditionRegistry
 }

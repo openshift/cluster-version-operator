@@ -8,10 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
-
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,6 +34,8 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
