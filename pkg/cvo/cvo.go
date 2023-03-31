@@ -8,6 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
+
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -130,6 +134,9 @@ type Operator struct {
 	// synchronization
 	upgradeableCheckIntervals upgradeableCheckIntervals
 
+	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
+	conditionRegistry clusterconditions.ConditionRegistry
+
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
 	verifier verify.Interface
@@ -205,6 +212,7 @@ func New(
 		exclude:            exclude,
 		requiredFeatureSet: requiredFeatureSet,
 		clusterProfile:     clusterProfile,
+		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
 	}
 
 	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())

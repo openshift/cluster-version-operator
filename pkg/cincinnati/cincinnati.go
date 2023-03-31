@@ -37,14 +37,17 @@ type Client struct {
 	// requests.  If empty, the User-Agent header will not be
 	// populated.
 	userAgent string
+
+	conditionRegistry clusterconditions.ConditionRegistry
 }
 
 // NewClient creates a new Cincinnati client with the given client identifier.
-func NewClient(id uuid.UUID, transport *http.Transport, userAgent string) Client {
+func NewClient(id uuid.UUID, transport *http.Transport, userAgent string, conditionRegistry clusterconditions.ConditionRegistry) Client {
 	return Client{
-		id:        id,
-		transport: transport,
-		userAgent: userAgent,
+		id:                id,
+		transport:         transport,
+		userAgent:         userAgent,
+		conditionRegistry: conditionRegistry,
 	}
 }
 
@@ -246,7 +249,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 
 	for i := len(conditionalUpdates) - 1; i >= 0; i-- {
 		for j, risk := range conditionalUpdates[i].Risks {
-			conditionalUpdates[i].Risks[j].MatchingRules, err = clusterconditions.PruneInvalid(ctx, risk.MatchingRules)
+			conditionalUpdates[i].Risks[j].MatchingRules, err = c.conditionRegistry.PruneInvalid(ctx, risk.MatchingRules)
 			if len(conditionalUpdates[i].Risks[j].MatchingRules) == 0 {
 				klog.Warningf("Conditional update to %s, risk %q, has empty pruned matchingRules; dropping this target to avoid rejections when pushing to the Kubernetes API server. Pruning results: %s", conditionalUpdates[i].Release.Version, risk.Name, err)
 				conditionalUpdates = append(conditionalUpdates[:i], conditionalUpdates[i+1:]...)
