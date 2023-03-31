@@ -8,10 +8,7 @@ import (
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
-
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
-	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/promql"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 )
 
 // Error implements a cluster condition that always errors.
@@ -33,6 +30,7 @@ func (e *Error) Match(ctx context.Context, condition *configv1.ClusterCondition)
 
 func TestPruneInvalid(t *testing.T) {
 	ctx := context.Background()
+	registry := standard.NewConditionRegistry(nil)
 
 	for _, testCase := range []struct {
 		name          string
@@ -100,7 +98,7 @@ func TestPruneInvalid(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			valid, err := clusterconditions.PruneInvalid(ctx, testCase.conditions)
+			valid, err := registry.PruneInvalid(ctx, testCase.conditions)
 			if !reflect.DeepEqual(valid, testCase.expectedValid) {
 				t.Errorf("got valid %v but expected %v", valid, testCase.expectedValid)
 			}
@@ -117,7 +115,8 @@ func TestPruneInvalid(t *testing.T) {
 
 func TestMatch(t *testing.T) {
 	ctx := context.Background()
-	clusterconditions.Register("Error", &Error{})
+	registry := standard.NewConditionRegistry(nil)
+	registry.Register("Error", &Error{})
 
 	for _, testCase := range []struct {
 		name          string
@@ -181,7 +180,7 @@ func TestMatch(t *testing.T) {
 		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
-			match, err := clusterconditions.Match(ctx, testCase.conditions)
+			match, err := registry.Match(ctx, testCase.conditions)
 			if match != testCase.expectedMatch {
 				t.Errorf("got match %t but expected %t", match, testCase.expectedMatch)
 			}
@@ -194,6 +193,4 @@ func TestMatch(t *testing.T) {
 			}
 		})
 	}
-
-	delete(clusterconditions.Registry, "Error")
 }

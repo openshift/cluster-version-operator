@@ -62,7 +62,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		return err
 	}
 
-	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version)
+	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version, optr.conditionRegistry)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -75,6 +75,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		Current:            current,
 		Updates:            updates,
 		ConditionalUpdates: conditionalUpdates,
+		ConditionRegistry:  optr.conditionRegistry,
 		Condition:          condition,
 	}
 
@@ -109,6 +110,7 @@ type availableUpdates struct {
 	Current            configv1.Release
 	Updates            []configv1.Release
 	ConditionalUpdates []configv1.ConditionalUpdate
+	ConditionRegistry  clusterconditions.ConditionRegistry
 
 	Condition configv1.ClusterOperatorStatusCondition
 }
@@ -198,7 +200,8 @@ func (optr *Operator) SetArchitecture(architecture string) {
 	optr.architecture = architecture
 }
 
-func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, arch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, configv1.ClusterOperatorStatusCondition) {
+func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, upstream, arch, channel, version string, conditionRegistry clusterconditions.ConditionRegistry) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, configv1.ClusterOperatorStatusCondition) {
+
 	var cvoCurrent configv1.Release
 	if len(upstream) == 0 {
 		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
@@ -253,7 +256,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
+	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport, conditionRegistry).GetUpdates(ctx, upstreamURI, arch, channel, currentVersion)
 	if err != nil {
 		klog.V(2).Infof("Upstream server %s could not return available updates: %v", upstream, err)
 		if updateError, ok := err.(*cincinnati.Error); ok {
@@ -289,7 +292,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	})
 
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate); errorCondition != nil {
+		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
 			u.removeUpdate(ctx, conditionalUpdate.Release.Image)
 		} else {
@@ -314,13 +317,13 @@ func (u *availableUpdates) removeUpdate(ctx context.Context, image string) {
 	}
 }
 
-func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate) *metav1.Condition {
+func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
 	recommended := &metav1.Condition{
 		Type: "Recommended",
 	}
 	messages := []string{}
 	for _, risk := range conditionalUpdate.Risks {
-		if match, err := clusterconditions.Match(ctx, risk.MatchingRules); err != nil {
+		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
 			if recommended.Status != metav1.ConditionFalse {
 				recommended.Status = metav1.ConditionUnknown
 			}

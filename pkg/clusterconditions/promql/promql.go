@@ -16,7 +16,6 @@ import (
 	"github.com/prometheus/common/model"
 	"k8s.io/klog/v2"
 
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/cache"
 )
 
@@ -32,23 +31,25 @@ type PromQL struct {
 	QueryTimeout time.Duration
 }
 
-var promql = &cache.Cache{
-	Condition: &PromQL{
-		Address: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
-		HTTPClientConfig: config.HTTPClientConfig{
-			Authorization: &config.Authorization{
-				Type:            "Bearer",
-				CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+func NewPromQL() *cache.Cache {
+	return &cache.Cache{
+		Condition: &PromQL{
+			HTTPClientConfig: config.HTTPClientConfig{
+				Authorization: &config.Authorization{
+					Type:            "Bearer",
+					CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+				},
+				TLSConfig: config.TLSConfig{
+					CAFile:     "/etc/tls/service-ca/service-ca.crt",
+					ServerName: "thanos-querier.openshift-monitoring.svc.cluster.local",
+				},
 			},
-			TLSConfig: config.TLSConfig{
-				CAFile: "/etc/tls/service-ca/service-ca.crt",
-			},
+			QueryTimeout: 5 * time.Minute,
 		},
-		QueryTimeout: 5 * time.Minute,
-	},
-	MinBetweenMatches: 10 * time.Minute,
-	MinForCondition:   time.Hour,
-	Expiration:        24 * time.Hour,
+		MinBetweenMatches: 10 * time.Minute,
+		MinForCondition:   time.Hour,
+		Expiration:        24 * time.Hour,
+	}
 }
 
 // Valid returns an error if the condition contains any properties
@@ -121,8 +122,4 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 		return true, nil
 	}
 	return false, fmt.Errorf("invalid PromQL result (must be 0 or 1): %v", sample.Value)
-}
-
-func init() {
-	clusterconditions.Register("PromQL", promql)
 }

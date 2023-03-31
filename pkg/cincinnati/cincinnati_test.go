@@ -10,11 +10,11 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
+
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 	configv1 "github.com/openshift/api/config/v1"
-	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
-	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/promql"
 	_ "k8s.io/klog/v2" // integration tests set glog flags.
 )
 
@@ -604,7 +604,7 @@ func TestGetUpdates(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(handler))
 			defer ts.Close()
 
-			c := NewClient(clientID, nil)
+			c := NewClient(clientID, nil, standard.NewConditionRegistry(nil))
 
 			uri, err := url.Parse(ts.URL)
 			if err != nil {

@@ -30,13 +30,18 @@ const (
 // Client is a Cincinnati client which can be used to fetch update graphs from
 // an upstream Cincinnati stack.
 type Client struct {
-	id        uuid.UUID
-	transport *http.Transport
+	id                uuid.UUID
+	transport         *http.Transport
+	conditionRegistry clusterconditions.ConditionRegistry
 }
 
 // NewClient creates a new Cincinnati client with the given client identifier.
-func NewClient(id uuid.UUID, transport *http.Transport) Client {
-	return Client{id: id, transport: transport}
+func NewClient(id uuid.UUID, transport *http.Transport, conditionRegistry clusterconditions.ConditionRegistry) Client {
+	return Client{
+		id:                id,
+		transport:         transport,
+		conditionRegistry: conditionRegistry,
+	}
 }
 
 // Error is returned when are unable to get updates.
@@ -216,7 +221,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, arch string, chann
 
 	for i := len(conditionalUpdates) - 1; i >= 0; i-- {
 		for j, risk := range conditionalUpdates[i].Risks {
-			conditionalUpdates[i].Risks[j].MatchingRules, err = clusterconditions.PruneInvalid(ctx, risk.MatchingRules)
+			conditionalUpdates[i].Risks[j].MatchingRules, err = c.conditionRegistry.PruneInvalid(ctx, risk.MatchingRules)
 			if len(conditionalUpdates[i].Risks[j].MatchingRules) == 0 {
 				klog.Warningf("Conditional update to %s, risk %q, has empty pruned matchingRules; dropping this target to avoid rejections when pushing to the Kubernetes API server. Pruning results: %s", conditionalUpdates[i].Release.Version, risk.Name, err)
 				conditionalUpdates = append(conditionalUpdates[:i], conditionalUpdates[i+1:]...)
