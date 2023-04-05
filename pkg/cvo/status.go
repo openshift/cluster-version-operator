@@ -167,7 +167,12 @@ const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "Impli
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
-	klog.V(2).Infof("Synchronizing status errs=%#v status=%#v", validationErrs, status)
+	// Be more verbose when we are syncing something interesting
+	verbosityLevel := klog.Level(4)
+	if len(validationErrs) != 0 || status.Failure != nil {
+		verbosityLevel = klog.Level(2)
+	}
+	klog.V(verbosityLevel).Infof("Synchronizing status errs=%#v status=%#v", validationErrs, status)
 
 	cvUpdated := false
 	// update the config with the latest available updates
