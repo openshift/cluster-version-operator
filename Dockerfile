@@ -10,5 +10,6 @@ COPY --from=builder /tmp/build/cluster-version-operator /usr/bin/
 COPY install /manifests
 COPY vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusterversion.crd.yaml /manifests/
 COPY vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml /manifests/
+COPY vendor/github.com/openshift/api/operator/v1/0000_50_cluster_storage_operator_01_crd.yaml /manifests/
 COPY bootstrap /bootstrap
 ENTRYPOINT ["/usr/bin/cluster-version-operator"]
