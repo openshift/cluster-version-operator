@@ -34,8 +34,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -132,9 +130,6 @@ type Operator struct {
 	// synchronization
 	upgradeableCheckIntervals upgradeableCheckIntervals
 
-	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
-	conditionRegistry clusterconditions.ConditionRegistry
-
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
 	verifier verify.Interface
@@ -210,7 +205,6 @@ func New(
 		exclude:            exclude,
 		requiredFeatureSet: requiredFeatureSet,
 		clusterProfile:     clusterProfile,
-		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
 	}
 
 	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())

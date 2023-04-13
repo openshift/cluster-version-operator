@@ -69,7 +69,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	userAgent := optr.getUserAgent()
 
 	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID),
-		transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version, optr.conditionRegistry)
+		transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version)
 
 	if usedDefaultUpstream {
 		upstream = ""
@@ -82,7 +82,6 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		Current:            current,
 		Updates:            updates,
 		ConditionalUpdates: conditionalUpdates,
-		ConditionRegistry:  optr.conditionRegistry,
 		Condition:          condition,
 	}
 
@@ -117,7 +116,6 @@ type availableUpdates struct {
 	Current            configv1.Release
 	Updates            []configv1.Release
 	ConditionalUpdates []configv1.ConditionalUpdate
-	ConditionRegistry  clusterconditions.ConditionRegistry
 
 	Condition configv1.ClusterOperatorStatusCondition
 }
@@ -215,7 +213,7 @@ func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
 }
 
 func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, userAgent, upstream, desiredArch,
-	currentArch, channel, version string, conditionRegistry clusterconditions.ConditionRegistry) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate,
+	currentArch, channel, version string) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate,
 	configv1.ClusterOperatorStatusCondition) {
 
 	var cvoCurrent configv1.Release
@@ -272,7 +270,7 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
-	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport, userAgent, conditionRegistry).GetUpdates(ctx, upstreamURI, desiredArch,
+	current, updates, conditionalUpdates, err := cincinnati.NewClient(uuid, transport, userAgent).GetUpdates(ctx, upstreamURI, desiredArch,
 		currentArch, channel, currentVersion)
 
 	if err != nil {
@@ -310,7 +308,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	})
 
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
+		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
 			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
@@ -335,13 +333,13 @@ func (u *availableUpdates) removeUpdate(image string) {
 	}
 }
 
-func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
+func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate) *metav1.Condition {
 	recommended := &metav1.Condition{
 		Type: "Recommended",
 	}
 	messages := []string{}
 	for _, risk := range conditionalUpdate.Risks {
-		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
+		if match, err := clusterconditions.Match(ctx, risk.MatchingRules); err != nil {
 			if recommended.Status != metav1.ConditionFalse {
 				recommended.Status = metav1.ConditionUnknown
 			}

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -15,16 +14,16 @@ import (
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/cache"
 )
 
 // PromQL implements a cluster condition that matches based on PromQL.
 type PromQL struct {
-	kubeClient kubernetes.Interface
+	// Address holds the Prometheus query URI.
+	Address string
 
 	// HTTPClientConfig holds the client configuration for connecting to the Prometheus service.
 	HTTPClientConfig config.HTTPClientConfig
@@ -33,40 +32,23 @@ type PromQL struct {
 	QueryTimeout time.Duration
 }
 
-func NewPromQL(kubeClient kubernetes.Interface) *cache.Cache {
-	return &cache.Cache{
-		Condition: &PromQL{
-			kubeClient: kubeClient,
-			HTTPClientConfig: config.HTTPClientConfig{
-				Authorization: &config.Authorization{
-					Type:            "Bearer",
-					CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
-				},
-				TLSConfig: config.TLSConfig{
-					CAFile: "/etc/tls/service-ca/service-ca.crt",
-					// ServerName is used to verify the name of the service we will connect to using IP.
-					ServerName: "thanos-querier.openshift-monitoring.svc.cluster.local",
-				},
+var promql = &cache.Cache{
+	Condition: &PromQL{
+		Address: "https://thanos-querier.openshift-monitoring.svc.cluster.local:9091",
+		HTTPClientConfig: config.HTTPClientConfig{
+			Authorization: &config.Authorization{
+				Type:            "Bearer",
+				CredentialsFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
 			},
-			QueryTimeout: 5 * time.Minute,
+			TLSConfig: config.TLSConfig{
+				CAFile: "/etc/tls/service-ca/service-ca.crt",
+			},
 		},
-		MinBetweenMatches: 10 * time.Minute,
-		MinForCondition:   time.Hour,
-		Expiration:        24 * time.Hour,
-	}
-}
-
-// Address determines the address of the thanos-querier to avoid requiring service DNS resolution.
-// We do this so that our host-network pod can use the node's resolv.conf to resolve the internal load balancer name
-// on the pod before DNS pods are available and before the service network is available.  The side effect is that
-// the CVO cannot resolve service DNS names.
-func (p *PromQL) Address(ctx context.Context) (string, error) {
-	svc, err := p.kubeClient.CoreV1().Services("openshift-monitoring").Get(ctx, "thanos-querier", metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	return fmt.Sprintf("https://%s", net.JoinHostPort(svc.Spec.ClusterIP, "9091")), nil
+		QueryTimeout: 5 * time.Minute,
+	},
+	MinBetweenMatches: 10 * time.Minute,
+	MinForCondition:   time.Hour,
+	Expiration:        24 * time.Hour,
 }
 
 // Valid returns an error if the condition contains any properties
@@ -87,13 +69,7 @@ func (p *PromQL) Valid(ctx context.Context, condition *configv1.ClusterCondition
 // false when the PromQL evaluates to 0, and an error if the PromQL
 // returns no time series or returns a value besides 0 or 1.
 func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition) (bool, error) {
-	// Lookup the address every attempt in case the service IP changes.  This can happen when the thanos service is
-	// deleted and recreated.
-	address, err := p.Address(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failure determine thanos IP: %w", err)
-	}
-	clientConfig := api.Config{Address: address}
+	clientConfig := api.Config{Address: p.Address}
 
 	if roundTripper, err := config.NewRoundTripperFromConfig(p.HTTPClientConfig, "cluster-conditions"); err == nil {
 		clientConfig.RoundTripper = roundTripper
@@ -145,4 +121,8 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 		return true, nil
 	}
 	return false, fmt.Errorf("invalid PromQL result (must be 0 or 1): %v", sample.Value)
+}
+
+func init() {
+	clusterconditions.Register("PromQL", promql)
 }

@@ -5,6 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
+
+	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
+	_ "github.com/openshift/cluster-version-operator/pkg/clusterconditions/promql"
 )
 
 var (

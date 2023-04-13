@@ -25,51 +25,28 @@ type Condition interface {
 	Match(ctx context.Context, condition *configv1.ClusterCondition) (bool, error)
 }
 
-type ConditionRegistry interface {
-	// Register registers a condition type, and panics on any name collisions.
-	Register(conditionType string, condition Condition)
-
-	// PruneInvalid returns a new slice with recognized, valid conditions.
-	// The error complains about any unrecognized or invalid conditions.
-	PruneInvalid(ctx context.Context, matchingRules []configv1.ClusterCondition) ([]configv1.ClusterCondition, error)
-
-	// Match returns whether the cluster matches the given rules (true),
-	// does not match (false), or the rules fail to evaluate (error).
-	Match(ctx context.Context, matchingRules []configv1.ClusterCondition) (bool, error)
-}
-
-type conditionRegistry struct {
-	// registry is a registry of implemented condition types.
-	registry map[string]Condition
-}
-
-func NewConditionRegistry() ConditionRegistry {
-	ret := &conditionRegistry{
-		registry: map[string]Condition{},
-	}
-
-	return ret
-}
+// Registry is a registry of implemented condition types.
+var Registry map[string]Condition
 
 // Register registers a condition type, and panics on any name collisions.
-func (r *conditionRegistry) Register(conditionType string, condition Condition) {
-	if r.registry == nil {
-		r.registry = make(map[string]Condition, 1)
+func Register(conditionType string, condition Condition) {
+	if Registry == nil {
+		Registry = make(map[string]Condition, 1)
 	}
-	if existing, ok := r.registry[conditionType]; ok && condition != existing {
+	if existing, ok := Registry[conditionType]; ok && condition != existing {
 		panic(fmt.Sprintf("cluster condition %q already registered", conditionType))
 	}
-	r.registry[conditionType] = condition
+	Registry[conditionType] = condition
 }
 
 // PruneInvalid returns a new slice with recognized, valid conditions.
 // The error complains about any unrecognized or invalid conditions.
-func (r *conditionRegistry) PruneInvalid(ctx context.Context, matchingRules []configv1.ClusterCondition) ([]configv1.ClusterCondition, error) {
+func PruneInvalid(ctx context.Context, matchingRules []configv1.ClusterCondition) ([]configv1.ClusterCondition, error) {
 	var valid []configv1.ClusterCondition
 	var errs []error
 
 	for _, config := range matchingRules {
-		condition, ok := r.registry[config.Type]
+		condition, ok := Registry[config.Type]
 		if !ok {
 			errs = append(errs, fmt.Errorf("Skipping unrecognized cluster condition type %q", config.Type))
 			continue
@@ -86,11 +63,11 @@ func (r *conditionRegistry) PruneInvalid(ctx context.Context, matchingRules []co
 
 // Match returns whether the cluster matches the given rules (true),
 // does not match (false), or the rules fail to evaluate (error).
-func (r *conditionRegistry) Match(ctx context.Context, matchingRules []configv1.ClusterCondition) (bool, error) {
+func Match(ctx context.Context, matchingRules []configv1.ClusterCondition) (bool, error) {
 	var errs []error
 
 	for _, config := range matchingRules {
-		condition, ok := r.registry[config.Type]
+		condition, ok := Registry[config.Type]
 		if !ok {
 			klog.V(2).Infof("Skipping unrecognized cluster condition type %q", config.Type)
 			continue

@@ -66,9 +66,7 @@ spec:
                 fieldPath: spec.nodeName
           - name: CLUSTER_PROFILE
             value: {{ .ClusterProfile }}
-      # this pod is hostNetwork and uses the internal LB DNS name when possible, which the kubelet also uses.
-      # this dnsPolicy allows us to use the same dnsConfig as the kubelet, without access to read it ourselves.
-      dnsPolicy: Default
+      dnsPolicy: ClusterFirstWithHostNet
       hostNetwork: true
       nodeSelector:
         node-role.kubernetes.io/master: ""
