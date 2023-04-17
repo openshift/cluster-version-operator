@@ -135,6 +135,12 @@ type Operator struct {
 	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
 	conditionRegistry clusterconditions.ConditionRegistry
 
+	// injectClusterIdIntoPromQL indicates whether the CVO should inject the cluster id
+	// into PromQL queries while evaluating risks from conditional updates. This is needed
+	// in HyperShift to differentiate between metrics from multiple hosted clusters in
+	// a Prometheus.
+	injectClusterIdIntoPromQL bool
+
 	// verifier, if provided, will be used to check an update before it is executed.
 	// Any error will prevent an update payload from being accessed.
 	verifier verify.Interface
@@ -180,6 +186,8 @@ func New(
 	exclude string,
 	requiredFeatureSet string,
 	clusterProfile string,
+	promqlTarget clusterconditions.PromQLTarget,
+	injectClusterIdIntoPromQL bool,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -207,10 +215,11 @@ func New(
 		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
-		exclude:            exclude,
-		requiredFeatureSet: requiredFeatureSet,
-		clusterProfile:     clusterProfile,
-		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
+		exclude:                   exclude,
+		requiredFeatureSet:        requiredFeatureSet,
+		clusterProfile:            clusterProfile,
+		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
+		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {

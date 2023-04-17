@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 )
 
@@ -30,7 +31,7 @@ func (e *Error) Match(ctx context.Context, condition *configv1.ClusterCondition)
 
 func TestPruneInvalid(t *testing.T) {
 	ctx := context.Background()
-	registry := standard.NewConditionRegistry(nil)
+	registry := standard.NewConditionRegistry(clusterconditions.DefaultPromQLTarget())
 
 	for _, testCase := range []struct {
 		name          string
@@ -115,7 +116,7 @@ func TestPruneInvalid(t *testing.T) {
 
 func TestMatch(t *testing.T) {
 	ctx := context.Background()
-	registry := standard.NewConditionRegistry(nil)
+	registry := standard.NewConditionRegistry(clusterconditions.DefaultPromQLTarget())
 	registry.Register("Error", &Error{})
 
 	for _, testCase := range []struct {

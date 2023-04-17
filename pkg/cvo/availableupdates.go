@@ -67,12 +67,16 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	}
 
 	userAgent := optr.getUserAgent()
-
-	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID),
+	clusterId := string(config.Spec.ClusterID)
+	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, clusterId,
 		transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version, optr.conditionRegistry)
 
 	if usedDefaultUpstream {
 		upstream = ""
+	}
+
+	if optr.injectClusterIdIntoPromQL {
+		conditionalUpdates = injectClusterIdIntoConditionalUpdates(clusterId, conditionalUpdates)
 	}
 
 	au := &availableUpdates{
@@ -366,4 +370,22 @@ func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.
 	}
 	recommended.Message = strings.Join(messages, "\n\n")
 	return recommended
+}
+
+func injectClusterIdIntoConditionalUpdates(clusterId string, updates []configv1.ConditionalUpdate) []configv1.ConditionalUpdate {
+	for i, update := range updates {
+		for j, risk := range update.Risks {
+			for k, rule := range risk.MatchingRules {
+				if rule.Type == "PromQL" {
+					newPromQl := injectIdIntoString(clusterId, rule.PromQL.PromQL)
+					updates[i].Risks[j].MatchingRules[k].PromQL.PromQL = newPromQl
+				}
+			}
+		}
+	}
+	return updates
+}
+
+func injectIdIntoString(id string, promQL string) string {
+	return strings.ReplaceAll(promQL, `_id=""`, fmt.Sprintf(`_id="%s"`, id))
 }

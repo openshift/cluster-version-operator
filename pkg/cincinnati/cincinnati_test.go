@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 
 	"github.com/blang/semver/v4"
@@ -745,7 +746,7 @@ func TestGetUpdates(t *testing.T) {
 			ts := httptest.NewServer(http.HandlerFunc(handler))
 			defer ts.Close()
 
-			c := NewClient(clientID, nil, "", standard.NewConditionRegistry(nil))
+			c := NewClient(clientID, nil, "", standard.NewConditionRegistry(clusterconditions.DefaultPromQLTarget()))
 
 			uri, err := url.Parse(ts.URL)
 			if err != nil {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -33,6 +34,7 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	externalversions "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/featurechangestopper"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -59,6 +61,10 @@ type Options struct {
 	ListenAddr string
 
 	EnableAutoUpdate bool
+
+	PrometheusURLString       string
+	PromQLTarget              clusterconditions.PromQLTarget
+	InjectClusterIdIntoPromQL bool
 
 	// Exclude is used to determine whether to exclude
 	// certain manifests based on an annotation:
@@ -92,9 +98,12 @@ func defaultEnv(name, defaultValue string) string {
 // NewOptions creates the default options for the CVO and loads any environment
 // variable overrides.
 func NewOptions() *Options {
+	defaultPromQLTarget := clusterconditions.DefaultPromQLTarget()
 	return &Options{
-		ListenAddr: "0.0.0.0:9099",
-		NodeName:   os.Getenv("NODE_NAME"),
+		ListenAddr:          "0.0.0.0:9099",
+		NodeName:            os.Getenv("NODE_NAME"),
+		PrometheusURLString: defaultPromQLTarget.URL.String(),
+		PromQLTarget:        defaultPromQLTarget,
 
 		// exposed only for testing
 		Namespace:       defaultEnv("CVO_NAMESPACE", defaultComponentNamespace),
@@ -119,6 +128,13 @@ func (o *Options) Run(ctx context.Context) error {
 	if o.ListenAddr != "" && o.ServingKeyFile == "" {
 		return fmt.Errorf("--listen was not set empty, so --serving-key-file must be set")
 	}
+	if o.PrometheusURLString == "" {
+		return fmt.Errorf("missing --metrics-url flag, it is required")
+	}
+	if !o.PromQLTarget.UseDNS &&
+		(o.PromQLTarget.KubeSvc.Namespace == "" || o.PromQLTarget.KubeSvc.Name == "") {
+		return fmt.Errorf("--use-dns-for-services is disabled, so --metrics-service and --metrics-namespace must be set")
+	}
 	if len(o.PayloadOverride) > 0 {
 		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
 	}
@@ -126,11 +142,19 @@ func (o *Options) Run(ctx context.Context) error {
 		klog.Infof("Excluding manifests for %q", o.Exclude)
 	}
 
+	// parse the prometheus url
+	var err error
+	o.PromQLTarget.URL, err = url.Parse(o.PrometheusURLString)
+	if err != nil {
+		return fmt.Errorf("error parsing promql url: %v", err)
+	}
+
 	// initialize the core objects
 	cb, err := newClientBuilder(o.Kubeconfig)
 	if err != nil {
 		return fmt.Errorf("error creating clients: %v", err)
 	}
+
 	// check to see if techpreview should be on or off.  If we cannot read the featuregate for any reason, it is assumed
 	// to be off.  If this value changes, the binary will shutdown and expect the pod lifecycle to restart it.
 	startingFeatureSet := ""
@@ -465,6 +489,8 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		return nil, err
 	}
 
+	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
+	o.PromQLTarget.KubeClient = cvoKubeClient
 	cvo, err := cvo.New(
 		o.NodeName,
 		o.Namespace, o.Name,
@@ -477,10 +503,12 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
 		sharedInformers.Config().V1().Proxies(),
 		cb.ClientOrDie(o.Namespace),
-		cb.KubeClientOrDie(o.Namespace, useProtobuf),
+		cvoKubeClient,
 		o.Exclude,
 		startingFeatureSet,
 		o.ClusterProfile,
+		o.PromQLTarget,
+		o.InjectClusterIdIntoPromQL,
 	)
 	if err != nil {
 		return nil, err
