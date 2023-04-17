@@ -234,6 +234,10 @@ func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, tran
 		}
 	}
 
+	if strings.HasSuffix(upstreamURI.Hostname(), ".cluster.local") {
+		transport.TLSClientConfig = nil
+	}
+
 	uuid, err := uuid.Parse(string(clusterID))
 	if err != nil {
 		return cvoCurrent, nil, nil, configv1.ClusterOperatorStatusCondition{
