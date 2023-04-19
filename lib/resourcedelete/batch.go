@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteJobv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *batchv1.Job,
 	updateMode bool) (bool, error) {
@@ -24,16 +24,15 @@ func DeleteJobv1(ctx context.Context, client batchclientv1.JobsGetter, required 
 		Namespace: required.Namespace,
 		Name:      required.Name,
 	}
-	if deleteRequested, err := GetDeleteProgress(resource, err); err == nil {
-		// Only request deletion when in update mode.
-		if !deleteRequested && updateMode {
-			if err := client.Jobs(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
-			}
-			SetDeleteRequested(existing, resource)
-		}
-	} else {
+	deleteRequested, err := GetDeleteProgress(resource, err)
+	if err != nil {
 		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+	}
+	if !deleteRequested && updateMode {
+		if err := client.Jobs(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
+			return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+		}
+		SetDeleteRequested(existing, resource)
 	}
 	return true, nil
 }
