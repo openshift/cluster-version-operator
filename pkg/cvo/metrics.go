@@ -80,8 +80,9 @@ cluster version object and the current version. The type
 new version but has not reached the completed state and
 is the time the update was started. The type 'initial' is
 set to the oldest entry in the history. The from_version label
-will be set to the last completed version, the initial
-version for 'cluster', or empty for 'initial'.
+will be set to the last completed version for most types, the
+initial version for 'cluster', empty for 'initial', and the
+penultimate completed version for 'completed'.
 .`,
 		}, []string{"type", "version", "image", "from_version"}),
 		availableUpdates: prometheus.NewGaugeVec(prometheus.GaugeOpts{
