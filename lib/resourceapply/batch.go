@@ -31,7 +31,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 
 	var original batchv1.Job
 	existing.DeepCopyInto(&original)
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureJob(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -66,7 +66,7 @@ func ApplyCronJobv1(ctx context.Context, client batchclientv1.CronJobsGetter, re
 
 	var original batchv1.CronJob
 	existing.DeepCopyInto(&original)
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureCronJob(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

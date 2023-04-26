@@ -29,7 +29,7 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 		return nil, false, nil
 	}
 
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !*modified {
 		return existing, false, nil

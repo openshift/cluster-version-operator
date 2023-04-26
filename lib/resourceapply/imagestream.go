@@ -29,7 +29,7 @@ func ApplyImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGe
 
 	var original imagev1.ImageStream
 	existing.DeepCopyInto(&original)
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureImagestreamv1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
