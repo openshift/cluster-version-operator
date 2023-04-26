@@ -76,7 +76,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		return nil, false, nil
 	}
 
-	skipKeys := sets.NewString("apiVersion", "kind", "metadata", "status")
+	skipKeys := sets.New[string]("apiVersion", "kind", "metadata", "status")
 
 	// create a copy of required, but copy skipKeys from existing
 	// this would copy skipKeys data into expected from existing

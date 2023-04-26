@@ -310,7 +310,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 	if !ok {
 		return
 	}
-	types := sets.NewString()
+	types := sets.Set[string]{}
 	for _, older := range oldCO.Status.Conditions {
 		if types.Has(string(older.Type)) {
 			continue
