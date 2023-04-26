@@ -25,7 +25,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
@@ -956,12 +955,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			if task.Manifest.GVK != configv1.GroupVersion.WithKind("ClusterOperator") {
 				continue
 			}
-			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
-			if ok && ov.Unmanaged {
-				klog.V(2).Infof("Skipping precreation of %s as unmanaged", task)
-				continue
-			}
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
 				klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
 				continue
 			}
@@ -980,12 +974,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 			klog.V(2).Infof("Running sync for %s", task)
 
-			ov, ok := getOverrideForManifest(work.Overrides, task.Manifest)
-			if ok && ov.Unmanaged {
-				klog.V(2).Infof("Skipping %s as unmanaged", task)
-				continue
-			}
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
 				klog.V(2).Infof("Skipping %s: %s", task, err)
 				continue
 			}
@@ -1274,20 +1263,6 @@ func newMultipleError(errs []error) error {
 		Reason:  "MultipleErrors",
 		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
 	}
-}
-
-// getOverrideForManifest returns the override and true when override exists for manifest.
-func getOverrideForManifest(overrides []configv1.ComponentOverride, manifest *manifest.Manifest) (configv1.ComponentOverride, bool) {
-	for idx, ov := range overrides {
-		group, kind, namespace, name := manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName()
-		if ov.Group == group &&
-			ov.Kind == kind &&
-			(namespace == "" || ov.Namespace == namespace) && // cluster-scoped objects don't have namespace.
-			ov.Name == name {
-			return overrides[idx], true
-		}
-	}
-	return configv1.ComponentOverride{}, false
 }
 
 // runThrottledStatusNotifier invokes fn every time ch is updated, but no more often than once

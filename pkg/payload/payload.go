@@ -206,8 +206,8 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			filteredMs := []manifest.Manifest{}
 
 			for _, manifest := range ms {
-				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps); err != nil {
-					klog.V(2).Infof("excluding %s group=%s kind=%s namespace=%s name=%s: %v\n", manifest.OriginalFilename, manifest.GVK.Group, manifest.GVK.Kind, manifest.Obj.GetNamespace(), manifest.Obj.GetName(), err)
+				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil); err != nil {
+					klog.V(2).Infof("excluding %s: %v\n", manifest, err)
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
@@ -246,7 +246,7 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
 
 	for _, updateManifest := range updatePayloadManifests {
-		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, true)
+		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true)
 
 		// update manifest is enabled, no need to check
 		if updateManErr == nil {
@@ -258,7 +258,7 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			}
 
 			// current manifest is disabled, no need to check
-			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, true); err != nil {
+			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true); err != nil {
 				continue
 			}
 			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
