@@ -180,7 +180,7 @@ func New(
 	exclude string,
 	requiredFeatureSet string,
 	clusterProfile string,
-) *Operator {
+) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
@@ -213,11 +213,19 @@ func New(
 		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
 	}
 
-	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())
-	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
-	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
+	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
+		return nil, err
+	}
+	if _, err := cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler()); err != nil {
+		return nil, err
+	}
+	if _, err := cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler()); err != nil {
+		return nil, err
+	}
+	if _, err := coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler()); err != nil {
+		return nil, err
+	}
 
-	coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler())
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
 
@@ -231,7 +239,7 @@ func New(
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
-	return optr
+	return optr, nil
 }
 
 // InitializeFromPayload waits until a ClusterVersion object exists. It then retrieves the payload contents and verifies the

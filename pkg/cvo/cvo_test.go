@@ -3772,7 +3772,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	configManagedInformer := informers.NewSharedInformerFactory(f, 0)
 	cmInformerLister := configManagedInformer.Core().V1().ConfigMaps()
 	cmInformer := configManagedInformer.Core().V1().ConfigMaps().Informer()
-	cmInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	if _, err := cmInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cm := obj.(*corev1.ConfigMap)
 			t.Logf("cm added: %s/%s", cm.Namespace, cm.Name)
@@ -3788,7 +3788,9 @@ func TestOperator_upgradeableSync(t *testing.T) {
 			t.Logf("cm updated: %s/%s", cm.Namespace, cm.Name)
 			cms <- cm
 		},
-	})
+	}); err != nil {
+		t.Errorf("error adding ConfigMap event handler: %v", err)
+	}
 	configManagedInformer.Start(ctx.Done())
 
 	_, err := f.CoreV1().ConfigMaps("test").Create(ctx, &defaultGateCm, metav1.CreateOptions{})

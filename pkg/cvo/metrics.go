@@ -36,9 +36,11 @@ import (
 // Prometheus implementation.
 func (optr *Operator) RegisterMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
-	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: m.clusterOperatorChanged,
-	})
+	}); err != nil {
+		return err
+	}
 	return prometheus.Register(m)
 }
 

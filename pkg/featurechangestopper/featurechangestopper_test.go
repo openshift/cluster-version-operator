@@ -72,7 +72,10 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
 			featureGates := informerFactory.Config().V1().FeatureGates()
-			c := New(tt.startingRequiredFeatureSet, featureGates)
+			c, err := New(tt.startingRequiredFeatureSet, featureGates)
+			if err != nil {
+				t.Fatal(err)
+			}
 			informerFactory.Start(ctx.Done())
 
 			if err := c.Run(ctx, shutdownFn); err != nil {

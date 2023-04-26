@@ -173,7 +173,10 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx := o.NewControllerContext(cb, startingFeatureSet)
+	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet)
+	if err != nil {
+		return err
+	}
 	o.leaderElection = getLeaderElectionConfig(ctx, cb.RestConfig(defaultQPS))
 	o.run(ctx, controllerCtx, lock, cb.RestConfig(defaultQPS), cb.RestConfig(highQPS))
 	return nil
@@ -446,7 +449,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string) *Context {
+func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
@@ -459,46 +462,57 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
 
 	coInformer := sharedInformers.Config().V1().ClusterOperators()
+	featureChangeStopper, err := featurechangestopper.New(startingFeatureSet, sharedInformers.Config().V1().FeatureGates())
+	if err != nil {
+		return nil, err
+	}
+
+	cvo, err := cvo.New(
+		o.NodeName,
+		o.Namespace, o.Name,
+		o.ReleaseImage,
+		o.PayloadOverride,
+		resyncPeriod(o.ResyncInterval),
+		cvInformer.Config().V1().ClusterVersions(),
+		coInformer,
+		openshiftConfigInformer.Core().V1().ConfigMaps(),
+		openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
+		sharedInformers.Config().V1().Proxies(),
+		cb.ClientOrDie(o.Namespace),
+		cb.KubeClientOrDie(o.Namespace, useProtobuf),
+		o.Exclude,
+		startingFeatureSet,
+		o.ClusterProfile,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx := &Context{
 		CVInformerFactory:                     cvInformer,
 		OpenshiftConfigInformerFactory:        openshiftConfigInformer,
 		OpenshiftConfigManagedInformerFactory: openshiftConfigManagedInformer,
 		InformerFactory:                       sharedInformers,
-
-		CVO: cvo.New(
-			o.NodeName,
-			o.Namespace, o.Name,
-			o.ReleaseImage,
-			o.PayloadOverride,
-			resyncPeriod(o.ResyncInterval),
-			cvInformer.Config().V1().ClusterVersions(),
-			coInformer,
-			openshiftConfigInformer.Core().V1().ConfigMaps(),
-			openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
-			sharedInformers.Config().V1().Proxies(),
-			cb.ClientOrDie(o.Namespace),
-			cb.KubeClientOrDie(o.Namespace, useProtobuf),
-			o.Exclude,
-			startingFeatureSet,
-			o.ClusterProfile,
-		),
-
-		StopOnFeatureGateChange: featurechangestopper.New(startingFeatureSet, sharedInformers.Config().V1().FeatureGates()),
+		CVO:                                   cvo,
+		StopOnFeatureGateChange:               featureChangeStopper,
 	}
 
 	if o.EnableAutoUpdate {
-		ctx.AutoUpdate = autoupdate.New(
+		ctx.AutoUpdate, err = autoupdate.New(
 			o.Namespace, o.Name,
 			cvInformer.Config().V1().ClusterVersions(),
 			sharedInformers.Config().V1().ClusterOperators(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace),
 		)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if o.ListenAddr != "" {
 		if err := ctx.CVO.RegisterMetrics(coInformer.Informer()); err != nil {
-			panic(err)
+			return nil, err
 		}
 	}
-	return ctx
+	return ctx, nil
 }

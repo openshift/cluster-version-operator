@@ -186,7 +186,10 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers := options.NewControllerContext(cb, startingFeatureSet)
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
@@ -315,7 +318,10 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers := options.NewControllerContext(cb, startingFeatureSet)
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
@@ -506,7 +512,10 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers := options.NewControllerContext(cb, startingFeatureSet)
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
