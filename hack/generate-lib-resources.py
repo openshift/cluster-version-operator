@@ -285,7 +285,7 @@ if __name__ == '__main__':
         'github.com/operator-framework/api/pkg/operators/v1': {'OperatorGroup'},
         'k8s.io/api/admissionregistration/v1': {'ValidatingWebhookConfiguration'},
         'k8s.io/api/apps/v1': {'DaemonSet', 'Deployment'},
-        'k8s.io/api/batch/v1': {'Job'},
+        'k8s.io/api/batch/v1': {'CronJob', 'Job'},
         'k8s.io/api/core/v1': {'ConfigMap', 'Namespace', 'Service', 'ServiceAccount'},
         'k8s.io/api/rbac/v1': {'ClusterRole', 'ClusterRoleBinding', 'Role', 'RoleBinding'},
         'k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1': {'CustomResourceDefinition'},
