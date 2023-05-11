@@ -195,7 +195,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	}
 
 	now := metav1.Now()
-	version := versionString(status.Actual)
+	version := versionStringFromRelease(status.Actual)
 	if status.Actual.Image == optr.release.Image {
 		// backfill any missing information from the operator (payload).
 		if status.Actual.Version == "" {
