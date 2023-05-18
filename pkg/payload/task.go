@@ -108,8 +108,8 @@ func (st *Task) String() string {
 func (st *Task) Run(ctx context.Context, version string, builder ResourceBuilder, state State) error {
 	var lastErr error
 	backoff := st.Backoff
-	err := wait.ExponentialBackoffWithContext(ctx, backoff, func() (done bool, err error) {
-		err = builder.Apply(ctx, st.Manifest, state)
+	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(localCtx context.Context) (done bool, err error) {
+		err = builder.Apply(localCtx, st.Manifest, state)
 		if err == nil {
 			return true, nil
 		}
