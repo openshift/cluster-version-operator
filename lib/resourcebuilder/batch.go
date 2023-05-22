@@ -14,6 +14,8 @@ import (
 
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
 		j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
 		if err != nil {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"sort"
@@ -113,6 +113,8 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 		if c.transport.TLSClientConfig.ClientCAs == nil {
 			klog.V(2).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)
 		} else {
+			//nolint:staticcheck
+			// it's not returned by SystemCertPool
 			klog.V(2).Infof("Using a root CA pool with %n root CA subjects to request updates from %s", len(c.transport.TLSClientConfig.RootCAs.Subjects()), uri)
 		}
 	}
@@ -141,7 +143,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	}
 
 	// Parse the graph.
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return current, nil, nil, &Error{Reason: "ResponseFailed", Message: err.Error(), cause: err}
 	}

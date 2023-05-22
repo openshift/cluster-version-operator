@@ -213,10 +213,14 @@ func New(
 		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
 	}
 
+	// nolint: errcheck
 	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())
+	// nolint: errcheck
 	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
+	// nolint: errcheck
 	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
 
+	// nolint: errcheck
 	coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler())
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
@@ -240,6 +244,8 @@ func New(
 func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
 
 	// wait until cluster version object exists
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	if err := wait.PollImmediateInfiniteWithContext(ctx, 3*time.Second, func(ctx context.Context) (bool, error) {
 		var err error
 

@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -31,8 +31,10 @@ func main() {
 		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml",
 	} {
 		var name string
+		//nolint:staticcheck
+		// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 		err := wait.PollImmediate(time.Second, 30*time.Second, func() (bool, error) {
-			data, err := ioutil.ReadFile(path)
+			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Fatalf("Unable to read %s: %v", path, err)
 			}

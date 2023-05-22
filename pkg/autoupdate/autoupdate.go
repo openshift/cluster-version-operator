@@ -70,7 +70,9 @@ func New(
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
 	}
 
+	//nolint:errcheck
 	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	//nolint:errcheck
 	coInformer.Informer().AddEventHandler(ctrl.eventHandler())
 
 	ctrl.syncHandler = ctrl.sync

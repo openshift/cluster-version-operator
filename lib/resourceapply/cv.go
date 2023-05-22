@@ -30,7 +30,7 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 
 	// Don't want to mutate cache.
 	existing := obj.DeepCopy()
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureClusterVersion(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

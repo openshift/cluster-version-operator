@@ -300,7 +300,7 @@ func ValidateDirectory(dir string) error {
 type payloadTasks struct {
 	idir       string
 	preprocess func([]byte) ([]byte, error)
-	skipFiles  sets.String
+	skipFiles  sets.Set[string]
 }
 
 func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Update, []payloadTasks, error) {
@@ -349,11 +349,11 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []
 	return []payloadTasks{{
 		idir:       cvoDir,
 		preprocess: func(ib []byte) ([]byte, error) { return renderManifest(mrc, ib) },
-		skipFiles:  sets.NewString(),
+		skipFiles:  sets.New[string](),
 	}, {
 		idir:       releaseDir,
 		preprocess: nil,
-		skipFiles:  sets.NewString(cjf, irf),
+		skipFiles:  sets.New(cjf, irf),
 	}}
 }
 

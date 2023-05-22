@@ -41,6 +41,7 @@ func New(
 	}
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
+	// nolint:errcheck
 	featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
@@ -104,6 +105,8 @@ func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.Cance
 		return errors.New("feature gate cache failed to sync")
 	}
 
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	err := wait.PollImmediateUntilWithContext(ctx, 30*time.Second, c.runWorker)
 	klog.Info("Shutting down stop-on-featureset-change controller")
 	return err

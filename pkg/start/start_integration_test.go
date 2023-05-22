@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -164,7 +163,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,6 +214,9 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("wait for the next resync and verify that status didn't change")
+
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
 		updated := worker.Status()
 		if updated.Completed >= status.Completed {
@@ -293,7 +295,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,6 +337,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}()
 
 	// wait until the lock record exists
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
 		_, _, err := lock.Get(ctx)
 		if err != nil {
@@ -363,6 +367,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	startTime := time.Now()
 	var endTime time.Time
 	// the lock should be deleted immediately
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
 		electionRecord, _, err := lock.Get(ctx)
 		if err != nil {
@@ -459,7 +465,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,13 +489,13 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 	if err := os.Mkdir(releaseManifestsDir, 0777); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "release-metadata"), []byte(`{
+	if err := os.WriteFile(filepath.Join(releaseManifestsDir, "release-metadata"), []byte(`{
   "kind": "cincinnati-metadata-v0",
   "version": "0.0.1"
 }`), 0777); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
+	if err := os.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
 apiVersion: image.openshift.io/v1
 metadata:
   name: 0.0.1
@@ -556,6 +562,9 @@ metadata:
 // should be seen during update, with the last version being the one we wait to see.
 func waitForUpdateAvailable(ctx context.Context, t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
+
+	//nolint:staticcheck
+	// until https://github.com/kubernetes/kubernetes/issues/116712 is resolved
 	return lastCV, wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
 		cv, err := client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
@@ -797,7 +806,7 @@ func createContent(baseDir string, content map[string]interface{}, replacements 
 					return key
 				})
 			}
-			if err := ioutil.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
+			if err := os.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
 				return err
 			}
 		case map[string]interface{}:
