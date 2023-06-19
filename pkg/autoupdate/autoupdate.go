@@ -57,7 +57,7 @@ func New(
 	coInformer configinformersv1.ClusterOperatorInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
-) *Controller {
+) (*Controller, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events(namespace)})
@@ -70,8 +70,12 @@ func New(
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
 	}
 
-	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
-	coInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	if _, err := cvInformer.Informer().AddEventHandler(ctrl.eventHandler()); err != nil {
+		return nil, err
+	}
+	if _, err := coInformer.Informer().AddEventHandler(ctrl.eventHandler()); err != nil {
+		return nil, err
+	}
 
 	ctrl.syncHandler = ctrl.sync
 
@@ -80,7 +84,7 @@ func New(
 	ctrl.coLister = coInformer.Lister()
 	ctrl.cacheSynced = append(ctrl.cacheSynced, coInformer.Informer().HasSynced)
 
-	return ctrl
+	return ctrl, nil
 }
 
 // Run runs the autoupdate controller.

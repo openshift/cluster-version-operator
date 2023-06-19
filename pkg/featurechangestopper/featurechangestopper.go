@@ -32,7 +32,7 @@ type FeatureChangeStopper struct {
 func New(
 	startingRequiredFeatureSet string,
 	featureGateInformer configinformersv1.FeatureGateInformer,
-) *FeatureChangeStopper {
+) (*FeatureChangeStopper, error) {
 	c := &FeatureChangeStopper{
 		startingRequiredFeatureSet: startingRequiredFeatureSet,
 		featureGateLister:          featureGateInformer.Lister(),
@@ -41,7 +41,7 @@ func New(
 	}
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
-	featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
 		},
@@ -51,9 +51,11 @@ func New(
 		DeleteFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
 		},
-	})
+	}); err != nil {
+		return c, err
+	}
 
-	return c
+	return c, nil
 }
 
 // syncHandler processes a single work entry, with the

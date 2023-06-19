@@ -30,11 +30,11 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	tasks := []struct {
 		idir      string
 		odir      string
-		skipFiles sets.String
+		skipFiles sets.Set[string]
 	}{{
 		idir: manifestsDir,
 		odir: oManifestsDir,
-		skipFiles: sets.NewString(
+		skipFiles: sets.New[string](
 			"image-references",
 			"0000_90_cluster-version-operator_00_prometheusrole.yaml",
 			"0000_90_cluster-version-operator_01_prometheusrolebinding.yaml",
@@ -43,7 +43,7 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	}, {
 		idir:      bootstrapDir,
 		odir:      oBootstrapDir,
-		skipFiles: sets.NewString(),
+		skipFiles: sets.Set[string]{},
 	}}
 	var errs []error
 	for _, task := range tasks {
@@ -59,7 +59,7 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles sets.String) error {
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles sets.Set[string]) error {
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
 	}

@@ -36,9 +36,11 @@ import (
 // Prometheus implementation.
 func (optr *Operator) RegisterMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
-	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	if _, err := coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: m.clusterOperatorChanged,
-	})
+	}); err != nil {
+		return err
+	}
 	return prometheus.Register(m)
 }
 
@@ -310,7 +312,7 @@ func (m *operatorMetrics) clusterOperatorChanged(oldObj, obj interface{}) {
 	if !ok {
 		return
 	}
-	types := sets.NewString()
+	types := sets.Set[string]{}
 	for _, older := range oldCO.Status.Conditions {
 		if types.Has(string(older.Type)) {
 			continue
