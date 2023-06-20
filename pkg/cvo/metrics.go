@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -627,11 +626,11 @@ func certsChanged(origCertChecksum []byte, origKeyChecksum []byte, certFile, key
 
 func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) {
 	// Load the initial certificate contents.
-	certBytes, err := ioutil.ReadFile(servingCertFile)
+	certBytes, err := os.ReadFile(servingCertFile)
 	if err != nil {
 		return nil, err
 	}
-	keyBytes, err := ioutil.ReadFile(servingKeyFile)
+	keyBytes, err := os.ReadFile(servingKeyFile)
 	if err != nil {
 		return nil, err
 	}

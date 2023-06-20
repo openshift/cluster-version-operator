@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -164,7 +163,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -296,7 +295,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +464,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 		}
 	}()
 
-	dir, err := ioutil.TempDir("", "cvo-test")
+	dir, err := os.MkdirTemp("", "cvo-test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -489,13 +488,13 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 	if err := os.Mkdir(releaseManifestsDir, 0777); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "release-metadata"), []byte(`{
+	if err := os.WriteFile(filepath.Join(releaseManifestsDir, "release-metadata"), []byte(`{
   "kind": "cincinnati-metadata-v0",
   "version": "0.0.1"
 }`), 0777); err != nil {
 		t.Fatal(err)
 	}
-	if err := ioutil.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
+	if err := os.WriteFile(filepath.Join(releaseManifestsDir, "image-references"), []byte(`kind: ImageStream
 apiVersion: image.openshift.io/v1
 metadata:
   name: 0.0.1
@@ -806,7 +805,7 @@ func createContent(baseDir string, content map[string]interface{}, replacements 
 					return key
 				})
 			}
-			if err := ioutil.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
+			if err := os.WriteFile(filepath.Join(baseDir, k), []byte(t), 0640); err != nil {
 				return err
 			}
 		case map[string]interface{}:
