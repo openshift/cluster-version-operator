@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"io/ioutil"
 	"log"
+	"os"
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -32,7 +32,7 @@ func main() {
 	} {
 		var name string
 		err := wait.PollImmediate(time.Second, 30*time.Second, func() (bool, error) {
-			data, err := ioutil.ReadFile(path)
+			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Fatalf("Unable to read %s: %v", path, err)
 			}
