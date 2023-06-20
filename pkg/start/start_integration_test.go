@@ -217,7 +217,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 
 	t.Logf("wait for the next resync and verify that status didn't change")
-	if err := wait.Poll(time.Second, 30*time.Second, func() (bool, error) {
+	if err := wait.PollUntilContextTimeout(ctx, time.Second, 30*time.Second, false, func(_ context.Context) (bool, error) {
 		updated := worker.Status()
 		if updated.Completed >= status.Completed {
 			return true, nil
@@ -340,8 +340,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}()
 
 	// wait until the lock record exists
-	err = wait.PollImmediate(200*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, _, err := lock.Get(ctx)
+	err = wait.PollUntilContextTimeout(ctx, 200*time.Millisecond, 60*time.Second, true, func(localCtx context.Context) (bool, error) {
+		_, _, err := lock.Get(localCtx)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -368,8 +368,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	startTime := time.Now()
 	var endTime time.Time
 	// the lock should be deleted immediately
-	err = wait.PollImmediate(100*time.Millisecond, 10*time.Second, func() (bool, error) {
-		electionRecord, _, err := lock.Get(ctx)
+	err = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 10*time.Second, true, func(localCtx context.Context) (bool, error) {
+		electionRecord, _, err := lock.Get(localCtx)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -564,8 +564,8 @@ metadata:
 // should be seen during update, with the last version being the one we wait to see.
 func waitForUpdateAvailable(ctx context.Context, t *testing.T, client clientset.Interface, ns string, allowIncrementalFailure bool, versions ...string) (*configv1.ClusterVersion, error) {
 	var lastCV *configv1.ClusterVersion
-	return lastCV, wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		cv, err := client.ConfigV1().ClusterVersions().Get(ctx, ns, metav1.GetOptions{})
+	return lastCV, wait.PollUntilContextTimeout(ctx, 1*time.Second, 1*time.Minute, true, func(localCtx context.Context) (bool, error) {
+		cv, err := client.ConfigV1().ClusterVersions().Get(localCtx, ns, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return false, nil
 		}

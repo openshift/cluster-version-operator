@@ -106,7 +106,7 @@ func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.Cance
 		return errors.New("feature gate cache failed to sync")
 	}
 
-	err := wait.PollImmediateUntilWithContext(ctx, 30*time.Second, c.runWorker)
+	err := wait.PollUntilContextCancel(ctx, 30*time.Second, true, c.runWorker)
 	klog.Info("Shutting down stop-on-featureset-change controller")
 	return err
 }

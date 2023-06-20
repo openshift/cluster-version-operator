@@ -14,13 +14,13 @@ import (
 
 // WaitForJobCompletion waits for job to complete.
 func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
-	return wait.PollImmediateUntil(defaultObjectPollInterval, func() (bool, error) {
-		j, err := client.Jobs(job.Namespace).Get(ctx, job.Name, metav1.GetOptions{})
+	return wait.PollUntilContextCancel(ctx, defaultObjectPollInterval, true, func(localCtx context.Context) (bool, error) {
+		j, err := client.Jobs(job.Namespace).Get(localCtx, job.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, fmt.Errorf("error getting Job %s: %v", job.Name, err)
 		}
 
-		if done, err := checkJobHealth(ctx, j); err != nil && done {
+		if done, err := checkJobHealth(localCtx, j); err != nil && done {
 			return false, err
 		} else if err != nil {
 			klog.Error(err)
@@ -30,7 +30,7 @@ func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, 
 			return false, nil
 		}
 		return true, nil
-	}, ctx.Done())
+	})
 }
 
 func (b *builder) checkJobHealth(ctx context.Context, job *batchv1.Job) error {
