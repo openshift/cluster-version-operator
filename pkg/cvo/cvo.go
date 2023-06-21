@@ -248,7 +248,7 @@ func New(
 func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
 
 	// wait until cluster version object exists
-	if err := wait.PollImmediateInfiniteWithContext(ctx, 3*time.Second, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
 		var err error
 
 		// ensure the cluster version exists

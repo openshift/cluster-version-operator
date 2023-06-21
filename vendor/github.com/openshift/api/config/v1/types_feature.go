@@ -1,6 +1,10 @@
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"fmt"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // +genclient
 // +genclient:nonNamespaced
@@ -162,6 +166,7 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		with(externalCloudProvider).
 		with(externalCloudProviderAzure).
 		with(externalCloudProviderGCP).
+		with(externalCloudProviderExternal).
 		with(csiDriverSharedResource).
 		with(buildCSIVolumes).
 		with(nodeSwap).
@@ -172,7 +177,14 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		with(pdbUnhealthyPodEvictionPolicy).
 		with(dynamicResourceAllocation).
 		with(admissionWebhookMatchConditions).
+		with(awsSecurityTokenService).
 		with(azureWorkloadIdentity).
+		with(gateGatewayAPI).
+		with(maxUnavailableStatefulSet).
+		without(eventedPleg).
+		with(privateHostedZoneAWS).
+		with(sigstoreImageVerification).
+		with(gcpLabelsTags).
 		toFeatures(defaultFeatures),
 	LatencySensitive: newDefaultFeatures().
 		toFeatures(defaultFeatures),
@@ -181,6 +193,8 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 var defaultFeatures = &FeatureGateEnabledDisabled{
 	Enabled: []FeatureGateDescription{
 		openShiftPodSecurityAdmission,
+		alibabaPlatform, // This is a bug, it should be TechPreviewNoUpgrade. This must be downgraded before 4.14 is shipped.
+		cloudDualStackNodeIPs,
 	},
 	Disabled: []FeatureGateDescription{
 		retroactiveDefaultStorageClass,
@@ -197,11 +211,21 @@ func newDefaultFeatures() *featureSetBuilder {
 }
 
 func (f *featureSetBuilder) with(forceOn FeatureGateDescription) *featureSetBuilder {
+	for _, curr := range f.forceOn {
+		if curr.FeatureGateAttributes.Name == forceOn.FeatureGateAttributes.Name {
+			panic(fmt.Errorf("coding error: %q enabled twice", forceOn.FeatureGateAttributes.Name))
+		}
+	}
 	f.forceOn = append(f.forceOn, forceOn)
 	return f
 }
 
 func (f *featureSetBuilder) without(forceOff FeatureGateDescription) *featureSetBuilder {
+	for _, curr := range f.forceOff {
+		if curr.FeatureGateAttributes.Name == forceOff.FeatureGateAttributes.Name {
+			panic(fmt.Errorf("coding error: %q disabled twice", forceOff.FeatureGateAttributes.Name))
+		}
+	}
 	f.forceOff = append(f.forceOff, forceOff)
 	return f
 }

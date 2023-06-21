@@ -31,7 +31,7 @@ func main() {
 		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml",
 	} {
 		var name string
-		err := wait.PollImmediate(time.Second, 30*time.Second, func() (bool, error) {
+		err := wait.PollUntilContextTimeout(ctx, time.Second, 30*time.Second, true, func(localCtx context.Context) (bool, error) {
 			data, err := os.ReadFile(path)
 			if err != nil {
 				log.Fatalf("Unable to read %s: %v", path, err)
@@ -41,7 +41,7 @@ func main() {
 				log.Fatalf("Unable to parse CRD %s: %v", path, err)
 			}
 			name = crd.Name
-			_, err = client.ApiextensionsV1().CustomResourceDefinitions().Create(ctx, &crd, metav1.CreateOptions{})
+			_, err = client.ApiextensionsV1().CustomResourceDefinitions().Create(localCtx, &crd, metav1.CreateOptions{})
 			if errors.IsAlreadyExists(err) {
 				return true, nil
 			}

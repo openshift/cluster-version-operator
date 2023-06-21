@@ -141,10 +141,8 @@ func (o *Options) Run(ctx context.Context) error {
 	//
 	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
 	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
-	fgCtx, fgCancel := context.WithTimeout(ctx, 25*time.Second)
-	defer fgCancel()
 	var lastError error
-	if err := wait.PollImmediateInfiniteWithContext(fgCtx, 2*time.Second, func(ctx context.Context) (bool, error) {
+	if err := wait.PollUntilContextTimeout(context.Background(), 2*time.Second, 25*time.Second, true, func(ctx context.Context) (bool, error) {
 		gate, fgErr := cb.ClientOrDie("feature-gate-getter").ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
 		switch {
 		case apierrors.IsNotFound(fgErr):
