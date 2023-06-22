@@ -9,15 +9,15 @@ require (
 	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.3.0
 	github.com/openshift/api v0.0.0-20230615141659-a6fbaf36017d
-	github.com/openshift/client-go v0.0.0-20230120202327-72f107311084
-	github.com/openshift/library-go v0.0.0-20230426173432-af831435a04c
+	github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb
+	github.com/openshift/library-go v0.0.0-20230622115850-9596e367bcb4
 	github.com/operator-framework/api v0.17.1
 	github.com/operator-framework/operator-lifecycle-manager v0.22.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0
-	github.com/spf13/cobra v1.6.0
+	github.com/spf13/cobra v1.6.1
 	golang.org/x/crypto v0.1.0
 	golang.org/x/net v0.8.0
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
@@ -27,8 +27,8 @@ require (
 	k8s.io/apimachinery v0.27.1
 	k8s.io/client-go v0.27.1
 	k8s.io/klog/v2 v2.90.1
-	k8s.io/kube-aggregator v0.26.1
-	k8s.io/utils v0.0.0-20230209194617-a36077c30491
+	k8s.io/kube-aggregator v0.27.1
+	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 )
 
 require (
