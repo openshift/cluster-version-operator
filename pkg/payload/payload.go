@@ -207,7 +207,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 
 			for _, manifest := range ms {
 				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil); err != nil {
-					klog.V(2).Infof("excluding %s: %v\n", manifest, err)
+					klog.V(2).Infof("excluding %s: %v\n", manifest.String(), err)
 					continue
 				}
 				filteredMs = append(filteredMs, manifest)
