@@ -135,6 +135,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 		"",
 		record.NewFakeRecorder(100),
 		o.clusterProfile,
+		[]configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress},
 	)
 	o.configSync = worker
 
@@ -1971,7 +1972,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 
 	// confirm capabilities are updated
 	checkStatus(t, actions[1], "update", "clusterversions", "status", "", configv1.ClusterVersionCapabilitiesStatus{
-		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
+		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
 		KnownCapabilities:   sortedCaps,
 	})
 }

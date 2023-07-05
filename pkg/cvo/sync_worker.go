@@ -181,11 +181,16 @@ type SyncWorker struct {
 	requiredFeatureSet configv1.FeatureSet
 
 	clusterProfile string
+
+	// alwaysEnableCapabilities is a list of cluster capabilities which should
+	// always be implicitly enabled.
+	// This contributes to whether or not some manifests are included for reconciliation.
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string, alwaysEnableCapabilities []configv1.ClusterVersionCapability) *SyncWorker {
 	return &SyncWorker{
 		retriever:     retriever,
 		builder:       builder,
@@ -200,18 +205,18 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 		// if the reader is not fast enough.
 		report: make(chan SyncWorkerStatus, 500),
 
-		exclude:            exclude,
-		requiredFeatureSet: requiredFeatureSet,
-
-		clusterProfile: clusterProfile,
+		exclude:                  exclude,
+		requiredFeatureSet:       requiredFeatureSet,
+		clusterProfile:           clusterProfile,
+		alwaysEnableCapabilities: alwaysEnableCapabilities,
 	}
 }
 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
-	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, requiredFeatureSet, eventRecorder, clusterProfile)
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string, alwaysEnableCapabilities []configv1.ClusterVersionCapability) *SyncWorker {
+	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, requiredFeatureSet, eventRecorder, clusterProfile, alwaysEnableCapabilities)
 	worker.preconditions = preconditions
 	return worker
 }
@@ -462,7 +467,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	work.Capabilities = capability.SetCapabilities(config, priorCaps)
+	work.Capabilities = capability.SetCapabilities(config, priorCaps, capability.GetCapabilitiesAsMap(w.alwaysEnableCapabilities))
 
 	versionEqual, overridesEqual, capabilitiesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
