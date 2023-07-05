@@ -185,12 +185,15 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	alwaysEnableCapabilities := []configv1.ClusterVersionCapability{
+		configv1.ClusterVersionCapabilityIngress,
+	}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, alwaysEnableCapabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile, alwaysEnableCapabilities)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -317,12 +320,15 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	alwaysEnableCapabilities := []configv1.ClusterVersionCapability{
+		configv1.ClusterVersionCapabilityIngress,
+	}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, alwaysEnableCapabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile, alwaysEnableCapabilities)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -511,12 +517,15 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	alwaysEnableCapabilities := []configv1.ClusterVersionCapability{
+		configv1.ClusterVersionCapabilityIngress,
+	}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, alwaysEnableCapabilities)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", startingFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile, alwaysEnableCapabilities)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	arch := runtime.GOARCH

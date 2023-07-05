@@ -170,6 +170,10 @@ type Operator struct {
 
 	clusterProfile string
 	uid            types.UID
+
+	// alwaysEnableCapabilities is a list of the cluster capabilities which should
+	// always be implicitly enabled.
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 }
 
 // New returns a new cluster version operator.
@@ -191,6 +195,7 @@ func New(
 	clusterProfile string,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -223,6 +228,7 @@ func New(
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
+		alwaysEnableCapabilities:  alwaysEnableCapabilities,
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
@@ -331,6 +337,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		optr.requiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
+		optr.alwaysEnableCapabilities,
 	)
 
 	return nil

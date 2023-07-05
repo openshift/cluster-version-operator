@@ -73,6 +73,10 @@ type Options struct {
 
 	ClusterProfile string
 
+	// AlwaysEnableCapabilities is a list of cluster version capabilities
+	// which will always be implicitly enabled.
+	AlwaysEnableCapabilities []string
+
 	// for testing only
 	Name            string
 	Namespace       string
@@ -141,6 +145,10 @@ func (o *Options) Run(ctx context.Context) error {
 	if len(o.Exclude) > 0 {
 		klog.Infof("Excluding manifests for %q", o.Exclude)
 	}
+	alwaysEnableCaps, unknownCaps := parseAlwaysEnableCapabilities(o.AlwaysEnableCapabilities)
+	if len(unknownCaps) > 0 {
+		return fmt.Errorf("--always-enable-capabilities were set with unknown capabilities: %v", unknownCaps)
+	}
 
 	// parse the prometheus url
 	var err error
@@ -195,7 +203,7 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet)
+	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet, alwaysEnableCaps)
 	if err != nil {
 		return err
 	}
@@ -471,7 +479,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string) (*Context, error) {
+func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string, alwaysEnableCapabilities []configv1.ClusterVersionCapability) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
@@ -509,6 +517,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		o.ClusterProfile,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
+		alwaysEnableCapabilities,
 	)
 	if err != nil {
 		return nil, err
@@ -541,4 +550,27 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		}
 	}
 	return ctx, nil
+}
+
+// parseAlwaysEnableCapabilities parses the string list of capabilities
+// into two lists of configv1.ClusterVersionCapability: known and unknown.
+func parseAlwaysEnableCapabilities(caps []string) ([]configv1.ClusterVersionCapability, []configv1.ClusterVersionCapability) {
+	var (
+		knownCaps   []configv1.ClusterVersionCapability
+		unknownCaps []configv1.ClusterVersionCapability
+	)
+	for _, c := range caps {
+		known := false
+		for _, kc := range configv1.KnownClusterVersionCapabilities {
+			if configv1.ClusterVersionCapability(c) == kc {
+				knownCaps = append(knownCaps, kc)
+				known = true
+				break
+			}
+		}
+		if !known {
+			unknownCaps = append(unknownCaps, configv1.ClusterVersionCapability(c))
+		}
+	}
+	return knownCaps, unknownCaps
 }
