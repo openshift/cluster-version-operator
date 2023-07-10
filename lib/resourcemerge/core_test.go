@@ -45,7 +45,7 @@ func TestEnsurePodSpec(t *testing.T) {
 					{Name: "test"}}},
 		},
 		{
-			name: "PodSecurityContext empty",
+			name: "PodSecurityContext empty input wont overwrite existing",
 			existing: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
 					RunAsUser:      pointer.Int64Ptr(int64(1234)),
@@ -56,9 +56,13 @@ func TestEnsurePodSpec(t *testing.T) {
 			input: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{}},
 
-			expectedModified: true,
 			expected: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{}},
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+					RunAsUser:      pointer.Int64Ptr(int64(1234)),
+					RunAsGroup:     pointer.Int64Ptr(int64(1234)),
+					FSGroup:        pointer.Int64Ptr(int64(1234)),
+					SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
+				}},
 		},
 		{
 			name: "PodSecurityContext changes",
@@ -74,6 +78,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			expectedModified: true,
 			expected: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+					RunAsUser:      pointer.Int64Ptr(int64(1234)),
 					RunAsGroup:     pointer.Int64Ptr(int64(5)),
 					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}},
 		},
@@ -93,7 +98,7 @@ func TestEnsurePodSpec(t *testing.T) {
 			expected:         corev1.PodSpec{},
 		},
 		{
-			name: "container SecurityContext empty",
+			name: "container SecurityContext empty wont overwrite existing",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
 					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
@@ -106,10 +111,14 @@ func TestEnsurePodSpec(t *testing.T) {
 				Containers: []corev1.Container{
 					{SecurityContext: &corev1.SecurityContext{}}}},
 
-			expectedModified: true,
 			expected: corev1.PodSpec{
 				Containers: []corev1.Container{
-					{SecurityContext: &corev1.SecurityContext{}}}},
+					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+						RunAsUser: pointer.Int64Ptr(int64(1234)),
+						Capabilities: &corev1.Capabilities{
+							Add: []corev1.Capability{"bar"}},
+						SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
+					}}}},
 		},
 		{
 			name: "remove regular and init containers from existing",
