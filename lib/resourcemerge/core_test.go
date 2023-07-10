@@ -47,10 +47,10 @@ func TestEnsurePodSpec(t *testing.T) {
 		{
 			name: "PodSecurityContext empty",
 			existing: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
-					RunAsUser:      int64Ptr(int64(1234)),
-					RunAsGroup:     int64Ptr(int64(1234)),
-					FSGroup:        int64Ptr(int64(1234)),
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+					RunAsUser:      pointer.Int64Ptr(int64(1234)),
+					RunAsGroup:     pointer.Int64Ptr(int64(1234)),
+					FSGroup:        pointer.Int64Ptr(int64(1234)),
 					SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
 				}},
 			input: corev1.PodSpec{
@@ -63,26 +63,26 @@ func TestEnsurePodSpec(t *testing.T) {
 		{
 			name: "PodSecurityContext changes",
 			existing: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(true),
-					RunAsUser:  int64Ptr(int64(1234)),
-					RunAsGroup: int64Ptr(int64(1234))}},
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(true),
+					RunAsUser:  pointer.Int64Ptr(int64(1234)),
+					RunAsGroup: pointer.Int64Ptr(int64(1234))}},
 			input: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
-					RunAsGroup:     int64Ptr(int64(5)),
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+					RunAsGroup:     pointer.Int64Ptr(int64(5)),
 					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}},
 
 			expectedModified: true,
 			expected: corev1.PodSpec{
-				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
-					RunAsGroup:     int64Ptr(int64(5)),
+				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+					RunAsGroup:     pointer.Int64Ptr(int64(5)),
 					SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}}},
 		},
 		{
 			name: "container SecurityContext none",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: boolPtr(false),
-						RunAsUser: int64Ptr(int64(1234)),
+					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+						RunAsUser: pointer.Int64Ptr(int64(1234)),
 						Capabilities: &corev1.Capabilities{
 							Add: []corev1.Capability{"bar"}},
 						SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
@@ -96,8 +96,8 @@ func TestEnsurePodSpec(t *testing.T) {
 			name: "container SecurityContext empty",
 			existing: corev1.PodSpec{
 				Containers: []corev1.Container{
-					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: boolPtr(false),
-						RunAsUser: int64Ptr(int64(1234)),
+					{SecurityContext: &corev1.SecurityContext{RunAsNonRoot: pointer.BoolPtr(false),
+						RunAsUser: pointer.Int64Ptr(int64(1234)),
 						Capabilities: &corev1.Capabilities{
 							Add: []corev1.Capability{"bar"}},
 						SELinuxOptions: &corev1.SELinuxOptions{User: "foo"},
