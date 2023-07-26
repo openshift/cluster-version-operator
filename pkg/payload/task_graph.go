@@ -37,7 +37,11 @@ func ByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 	count := len(tasks)
 	matches := make([][]string, 0, count)
 	for i := 0; i < len(tasks); i++ {
-		matches = append(matches, reMatchPattern.FindStringSubmatch(tasks[i].Manifest.OriginalFilename))
+		match := reMatchPattern.FindStringSubmatch(tasks[i].Manifest.OriginalFilename)
+		if match == nil {
+			klog.V(2).Infof("Unable to parse run level and component for %q", tasks[i].Manifest.OriginalFilename)
+		}
+		matches = append(matches, match)
 	}
 
 	var buckets [][]*TaskNode

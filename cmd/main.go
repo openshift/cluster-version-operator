@@ -24,6 +24,6 @@ func init() {
 func main() {
 	defer klog.Flush()
 	if err := rootCmd.Execute(); err != nil {
-		klog.Exitf("Error executing mcc: %v", err)
+		klog.Exitf("Error executing: %v", err)
 	}
 }
