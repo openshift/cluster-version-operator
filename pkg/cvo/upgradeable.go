@@ -460,7 +460,14 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 }
 
 func (optr *Operator) deleteFunc(obj interface{}) {
-	cm := obj.(*corev1.ConfigMap)
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone
+	}
+	cm, ok := obj.(*corev1.ConfigMap)
+	if !ok {
+		klog.Errorf("Unexpected type %T", obj)
+		return
+	}
 	if cm.Name == internal.AdminGatesConfigMap || cm.Name == internal.AdminAcksConfigMap {
 		klog.V(2).Infof("ConfigMap %s/%s deleted.", cm.Namespace, cm.Name)
 		optr.setUpgradableConditionsIfSynced()
