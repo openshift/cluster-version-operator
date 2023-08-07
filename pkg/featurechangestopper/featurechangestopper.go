@@ -42,13 +42,13 @@ func New(
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
 	if _, err := featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(_ interface{}) {
 			c.queue.Add("cluster")
 		},
-		UpdateFunc: func(old interface{}, new interface{}) {
+		UpdateFunc: func(_ interface{}, _ interface{}) {
 			c.queue.Add("cluster")
 		},
-		DeleteFunc: func(obj interface{}) {
+		DeleteFunc: func(_ interface{}) {
 			c.queue.Add("cluster")
 		},
 	}); err != nil {

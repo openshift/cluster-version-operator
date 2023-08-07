@@ -14,7 +14,6 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -25,6 +24,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 )
 
 const (
@@ -114,9 +115,9 @@ func (ctrl *Controller) Run(ctx context.Context, workers int) error {
 func (ctrl *Controller) eventHandler() cache.ResourceEventHandler {
 	key := fmt.Sprintf("%s/%s", ctrl.namespace, ctrl.name)
 	return cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { ctrl.queue.Add(key) },
-		UpdateFunc: func(old, new interface{}) { ctrl.queue.Add(key) },
-		DeleteFunc: func(obj interface{}) { ctrl.queue.Add(key) },
+		AddFunc:    func(_ interface{}) { ctrl.queue.Add(key) },
+		UpdateFunc: func(_, _ interface{}) { ctrl.queue.Add(key) },
+		DeleteFunc: func(_ interface{}) { ctrl.queue.Add(key) },
 	}
 }
 
