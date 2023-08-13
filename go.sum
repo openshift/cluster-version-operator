@@ -213,8 +213,6 @@ github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/ginkgo/v2 v2.9.1 h1:zie5Ly042PD3bsCvsSOPvRnFwyo3rKe64TJlD6nu0mk=
 github.com/onsi/gomega v1.27.4 h1:Z2AnStgsdSayCMDiCU42qIz+HLqEPcgiOCXjAU/w+8E=
-github.com/openshift/api v0.0.0-20230615141659-a6fbaf36017d h1:CZTZCcFRz7R7rvJhA+mreIUBNzK9V4e9SUqA7CGRCRo=
-github.com/openshift/api v0.0.0-20230615141659-a6fbaf36017d/go.mod h1:4VWG+W22wrB4HfBL88P40DxLEpSOaiBVxUnfalfJo9k=
 github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb h1:Nij5OnaECrkmcRQMAE9LMbQXPo95aqFnf+12B7SyFVI=
 github.com/openshift/client-go v0.0.0-20230503144108-75015d2347cb/go.mod h1:Rhb3moCqeiTuGHAbXBOlwPubUMlOZEkrEWTRjIF3jzs=
 github.com/openshift/library-go v0.0.0-20230622115850-9596e367bcb4 h1:wPpKgf6vbnsCdPcuv3pzHcwjyxm60wHooZ0ZWpZhG3E=
@@ -255,6 +253,8 @@ github.com/prometheus/procfs v0.6.0/go.mod h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1
 github.com/prometheus/procfs v0.7.3/go.mod h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1xBZuNvfVA=
 github.com/prometheus/procfs v0.8.0 h1:ODq8ZFEaYeCaZOJlZZdJA2AbQR98dSHSM1KW/You5mo=
 github.com/prometheus/procfs v0.8.0/go.mod h1:z7EfXMXOkbkqb9IINtpCn86r/to3BnA0uaxHdg830/4=
+github.com/qjkee/api v0.0.0-20230813180804-bfea5426ccba h1:0u/j7DY/aeiEFEigPdUW1XtdzsJK3/I+2NUETCCLk/k=
+github.com/qjkee/api v0.0.0-20230813180804-bfea5426ccba/go.mod h1:yimSGmjsI+XF1mr+AKBs2//fSXIOhhetHGbMlBEfXbs=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.10.0 h1:TMyTOH3F/DB16zRVcYyreMH6GnZZrwQVAoYjRBZyWFQ=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
