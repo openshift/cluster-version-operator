@@ -461,7 +461,7 @@ func (optr *Operator) updateFunc(oldObj, newObj interface{}) {
 
 func (optr *Operator) deleteFunc(obj interface{}) {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
-		obj = tombstone
+		obj = tombstone.Obj
 	}
 	cm, ok := obj.(*corev1.ConfigMap)
 	if !ok {
