@@ -335,6 +335,13 @@ func (u *availableUpdates) removeUpdate(image string) {
 	}
 }
 
+func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) string {
+	template := `Could not evaluate exposure to update risk %s (%v)
+  %s description: %s
+  %s URL: %s`
+	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
+}
+
 func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
 	recommended := &metav1.Condition{
 		Type: "Recommended",
@@ -350,7 +357,7 @@ func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.
 			} else {
 				recommended.Reason = "MultipleReasons"
 			}
-			messages = append(messages, fmt.Sprintf("Exposure to %s is unknown due to an evaluation failure: %v\n%s %s", risk.Name, err, risk.Message, risk.URL))
+			messages = append(messages, unknownExposureMessage(risk, err))
 		} else if match {
 			recommended.Status = metav1.ConditionFalse
 			if recommended.Reason == "" {

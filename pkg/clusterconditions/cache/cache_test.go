@@ -116,7 +116,6 @@ func TestCache(t *testing.T) {
 }
 
 func Test_calculateMostStale(t *testing.T) {
-	ctx := context.Background()
 	now := time.Now()
 	for _, testCase := range []struct {
 		name              string
@@ -189,7 +188,7 @@ func Test_calculateMostStale(t *testing.T) {
 				MinForCondition: 30 * time.Minute,
 				MatchResults:    testCase.cache,
 			}
-			key, condition, err := c.calculateMostStale(ctx, now)
+			key, condition, err := c.calculateMostStale(now)
 
 			if key != testCase.expectedKey {
 				t.Errorf("got key %q but expected %q", key, testCase.expectedKey)
