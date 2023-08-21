@@ -3,6 +3,8 @@ kind: ConfigMap
 data:
   ack-4.12-kube-1.26-api-removals-in-4.13: |-
       Kubernetes 1.26 and therefore OpenShift 4.13 remove several APIs which require admin consideration. Please see the knowledge article https://access.redhat.com/articles/6958394 for details and instructions.
+  ack-4.12-ingress-changes-in-4.13: |-
+    In version 4.13 of OSD/ROSA, we are changing how we manage Ingress Controllers. See  https://access.redhat.com/node/7028653 for more information on how your cluster may be affected, and instructions on how to upgrade.
 metadata:
   name: admin-gates
   namespace: openshift-config-managed
