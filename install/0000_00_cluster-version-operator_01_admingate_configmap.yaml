@@ -1,5 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
+data:
+  ack-4.12-ingress-changes-in-4.13: |-
+    In version 4.13 of OSD/ROSA, we are changing how we manage Ingress Controllers. See  https://access.redhat.com/node/7028653 for more information on how your cluster may be affected.
 metadata:
   name: admin-gates
   namespace: openshift-config-managed
