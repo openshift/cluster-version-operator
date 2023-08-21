@@ -501,29 +501,64 @@ func (optr *Operator) clusterVersionEventHandler() cache.ResourceEventHandler {
 func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 	return cache.ResourceEventHandlerFuncs{
 		UpdateFunc: func(old, new interface{}) {
+			if optr.configSync == nil {
+				return
+			}
+
 			versionName := "operator"
-			_, oldVersion := clusterOperatorInterfaceVersionOrDie(old, versionName)
-			newStruct, newVersion := clusterOperatorInterfaceVersionOrDie(new, versionName)
-			if optr.configSync != nil && oldVersion != newVersion {
+			oldStruct := clusterOperatorInterfaceStructOrDie(old)
+			newStruct := clusterOperatorInterfaceStructOrDie(new)
+
+			oldVersion := clusterOperatorVersion(oldStruct, versionName)
+			newVersion := clusterOperatorVersion(newStruct, versionName)
+			if oldVersion != newVersion {
 				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.ObjectMeta.Name, versionName, oldVersion, newVersion)
 				optr.configSync.NotifyAboutManagedResourceActivity(new, msg)
+				return
 			}
+
+			for _, cond := range []configv1.ClusterStatusConditionType{
+				configv1.OperatorAvailable,
+				configv1.OperatorDegraded,
+			} {
+				oldStatus := clusterOperatorConditionStatus(oldStruct, cond)
+				newStatus := clusterOperatorConditionStatus(newStruct, cond)
+				if oldStatus != newStatus {
+					msg := fmt.Sprintf("Cluster operator %s changed %s from %q to %q", newStruct.ObjectMeta.Name, cond, oldStatus, newStatus)
+					optr.configSync.NotifyAboutManagedResourceActivity(new, msg)
+					return
+				}
+			}
+
 		},
 	}
 }
 
-func clusterOperatorInterfaceVersionOrDie(obj interface{}, name string) (*configv1.ClusterOperator, string) {
+func clusterOperatorInterfaceStructOrDie(obj interface{}) *configv1.ClusterOperator {
 	co, ok := obj.(*configv1.ClusterOperator)
 	if !ok {
 		panic(fmt.Sprintf("%v is %T, not a ClusterOperator", obj, obj))
 	}
 
+	return co
+}
+
+func clusterOperatorVersion(co *configv1.ClusterOperator, name string) string {
 	for _, version := range co.Status.Versions {
 		if version.Name == name {
-			return co, version.Version
+			return version.Version
 		}
 	}
-	return co, ""
+	return ""
+}
+
+func clusterOperatorConditionStatus(co *configv1.ClusterOperator, condType configv1.ClusterStatusConditionType) configv1.ConditionStatus {
+	for _, cond := range co.Status.Conditions {
+		if cond.Type == condType {
+			return cond.Status
+		}
+	}
+	return configv1.ConditionUnknown
 }
 
 func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error) {
