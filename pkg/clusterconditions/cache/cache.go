@@ -83,14 +83,13 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 		}
 	}()
 
-	c.expireStaleMatchResults(ctx, now)
+	c.expireStaleMatchResults(now)
 
-	sinceLastMatch := now.Sub(c.LastMatch)
-	if sinceLastMatch <= c.MinBetweenMatches {
+	if sinceLastMatch := now.Sub(c.LastMatch); sinceLastMatch <= c.MinBetweenMatches {
 		if result, ok := c.MatchResults[key]; ok && !result.When.IsZero() {
 			return result.Match, result.Error
 		}
-		return false, fmt.Errorf("client-side throttling: only %s has elapsed since the last match call completed for this cluster condition backend; this cached cluster condition request has been queued for later execution", sinceLastMatch)
+		return false, fmt.Errorf("evaluation is throttled until %s", c.LastMatch.Add(c.MinBetweenMatches).Format("15:04:05Z07"))
 	}
 
 	// If we only attempt to evaluate the requested condition, and
@@ -98,7 +97,7 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 	// order, we might continually evaluate the early conditions
 	// while starving out later conditions.  Instead, spend our
 	// Match call on the most stale condition.
-	thiefKey, targetCondition, err := c.calculateMostStale(ctx, now)
+	thiefKey, targetCondition, err := c.calculateMostStale(now)
 	if err != nil {
 		return false, fmt.Errorf("calculating the most stale cached cluster-condition match entry: %w", err)
 	}
@@ -144,14 +143,14 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 	if result, ok := c.MatchResults[key]; ok && !result.When.IsZero() {
 		return result.Match, result.Error
 	}
-	return false, errors.New("client-side throttling: this cached cluster condition request has been queued for later execution")
+	return false, errors.New("evaluation is throttled")
 }
 
 // expireStaleMatchResults removes entries from MatchResults if their
 // last-evaluation When is more than Expiration ago.  For MatchResults
 // entries which have never been evaluated, the last-request Access
 // time is used instead.
-func (c *Cache) expireStaleMatchResults(ctx context.Context, now time.Time) {
+func (c *Cache) expireStaleMatchResults(now time.Time) {
 	for key, value := range c.MatchResults {
 		age := now.Sub(value.When)
 		aspect := "result"
@@ -169,7 +168,7 @@ func (c *Cache) expireStaleMatchResults(ctx context.Context, now time.Time) {
 // calculateMostStale returns the most-stale entry in the cache, or
 // nil if the most-stale entry has been evaluated more recently than
 // MinForCondition ago.
-func (c *Cache) calculateMostStale(ctx context.Context, now time.Time) (string, *configv1.ClusterCondition, error) {
+func (c *Cache) calculateMostStale(now time.Time) (string, *configv1.ClusterCondition, error) {
 	var thiefKey string
 	var thiefResult *MatchResult
 	for candidateKey, value := range c.MatchResults {
