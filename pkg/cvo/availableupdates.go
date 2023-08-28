@@ -428,7 +428,7 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 
 func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
 	recommended := &metav1.Condition{
-		Type: "Recommended",
+		Type: ConditionalUpdateConditionTypeRecommended,
 	}
 	messages := []string{}
 	for _, risk := range conditionalUpdate.Risks {

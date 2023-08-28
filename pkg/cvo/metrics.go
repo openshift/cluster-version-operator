@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -56,11 +57,16 @@ type operatorMetrics struct {
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
+	clusterVersionConditionalUpdatesRecommendedConditions *prometheus.GaugeVec
+
+	// nowFunc is used to override the time.Now() function for testing.
+	nowFunc func() time.Time
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
 	return &operatorMetrics{
-		optr: optr,
+		optr:    optr,
+		nowFunc: time.Now,
 
 		conditionTransitions: make(map[conditionKey]int),
 
@@ -114,6 +120,10 @@ penultimate completed version for 'completed'.
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
 			Help: "Reports when updates were last successfully retrieved.",
 		}, []string{"name"}),
+		clusterVersionConditionalUpdatesRecommendedConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_conditional_updates_recommended_conditions_seconds",
+			Help: "Reports the unknown conditional updates conditions",
+		}, []string{"version", "recommended", "reason"}),
 	}
 }
 
@@ -346,8 +356,27 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
+	ch <- m.clusterVersionConditionalUpdatesRecommendedConditions.WithLabelValues("", "", "").Desc()
 }
 
+func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric, updates []configv1.ConditionalUpdate) {
+	for _, update := range updates {
+		for _, condition := range update.Conditions {
+			if condition.Type != ConditionalUpdateConditionTypeRecommended {
+				continue
+			}
+
+			g := m.clusterVersionConditionalUpdatesRecommendedConditions
+			gauge := g.WithLabelValues(update.Release.Version, strings.ToLower(string(condition.Status)), condition.Reason)
+			gauge.Set(m.nowFunc().Sub(condition.LastTransitionTime.Time).Seconds())
+			ch <- gauge
+		}
+	}
+}
+
+// Collect collects metrics from the operator into the channel ch. Some metrics
+// are taken relative to the when parameter, which should be the time at which
+// the metrics were collected.
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
@@ -468,6 +497,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- g
 		}
+
+		m.collectConditionalUpdates(ch, cv.Status.ConditionalUpdates)
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
