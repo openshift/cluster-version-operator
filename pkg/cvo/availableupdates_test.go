@@ -395,10 +395,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			registry := clusterconditions.NewConditionRegistry()
 			registry.Register("PromQL", tc.mockPromql)
-			update := &configv1.ConditionalUpdate{
-				Risks: tc.risks,
-			}
-			actual := evaluateConditionalUpdate(context.Background(), update, registry)
+			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
 			}

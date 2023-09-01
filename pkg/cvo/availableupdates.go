@@ -389,7 +389,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return vi.GTE(vj)
 	})
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
+		if errorCondition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
 			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
@@ -432,12 +432,12 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
 }
 
-func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
+func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
 	recommended := &metav1.Condition{
 		Type: ConditionalUpdateConditionTypeRecommended,
 	}
 	messages := []string{}
-	for _, risk := range conditionalUpdate.Risks {
+	for _, risk := range risks {
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
 			if recommended.Status != metav1.ConditionFalse {
 				recommended.Status = metav1.ConditionUnknown
