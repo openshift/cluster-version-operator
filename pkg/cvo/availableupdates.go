@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -443,7 +444,15 @@ const (
 	recommendedReasonAsExpected       = "AsExpected"
 	recommendedReasonEvaluationFailed = "EvaluationFailed"
 	recommendedReasonMultiple         = "MultipleReasons"
+
+	// recommendedReasonRiskApplies is used instead of the original name if it
+	// does not match the pattern for a valid k8s condition reason.
+	recommendedReasonRiskApplies = "RiskAppliesToCluster"
 )
+
+// Reasons follow same pattern as k8s Condition Reasons
+// https://github.com/openshift/api/blob/59fa376de7cb668ddb95a7ee4e9879d7f6ca2767/vendor/k8s.io/apimachinery/pkg/apis/meta/v1/types.go#L1535-L1536
+var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
 
 func newRecommendedReason(now, want string) string {
 	switch {
@@ -473,7 +482,11 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
 		} else if match {
 			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
-			recommended.Reason = newRecommendedReason(recommended.Reason, risk.Name)
+			wantReason := recommendedReasonRiskApplies
+			if reasonPattern.MatchString(risk.Name) {
+				wantReason = risk.Name
+			}
+			recommended.Reason = newRecommendedReason(recommended.Reason, wantReason)
 			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
 		}
 	}

@@ -321,6 +321,27 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "matching risk with name that cannot be used as a condition reason",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RISK-THAT-APPLIES", // Condition reasons are CamelCase names, must not contain dashes
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionFalse,
+				Reason:  recommendedReasonRiskApplies,
+				Message: "This is a risk! https://match.es",
+			},
+		},
+		{
 			name: "two risks that match",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
