@@ -389,19 +389,15 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return vi.GTE(vj)
 	})
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		if errorCondition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry); errorCondition != nil {
-			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
-			u.removeUpdate(conditionalUpdate.Release.Image)
-		} else {
-			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
-				Type:   ConditionalUpdateConditionTypeRecommended,
-				Status: metav1.ConditionTrue,
-				// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
-				Reason:  "AsExpected",
-				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
-			})
+		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry)
+
+		if condition.Status == metav1.ConditionTrue {
 			u.addUpdate(conditionalUpdate.Release)
+		} else {
+			u.removeUpdate(conditionalUpdate.Release.Image)
 		}
+
+		meta.SetStatusCondition(&conditionalUpdate.Conditions, condition)
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 
 	}
@@ -432,36 +428,41 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
 }
 
-func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
-	recommended := &metav1.Condition{
-		Type: ConditionalUpdateConditionTypeRecommended,
+func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) metav1.Condition {
+	recommended := metav1.Condition{
+		Type:   ConditionalUpdateConditionTypeRecommended,
+		Status: metav1.ConditionTrue,
+		// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
+		Reason:  "AsExpected",
+		Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 	}
-	messages := []string{}
+
+	var errorMessages []string
 	for _, risk := range risks {
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
 			if recommended.Status != metav1.ConditionFalse {
 				recommended.Status = metav1.ConditionUnknown
 			}
-			if recommended.Reason == "" || recommended.Reason == "EvaluationFailed" {
+			if recommended.Reason == "AsExpected" || recommended.Reason == "EvaluationFailed" {
 				recommended.Reason = "EvaluationFailed"
 			} else {
 				recommended.Reason = "MultipleReasons"
 			}
-			messages = append(messages, unknownExposureMessage(risk, err))
+			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
 		} else if match {
 			recommended.Status = metav1.ConditionFalse
-			if recommended.Reason == "" {
+			if recommended.Reason == "AsExpected" {
 				recommended.Reason = risk.Name
 			} else {
 				recommended.Reason = "MultipleReasons"
 			}
-			messages = append(messages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
+			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
 		}
 	}
-	if recommended.Status == "" {
-		return nil
+	if len(errorMessages) > 0 {
+		recommended.Message = strings.Join(errorMessages, "\n\n")
 	}
-	recommended.Message = strings.Join(messages, "\n\n")
+
 	return recommended
 }
 

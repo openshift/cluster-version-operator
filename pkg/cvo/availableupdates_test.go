@@ -267,14 +267,18 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 		name       string
 		risks      []configv1.ConditionalUpdateRisk
 		mockPromql clusterconditions.Condition
-		expected   *metav1.Condition
+		expected   metav1.Condition
 	}{
 		{
 			name: "no risks",
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionTrue,
+				Reason:  "AsExpected",
+				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
+			},
 		},
 		{
-			// It is weird that "evaluate" only returns Status: False or Status: Unknown but Status: True
-			// is handled at the callsite. I think this should be refactored so the logic is at one place.
 			name: "one risk that does not match",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
@@ -287,6 +291,12 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			mockPromql: &mock.Mock{
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: false, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionTrue,
+				Reason:  "AsExpected",
+				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
 		},
 		{
@@ -303,7 +313,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
 			},
-			expected: &metav1.Condition{
+			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  "RiskThatApplies",
@@ -330,7 +340,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil, nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: true, Error: nil}},
 			},
-			expected: &metav1.Condition{
+			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  "MultipleReasons",
@@ -357,7 +367,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil, nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: errors.New("ERROR")}},
 			},
-			expected: &metav1.Condition{
+			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionFalse,
 				Reason: "MultipleReasons",
@@ -381,7 +391,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: false, Error: errors.New("ERROR")}},
 			},
-			expected: &metav1.Condition{
+			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionUnknown,
 				Reason: "EvaluationFailed",
