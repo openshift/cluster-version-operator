@@ -428,34 +428,52 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
 }
 
+func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStatus {
+	switch {
+	case now == metav1.ConditionFalse || want == metav1.ConditionFalse:
+		return metav1.ConditionFalse
+	case now == metav1.ConditionUnknown || want == metav1.ConditionUnknown:
+		return metav1.ConditionUnknown
+	default:
+		return want
+	}
+}
+
+const (
+	recommendedReasonAsExpected       = "AsExpected"
+	recommendedReasonEvaluationFailed = "EvaluationFailed"
+	recommendedReasonMultiple         = "MultipleReasons"
+)
+
+func newRecommendedReason(now, want string) string {
+	switch {
+	case now == recommendedReasonAsExpected:
+		return want
+	case now == want:
+		return now
+	default:
+		return recommendedReasonMultiple
+	}
+}
+
 func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) metav1.Condition {
 	recommended := metav1.Condition{
 		Type:   ConditionalUpdateConditionTypeRecommended,
 		Status: metav1.ConditionTrue,
 		// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
-		Reason:  "AsExpected",
+		Reason:  recommendedReasonAsExpected,
 		Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 	}
 
 	var errorMessages []string
 	for _, risk := range risks {
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
-			if recommended.Status != metav1.ConditionFalse {
-				recommended.Status = metav1.ConditionUnknown
-			}
-			if recommended.Reason == "AsExpected" || recommended.Reason == "EvaluationFailed" {
-				recommended.Reason = "EvaluationFailed"
-			} else {
-				recommended.Reason = "MultipleReasons"
-			}
+			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionUnknown)
+			recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonEvaluationFailed)
 			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
 		} else if match {
-			recommended.Status = metav1.ConditionFalse
-			if recommended.Reason == "AsExpected" {
-				recommended.Reason = risk.Name
-			} else {
-				recommended.Reason = "MultipleReasons"
-			}
+			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
+			recommended.Reason = newRecommendedReason(recommended.Reason, risk.Name)
 			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
 		}
 	}

@@ -274,7 +274,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
-				Reason:  "AsExpected",
+				Reason:  recommendedReasonAsExpected,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
 		},
@@ -295,7 +295,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
-				Reason:  "AsExpected",
+				Reason:  recommendedReasonAsExpected,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
 		},
@@ -343,7 +343,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
-				Reason:  "MultipleReasons",
+				Reason:  recommendedReasonMultiple,
 				Message: "This is a risk! https://match.es\n\nThis is a risk too! https://match.es/too",
 			},
 		},
@@ -370,7 +370,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionFalse,
-				Reason: "MultipleReasons",
+				Reason: recommendedReasonMultiple,
 				Message: "This is a risk! https://match.es\n\n" +
 					"Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
 					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
@@ -394,7 +394,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionUnknown,
-				Reason: "EvaluationFailed",
+				Reason: recommendedReasonEvaluationFailed,
 				Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
 					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
