@@ -48,6 +48,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	optrAvailableUpdates := optr.getAvailableUpdates()
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
+		optrAvailableUpdates = &availableUpdates{}
 	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 	} else if channel != optrAvailableUpdates.Channel {
@@ -87,19 +88,17 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		upstream = ""
 	}
 
-	au := &availableUpdates{
-		Upstream:           upstream,
-		Channel:            config.Spec.Channel,
-		Architecture:       desiredArch,
-		Current:            current,
-		Updates:            updates,
-		ConditionalUpdates: conditionalUpdates,
-		ConditionRegistry:  optr.conditionRegistry,
-		Condition:          condition,
-	}
+	optrAvailableUpdates.Upstream = upstream
+	optrAvailableUpdates.Channel = channel
+	optrAvailableUpdates.Architecture = desiredArch
+	optrAvailableUpdates.Current = current
+	optrAvailableUpdates.Updates = updates
+	optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
+	optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
+	optrAvailableUpdates.Condition = condition
 
-	au.evaluateConditionalUpdates(ctx)
-	optr.setAvailableUpdates(au)
+	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
+	optr.setAvailableUpdates(optrAvailableUpdates)
 
 	// requeue
 	optr.queue.Add(optr.queueKey())
@@ -202,7 +201,37 @@ func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
 func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
-	return optr.availableUpdates
+
+	if optr.availableUpdates == nil {
+		return nil
+	}
+
+	u := &availableUpdates{
+		Upstream:               optr.availableUpdates.Upstream,
+		Channel:                optr.availableUpdates.Channel,
+		Architecture:           optr.availableUpdates.Architecture,
+		LastAttempt:            optr.availableUpdates.LastAttempt,
+		LastSyncOrConfigChange: optr.availableUpdates.LastSyncOrConfigChange,
+		Current:                *optr.availableUpdates.Current.DeepCopy(),
+		ConditionRegistry:      optr.availableUpdates.ConditionRegistry, // intentionally not a copy, to preserve cache state
+		Condition:              optr.availableUpdates.Condition,
+	}
+
+	if optr.availableUpdates.Updates != nil {
+		u.Updates = make([]configv1.Release, 0, len(optr.availableUpdates.Updates))
+		for _, update := range optr.availableUpdates.Updates {
+			u.Updates = append(u.Updates, *update.DeepCopy())
+		}
+	}
+
+	if optr.availableUpdates.ConditionalUpdates != nil {
+		u.ConditionalUpdates = make([]configv1.ConditionalUpdate, 0, len(optr.availableUpdates.ConditionalUpdates))
+		for _, conditionalUpdate := range optr.availableUpdates.ConditionalUpdates {
+			u.ConditionalUpdates = append(u.ConditionalUpdates, *conditionalUpdate.DeepCopy())
+		}
+	}
+
+	return u
 }
 
 // getArchitecture returns the currently determined cluster architecture.
