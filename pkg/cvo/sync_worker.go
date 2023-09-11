@@ -371,6 +371,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		} else {
 			if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
 				DesiredVersion: payloadUpdate.Release.Version,
+				Previous: payloadUpdate.Previous,
 			}), work.Desired.Force); err != nil {
 				klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
 				if block {

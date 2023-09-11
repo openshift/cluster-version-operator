@@ -37,6 +37,9 @@ type ReleaseContext struct {
 	// where the author decided to use a different naming scheme, or
 	// to leave the version completely unset.
 	DesiredVersion string
+
+        // Previous is a slice of valid previous versions.
+        Previous []string
 }
 
 // Precondition defines the precondition check for a payload.

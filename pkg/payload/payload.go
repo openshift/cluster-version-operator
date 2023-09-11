@@ -114,6 +114,9 @@ type Update struct {
 
 	Architecture string
 
+	// Previous is a slice of valid previous versions.
+	Previous []string
+
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
 	Manifests    []manifest.Manifest
@@ -313,7 +316,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Updat
 		releaseDir = filepath.Join(dir, ReleaseManifestDir)
 	)
 
-	release, arch, err := loadReleaseFromMetadata(releaseDir)
+	release, arch, previous, err := loadReleaseFromMetadata(releaseDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -334,6 +337,7 @@ func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Updat
 		Release:      release,
 		ImageRef:     imageRef,
 		Architecture: arch,
+		Previous:     previous,
 	}, tasks, nil
 }
 
@@ -357,7 +361,7 @@ func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []
 	}}
 }
 
-func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error) {
+func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, []string, error) {
 	var release configv1.Release
 	path := filepath.Join(releaseDir, cincinnatiJSONFile)
 	data, err := os.ReadFile(path)
@@ -418,7 +422,9 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error
 		}
 	}
 
-	return release, arch, nil
+	// FIXME: load Metadata["previous"]
+
+	return release, arch, previous, nil
 }
 
 func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
