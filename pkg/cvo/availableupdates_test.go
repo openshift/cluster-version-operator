@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,6 +19,8 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 )
 
 type queueStub struct{}
@@ -85,58 +88,15 @@ func (n notFoundConfigMapLister) Get(name string) (*corev1.ConfigMap, error) {
 	return nil, errors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmap"}, name)
 }
 
-type fakeConditionRegistry struct{}
-
-func (f fakeConditionRegistry) Register(string, clusterconditions.Condition) {
-	panic("implement me")
-}
-
-func (f fakeConditionRegistry) PruneInvalid(ctx context.Context, matchingRules []configv1.ClusterCondition) ([]configv1.ClusterCondition, error) {
-	return matchingRules, nil
-}
-
-type clusterConditionRuleType string
-
-const (
-	ruleTypeAlways clusterConditionRuleType = "Always"
-	ruleTypePromQL clusterConditionRuleType = "PromQL"
-)
-
-type clusterConditionRuleFakePromql string
-
-const (
-	evalToYes   clusterConditionRuleFakePromql = "YES"
-	evalToNo    clusterConditionRuleFakePromql = "NO"
-	errorOnEval clusterConditionRuleFakePromql = "ERROR"
-	skip        clusterConditionRuleFakePromql = "SKIP"
-)
-
-func (f fakeConditionRegistry) Match(ctx context.Context, matchingRules []configv1.ClusterCondition) (bool, error) {
-	for _, rule := range matchingRules {
-		switch clusterConditionRuleType(rule.Type) {
-		case ruleTypeAlways:
-			return true, nil
-		case ruleTypePromQL:
-			switch clusterConditionRuleFakePromql(rule.PromQL.PromQL) {
-			case evalToYes:
-				return true, nil
-			case evalToNo:
-				return false, nil
-			case errorOnEval:
-				return false, fmt.Errorf("ERROR")
-			case skip:
-				continue
-			default:
-				panic("This fake works only with YES, NO, ERROR, and SKIP")
-			}
-		default:
-			panic("This fake works only with Always and PromQL risks")
-		}
-	}
-	return false, nil
-}
-
-func osusWithSingleConditionalEdge(from, to string, ruleType clusterConditionRuleType, promql clusterConditionRuleFakePromql) ([]configv1.ConditionalUpdate, *httptest.Server) {
+// osusWithSingleConditionalEdge helper returns:
+//  1. mock osus server that serves a simple conditional path between two versions.
+//  2. mock condition that always evaluates to match
+//  3. expected []ConditionalUpdate data after evaluation of the data served by mock osus server
+//     (assuming the mock condition (2) was used)
+//  4. current version of the cluster that would issue the request to the mock osus server
+func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condition, []configv1.ConditionalUpdate, string) {
+	from := "4.5.5"
+	to := "4.5.6"
 	osus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{
   "nodes": [{"version": "%s", "payload": "payload/%s"}, {"version": "%s", "payload": "payload/%s"}],
@@ -148,13 +108,13 @@ func osusWithSingleConditionalEdge(from, to string, ruleType clusterConditionRul
           "url": "https://example.com/%s",
           "name": "FourFiveSix",
           "message": "Four Five Five is just fine",
-          "matchingRules": [{"type": "%s", "promql": { "promql": "%s"}}]
+          "matchingRules": [{"type": "PromQL", "promql": { "promql": "this is a query"}}]
         }
       ]
     }
   ]
 }
-`, from, from, to, to, from, to, to, ruleType, promql)
+`, from, from, to, to, from, to, to)
 	}))
 
 	updates := []configv1.ConditionalUpdate{
@@ -168,7 +128,7 @@ func osusWithSingleConditionalEdge(from, to string, ruleType clusterConditionRul
 					MatchingRules: []configv1.ClusterCondition{
 						{
 							Type:   "PromQL",
-							PromQL: &configv1.PromQLClusterCondition{PromQL: string(evalToYes)},
+							PromQL: &configv1.PromQLClusterCondition{PromQL: "this is a query"},
 						},
 					},
 				},
@@ -183,17 +143,25 @@ func osusWithSingleConditionalEdge(from, to string, ruleType clusterConditionRul
 			},
 		},
 	}
-	return updates, osus
+	mockPromql := &mock.Mock{
+		ValidQueue: []error{nil},
+		MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+	}
+
+	return osus, mockPromql, updates, from
 }
 
-func newOperator(url, version string) (*availableUpdates, *Operator) {
+func newOperator(url, version string, promqlMock clusterconditions.Condition) (*availableUpdates, *Operator) {
 	currentRelease := configv1.Release{Version: version, Image: "payload/" + version}
+	registry := clusterconditions.NewConditionRegistry()
+	registry.Register("Always", &always.Always{})
+	registry.Register("PromQL", promqlMock)
 	operator := &Operator{
 		defaultUpstreamServer: url,
 		architecture:          "amd64",
 		proxyLister:           notFoundProxyLister{},
 		cmConfigManagedLister: notFoundConfigMapLister{},
-		conditionRegistry:     fakeConditionRegistry{},
+		conditionRegistry:     registry,
 		queue:                 queueStub{},
 		release:               currentRelease,
 	}
@@ -219,9 +187,9 @@ var availableUpdatesCmpOpts = []cmp.Option{
 }
 
 func TestSyncAvailableUpdates(t *testing.T) {
-	expectedConditionalUpdates, fakeOsus := osusWithSingleConditionalEdge("4.5.5", "4.5.6", ruleTypePromQL, evalToYes)
+	fakeOsus, mockPromql, expectedConditionalUpdates, version := osusWithSingleConditionalEdge()
 	defer fakeOsus.Close()
-	expectedAvailableUpdates, optr := newOperator(fakeOsus.URL, "4.5.5")
+	expectedAvailableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
 	expectedAvailableUpdates.ConditionalUpdates = expectedConditionalUpdates
 	expectedAvailableUpdates.Channel = cvFixture.Spec.Channel
 	expectedAvailableUpdates.Condition = configv1.ClusterOperatorStatusCondition{
@@ -267,16 +235,11 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			conditionalUpdates, fakeOsus := osusWithSingleConditionalEdge("4.5.5", "4.5.6", ruleTypePromQL, evalToYes)
+			fakeOsus, mockPromql, conditionalUpdates, version := osusWithSingleConditionalEdge()
 			defer fakeOsus.Close()
-			availableUpdates, optr := newOperator(fakeOsus.URL, "4.5.5")
-			availableUpdates.ConditionalUpdates = conditionalUpdates
-			availableUpdates.Channel = cvFixture.Spec.Channel
-			availableUpdates.Condition = configv1.ClusterOperatorStatusCondition{
-				Type:   configv1.RetrievedUpdates,
-				Status: configv1.ConditionTrue,
-			}
+			availableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
 			optr.availableUpdates = availableUpdates
+			optr.availableUpdates.ConditionalUpdates = conditionalUpdates
 			expectedConditions := []metav1.Condition{{}}
 			conditionalUpdates[0].Conditions[0].DeepCopyInto(&expectedConditions[0])
 			tc.modifyOriginalState(&optr.availableUpdates.ConditionalUpdates[0].Conditions[0])
