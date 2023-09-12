@@ -16,56 +16,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/util/workqueue"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 )
-
-type queueStub struct{}
-
-func (q queueStub) Add(interface{}) {}
-
-func (q queueStub) Len() int {
-	panic("implement me")
-}
-
-func (q queueStub) Get() (interface{}, bool) {
-	panic("implement me")
-}
-
-func (q queueStub) Done(interface{}) {
-	panic("implement me")
-}
-
-func (q queueStub) ShutDown() {
-	panic("implement me")
-}
-
-func (q queueStub) ShutDownWithDrain() {
-	panic("implement me")
-}
-
-func (q queueStub) ShuttingDown() bool {
-	panic("implement me")
-}
-
-func (q queueStub) AddAfter(interface{}, time.Duration) {
-	panic("implement me")
-}
-
-func (q queueStub) AddRateLimited(interface{}) {
-	panic("implement me")
-}
-
-func (q queueStub) Forget(interface{}) {
-	panic("implement me")
-}
-
-func (q queueStub) NumRequeues(interface{}) int {
-	panic("implement me")
-}
 
 // notFoundProxyLister is a stub for ProxyLister
 type notFoundProxyLister struct{}
@@ -162,7 +119,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 		proxyLister:           notFoundProxyLister{},
 		cmConfigManagedLister: notFoundConfigMapLister{},
 		conditionRegistry:     registry,
-		queue:                 queueStub{},
+		queue:                 workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		release:               currentRelease,
 	}
 	availableUpdates := &availableUpdates{
