@@ -45,17 +45,17 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 		existing securityv1.SecurityContextConstraints
 		required securityv1.SecurityContextConstraints
 
-		expected *securityv1.SecurityContextConstraints
+		expected                   *securityv1.SecurityContextConstraints
+		expectedMergedClusterState bool
 	}{
 		{
-			name:     "no modified when existing is equal to required",
-			existing: *defaulted(*restrictedv2.DeepCopy()),
-			required: *defaulted(*restrictedv2.DeepCopy()),
-			expected: nil,
+			name:                       "no reconcile needed when existing is equal to required",
+			existing:                   *defaulted(*restrictedv2.DeepCopy()),
+			required:                   *defaulted(*restrictedv2.DeepCopy()),
+			expectedMergedClusterState: false,
 		},
 		{
-
-			name: "enforce primitive fields",
+			name: "enforce primitive fields, primitives cannot be merged",
 			existing: securityv1.SecurityContextConstraints{
 				Priority:                        pointer.Int32(123),
 				AllowPrivilegedContainer:        true,
@@ -92,6 +92,7 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 				AllowPrivilegeEscalation:        pointer.Bool(true),
 				ReadOnlyRootFilesystem:          false,
 			},
+			expectedMergedClusterState: false,
 		},
 		{
 			name: "enforce allowPrivilegeEscalation as default true when not specified",
@@ -104,6 +105,7 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 			expected: &securityv1.SecurityContextConstraints{
 				AllowPrivilegeEscalation: pointer.Bool(true),
 			},
+			expectedMergedClusterState: false,
 		},
 		{
 			name: "allowPrivilegeEscalation does not need to be reconciled when existing state is true (default)",
@@ -113,10 +115,10 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 			required: securityv1.SecurityContextConstraints{
 				AllowPrivilegeEscalation: nil,
 			},
-			expected: nil,
+			expectedMergedClusterState: false,
 		},
 		{
-			name: "enforce capabilities",
+			name: "enforce capabilities, merges are tracked",
 			existing: *defaulted(securityv1.SecurityContextConstraints{
 				DefaultAddCapabilities:   []corev1.Capability{"SHARED_A", "EXISTING_A", "EXISTING_B"},
 				RequiredDropCapabilities: []corev1.Capability{"SHARED_B", "EXISTING_C", "EXISTING_D"},
@@ -132,9 +134,10 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 				RequiredDropCapabilities: []corev1.Capability{"SHARED_B", "EXISTING_C", "EXISTING_D", "REQUIRED_C", "REQUIRED_D"},
 				AllowedCapabilities:      []corev1.Capability{"SHARED_C", "EXISTING_E", "EXISTING_F", "REQUIRED_E", "REQUIRED_F"},
 			}),
+			expectedMergedClusterState: true,
 		},
 		{
-			name: "enforce volumes",
+			name: "enforce volumes, merges are tracked",
 			existing: *defaulted(securityv1.SecurityContextConstraints{
 				Volumes:            []securityv1.FSType{securityv1.FSTypeAzureFile, securityv1.FSTypeEphemeral, securityv1.FSTypeSecret},
 				AllowedFlexVolumes: []securityv1.AllowedFlexVolume{{Driver: "shared"}, {Driver: "existing-1"}, {Driver: "existing-2"}},
@@ -147,9 +150,10 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 				Volumes:            []securityv1.FSType{securityv1.FSTypeAzureFile, securityv1.FSTypeEphemeral, securityv1.FSTypeSecret, securityv1.FSProjected, securityv1.FSTypePersistentVolumeClaim},
 				AllowedFlexVolumes: []securityv1.AllowedFlexVolume{{Driver: "shared"}, {Driver: "existing-1"}, {Driver: "existing-2"}, {Driver: "required-1"}, {Driver: "required-2"}},
 			}),
+			expectedMergedClusterState: true,
 		},
 		{
-			name: "enforce strategy options",
+			name: "enforce strategy options, cannot be merged",
 			existing: *defaulted(securityv1.SecurityContextConstraints{
 				SELinuxContext:     securityv1.SELinuxContextStrategyOptions{Type: securityv1.SELinuxStrategyMustRunAs, SELinuxOptions: &corev1.SELinuxOptions{User: "ooser"}},
 				RunAsUser:          securityv1.RunAsUserStrategyOptions{Type: securityv1.RunAsUserStrategyRunAsAny},
@@ -168,9 +172,10 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 				SupplementalGroups: securityv1.SupplementalGroupsStrategyOptions{Type: securityv1.SupplementalGroupsStrategyRunAsAny},
 				FSGroup:            securityv1.FSGroupStrategyOptions{Type: securityv1.FSGroupStrategyMustRunAs},
 			}),
+			expectedMergedClusterState: false,
 		},
 		{
-			name: "enforce users, groups, seccomp profiles, sysctls",
+			name: "enforce users, groups, seccomp profiles, sysctls, merges are tracked",
 			existing: *defaulted(securityv1.SecurityContextConstraints{
 				Users:                []string{"shared-u", "existing-user-1", "existing-user-2"},
 				Groups:               []string{"shared-g", "existing-group-1", "existing-group-2"},
@@ -192,12 +197,13 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 				AllowedUnsafeSysctls: []string{"shared-a", "existing-unsafe-sysctl-1", "existing-unsafe-sysctl-2", "required-unsafe-sysctl-1", "required-unsafe-sysctl-2"},
 				ForbiddenSysctls:     []string{"shared-f", "existing-forbidden-sysctl-1", "existing-forbidden-sysctl-2", "required-forbidden-sysctl-1", "required-forbidden-sysctl-2"},
 			}),
+			expectedMergedClusterState: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := EnsureSecurityContextConstraints(tc.existing, tc.required)
+			result, mergedClusterState := EnsureSecurityContextConstraints(tc.existing, tc.required)
 
 			origExisting, origRequired := tc.existing.DeepCopy(), tc.required.DeepCopy()
 
@@ -210,6 +216,10 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 			}
 			if diff := cmp.Diff(origRequired, &tc.required); diff != "" {
 				t.Errorf("Unexpected side effect on required state:\n%s", diff)
+			}
+
+			if mergedClusterState != tc.expectedMergedClusterState {
+				t.Errorf("expected mergedClusterState %v, got %v", tc.expectedMergedClusterState, mergedClusterState)
 			}
 		})
 	}

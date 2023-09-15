@@ -9,6 +9,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -182,7 +184,7 @@ func (optr *Operator) getUpgradeable() *upgradeable {
 }
 
 type upgradeableCheck interface {
-	// returns a not-nil condition when the check fails.
+	// Check returns a not-nil condition when the check fails.
 	Check() *configv1.ClusterOperatorStatusCondition
 }
 
@@ -426,6 +428,7 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterManifestDeleteInProgressUpgradeable{},
+		&modifiedSccDetectedUpgradeable{},
 	}
 }
 
@@ -492,4 +495,23 @@ func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterV
 		}
 	}
 	return intervals.min
+}
+
+type modifiedSccDetectedUpgradeable struct{}
+
+func (m modifiedSccDetectedUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
+	modifiedSccs := resourceapply.ModifiedSCCs()
+	if len(modifiedSccs) == 0 {
+		return nil
+	}
+
+	resources := strings.Join(modifiedSccs, ",")
+	klog.V(2).Infof("Found SCC resources in the cluster with elements not present in payload manifest; resources=%s", resources)
+
+	return &configv1.ClusterOperatorStatusCondition{
+		Type:    configv1.ClusterStatusConditionType("ModifiedSccResources"),
+		Reason:  "DetectedModifiedSccResources",
+		Status:  configv1.ConditionTrue,
+		Message: fmt.Sprintf("Detected modified SecurityContextConstraints: %s. These modifications would be removed by the update. Please ensure all cluster workloads are able to run without these usupported modifications, then delete the modified SCC resources (they will be recreated without the modifications). See https://access.redhat.com/solutions/7033949 for more information.", resources),
+	}
 }
