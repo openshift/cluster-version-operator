@@ -87,8 +87,8 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	// if no cluster overrides have been set
-	if currentMinor == desiredMinor {
-		klog.V(2).Infof("Precondition %q passed: minor from the current %s matches minor from the target %s (both %s).", pf.Name(), currentVersion, releaseContext.DesiredVersion, currentMinor)
+	if !minorVersionUpgrade(currentMinor, desiredMinor) {
+		klog.V(2).Infof("Precondition %q passed: minor from the target %s is not a minor version update from the current %s.", pf.Name(), releaseContext.DesiredVersion, currentVersion, currentMinor)
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
 			klog.V(2).Infof("Update from %s to %s blocked by %s: %s", currentVersion, releaseContext.DesiredVersion, condition.Reason, condition.Message)
 
