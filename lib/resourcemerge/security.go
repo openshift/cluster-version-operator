@@ -1,15 +1,24 @@
 package resourcemerge
 
 import (
-	securityv1 "github.com/openshift/api/security/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/utils/pointer"
+
+	securityv1 "github.com/openshift/api/security/v1"
 )
 
-// EnsureSecurityContextConstraints ensures that the result matches the required.
-// modified is set to true when result had to be updated with required.
-func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) *securityv1.SecurityContextConstraints {
+// EnsureSecurityContextConstraints compares the existing state with the required states and returns
+// SCC to be applied to reconcile the state. If there were items in the existing state that were not
+// present in the required state, the items are kept and the returned SCC contains items from both
+// the existing and required state. If this happens then the boolean return value is set to true.
+//
+// If no reconciliation is needed, the method returns nil. Note that the boolean can be still true
+// indicating that existing state has additional items not present in the required state, but the
+// existing state is already properly reconciled to desired state.
+func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) (*securityv1.SecurityContextConstraints, bool) {
 	var modified bool
+	var mergedClusterState bool
 	result := existing.DeepCopy()
 
 	EnsureObjectMeta(&modified, &result.ObjectMeta, required.ObjectMeta)
@@ -18,8 +27,7 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	for _, required := range required.DefaultAddCapabilities {
 		found := false
 		for _, curr := range result.DefaultAddCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
+			if found = equality.Semantic.DeepEqual(required, curr); found {
 				break
 			}
 		}
@@ -31,8 +39,7 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	for _, required := range required.RequiredDropCapabilities {
 		found := false
 		for _, curr := range result.RequiredDropCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
+			if found = equality.Semantic.DeepEqual(required, curr); found {
 				break
 			}
 		}
@@ -44,8 +51,7 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	for _, required := range required.AllowedCapabilities {
 		found := false
 		for _, curr := range result.AllowedCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
+			if found = equality.Semantic.DeepEqual(required, curr); found {
 				break
 			}
 		}
@@ -54,12 +60,22 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 			result.AllowedCapabilities = append(result.AllowedCapabilities, required)
 		}
 	}
+
+	for _, capabilityLists := range [][][]corev1.Capability{
+		{result.DefaultAddCapabilities, required.DefaultAddCapabilities},
+		{result.RequiredDropCapabilities, required.RequiredDropCapabilities},
+		{result.AllowedCapabilities, required.AllowedCapabilities},
+	} {
+		if result, required := len(capabilityLists[0]), len(capabilityLists[1]); result > required {
+			mergedClusterState = true
+		}
+	}
+
 	setBool(&modified, &result.AllowHostDirVolumePlugin, required.AllowHostDirVolumePlugin)
 	for _, required := range required.Volumes {
 		found := false
 		for _, curr := range result.Volumes {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
+			if found = equality.Semantic.DeepEqual(required, curr); found {
 				break
 			}
 		}
@@ -71,8 +87,7 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	for _, required := range required.AllowedFlexVolumes {
 		found := false
 		for _, curr := range result.AllowedFlexVolumes {
-			if equality.Semantic.DeepEqual(required.Driver, curr.Driver) {
-				found = true
+			if found = equality.Semantic.DeepEqual(required.Driver, curr.Driver); found {
 				break
 			}
 		}
@@ -81,6 +96,11 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 			result.AllowedFlexVolumes = append(result.AllowedFlexVolumes, required)
 		}
 	}
+
+	if len(result.Volumes) > len(required.Volumes) || len(result.AllowedFlexVolumes) > len(required.AllowedFlexVolumes) {
+		mergedClusterState = true
+	}
+
 	setBool(&modified, &result.AllowHostNetwork, required.AllowHostNetwork)
 	setBool(&modified, &result.AllowHostPorts, required.AllowHostPorts)
 	setBool(&modified, &result.AllowHostPID, required.AllowHostPID)
@@ -118,8 +138,20 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	mergeStringSlice(&modified, &result.AllowedUnsafeSysctls, required.AllowedUnsafeSysctls)
 	mergeStringSlice(&modified, &result.ForbiddenSysctls, required.ForbiddenSysctls)
 
-	if modified {
-		return result
+	for _, itemLists := range [][][]string{
+		{result.Users, required.Users},
+		{result.Groups, required.Groups},
+		{result.SeccompProfiles, required.SeccompProfiles},
+		{result.AllowedUnsafeSysctls, required.AllowedUnsafeSysctls},
+		{result.ForbiddenSysctls, required.ForbiddenSysctls},
+	} {
+		if result, required := len(itemLists[0]), len(itemLists[1]); result > required {
+			mergedClusterState = true
+		}
 	}
-	return nil
+
+	if modified {
+		return result, mergedClusterState
+	}
+	return nil, mergedClusterState
 }
