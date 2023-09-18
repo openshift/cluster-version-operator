@@ -44,7 +44,7 @@ type Mock struct {
 }
 
 // Valid returns an error popped from ValidQueue.
-func (m *Mock) Valid(ctx context.Context, condition *configv1.ClusterCondition) error {
+func (m *Mock) Valid(_ context.Context, condition *configv1.ClusterCondition) error {
 	m.Calls = append(m.Calls, Call{
 		When:      time.Now(),
 		Method:    "Valid",
@@ -61,7 +61,7 @@ func (m *Mock) Valid(ctx context.Context, condition *configv1.ClusterCondition) 
 }
 
 // Match returns an error popped from MatchQueue.
-func (m *Mock) Match(ctx context.Context, condition *configv1.ClusterCondition) (bool, error) {
+func (m *Mock) Match(_ context.Context, condition *configv1.ClusterCondition) (bool, error) {
 	m.Calls = append(m.Calls, Call{
 		When:      time.Now(),
 		Method:    "Match",
