@@ -41,6 +41,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	optrAvailableUpdates := optr.getAvailableUpdates()
+	needFreshFetch := true
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
 		optrAvailableUpdates = &availableUpdates{}
@@ -51,21 +52,35 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if arch != optrAvailableUpdates.Architecture {
 		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q", optrAvailableUpdates.Architecture, arch)
 	} else if upstream == optrAvailableUpdates.Upstream || (upstream == optr.defaultUpstreamServer && optrAvailableUpdates.Upstream == "") {
-		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
-		return nil
+		needsConditionalUpdateEval := false
+		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
+			if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+				needsConditionalUpdateEval = true
+				break
+			} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
+				needsConditionalUpdateEval = true
+				break
+			}
+		}
+		if !needsConditionalUpdateEval {
+			klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
+			return nil
+		}
+		needFreshFetch = false
 	} else {
 		klog.V(2).Infof("Retrieving available updates again, because the upstream has changed from %q to %q", optrAvailableUpdates.Upstream, config.Spec.Upstream)
 	}
 
-	transport, err := optr.getTransport()
-	if err != nil {
-		return err
-	}
+	if needFreshFetch {
+		transport, err := optr.getTransport()
+		if err != nil {
+			return err
+		}
 
-	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version, optr.conditionRegistry)
+		current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID),
+			transport, upstream, arch, channel, optr.release.Version, optr.conditionRegistry)
 
-	// Populate conditions on conditional updates from operator state
-	if optrAvailableUpdates != nil {
+		// Populate conditions on conditional updates from operator state
 		for i := range optrAvailableUpdates.ConditionalUpdates {
 			for j := range conditionalUpdates {
 				if optrAvailableUpdates.ConditionalUpdates[i].Release.Image == conditionalUpdates[j].Release.Image {
@@ -74,26 +89,40 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 				}
 			}
 		}
-	}
 
-	if usedDefaultUpstream {
-		upstream = ""
-	}
+		if usedDefaultUpstream {
+			upstream = ""
+		}
 
-	optrAvailableUpdates.Upstream = upstream
-	optrAvailableUpdates.Channel = channel
-	optrAvailableUpdates.Architecture = arch
-	optrAvailableUpdates.Current = current
-	optrAvailableUpdates.Updates = updates
-	optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
-	optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
-	optrAvailableUpdates.Condition = condition
+		optrAvailableUpdates.Upstream = upstream
+		optrAvailableUpdates.Channel = channel
+		optrAvailableUpdates.Architecture = arch
+		optrAvailableUpdates.Current = current
+		optrAvailableUpdates.Updates = updates
+		optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
+		optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
+		optrAvailableUpdates.Condition = condition
+	}
 
 	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
+
+	queueKey := optr.queueKey()
+	for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
+		if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+			klog.Warningf("Requeue available-update evaluation, because %q lacks a Recommended condition", conditionalUpdate.Release.Version)
+			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
+			break
+		} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
+			klog.V(2).Infof("Requeue available-update evaluation, because %q is %s=%s: %s: %s", conditionalUpdate.Release.Version, recommended.Type, recommended.Status, recommended.Reason, recommended.Message)
+			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
+			break
+		}
+	}
+
 	optr.setAvailableUpdates(optrAvailableUpdates)
 
-	// requeue
-	optr.queue.Add(optr.queueKey())
+	// queue optr.sync() to update ClusterVersion status
+	optr.queue.Add(queueKey)
 	return nil
 }
 
@@ -334,7 +363,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
-			u.removeUpdate(ctx, conditionalUpdate.Release.Image)
+			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
 				Type:   "Recommended",
@@ -343,13 +372,23 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 				Reason:  "AsExpected",
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			})
-			u.Updates = append(u.Updates, conditionalUpdate.Release)
+			u.addUpdate(conditionalUpdate.Release)
 		}
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 	}
 }
 
-func (u *availableUpdates) removeUpdate(ctx context.Context, image string) {
+func (u *availableUpdates) addUpdate(release configv1.Release) {
+	for _, update := range u.Updates {
+		if update.Image == release.Image {
+			return
+		}
+	}
+
+	u.Updates = append(u.Updates, release)
+}
+
+func (u *availableUpdates) removeUpdate(image string) {
 	for i, update := range u.Updates {
 		if update.Image == image {
 			u.Updates = append(u.Updates[:i], u.Updates[i+1:]...)
