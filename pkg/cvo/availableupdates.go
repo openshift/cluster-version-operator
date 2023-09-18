@@ -40,21 +40,20 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	arch := optr.getArchitecture()
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
-	u := optr.getAvailableUpdates()
-	if u == nil {
+	optrAvailableUpdates := optr.getAvailableUpdates()
+	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
-	} else if !u.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, u.LastAttempt)
-	} else if channel != u.Channel {
-		klog.V(2).Infof("Retrieving available updates again, because the channel has changed from %q to %q", u.Channel, channel)
-	} else if arch != u.Architecture {
-		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q",
-			u.Architecture, arch)
-	} else if upstream == u.Upstream || (upstream == optr.defaultUpstreamServer && u.Upstream == "") {
-		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, u.LastAttempt)
+	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
+		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
+	} else if channel != optrAvailableUpdates.Channel {
+		klog.V(2).Infof("Retrieving available updates again, because the channel has changed from %q to %q", optrAvailableUpdates.Channel, channel)
+	} else if arch != optrAvailableUpdates.Architecture {
+		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q", optrAvailableUpdates.Architecture, arch)
+	} else if upstream == optrAvailableUpdates.Upstream || (upstream == optr.defaultUpstreamServer && optrAvailableUpdates.Upstream == "") {
+		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 		return nil
 	} else {
-		klog.V(2).Infof("Retrieving available updates again, because the upstream has changed from %q to %q", u.Upstream, config.Spec.Upstream)
+		klog.V(2).Infof("Retrieving available updates again, because the upstream has changed from %q to %q", optrAvailableUpdates.Upstream, config.Spec.Upstream)
 	}
 
 	transport, err := optr.getTransport()
@@ -63,6 +62,18 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	}
 
 	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, string(config.Spec.ClusterID), transport, upstream, arch, channel, optr.release.Version, optr.conditionRegistry)
+
+	// Populate conditions on conditional updates from operator state
+	if optrAvailableUpdates != nil {
+		for i := range optrAvailableUpdates.ConditionalUpdates {
+			for j := range conditionalUpdates {
+				if optrAvailableUpdates.ConditionalUpdates[i].Release.Image == conditionalUpdates[j].Release.Image {
+					conditionalUpdates[j].Conditions = optrAvailableUpdates.ConditionalUpdates[i].Conditions
+					break
+				}
+			}
+		}
+	}
 
 	if usedDefaultUpstream {
 		upstream = ""
