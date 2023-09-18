@@ -26,6 +26,22 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 		*modified = true
 		existing.Spec.Selector = required.Spec.Selector
 	}
+	if existing.Spec.Paused != required.Spec.Paused {
+		*modified = true
+		existing.Spec.Paused = required.Spec.Paused
+	}
+	if existing.Spec.MinReadySeconds != required.Spec.MinReadySeconds {
+		*modified = true
+		existing.Spec.MinReadySeconds = required.Spec.MinReadySeconds
+	}
+	if required.Spec.RevisionHistoryLimit != nil && !equality.Semantic.DeepEqual(existing.Spec.RevisionHistoryLimit, required.Spec.RevisionHistoryLimit) {
+		*modified = true
+		existing.Spec.RevisionHistoryLimit = required.Spec.RevisionHistoryLimit
+	}
+	if required.Spec.ProgressDeadlineSeconds != nil && !equality.Semantic.DeepEqual(existing.Spec.ProgressDeadlineSeconds, required.Spec.ProgressDeadlineSeconds) {
+		*modified = true
+		existing.Spec.ProgressDeadlineSeconds = required.Spec.ProgressDeadlineSeconds
+	}
 
 	ensureStrategyDefault(&required)
 	if !equality.Semantic.DeepEqual(existing.Spec.Strategy, required.Spec.Strategy) {
