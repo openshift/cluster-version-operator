@@ -10,7 +10,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
 )
 
 // ApplySecurityContextConstraintsv1 applies the required SecurityContextConstraints to the cluster.
@@ -29,16 +28,19 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 		return nil, false, nil
 	}
 
-	modified := pointer.BoolPtr(false)
-	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-	if !*modified {
+	reconcile := resourcemerge.EnsureSecurityContextConstraints(*existing, *required)
+	if reconcile == nil {
 		return existing, false, nil
 	}
 
 	if reconciling {
-		klog.V(2).Infof("Updating SCC %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(existing, reconcile); diff != "" {
+			klog.V(2).Infof("Updating SCC %s/%s due to diff: %v", required.Namespace, required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating SCC %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)
+		}
 	}
 
-	actual, err := client.SecurityContextConstraints().Update(ctx, existing, metav1.UpdateOptions{})
+	actual, err := client.SecurityContextConstraints().Update(ctx, reconcile, metav1.UpdateOptions{})
 	return actual, true, err
 }
