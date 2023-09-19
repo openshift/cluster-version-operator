@@ -95,20 +95,30 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 			expectedModified: false,
 		},
 		{
-			name:     "enforce missing volumes from required DOES NOT WORK because OCPBUGS-18386, modified is false",
+			name:     "enforce missing volumes from required, modified is true",
 			existing: restrictedv2.DeepCopy,
 			required: func() *securityv1.SecurityContextConstraints {
 				scc := restrictedv2.DeepCopy()
 				scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "ephemeral", "persistentVolumeClaim", "projected", "secret"}
 				return scc
 			},
-			expected: restrictedv2.DeepCopy,
+			expected: func() *securityv1.SecurityContextConstraints {
+				scc := restrictedv2.DeepCopy()
+				scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "persistentVolumeClaim", "projected", "secret", "ephemeral"}
+				return scc
+			},
 			expectedAPICalls: []kubetesting.Action{
 				getSCCAction("restricted-v2"),
+				updateSCCAction(func() *securityv1.SecurityContextConstraints {
+					scc := restrictedv2.DeepCopy()
+					scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "persistentVolumeClaim", "projected", "secret", "ephemeral"}
+					return scc
+				}()),
 			},
+			expectedModified: true,
 		},
 		{
-			name:     "do not keep additional volumes from existing DOES NOT WORK because OCPBUGS-18386, modified is false",
+			name:     "keep additional volumes from existing because we want merge semantics, modified is false",
 			existing: restrictedv2.DeepCopy,
 			required: func() *securityv1.SecurityContextConstraints {
 				scc := restrictedv2.DeepCopy()
