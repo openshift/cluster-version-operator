@@ -554,22 +554,6 @@ func setStringSlice(modified *bool, existing *[]string, required []string) {
 	}
 }
 
-func mergeStringSlice(modified *bool, existing *[]string, required []string) {
-	for _, required := range required {
-		found := false
-		for _, curr := range *existing {
-			if required == curr {
-				found = true
-				break
-			}
-		}
-		if !found {
-			*modified = true
-			*existing = append(*existing, required)
-		}
-	}
-}
-
 func ensureTolerations(modified *bool, existing *[]corev1.Toleration, required []corev1.Toleration) {
 	exists := struct{}{}
 	found := make(map[int]struct{}, len(required))

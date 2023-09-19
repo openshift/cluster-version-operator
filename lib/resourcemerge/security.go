@@ -2,90 +2,50 @@ package resourcemerge
 
 import (
 	securityv1 "github.com/openshift/api/security/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-// EnsureSecurityContextConstraints ensures that the result matches the required.
-// modified is set to true when result had to be updated with required.
+// EnsureSecurityContextConstraints compares the existing state with the required states and
+// returns SCC to be applied to reconcile the state. If no reconciliation is needed, the
+// method returns nil.
 func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) *securityv1.SecurityContextConstraints {
 	var modified bool
-	result := existing.DeepCopy()
+	var result = existing.DeepCopy()
 
 	EnsureObjectMeta(&modified, &result.ObjectMeta, required.ObjectMeta)
 	setInt32Ptr(&modified, &result.Priority, required.Priority)
 	setBool(&modified, &result.AllowPrivilegedContainer, required.AllowPrivilegedContainer)
-	for _, required := range required.DefaultAddCapabilities {
-		found := false
-		for _, curr := range result.DefaultAddCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
-				break
-			}
-		}
-		if !found {
+	for _, capabilityLists := range [][]*[]corev1.Capability{
+		{&result.DefaultAddCapabilities, &required.DefaultAddCapabilities},
+		{&result.RequiredDropCapabilities, &required.RequiredDropCapabilities},
+		{&result.AllowedCapabilities, &required.AllowedCapabilities},
+	} {
+		existingCapabilities := capabilityLists[0]
+		requiredCapabilities := capabilityLists[1]
+		if !equality.Semantic.DeepEqual(existingCapabilities, requiredCapabilities) {
 			modified = true
-			result.DefaultAddCapabilities = append(result.DefaultAddCapabilities, required)
+			*existingCapabilities = *requiredCapabilities
 		}
 	}
-	for _, required := range required.RequiredDropCapabilities {
-		found := false
-		for _, curr := range result.RequiredDropCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			modified = true
-			result.RequiredDropCapabilities = append(result.RequiredDropCapabilities, required)
-		}
-	}
-	for _, required := range required.AllowedCapabilities {
-		found := false
-		for _, curr := range result.AllowedCapabilities {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			modified = true
-			result.AllowedCapabilities = append(result.AllowedCapabilities, required)
-		}
-	}
+
 	setBool(&modified, &result.AllowHostDirVolumePlugin, required.AllowHostDirVolumePlugin)
-	for _, required := range required.Volumes {
-		found := false
-		for _, curr := range result.Volumes {
-			if equality.Semantic.DeepEqual(required, curr) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			modified = true
-			result.Volumes = append(result.Volumes, required)
-		}
+	if !equality.Semantic.DeepEqual(result.Volumes, required.Volumes) {
+		modified = true
+		result.Volumes = required.Volumes
 	}
-	for _, required := range required.AllowedFlexVolumes {
-		found := false
-		for _, curr := range result.AllowedFlexVolumes {
-			if equality.Semantic.DeepEqual(required.Driver, curr.Driver) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			modified = true
-			result.AllowedFlexVolumes = append(result.AllowedFlexVolumes, required)
-		}
+	if !equality.Semantic.DeepEqual(result.AllowedFlexVolumes, required.AllowedFlexVolumes) {
+		modified = true
+		result.AllowedFlexVolumes = required.AllowedFlexVolumes
 	}
+
 	setBool(&modified, &result.AllowHostNetwork, required.AllowHostNetwork)
 	setBool(&modified, &result.AllowHostPorts, required.AllowHostPorts)
 	setBool(&modified, &result.AllowHostPID, required.AllowHostPID)
 	setBool(&modified, &result.AllowHostIPC, required.AllowHostIPC)
 	setBoolPtr(&modified, &result.DefaultAllowPrivilegeEscalation, required.DefaultAllowPrivilegeEscalation)
 	setBoolPtr(&modified, &result.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+
 	if !equality.Semantic.DeepEqual(result.SELinuxContext, required.SELinuxContext) {
 		modified = true
 		result.SELinuxContext = required.SELinuxContext
@@ -103,11 +63,21 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 		result.SupplementalGroups = required.SupplementalGroups
 	}
 	setBool(&modified, &result.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
-	mergeStringSlice(&modified, &result.Users, required.Users)
-	mergeStringSlice(&modified, &result.Groups, required.Groups)
-	mergeStringSlice(&modified, &result.SeccompProfiles, required.SeccompProfiles)
-	mergeStringSlice(&modified, &result.AllowedUnsafeSysctls, required.AllowedUnsafeSysctls)
-	mergeStringSlice(&modified, &result.ForbiddenSysctls, required.ForbiddenSysctls)
+
+	for _, slices := range [][]*[]string{
+		{&result.Users, &required.Users},
+		{&result.Groups, &required.Groups},
+		{&result.SeccompProfiles, &required.SeccompProfiles},
+		{&result.AllowedUnsafeSysctls, &required.AllowedUnsafeSysctls},
+		{&result.ForbiddenSysctls, &required.ForbiddenSysctls},
+	} {
+		existingStrings := slices[0]
+		requiredStrings := slices[1]
+		if !equality.Semantic.DeepEqual(existingStrings, requiredStrings) {
+			modified = true
+			*existingStrings = *requiredStrings
+		}
+	}
 
 	if modified {
 		return result

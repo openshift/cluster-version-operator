@@ -69,7 +69,7 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 			expectedModified: true,
 		},
 		{
-			name:     "no modified when existing is equal to required",
+			name:     "no modification when existing is equal to required",
 			existing: restrictedv2.DeepCopy,
 			required: restrictedv2.DeepCopy,
 			expected: restrictedv2.DeepCopy,
@@ -79,7 +79,7 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 			expectedModified: false,
 		},
 		{
-			name:     "no modified when existing differs but there's release.openshift.io/create-only: true annotation",
+			name:     "no modification when existing differs but there's release.openshift.io/create-only: true annotation",
 			existing: restrictedv2.DeepCopy,
 			required: func() *securityv1.SecurityContextConstraints {
 				scc := restrictedv2.DeepCopy()
@@ -104,31 +104,41 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 			},
 			expected: func() *securityv1.SecurityContextConstraints {
 				scc := restrictedv2.DeepCopy()
-				scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "persistentVolumeClaim", "projected", "secret", "ephemeral"}
+				scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "ephemeral", "persistentVolumeClaim", "projected", "secret"}
 				return scc
 			},
 			expectedAPICalls: []kubetesting.Action{
 				getSCCAction("restricted-v2"),
 				updateSCCAction(func() *securityv1.SecurityContextConstraints {
 					scc := restrictedv2.DeepCopy()
-					scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "persistentVolumeClaim", "projected", "secret", "ephemeral"}
+					scc.Volumes = []securityv1.FSType{"configMap", "downwardAPI", "emptyDir", "ephemeral", "persistentVolumeClaim", "projected", "secret"}
 					return scc
 				}()),
 			},
 			expectedModified: true,
 		},
 		{
-			name:     "keep additional volumes from existing because we want merge semantics, modified is false",
+			name:     "do not keep additional volumes from existing, modified is true",
 			existing: restrictedv2.DeepCopy,
 			required: func() *securityv1.SecurityContextConstraints {
 				scc := restrictedv2.DeepCopy()
 				scc.Volumes = []securityv1.FSType{"configMap"}
 				return scc
 			},
-			expected: restrictedv2.DeepCopy,
+			expected: func() *securityv1.SecurityContextConstraints {
+				scc := restrictedv2.DeepCopy()
+				scc.Volumes = []securityv1.FSType{"configMap"}
+				return scc
+			},
 			expectedAPICalls: []kubetesting.Action{
 				getSCCAction("restricted-v2"),
+				updateSCCAction(func() *securityv1.SecurityContextConstraints {
+					scc := restrictedv2.DeepCopy()
+					scc.Volumes = []securityv1.FSType{"configMap"}
+					return scc
+				}()),
 			},
+			expectedModified: true,
 		},
 	}
 	for _, tc := range tests {
