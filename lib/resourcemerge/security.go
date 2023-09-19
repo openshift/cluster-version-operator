@@ -5,104 +5,112 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-// EnsureSecurityContextConstraints ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
-func EnsureSecurityContextConstraints(modified *bool, existing *securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-	setInt32Ptr(modified, &existing.Priority, required.Priority)
-	setBool(modified, &existing.AllowPrivilegedContainer, required.AllowPrivilegedContainer)
+// EnsureSecurityContextConstraints ensures that the result matches the required.
+// modified is set to true when result had to be updated with required.
+func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstraints, required securityv1.SecurityContextConstraints) *securityv1.SecurityContextConstraints {
+	var modified bool
+	result := existing.DeepCopy()
+
+	EnsureObjectMeta(&modified, &result.ObjectMeta, required.ObjectMeta)
+	setInt32Ptr(&modified, &result.Priority, required.Priority)
+	setBool(&modified, &result.AllowPrivilegedContainer, required.AllowPrivilegedContainer)
 	for _, required := range required.DefaultAddCapabilities {
 		found := false
-		for _, curr := range existing.DefaultAddCapabilities {
+		for _, curr := range result.DefaultAddCapabilities {
 			if equality.Semantic.DeepEqual(required, curr) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*modified = true
-			existing.DefaultAddCapabilities = append(existing.DefaultAddCapabilities, required)
+			modified = true
+			result.DefaultAddCapabilities = append(result.DefaultAddCapabilities, required)
 		}
 	}
 	for _, required := range required.RequiredDropCapabilities {
 		found := false
-		for _, curr := range existing.RequiredDropCapabilities {
+		for _, curr := range result.RequiredDropCapabilities {
 			if equality.Semantic.DeepEqual(required, curr) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*modified = true
-			existing.RequiredDropCapabilities = append(existing.RequiredDropCapabilities, required)
+			modified = true
+			result.RequiredDropCapabilities = append(result.RequiredDropCapabilities, required)
 		}
 	}
 	for _, required := range required.AllowedCapabilities {
 		found := false
-		for _, curr := range existing.AllowedCapabilities {
+		for _, curr := range result.AllowedCapabilities {
 			if equality.Semantic.DeepEqual(required, curr) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*modified = true
-			existing.AllowedCapabilities = append(existing.AllowedCapabilities, required)
+			modified = true
+			result.AllowedCapabilities = append(result.AllowedCapabilities, required)
 		}
 	}
-	setBool(modified, &existing.AllowHostDirVolumePlugin, required.AllowHostDirVolumePlugin)
+	setBool(&modified, &result.AllowHostDirVolumePlugin, required.AllowHostDirVolumePlugin)
 	for _, required := range required.Volumes {
 		found := false
-		for _, curr := range existing.Volumes {
+		for _, curr := range result.Volumes {
 			if equality.Semantic.DeepEqual(required, curr) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*modified = true
-			existing.Volumes = append(existing.Volumes, required)
+			modified = true
+			result.Volumes = append(result.Volumes, required)
 		}
 	}
 	for _, required := range required.AllowedFlexVolumes {
 		found := false
-		for _, curr := range existing.AllowedFlexVolumes {
+		for _, curr := range result.AllowedFlexVolumes {
 			if equality.Semantic.DeepEqual(required.Driver, curr.Driver) {
 				found = true
 				break
 			}
 		}
 		if !found {
-			*modified = true
-			existing.AllowedFlexVolumes = append(existing.AllowedFlexVolumes, required)
+			modified = true
+			result.AllowedFlexVolumes = append(result.AllowedFlexVolumes, required)
 		}
 	}
-	setBool(modified, &existing.AllowHostNetwork, required.AllowHostNetwork)
-	setBool(modified, &existing.AllowHostPorts, required.AllowHostPorts)
-	setBool(modified, &existing.AllowHostPID, required.AllowHostPID)
-	setBool(modified, &existing.AllowHostIPC, required.AllowHostIPC)
-	setBoolPtr(modified, &existing.DefaultAllowPrivilegeEscalation, required.DefaultAllowPrivilegeEscalation)
-	setBoolPtr(modified, &existing.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
-	if !equality.Semantic.DeepEqual(existing.SELinuxContext, required.SELinuxContext) {
-		*modified = true
-		existing.SELinuxContext = required.SELinuxContext
+	setBool(&modified, &result.AllowHostNetwork, required.AllowHostNetwork)
+	setBool(&modified, &result.AllowHostPorts, required.AllowHostPorts)
+	setBool(&modified, &result.AllowHostPID, required.AllowHostPID)
+	setBool(&modified, &result.AllowHostIPC, required.AllowHostIPC)
+	setBoolPtr(&modified, &result.DefaultAllowPrivilegeEscalation, required.DefaultAllowPrivilegeEscalation)
+	setBoolPtr(&modified, &result.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+	if !equality.Semantic.DeepEqual(result.SELinuxContext, required.SELinuxContext) {
+		modified = true
+		result.SELinuxContext = required.SELinuxContext
 	}
-	if !equality.Semantic.DeepEqual(existing.RunAsUser, required.RunAsUser) {
-		*modified = true
-		existing.RunAsUser = required.RunAsUser
+	if !equality.Semantic.DeepEqual(result.RunAsUser, required.RunAsUser) {
+		modified = true
+		result.RunAsUser = required.RunAsUser
 	}
-	if !equality.Semantic.DeepEqual(existing.FSGroup, required.FSGroup) {
-		*modified = true
-		existing.FSGroup = required.FSGroup
+	if !equality.Semantic.DeepEqual(result.FSGroup, required.FSGroup) {
+		modified = true
+		result.FSGroup = required.FSGroup
 	}
-	if !equality.Semantic.DeepEqual(existing.SupplementalGroups, required.SupplementalGroups) {
-		*modified = true
-		existing.SupplementalGroups = required.SupplementalGroups
+	if !equality.Semantic.DeepEqual(result.SupplementalGroups, required.SupplementalGroups) {
+		modified = true
+		result.SupplementalGroups = required.SupplementalGroups
 	}
-	setBool(modified, &existing.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
-	mergeStringSlice(modified, &existing.Users, required.Users)
-	mergeStringSlice(modified, &existing.Groups, required.Groups)
-	mergeStringSlice(modified, &existing.SeccompProfiles, required.SeccompProfiles)
-	mergeStringSlice(modified, &existing.AllowedUnsafeSysctls, required.AllowedUnsafeSysctls)
-	mergeStringSlice(modified, &existing.ForbiddenSysctls, required.ForbiddenSysctls)
+	setBool(&modified, &result.ReadOnlyRootFilesystem, required.ReadOnlyRootFilesystem)
+	mergeStringSlice(&modified, &result.Users, required.Users)
+	mergeStringSlice(&modified, &result.Groups, required.Groups)
+	mergeStringSlice(&modified, &result.SeccompProfiles, required.SeccompProfiles)
+	mergeStringSlice(&modified, &result.AllowedUnsafeSysctls, required.AllowedUnsafeSysctls)
+	mergeStringSlice(&modified, &result.ForbiddenSysctls, required.ForbiddenSysctls)
+
+	if modified {
+		return result
+	}
+	return nil
 }
