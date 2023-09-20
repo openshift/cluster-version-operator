@@ -1,5 +1,5 @@
 // Package clusterconditions implements cluster conditions for
-// identifying metching clusters.
+// identifying matching clusters.
 //
 // https://github.com/openshift/enhancements/blob/master/enhancements/update/targeted-update-edge-blocking.md#cluster-condition-type-registry
 package clusterconditions
@@ -7,9 +7,12 @@ package clusterconditions
 import (
 	"context"
 	"fmt"
+	"net/url"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -103,4 +106,30 @@ func (r *conditionRegistry) Match(ctx context.Context, matchingRules []configv1.
 	}
 
 	return false, errors.NewAggregate(errs)
+}
+
+type PromQLTarget struct {
+	KubeClient      kubernetes.Interface
+	UseDNS          bool
+	URL             *url.URL
+	CABundleFile    string
+	BearerTokenFile string
+
+	// The Kubernetes service to be used to resolve the IP address when DNS is not used.
+	KubeSvc types.NamespacedName
+}
+
+func DefaultPromQLTarget() PromQLTarget {
+	promqlURL, _ := url.Parse("https://thanos-querier.openshift-monitoring.svc.cluster.local:9091")
+	return PromQLTarget{
+		KubeClient: nil,
+		UseDNS:     false,
+		URL:        promqlURL,
+		KubeSvc: types.NamespacedName{
+			Name:      "thanos-querier",
+			Namespace: "openshift-monitoring",
+		},
+		CABundleFile:    "/etc/tls/service-ca/service-ca.crt",
+		BearerTokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token",
+	}
 }
