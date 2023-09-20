@@ -3,6 +3,7 @@ package resourcemerge
 import (
 	securityv1 "github.com/openshift/api/security/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/utils/pointer"
 )
 
 // EnsureSecurityContextConstraints ensures that the result matches the required.
@@ -85,7 +86,15 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	setBool(&modified, &result.AllowHostPID, required.AllowHostPID)
 	setBool(&modified, &result.AllowHostIPC, required.AllowHostIPC)
 	setBoolPtr(&modified, &result.DefaultAllowPrivilegeEscalation, required.DefaultAllowPrivilegeEscalation)
-	setBoolPtr(&modified, &result.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+
+	// AllowPrivilegeEscalation is optional and defaults to true if not specified,
+	// so we enforce default if manifest does not specify it.
+	if required.AllowPrivilegeEscalation == nil {
+		setBoolPtr(&modified, &result.AllowPrivilegeEscalation, pointer.Bool(true))
+	} else {
+		setBoolPtr(&modified, &result.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
+	}
+
 	if !equality.Semantic.DeepEqual(result.SELinuxContext, required.SELinuxContext) {
 		modified = true
 		result.SELinuxContext = required.SELinuxContext
