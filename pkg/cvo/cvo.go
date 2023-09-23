@@ -44,7 +44,6 @@ import (
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
-	"github.com/openshift/cluster-version-operator/pkg/internal/debugworkqueue"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
@@ -214,7 +213,7 @@ func New(
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
-		availableUpdatesQueue: debugworkqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
+		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
 		exclude:                   exclude,
