@@ -46,8 +46,10 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	optrAvailableUpdates := optr.getAvailableUpdates()
+	needFreshFetch := true
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
+		optrAvailableUpdates = &availableUpdates{}
 	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 	} else if channel != optrAvailableUpdates.Channel {
@@ -55,24 +57,38 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if desiredArch != optrAvailableUpdates.Architecture {
 		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q", optrAvailableUpdates.Architecture, desiredArch)
 	} else if upstream == optrAvailableUpdates.Upstream || (upstream == optr.defaultUpstreamServer && optrAvailableUpdates.Upstream == "") {
-		klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
-		return nil
+		needsConditionalUpdateEval := false
+		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
+			if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+				needsConditionalUpdateEval = true
+				break
+			} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
+				needsConditionalUpdateEval = true
+				break
+			}
+		}
+		if !needsConditionalUpdateEval {
+			klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
+			return nil
+		}
+		needFreshFetch = false
 	} else {
 		klog.V(2).Infof("Retrieving available updates again, because the upstream has changed from %q to %q", optrAvailableUpdates.Upstream, config.Spec.Upstream)
 	}
 
-	transport, err := optr.getTransport()
-	if err != nil {
-		return err
-	}
+	if needFreshFetch {
+		transport, err := optr.getTransport()
+		if err != nil {
+			return err
+		}
 
-	userAgent := optr.getUserAgent()
-	clusterId := string(config.Spec.ClusterID)
-	current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, clusterId,
-		transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version, optr.conditionRegistry)
+		userAgent := optr.getUserAgent()
+		clusterId := string(config.Spec.ClusterID)
 
-	// Populate conditions on conditional updates from operator state
-	if optrAvailableUpdates != nil {
+		current, updates, conditionalUpdates, condition := calculateAvailableUpdatesStatus(ctx, clusterId,
+			transport, userAgent, upstream, desiredArch, currentArch, channel, optr.release.Version, optr.conditionRegistry)
+
+		// Populate conditions on conditional updates from operator state
 		for i := range optrAvailableUpdates.ConditionalUpdates {
 			for j := range conditionalUpdates {
 				if optrAvailableUpdates.ConditionalUpdates[i].Release.Image == conditionalUpdates[j].Release.Image {
@@ -81,32 +97,44 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 				}
 			}
 		}
+
+		if optr.injectClusterIdIntoPromQL {
+			conditionalUpdates = injectClusterIdIntoConditionalUpdates(clusterId, conditionalUpdates)
+		}
+
+		if usedDefaultUpstream {
+			upstream = ""
+		}
+
+		optrAvailableUpdates.Upstream = upstream
+		optrAvailableUpdates.Channel = channel
+		optrAvailableUpdates.Architecture = desiredArch
+		optrAvailableUpdates.Current = current
+		optrAvailableUpdates.Updates = updates
+		optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
+		optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
+		optrAvailableUpdates.Condition = condition
 	}
 
-	if usedDefaultUpstream {
-		upstream = ""
+	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
+
+	queueKey := optr.queueKey()
+	for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
+		if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+			klog.Warningf("Requeue available-update evaluation, because %q lacks a Recommended condition", conditionalUpdate.Release.Version)
+			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
+			break
+		} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
+			klog.V(2).Infof("Requeue available-update evaluation, because %q is %s=%s: %s: %s", conditionalUpdate.Release.Version, recommended.Type, recommended.Status, recommended.Reason, recommended.Message)
+			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
+			break
+		}
 	}
 
-	if optr.injectClusterIdIntoPromQL {
-		conditionalUpdates = injectClusterIdIntoConditionalUpdates(clusterId, conditionalUpdates)
-	}
+	optr.setAvailableUpdates(optrAvailableUpdates)
 
-	au := &availableUpdates{
-		Upstream:           upstream,
-		Channel:            config.Spec.Channel,
-		Architecture:       desiredArch,
-		Current:            current,
-		Updates:            updates,
-		ConditionalUpdates: conditionalUpdates,
-		ConditionRegistry:  optr.conditionRegistry,
-		Condition:          condition,
-	}
-
-	au.evaluateConditionalUpdates(ctx)
-	optr.setAvailableUpdates(au)
-
-	// requeue
-	optr.queue.Add(optr.queueKey())
+	// queue optr.sync() to update ClusterVersion status
+	optr.queue.Add(queueKey)
 	return nil
 }
 
@@ -206,7 +234,37 @@ func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
 func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	optr.statusLock.Lock()
 	defer optr.statusLock.Unlock()
-	return optr.availableUpdates
+
+	if optr.availableUpdates == nil {
+		return nil
+	}
+
+	u := &availableUpdates{
+		Upstream:               optr.availableUpdates.Upstream,
+		Channel:                optr.availableUpdates.Channel,
+		Architecture:           optr.availableUpdates.Architecture,
+		LastAttempt:            optr.availableUpdates.LastAttempt,
+		LastSyncOrConfigChange: optr.availableUpdates.LastSyncOrConfigChange,
+		Current:                *optr.availableUpdates.Current.DeepCopy(),
+		ConditionRegistry:      optr.availableUpdates.ConditionRegistry, // intentionally not a copy, to preserve cache state
+		Condition:              optr.availableUpdates.Condition,
+	}
+
+	if optr.availableUpdates.Updates != nil {
+		u.Updates = make([]configv1.Release, 0, len(optr.availableUpdates.Updates))
+		for _, update := range optr.availableUpdates.Updates {
+			u.Updates = append(u.Updates, *update.DeepCopy())
+		}
+	}
+
+	if optr.availableUpdates.ConditionalUpdates != nil {
+		u.ConditionalUpdates = make([]configv1.ConditionalUpdate, 0, len(optr.availableUpdates.ConditionalUpdates))
+		for _, conditionalUpdate := range optr.availableUpdates.ConditionalUpdates {
+			u.ConditionalUpdates = append(u.ConditionalUpdates, *conditionalUpdate.DeepCopy())
+		}
+	}
+
+	return u
 }
 
 // getArchitecture returns the currently determined cluster architecture.
@@ -337,10 +395,20 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 				Reason:  "AsExpected",
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			})
-			u.Updates = append(u.Updates, conditionalUpdate.Release)
+			u.addUpdate(conditionalUpdate.Release)
 		}
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 	}
+}
+
+func (u *availableUpdates) addUpdate(release configv1.Release) {
+	for _, update := range u.Updates {
+		if update.Image == release.Image {
+			return
+		}
+	}
+
+	u.Updates = append(u.Updates, release)
 }
 
 func (u *availableUpdates) removeUpdate(image string) {
