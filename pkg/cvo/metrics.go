@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -57,7 +56,7 @@ type operatorMetrics struct {
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
-	clusterVersionConditionalUpdatesRecommendedConditions *prometheus.GaugeVec
+	clusterVersionConditionalUpdateConditionSeconds       *prometheus.GaugeVec
 
 	// nowFunc is used to override the time.Now() function for testing.
 	nowFunc func() time.Time
@@ -120,10 +119,10 @@ penultimate completed version for 'completed'.
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
 			Help: "Reports when updates were last successfully retrieved.",
 		}, []string{"name"}),
-		clusterVersionConditionalUpdatesRecommendedConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name: "cluster_version_conditional_updates_recommended_conditions_seconds",
-			Help: "Reports the unknown conditional updates conditions",
-		}, []string{"version", "recommended", "reason"}),
+		clusterVersionConditionalUpdateConditionSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_conditional_update_condition_seconds",
+			Help: "Reports when condition on conditional updates were last updated",
+		}, []string{"version", "condition", "status", "reason"}),
 	}
 }
 
@@ -356,7 +355,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
-	ch <- m.clusterVersionConditionalUpdatesRecommendedConditions.WithLabelValues("", "", "").Desc()
+	ch <- m.clusterVersionConditionalUpdateConditionSeconds.WithLabelValues("", "", "", "").Desc()
 }
 
 func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric, updates []configv1.ConditionalUpdate) {
@@ -366,8 +365,8 @@ func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric,
 				continue
 			}
 
-			g := m.clusterVersionConditionalUpdatesRecommendedConditions
-			gauge := g.WithLabelValues(update.Release.Version, strings.ToLower(string(condition.Status)), condition.Reason)
+			g := m.clusterVersionConditionalUpdateConditionSeconds
+			gauge := g.WithLabelValues(update.Release.Version, condition.Type, string(condition.Status), condition.Reason)
 			gauge.Set(m.nowFunc().Sub(condition.LastTransitionTime.Time).Seconds())
 			ch <- gauge
 		}

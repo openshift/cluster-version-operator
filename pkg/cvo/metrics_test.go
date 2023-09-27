@@ -58,7 +58,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				}
 				// optr.releaseCreated is epoch+2s, LastTransitionTime is epoch+3s
 				// we mock the evaluation time to be one minute after optr.releaseCreated => expect 59s
-				expectMetric(t, metrics[2], 59, map[string]string{"reason": "RiskDoesNotApply", "recommended": "true", "version": "4.5.6"})
+				expectMetric(t, metrics[2], 59, map[string]string{"condition": "Recommended", "reason": "RiskDoesNotApply", "status": "True", "version": "4.5.6"})
 			},
 		},
 		{
@@ -820,7 +820,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
 				value:  60,
-				labels: map[string]string{"version": "4.13.1", "recommended": "false", "reason": "RiskApplies"},
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
 			}},
 		},
 		{
@@ -841,7 +841,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
 				value:  60,
-				labels: map[string]string{"version": "4.13.1", "recommended": "true", "reason": "RiskDoesNotApply"},
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
 			}},
 		},
 		{
@@ -862,7 +862,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
 				value:  60,
-				labels: map[string]string{"version": "4.13.1", "recommended": "unknown", "reason": "EvaluationFailed"},
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
 			}},
 		},
 		{
@@ -906,15 +906,15 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 			expected: []valueWithLabels{
 				{
 					value:  5 * 60,
-					labels: map[string]string{"version": "4.13.1", "recommended": "false", "reason": "RiskApplies"},
+					labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
 				},
 				{
 					value:  4 * 60,
-					labels: map[string]string{"version": "4.13.2", "recommended": "true", "reason": "RiskDoesNotApply"},
+					labels: map[string]string{"version": "4.13.2", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
 				},
 				{
 					value:  3 * 60,
-					labels: map[string]string{"version": "4.13.3", "recommended": "unknown", "reason": "EvaluationFailed"},
+					labels: map[string]string{"version": "4.13.3", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
 				},
 			},
 		},

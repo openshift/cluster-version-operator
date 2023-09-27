@@ -59,7 +59,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if upstream == optrAvailableUpdates.Upstream || (upstream == optr.defaultUpstreamServer && optrAvailableUpdates.Upstream == "") {
 		needsConditionalUpdateEval := false
 		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
-			if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+			if recommended := findRecommendedCondition(conditionalUpdate.Conditions); recommended == nil {
 				needsConditionalUpdateEval = true
 				break
 			} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
@@ -120,7 +120,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	queueKey := optr.queueKey()
 	for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
-		if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+		if recommended := findRecommendedCondition(conditionalUpdate.Conditions); recommended == nil {
 			klog.Warningf("Requeue available-update evaluation, because %q lacks a Recommended condition", conditionalUpdate.Release.Version)
 			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
 			break
@@ -389,7 +389,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
-				Type:   "Recommended",
+				Type:   ConditionalUpdateConditionTypeRecommended,
 				Status: metav1.ConditionTrue,
 				// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
 				Reason:  "AsExpected",

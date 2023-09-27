@@ -132,7 +132,6 @@ spec:
         summary: Cluster Version Operator cannot evaluate conditional update matches for {{ "{{ $value | humanizeDuration }}" }}.
         description: Failure to evaluate conditional update matches means that Cluster Version Operator cannot decide whether an update path is recommended or not.
       expr: |
-        (cluster_version_conditional_updates_recommended_conditions_seconds{recommended="unknown"}) >= 3000
-      for: 10m
+        max by (version, condition, status, reason) (cluster_version_conditional_update_condition_seconds{condition="Recommended", status="Unknown"} >= 3600)
       labels:
         severity: warning
