@@ -116,6 +116,8 @@ func (c *Cache) Match(ctx context.Context, condition *configv1.ClusterCondition)
 			detail = fmt.Sprintf(" (last evaluated on %s)", thiefResult.When)
 		}
 		klog.V(2).Infof("%s is the most stale cached cluster-condition match entry, but it is too fresh%s.  However, we don't have a cached evaluation for %s, so attempt to evaluate that now.", thiefKey, detail, key)
+		thiefKey = key
+		targetCondition = condition
 	}
 
 	// if we ended up stealing this Match call, log that, to make contention more clear
