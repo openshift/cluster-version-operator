@@ -248,7 +248,7 @@ const (
 )
 
 // ClusterVersionCapability enumerates optional, core cluster components.
-// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry
+// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;CloudController
 type ClusterVersionCapability string
 
 const (
@@ -331,9 +331,15 @@ const (
 	// The following resources are taken into account:
 	// - deploymentconfigs
 	ClusterVersionCapabilityDeploymentConfig ClusterVersionCapability = "DeploymentConfig"
+
 	// ClusterVersionCapabilityImageRegistry manages the image registry which
 	// allows to distribute Docker images
 	ClusterVersionCapabilityImageRegistry ClusterVersionCapability = "ImageRegistry"
+
+	// ClusterVersionCapabilityCloudController manages various Cloud Controller
+	// Managers deployed on top of OpenShift. They help you to work with cloud
+	// provider API and embeds cloud-specific control logic.
+	ClusterVersionCapabilityCloudController ClusterVersionCapability = "CloudController"
 )
 
 // KnownClusterVersionCapabilities includes all known optional, core cluster components.
@@ -350,6 +356,7 @@ var KnownClusterVersionCapabilities = []ClusterVersionCapability{
 	ClusterVersionCapabilityBuild,
 	ClusterVersionCapabilityDeploymentConfig,
 	ClusterVersionCapabilityImageRegistry,
+	ClusterVersionCapabilityCloudController,
 }
 
 // ClusterVersionCapabilitySet defines sets of cluster version capabilities.
@@ -448,6 +455,7 @@ var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVers
 		ClusterVersionCapabilityBuild,
 		ClusterVersionCapabilityDeploymentConfig,
 		ClusterVersionCapabilityImageRegistry,
+		ClusterVersionCapabilityCloudController,
 	},
 }
 
