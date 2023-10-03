@@ -47,7 +47,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 			wantEnabledKeys: []string{},
 		},
@@ -73,7 +72,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -104,7 +102,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -119,7 +116,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 		},
 		{name: "set capabilities None with additional",
@@ -144,7 +140,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 			wantEnabledKeys: []string{"cap1", "cap2", "cap3"},
 		},
@@ -170,7 +165,6 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityCloudController),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
