@@ -121,7 +121,7 @@ penultimate completed version for 'completed'.
 		}, []string{"name"}),
 		clusterVersionConditionalUpdateConditionSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_conditional_update_condition_seconds",
-			Help: "Reports when condition on conditional updates were last updated",
+			Help: "Reports the duration (in seconds) since the Recommended condition status on a conditional update changed to its current state.",
 		}, []string{"version", "condition", "status", "reason"}),
 	}
 }
