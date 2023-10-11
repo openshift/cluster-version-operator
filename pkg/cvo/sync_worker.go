@@ -402,6 +402,12 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		if w.payload != nil {
 			implicitlyEnabledCaps = payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
 				work.Capabilities)
+			if strings.HasPrefix(payloadUpdate.Release.Version, "4.14.") {
+				deploymentConfig := configv1.ClusterVersionCapability("DeploymentConfig")
+				if _, ok := work.Capabilities.EnabledCapabilities[deploymentConfig]; !ok && !capability.Contains(implicitlyEnabledCaps, deploymentConfig) {
+					implicitlyEnabledCaps = append(implicitlyEnabledCaps, deploymentConfig)
+				}
+			}
 		}
 		w.payload = payloadUpdate
 		msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
