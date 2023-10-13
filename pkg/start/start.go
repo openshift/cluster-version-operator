@@ -373,7 +373,7 @@ func createResourceLock(cb *ClientBuilder, namespace, name string) (resourcelock
 	// add a uniquifier so that two processes on the same host don't accidentally both become active
 	id = id + "_" + uuid.String()
 
-	return resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock, namespace, name, client.CoreV1(), client.CoordinationV1(), resourcelock.ResourceLockConfig{
+	return resourcelock.New(resourcelock.LeasesResourceLock, namespace, name, client.CoreV1(), client.CoordinationV1(), resourcelock.ResourceLockConfig{
 		Identity:      id,
 		EventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: namespace}),
 	})
