@@ -47,6 +47,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 			wantEnabledKeys: []string{},
 		},
@@ -72,6 +73,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -102,6 +104,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
@@ -116,6 +119,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 		},
 		{name: "set capabilities None with additional",
@@ -140,6 +144,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 			wantEnabledKeys: []string{"cap1", "cap2", "cap3"},
 		},
@@ -165,6 +170,7 @@ func TestSetCapabilities(t *testing.T) {
 				string(configv1.ClusterVersionCapabilityImageRegistry),
 				string(configv1.ClusterVersionCapabilityDeploymentConfig),
 				string(configv1.ClusterVersionCapabilityBuild),
+				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
 			},
 			wantEnabledKeys: []string{
 				string(configv1.ClusterVersionCapabilityBaremetal),
