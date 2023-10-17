@@ -126,7 +126,8 @@ func createHttpServer() *http.Server {
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", promhttp.Handler())
 	server := &http.Server{
-		Handler: handler,
+		Handler:      handler,
+		TLSNextProto: map[string]func(*http.Server, *tls.Conn, http.Handler){}, // disable HTTP/2
 	}
 	return server
 }
