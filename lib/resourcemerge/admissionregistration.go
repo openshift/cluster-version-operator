@@ -4,7 +4,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // EnsureValidatingWebhookConfiguration ensures that the existing matches the required.
@@ -41,7 +41,7 @@ func ensureValidatingWebhookDefaults(required *admissionregv1.ValidatingWebhook)
 		required.ObjectSelector = &metav1.LabelSelector{}
 	}
 	if required.TimeoutSeconds == nil {
-		required.TimeoutSeconds = pointer.Int32(10)
+		required.TimeoutSeconds = ptr.To(int32(10))
 	}
 	for i := range required.Rules {
 		ensureRuleWithOperationsDefaults(&required.Rules[i])

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func ApplyImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGetter, required *imagev1.ImageStream, reconciling bool) (*imagev1.ImageStream, bool, error) {
@@ -29,7 +29,7 @@ func ApplyImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGe
 
 	var original imagev1.ImageStream
 	existing.DeepCopyInto(&original)
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureImagestreamv1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	admissionregclientv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func ApplyValidatingWebhookConfigurationv1(ctx context.Context, client admissionregclientv1.ValidatingWebhookConfigurationsGetter, required *admissionregv1.ValidatingWebhookConfiguration, reconciling bool) (*admissionregv1.ValidatingWebhookConfiguration, bool, error) {
@@ -30,7 +30,7 @@ func ApplyValidatingWebhookConfigurationv1(ctx context.Context, client admission
 
 	var original admissionregv1.ValidatingWebhookConfiguration
 	existing.DeepCopyInto(&original)
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureValidatingWebhookConfiguration(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

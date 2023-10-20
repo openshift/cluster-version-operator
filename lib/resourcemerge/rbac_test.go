@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureClusterRole2Bindingsv1(t *testing.T) {
@@ -264,7 +264,7 @@ func TestEnsureClusterRole2Bindingsv1(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureClusterRoleBinding(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)

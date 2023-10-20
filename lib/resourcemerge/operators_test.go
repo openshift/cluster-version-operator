@@ -6,7 +6,7 @@ import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureOperatorGroup(t *testing.T) {
@@ -215,7 +215,7 @@ func TestEnsureOperatorGroup(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defaultOperatorGroup(&test.existing, test.existing)
 			defaultOperatorGroup(&test.expected, test.expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureOperatorGroup(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -230,6 +230,6 @@ func TestEnsureOperatorGroup(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultOperatorGroup(in *operatorsv1.OperatorGroup, from operatorsv1.OperatorGroup) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureOperatorGroup(modified, in, from)
 }

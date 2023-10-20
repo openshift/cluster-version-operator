@@ -4,7 +4,7 @@ import (
 	securityv1 "github.com/openshift/api/security/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // EnsureSecurityContextConstraints compares the existing state with the required states and
@@ -49,7 +49,7 @@ func EnsureSecurityContextConstraints(existing securityv1.SecurityContextConstra
 	// AllowPrivilegeEscalation is optional and defaults to true if not specified,
 	// so we enforce default if manifest does not specify it.
 	if required.AllowPrivilegeEscalation == nil {
-		setBoolPtr(&modified, &result.AllowPrivilegeEscalation, pointer.Bool(true))
+		setBoolPtr(&modified, &result.AllowPrivilegeEscalation, ptr.To(true))
 	} else {
 		setBoolPtr(&modified, &result.AllowPrivilegeEscalation, required.AllowPrivilegeEscalation)
 	}

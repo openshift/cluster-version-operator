@@ -9,7 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureImageStreamv1_ImageStreamStatus(t *testing.T) {
@@ -84,7 +84,7 @@ func TestEnsureImageStreamv1_ImageStreamStatus(t *testing.T) {
 			existing := imagev1.ImageStream{Status: test.existing}
 			required := imagev1.ImageStream{Status: test.required}
 			existing.DeepCopyInto(&expected) // We expect CVO to never modify existing due to status field
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureImagestreamv1(modified, &existing, required)
 			if *modified != false {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, false)
@@ -446,7 +446,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 			existing: imagev1.ImageStreamSpec{
 				Tags: []imagev1.TagReference{
 					{
-						Generation: pointer.Int64(42),
+						Generation: ptr.To(int64(42)),
 					},
 				},
 			},
@@ -521,7 +521,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 							Kind: "example",
 						},
 						Reference:  false,
-						Generation: pointer.Int64(42),
+						Generation: ptr.To(int64(42)),
 						ImportPolicy: imagev1.TagImportPolicy{
 							Insecure:   true,
 							Scheduled:  true,
@@ -547,7 +547,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 							Kind: "example",
 						},
 						Reference:  false,
-						Generation: pointer.Int64(42),
+						Generation: ptr.To(int64(42)),
 						ImportPolicy: imagev1.TagImportPolicy{
 							Insecure:   true,
 							Scheduled:  true,
@@ -581,7 +581,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 							Kind: "example",
 						},
 						Reference:  false,
-						Generation: pointer.Int64(42),
+						Generation: ptr.To(int64(42)),
 						ImportPolicy: imagev1.TagImportPolicy{
 							Insecure:   true,
 							Scheduled:  true,
@@ -610,7 +610,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 							Kind: "example",
 						},
 						Reference:  false,
-						Generation: pointer.Int64(42),
+						Generation: ptr.To(int64(42)),
 						ImportPolicy: imagev1.TagImportPolicy{
 							Insecure:   true,
 							Scheduled:  true,
@@ -636,7 +636,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 			}
 			defaultImageStream(&existing, existing)
 			defaultImageStream(&expected, expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureImagestreamv1(modified, &existing, required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -650,7 +650,7 @@ func TestEnsureImageStreamv1_ImageStreamSpec(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultImageStream(in *imagev1.ImageStream, from imagev1.ImageStream) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureImagestreamv1(modified, in, from)
 }
 

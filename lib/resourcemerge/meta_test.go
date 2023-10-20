@@ -9,7 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func init() {
@@ -76,35 +76,35 @@ func TestMergeOwnerRefs(t *testing.T) {
 			UID: types.UID("uid-1"),
 		}},
 		input: []metav1.OwnerReference{{
-			Controller: pointer.Bool(true),
+			Controller: ptr.To(true),
 			UID:        types.UID("uid-1"),
 		}},
 
 		expectedModified: true,
 		expected: []metav1.OwnerReference{{
-			Controller: pointer.Bool(true),
+			Controller: ptr.To(true),
 			UID:        types.UID("uid-1"),
 		}},
 	}, {
 		existing: []metav1.OwnerReference{{
-			Controller: pointer.Bool(false),
+			Controller: ptr.To(false),
 			UID:        types.UID("uid-1"),
 		}},
 		input: []metav1.OwnerReference{{
-			Controller: pointer.Bool(true),
+			Controller: ptr.To(true),
 			UID:        types.UID("uid-1"),
 		}},
 
 		expectedModified: true,
 		expected: []metav1.OwnerReference{{
-			Controller: pointer.Bool(true),
+			Controller: ptr.To(true),
 			UID:        types.UID("uid-1"),
 		}},
 	}}
 
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("test#%d", idx), func(t *testing.T) {
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			mergeOwnerRefs(modified, &test.existing, test.input)
 			if *modified != test.expectedModified {
 				t.Fatalf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
