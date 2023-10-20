@@ -7,7 +7,7 @@ import (
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
@@ -22,7 +22,7 @@ func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
 		matchPolicy:       admissionregv1.Equivalent,
 		namespaceSelector: &metav1.LabelSelector{},
 		objectSelector:    &metav1.LabelSelector{},
-		timeoutSeconds:    pointer.Int32(10),
+		timeoutSeconds:    ptr.To(int32(10)),
 	}
 	nonDefaulting := struct {
 		failurePolicy     admissionregv1.FailurePolicyType
@@ -43,7 +43,7 @@ func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
 				"app": "foo",
 			},
 		},
-		timeoutSeconds: pointer.Int32(42),
+		timeoutSeconds: ptr.To(int32(42)),
 	}
 
 	tests := []struct {
@@ -623,7 +623,7 @@ func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defaultValidatingWebhookConfiguration(&test.existing, test.existing)
 			defaultValidatingWebhookConfiguration(&test.expected, test.expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureValidatingWebhookConfiguration(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -638,6 +638,6 @@ func TestEnsureValidatingWebhookConfiguration(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultValidatingWebhookConfiguration(in *admissionregv1.ValidatingWebhookConfiguration, from admissionregv1.ValidatingWebhookConfiguration) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureValidatingWebhookConfiguration(modified, in, from)
 }

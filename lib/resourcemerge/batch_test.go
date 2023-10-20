@@ -9,7 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureJob_JobStatus(t *testing.T) {
@@ -25,14 +25,14 @@ func TestEnsureJob_JobStatus(t *testing.T) {
 				Active:    3,
 				Succeeded: 4,
 				Failed:    2,
-				Ready:     pointer.Int32(1),
+				Ready:     ptr.To(int32(1)),
 			},
 			required: batchv1.JobStatus{
 				StartTime: &metav1.Time{Time: time.Unix(0, 0)},
 				Active:    3,
 				Succeeded: 4,
 				Failed:    2,
-				Ready:     pointer.Int32(1),
+				Ready:     ptr.To(int32(1)),
 			},
 		},
 		{
@@ -42,7 +42,7 @@ func TestEnsureJob_JobStatus(t *testing.T) {
 				Active:    3,
 				Succeeded: 4,
 				Failed:    2,
-				Ready:     pointer.Int32(1),
+				Ready:     ptr.To(int32(1)),
 			},
 			required: batchv1.JobStatus{},
 		},
@@ -55,7 +55,7 @@ func TestEnsureJob_JobStatus(t *testing.T) {
 			required := batchv1.Job{Status: test.required}
 			defaultJob(&existing, existing)
 			existing.DeepCopyInto(&expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureJob(modified, &existing, required)
 			if *modified != false {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, false)
@@ -80,60 +80,60 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 		{
 			name: "same parallelism",
 			existing: batchv1.JobSpec{
-				Parallelism: pointer.Int32(10),
+				Parallelism: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				Parallelism: pointer.Int32(10),
+				Parallelism: ptr.To(int32(10)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different parallelism",
 			existing: batchv1.JobSpec{
-				Parallelism: pointer.Int32(10),
+				Parallelism: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				Parallelism: pointer.Int32(5),
+				Parallelism: ptr.To(int32(5)),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "same completions",
 			existing: batchv1.JobSpec{
-				Completions: pointer.Int32(10),
+				Completions: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				Completions: pointer.Int32(10),
+				Completions: ptr.To(int32(10)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different completions",
 			existing: batchv1.JobSpec{
-				Completions: pointer.Int32(10),
+				Completions: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				Completions: pointer.Int32(5),
+				Completions: ptr.To(int32(5)),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "same active deadline seconds",
 			existing: batchv1.JobSpec{
-				ActiveDeadlineSeconds: pointer.Int64(10),
+				ActiveDeadlineSeconds: ptr.To(int64(10)),
 			},
 			required: batchv1.JobSpec{
-				ActiveDeadlineSeconds: pointer.Int64(10),
+				ActiveDeadlineSeconds: ptr.To(int64(10)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different active deadline seconds",
 			existing: batchv1.JobSpec{
-				ActiveDeadlineSeconds: pointer.Int64(10),
+				ActiveDeadlineSeconds: ptr.To(int64(10)),
 			},
 			required: batchv1.JobSpec{
-				ActiveDeadlineSeconds: pointer.Int64(5),
+				ActiveDeadlineSeconds: ptr.To(int64(5)),
 			},
 			expectedModified: true,
 		},
@@ -194,27 +194,27 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 		{
 			name: "same backofflimit count",
 			existing: batchv1.JobSpec{
-				BackoffLimit: pointer.Int32(2),
+				BackoffLimit: ptr.To(int32(2)),
 			},
 			required: batchv1.JobSpec{
-				BackoffLimit: pointer.Int32(2),
+				BackoffLimit: ptr.To(int32(2)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different backofflimit count",
 			existing: batchv1.JobSpec{
-				BackoffLimit: pointer.Int32(2),
+				BackoffLimit: ptr.To(int32(2)),
 			},
 			required: batchv1.JobSpec{
-				BackoffLimit: pointer.Int32(3),
+				BackoffLimit: ptr.To(int32(3)),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "implicit backofflimit count",
 			existing: batchv1.JobSpec{
-				BackoffLimit: pointer.Int32(6),
+				BackoffLimit: ptr.To(int32(6)),
 			},
 			required:         batchv1.JobSpec{},
 			expectedModified: false,
@@ -222,20 +222,20 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 		{
 			name: "same manual selector",
 			existing: batchv1.JobSpec{
-				ManualSelector: pointer.Bool(true),
+				ManualSelector: ptr.To(true),
 			},
 			required: batchv1.JobSpec{
-				ManualSelector: pointer.Bool(true),
+				ManualSelector: ptr.To(true),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different manual selector",
 			existing: batchv1.JobSpec{
-				ManualSelector: pointer.Bool(true),
+				ManualSelector: ptr.To(true),
 			},
 			required: batchv1.JobSpec{
-				ManualSelector: pointer.Bool(false),
+				ManualSelector: ptr.To(false),
 			},
 			expectedModified: true,
 		},
@@ -287,20 +287,20 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 		{
 			name: "same TTL seconds after finished",
 			existing: batchv1.JobSpec{
-				TTLSecondsAfterFinished: pointer.Int32(10),
+				TTLSecondsAfterFinished: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				TTLSecondsAfterFinished: pointer.Int32(10),
+				TTLSecondsAfterFinished: ptr.To(int32(10)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different TTL seconds after finished",
 			existing: batchv1.JobSpec{
-				TTLSecondsAfterFinished: pointer.Int32(10),
+				TTLSecondsAfterFinished: ptr.To(int32(10)),
 			},
 			required: batchv1.JobSpec{
-				TTLSecondsAfterFinished: pointer.Int32(5),
+				TTLSecondsAfterFinished: ptr.To(int32(5)),
 			},
 			expectedModified: true,
 		},
@@ -335,27 +335,27 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 		{
 			name: "same suspend",
 			existing: batchv1.JobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			required: batchv1.JobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different suspend",
 			existing: batchv1.JobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			required: batchv1.JobSpec{
-				Suspend: pointer.Bool(false),
+				Suspend: ptr.To(false),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "implicit suspend",
 			existing: batchv1.JobSpec{
-				Suspend: pointer.Bool(false),
+				Suspend: ptr.To(false),
 			},
 			required:         batchv1.JobSpec{},
 			expectedModified: false,
@@ -373,7 +373,7 @@ func TestEnsureJob_JobSpec(t *testing.T) {
 			}
 			defaultJob(&existing, existing)
 			defaultJob(&expected, expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureJob(modified, &existing, required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -398,11 +398,11 @@ func TestEnsureJob_JobSpec_Selector(t *testing.T) {
 			name: "required-Selector not nil",
 			existing: batchv1.JobSpec{
 				Selector:       &labelSelector,
-				ManualSelector: pointer.Bool(false),
+				ManualSelector: ptr.To(false),
 			},
 			required: batchv1.JobSpec{
 				Selector:       &labelSelector,
-				ManualSelector: pointer.Bool(true),
+				ManualSelector: ptr.To(true),
 			},
 			expectedPanic: true,
 		},
@@ -425,7 +425,7 @@ func TestEnsureJob_JobSpec_Selector(t *testing.T) {
 			existing := batchv1.Job{Spec: test.existing}
 			required := batchv1.Job{Spec: test.required}
 			defaultJob(&existing, existing)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureJob(modified, &existing, required)
 		})
 	}
@@ -433,7 +433,7 @@ func TestEnsureJob_JobSpec_Selector(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultJob(in *batchv1.Job, from batchv1.Job) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureJob(modified, in, from)
 }
 
@@ -471,7 +471,7 @@ func TestEnsureCronJob_CronJobStatus(t *testing.T) {
 			required := batchv1.CronJob{Status: test.required}
 			defaultCronJob(&existing, existing)
 			existing.DeepCopyInto(&expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureCronJob(modified, &existing, required)
 			if *modified != false {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, false)
@@ -514,40 +514,40 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 		{
 			name: "same time zone",
 			existing: batchv1.CronJobSpec{
-				TimeZone: pointer.String("Etc/UTC"),
+				TimeZone: ptr.To("Etc/UTC"),
 			},
 			required: batchv1.CronJobSpec{
-				TimeZone: pointer.String("Etc/UTC"),
+				TimeZone: ptr.To("Etc/UTC"),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different time zone",
 			existing: batchv1.CronJobSpec{
-				TimeZone: pointer.String("Etc/UTC"),
+				TimeZone: ptr.To("Etc/UTC"),
 			},
 			required: batchv1.CronJobSpec{
-				TimeZone: pointer.String("Etc/GMT"),
+				TimeZone: ptr.To("Etc/GMT"),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "same starting deadline seconds",
 			existing: batchv1.CronJobSpec{
-				StartingDeadlineSeconds: pointer.Int64(10),
+				StartingDeadlineSeconds: ptr.To(int64(10)),
 			},
 			required: batchv1.CronJobSpec{
-				StartingDeadlineSeconds: pointer.Int64(10),
+				StartingDeadlineSeconds: ptr.To(int64(10)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different starting deadline seconds",
 			existing: batchv1.CronJobSpec{
-				StartingDeadlineSeconds: pointer.Int64(10),
+				StartingDeadlineSeconds: ptr.To(int64(10)),
 			},
 			required: batchv1.CronJobSpec{
-				StartingDeadlineSeconds: pointer.Int64(20),
+				StartingDeadlineSeconds: ptr.To(int64(20)),
 			},
 			expectedModified: true,
 		},
@@ -582,27 +582,27 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 		{
 			name: "same suspend",
 			existing: batchv1.CronJobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			required: batchv1.CronJobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different suspend",
 			existing: batchv1.CronJobSpec{
-				Suspend: pointer.Bool(true),
+				Suspend: ptr.To(true),
 			},
 			required: batchv1.CronJobSpec{
-				Suspend: pointer.Bool(false),
+				Suspend: ptr.To(false),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "implicit suspend",
 			existing: batchv1.CronJobSpec{
-				Suspend: pointer.Bool(false),
+				Suspend: ptr.To(false),
 			},
 			required:         batchv1.CronJobSpec{},
 			expectedModified: false,
@@ -667,27 +667,27 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 		{
 			name: "same successful jobs history limit",
 			existing: batchv1.CronJobSpec{
-				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+				SuccessfulJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			required: batchv1.CronJobSpec{
-				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+				SuccessfulJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different successful jobs history limit",
 			existing: batchv1.CronJobSpec{
-				SuccessfulJobsHistoryLimit: pointer.Int32(50),
+				SuccessfulJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			required: batchv1.CronJobSpec{
-				SuccessfulJobsHistoryLimit: pointer.Int32(70),
+				SuccessfulJobsHistoryLimit: ptr.To(int32(70)),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "implicit successful jobs history limit",
 			existing: batchv1.CronJobSpec{
-				SuccessfulJobsHistoryLimit: pointer.Int32(3),
+				SuccessfulJobsHistoryLimit: ptr.To(int32(3)),
 			},
 			required:         batchv1.CronJobSpec{},
 			expectedModified: false,
@@ -695,27 +695,27 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 		{
 			name: "same failed jobs history limit",
 			existing: batchv1.CronJobSpec{
-				FailedJobsHistoryLimit: pointer.Int32(50),
+				FailedJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			required: batchv1.CronJobSpec{
-				FailedJobsHistoryLimit: pointer.Int32(50),
+				FailedJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			expectedModified: false,
 		},
 		{
 			name: "different failed jobs history limit",
 			existing: batchv1.CronJobSpec{
-				FailedJobsHistoryLimit: pointer.Int32(50),
+				FailedJobsHistoryLimit: ptr.To(int32(50)),
 			},
 			required: batchv1.CronJobSpec{
-				FailedJobsHistoryLimit: pointer.Int32(70),
+				FailedJobsHistoryLimit: ptr.To(int32(70)),
 			},
 			expectedModified: true,
 		},
 		{
 			name: "implicit failed jobs history limit",
 			existing: batchv1.CronJobSpec{
-				FailedJobsHistoryLimit: pointer.Int32(1),
+				FailedJobsHistoryLimit: ptr.To(int32(1)),
 			},
 			required:         batchv1.CronJobSpec{},
 			expectedModified: false,
@@ -734,7 +734,7 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 			}
 			defaultCronJob(&existing, existing)
 			defaultCronJob(&expected, expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureCronJob(modified, &existing, required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -748,6 +748,6 @@ func TestEnsureCronJob_CronJobSpec(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultCronJob(in *batchv1.CronJob, from batchv1.CronJob) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureCronJob(modified, in, from)
 }

@@ -7,7 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // EnsureConfigMap ensures that the existing matches the required.
@@ -367,7 +367,7 @@ func ensureVolumes(modified *bool, existing *[]corev1.Volume, required []corev1.
 }
 
 func ensureVolume(modified *bool, existing *corev1.Volume, required corev1.Volume) {
-	if pointer.AllPtrFieldsNil(&required.VolumeSource) {
+	if ptr.AllPtrFieldsNil(&required.VolumeSource) {
 		required.VolumeSource = corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		}

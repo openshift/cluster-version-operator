@@ -10,7 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition, reconciling bool) (*apiextv1.CustomResourceDefinition, bool, error) {
@@ -31,7 +31,7 @@ func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.
 	var original apiextv1.CustomResourceDefinition
 	existing.DeepCopyInto(&original)
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureCustomResourceDefinitionV1(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

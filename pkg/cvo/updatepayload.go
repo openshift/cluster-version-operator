@@ -21,7 +21,7 @@ import (
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
@@ -189,7 +189,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		image           = update.Image
 		name            = fmt.Sprintf("%s-%s-%s", r.operatorName, version, randutil.String(5))
 		namespace       = r.namespace
-		deadline        = pointer.Int64(2 * 60)
+		deadline        = ptr.To(int64(2 * 60))
 		nodeSelectorKey = "node-role.kubernetes.io/master"
 		nodename        = r.nodeName
 	)
@@ -204,8 +204,8 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			Name:      "payloads",
 		}}
 		container.SecurityContext = &corev1.SecurityContext{
-			Privileged:             pointer.Bool(true),
-			ReadOnlyRootFilesystem: pointer.Bool(false),
+			Privileged:             ptr.To(true),
+			ReadOnlyRootFilesystem: ptr.To(false),
 		}
 		container.Resources = corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{

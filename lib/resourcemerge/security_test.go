@@ -6,7 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	securityv1 "github.com/openshift/api/security/v1"
 )
@@ -34,7 +34,7 @@ var restrictedv2 = securityv1.SecurityContextConstraints{
 
 func defaulted(scc securityv1.SecurityContextConstraints) *securityv1.SecurityContextConstraints {
 	if scc.AllowPrivilegeEscalation == nil {
-		scc.AllowPrivilegeEscalation = pointer.Bool(true)
+		scc.AllowPrivilegeEscalation = ptr.To(true)
 	}
 	return &scc
 }
@@ -57,58 +57,58 @@ func TestEnsureSecurityContextConstraints(t *testing.T) {
 
 			name: "enforce primitive fields",
 			existing: securityv1.SecurityContextConstraints{
-				Priority:                        pointer.Int32(123),
+				Priority:                        ptr.To(int32(123)),
 				AllowPrivilegedContainer:        true,
 				AllowHostDirVolumePlugin:        false,
 				AllowHostNetwork:                true,
 				AllowHostPorts:                  false,
 				AllowHostPID:                    true,
 				AllowHostIPC:                    false,
-				DefaultAllowPrivilegeEscalation: pointer.Bool(true),
-				AllowPrivilegeEscalation:        pointer.Bool(false),
+				DefaultAllowPrivilegeEscalation: ptr.To(true),
+				AllowPrivilegeEscalation:        ptr.To(false),
 				ReadOnlyRootFilesystem:          true,
 			},
 			required: securityv1.SecurityContextConstraints{
-				Priority:                        pointer.Int32(42),
+				Priority:                        ptr.To(int32(42)),
 				AllowPrivilegedContainer:        false,
 				AllowHostDirVolumePlugin:        true,
 				AllowHostNetwork:                false,
 				AllowHostPorts:                  true,
 				AllowHostPID:                    false,
 				AllowHostIPC:                    true,
-				DefaultAllowPrivilegeEscalation: pointer.Bool(false),
-				AllowPrivilegeEscalation:        pointer.Bool(true),
+				DefaultAllowPrivilegeEscalation: ptr.To(false),
+				AllowPrivilegeEscalation:        ptr.To(true),
 				ReadOnlyRootFilesystem:          false,
 			},
 			expected: &securityv1.SecurityContextConstraints{
-				Priority:                        pointer.Int32(42),
+				Priority:                        ptr.To(int32(42)),
 				AllowPrivilegedContainer:        false,
 				AllowHostDirVolumePlugin:        true,
 				AllowHostNetwork:                false,
 				AllowHostPorts:                  true,
 				AllowHostPID:                    false,
 				AllowHostIPC:                    true,
-				DefaultAllowPrivilegeEscalation: pointer.Bool(false),
-				AllowPrivilegeEscalation:        pointer.Bool(true),
+				DefaultAllowPrivilegeEscalation: ptr.To(false),
+				AllowPrivilegeEscalation:        ptr.To(true),
 				ReadOnlyRootFilesystem:          false,
 			},
 		},
 		{
 			name: "enforce allowPrivilegeEscalation as default true when not specified",
 			existing: securityv1.SecurityContextConstraints{
-				AllowPrivilegeEscalation: pointer.Bool(false),
+				AllowPrivilegeEscalation: ptr.To(false),
 			},
 			required: securityv1.SecurityContextConstraints{
 				AllowPrivilegeEscalation: nil,
 			},
 			expected: &securityv1.SecurityContextConstraints{
-				AllowPrivilegeEscalation: pointer.Bool(true),
+				AllowPrivilegeEscalation: ptr.To(true),
 			},
 		},
 		{
 			name: "allowPrivilegeEscalation does not need to be reconciled when existing state is true (default)",
 			existing: securityv1.SecurityContextConstraints{
-				AllowPrivilegeEscalation: pointer.Bool(true),
+				AllowPrivilegeEscalation: ptr.To(true),
 			},
 			required: securityv1.SecurityContextConstraints{
 				AllowPrivilegeEscalation: nil,

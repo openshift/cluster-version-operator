@@ -9,7 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubetesting "k8s.io/client-go/testing"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	securityv1 "github.com/openshift/api/security/v1"
 	securityfake "github.com/openshift/client-go/security/clientset/versioned/fake"
@@ -40,7 +40,7 @@ func defaulted(get func() *securityv1.SecurityContextConstraints) func() *securi
 	return func() *securityv1.SecurityContextConstraints {
 		scc := get()
 		if scc.AllowPrivilegeEscalation == nil {
-			scc.AllowPrivilegeEscalation = pointer.Bool(true)
+			scc.AllowPrivilegeEscalation = ptr.To(true)
 		}
 		return scc
 	}

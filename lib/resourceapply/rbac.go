@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // ApplyClusterRoleBindingv1 applies the required clusterrolebinding to the cluster.
@@ -29,7 +29,7 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureClusterRoleBinding(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -58,7 +58,7 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureClusterRole(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -87,7 +87,7 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureRoleBinding(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -116,7 +116,7 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureRole(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

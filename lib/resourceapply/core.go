@@ -11,7 +11,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
@@ -32,7 +32,7 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !*modified {
 		return existing, false, nil
@@ -63,7 +63,7 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	resourcemerge.EnsureServicePorts(modified, &existing.Spec.Ports, required.Spec.Ports)
 	resourcemerge.EnsureServiceType(modified, &existing.Spec.Type, required.Spec.Type)
@@ -98,7 +98,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureServiceAccount(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -128,7 +128,7 @@ func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter,
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureConfigMap(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

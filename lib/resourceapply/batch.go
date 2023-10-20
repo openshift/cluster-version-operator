@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // ApplyJobv1 applies the required Job to the cluster.
@@ -31,7 +31,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 
 	var original batchv1.Job
 	existing.DeepCopyInto(&original)
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureJob(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -66,7 +66,7 @@ func ApplyCronJobv1(ctx context.Context, client batchclientv1.CronJobsGetter, re
 
 	var original batchv1.CronJob
 	existing.DeepCopyInto(&original)
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureCronJob(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

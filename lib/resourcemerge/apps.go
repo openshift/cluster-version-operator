@@ -4,7 +4,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // EnsureDeployment ensures that the existing matches the required.
@@ -54,7 +54,7 @@ func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required apps
 
 func ensureReplicasDefault(required *appsv1.Deployment) {
 	if required.Spec.Replicas == nil {
-		required.Spec.Replicas = pointer.Int32(1)
+		required.Spec.Replicas = ptr.To(int32(1))
 	}
 }
 

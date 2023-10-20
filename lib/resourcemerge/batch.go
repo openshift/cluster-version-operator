@@ -3,7 +3,7 @@ package resourcemerge
 import (
 	batchv1 "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // EnsureJob ensures that the existing matches the required.
@@ -38,14 +38,14 @@ func ensureJobSpec(modified *bool, existing *batchv1.JobSpec, required batchv1.J
 
 func ensureJobSpecDefault(required *batchv1.JobSpec) {
 	if required.BackoffLimit == nil {
-		required.BackoffLimit = pointer.Int32(6)
+		required.BackoffLimit = ptr.To(int32(6))
 	}
 	if required.CompletionMode == nil {
 		completionMode := batchv1.NonIndexedCompletion
 		required.CompletionMode = &completionMode
 	}
 	if required.Suspend == nil {
-		required.Suspend = pointer.Bool(false)
+		required.Suspend = ptr.To(false)
 	}
 }
 
@@ -82,13 +82,13 @@ func ensureCronJobSpecDefault(required *batchv1.CronJobSpec) {
 		required.ConcurrencyPolicy = batchv1.AllowConcurrent
 	}
 	if required.FailedJobsHistoryLimit == nil {
-		required.FailedJobsHistoryLimit = pointer.Int32(1)
+		required.FailedJobsHistoryLimit = ptr.To(int32(1))
 	}
 	if required.SuccessfulJobsHistoryLimit == nil {
-		required.SuccessfulJobsHistoryLimit = pointer.Int32(3)
+		required.SuccessfulJobsHistoryLimit = ptr.To(int32(3))
 	}
 	if required.Suspend == nil {
-		required.Suspend = pointer.Bool(false)
+		required.Suspend = ptr.To(false)
 	}
 }
 

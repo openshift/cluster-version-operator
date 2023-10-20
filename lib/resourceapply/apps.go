@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 // ApplyDeploymentv1 applies the required deployment to the cluster.
@@ -31,7 +31,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 
 	var original appsv1.Deployment
 	existing.DeepCopyInto(&original)
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -64,7 +64,7 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 		return nil, false, nil
 	}
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureDaemonSet(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

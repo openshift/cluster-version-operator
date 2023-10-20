@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.ClusterVersionLister, client configclientv1.ClusterVersionsGetter, required *configv1.ClusterVersion) (*configv1.ClusterVersion, bool, error) {
@@ -30,7 +30,7 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 
 	// Don't want to mutate cache.
 	existing := obj.DeepCopy()
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureClusterVersion(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

@@ -8,7 +8,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 )
 
 func TestEnsureCustomResourceDefinitionV1(t *testing.T) {
@@ -171,7 +171,7 @@ func TestEnsureCustomResourceDefinitionV1(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defaultCustomResourceDefinitionV1(&test.existing, test.existing)
 			defaultCustomResourceDefinitionV1(&test.expected, test.expected)
-			modified := pointer.Bool(false)
+			modified := ptr.To(false)
 			EnsureCustomResourceDefinitionV1(modified, &test.existing, test.required)
 			if *modified != test.expectedModified {
 				t.Errorf("mismatch modified got: %v want: %v", *modified, test.expectedModified)
@@ -186,6 +186,6 @@ func TestEnsureCustomResourceDefinitionV1(t *testing.T) {
 
 // Ensures the structure contains any defaults not explicitly set by the test
 func defaultCustomResourceDefinitionV1(in *apiextv1.CustomResourceDefinition, from apiextv1.CustomResourceDefinition) {
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	EnsureCustomResourceDefinitionV1(modified, in, from)
 }

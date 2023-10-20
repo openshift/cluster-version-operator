@@ -10,7 +10,7 @@ import (
 	operatorsclientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
@@ -33,7 +33,7 @@ func ApplyOperatorGroupv1(ctx context.Context, client operatorsclientv1.Operator
 	var original operatorsv1.OperatorGroup
 	existing.DeepCopyInto(&original)
 
-	modified := pointer.Bool(false)
+	modified := ptr.To(false)
 	resourcemerge.EnsureOperatorGroup(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

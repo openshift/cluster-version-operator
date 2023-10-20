@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/transport"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -350,7 +350,7 @@ func (optr *Operator) ownerReferenceModifier(object metav1.Object) {
 			UID:        optr.uid,
 		}
 		if value, ok := object.GetAnnotations()["release.openshift.io/create-only"]; !ok || value != "true" {
-			cvoRef.Controller = pointer.Bool(true)
+			cvoRef.Controller = ptr.To(true)
 		}
 		object.SetOwnerReferences([]metav1.OwnerReference{cvoRef})
 	}
