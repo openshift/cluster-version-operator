@@ -56,9 +56,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				if len(metrics) != 5 {
 					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
 				}
-				// optr.releaseCreated is epoch+2s, LastTransitionTime is epoch+3s
-				// we mock the evaluation time to be one minute after optr.releaseCreated => expect 59s
-				expectMetric(t, metrics[2], 59, map[string]string{"condition": "Recommended", "reason": "RiskDoesNotApply", "status": "True", "version": "4.5.6"})
+				expectMetric(t, metrics[2], 3, map[string]string{"condition": "Recommended", "reason": "RiskDoesNotApply", "status": "True", "version": "4.5.6"})
 			},
 		},
 		{
@@ -648,7 +646,6 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				tt.optr.cmConfigLister = &cmConfigLister{}
 			}
 			m := newOperatorMetrics(tt.optr)
-			m.nowFunc = func() time.Time { return tt.optr.releaseCreated.Add(time.Minute) }
 			descCh := make(chan *prometheus.Desc)
 			go func() {
 				for range descCh {
@@ -776,13 +773,11 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 	testCases := []struct {
 		name     string
 		updates  []configv1.ConditionalUpdate
-		evaluate time.Time
 		expected []valueWithLabels
 	}{
 		{
 			name:     "no conditional updates",
 			updates:  []configv1.ConditionalUpdate{},
-			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{},
 		},
 		{
@@ -817,9 +812,8 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					}},
 				},
 			},
-			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
-				value:  60,
+				value:  float64(anchorTime.Unix()),
 				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
 			}},
 		},
@@ -838,9 +832,8 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					}},
 				},
 			},
-			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
-				value:  60,
+				value:  float64(anchorTime.Unix()),
 				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
 			}},
 		},
@@ -859,9 +852,8 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					}},
 				},
 			},
-			evaluate: anchorTime.Add(time.Minute),
 			expected: []valueWithLabels{{
-				value:  60,
+				value:  float64(anchorTime.Unix()),
 				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
 			}},
 		},
@@ -902,18 +894,17 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					}},
 				},
 			},
-			evaluate: anchorTime.Add(5 * time.Minute),
 			expected: []valueWithLabels{
 				{
-					value:  5 * 60,
+					value:  float64(anchorTime.Unix()),
 					labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
 				},
 				{
-					value:  4 * 60,
+					value:  float64(anchorTime.Unix() + 60),
 					labels: map[string]string{"version": "4.13.2", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
 				},
 				{
-					value:  3 * 60,
+					value:  float64(anchorTime.Unix() + 120),
 					labels: map[string]string{"version": "4.13.3", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
 				},
 			},
@@ -925,7 +916,6 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			optr := &Operator{}
 			m := newOperatorMetrics(optr)
-			m.nowFunc = func() time.Time { return tc.evaluate }
 			ch := make(chan prometheus.Metric)
 
 			go func() {

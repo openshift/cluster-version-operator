@@ -57,15 +57,11 @@ type operatorMetrics struct {
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
 	clusterVersionConditionalUpdateConditionSeconds       *prometheus.GaugeVec
-
-	// nowFunc is used to override the time.Now() function for testing.
-	nowFunc func() time.Time
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
 	return &operatorMetrics{
-		optr:    optr,
-		nowFunc: time.Now,
+		optr: optr,
 
 		conditionTransitions: make(map[conditionKey]int),
 
@@ -121,7 +117,7 @@ penultimate completed version for 'completed'.
 		}, []string{"name"}),
 		clusterVersionConditionalUpdateConditionSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_conditional_update_condition_seconds",
-			Help: "Reports the duration (in seconds) since the Recommended condition status on a conditional update changed to its current state.",
+			Help: "Reports when the Recommended condition status on a conditional update changed to its current state.",
 		}, []string{"version", "condition", "status", "reason"}),
 	}
 }
@@ -367,15 +363,13 @@ func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric,
 
 			g := m.clusterVersionConditionalUpdateConditionSeconds
 			gauge := g.WithLabelValues(update.Release.Version, condition.Type, string(condition.Status), condition.Reason)
-			gauge.Set(m.nowFunc().Sub(condition.LastTransitionTime.Time).Seconds())
+			gauge.Set(float64(condition.LastTransitionTime.Unix()))
 			ch <- gauge
 		}
 	}
 }
 
-// Collect collects metrics from the operator into the channel ch. Some metrics
-// are taken relative to the when parameter, which should be the time at which
-// the metrics were collected.
+// Collect collects metrics from the operator into the channel ch
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
