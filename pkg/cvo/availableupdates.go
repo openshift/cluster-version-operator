@@ -50,6 +50,12 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
 		optrAvailableUpdates = &availableUpdates{}
+		// Populate known conditional updates from CV status, if present. They will be re-fetched later,
+		// but we need to populate existing conditions to avoid bumping lastTransitionTime fields on
+		// conditions if their status hasn't changed since previous CVO evaluated them.
+		for i := range config.Status.ConditionalUpdates {
+			optrAvailableUpdates.ConditionalUpdates = append(optrAvailableUpdates.ConditionalUpdates, *config.Status.ConditionalUpdates[i].DeepCopy())
+		}
 	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 	} else if channel != optrAvailableUpdates.Channel {
@@ -382,7 +388,6 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		vj := semver.MustParse(u.ConditionalUpdates[j].Release.Version)
 		return vi.GTE(vj)
 	})
-
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
@@ -398,6 +403,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 			u.addUpdate(conditionalUpdate.Release)
 		}
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
+
 	}
 }
 
