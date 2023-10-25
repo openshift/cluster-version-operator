@@ -3943,7 +3943,7 @@ func waitForVerifyPayload(status SyncWorkerStatus) bool {
 }
 
 func waitForCompleted(status SyncWorkerStatus) bool {
-	return status.Completed == 1
+	return status.Completed >= 1
 }
 
 func waitForStatus(t *testing.T, maxLoopCount int, timeOutSeconds time.Duration, ch <-chan SyncWorkerStatus, f func(s SyncWorkerStatus) bool) {
@@ -3958,7 +3958,7 @@ func waitForStatus(t *testing.T, maxLoopCount int, timeOutSeconds time.Duration,
 		if f(status) {
 			break
 		}
-		t.Log("Waiting for condition")
+		t.Logf("Waiting for condition (%v is not what we are looking for)", status)
 		count++
 		if count > maxLoopCount {
 			t.Fatalf("saw too many sync events of the wrong form")
