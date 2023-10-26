@@ -12,7 +12,8 @@ import (
 
 var (
 	taskGraphOpts struct {
-		parallel string
+		parallel    string
+		granularity string
 	}
 )
 
@@ -24,7 +25,8 @@ func newTaskGraphCmd() *cobra.Command {
 		RunE:  runTaskGraphCmd,
 	}
 
-	cmd.Flags().StringVar(&taskGraphOpts.parallel, "parallel", "by-number-and-component", "The output directory where the manifests will be rendered.")
+	cmd.Flags().StringVar(&taskGraphOpts.parallel, "parallel", "by-number-and-component", "The parallelization strategy to use (by-number-and-component (default), flatten-by-number-and-component, or permute-flatten-by-number-and-component).")
+	cmd.Flags().StringVar(&taskGraphOpts.granularity, "granularity", "task-node", "The output granularity to use (task-node (default) or manifest).")
 	return cmd
 }
 
@@ -59,7 +61,7 @@ func runTaskGraphCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("unrecognized parallel strategy %q", taskGraphOpts.parallel)
 	}
 
-	fmt.Println(graph.Tree())
+	fmt.Println(graph.Tree(taskGraphOpts.granularity))
 
 	return nil
 }
