@@ -29,7 +29,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 		return nil, false, nil
 	}
 
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureJob(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil

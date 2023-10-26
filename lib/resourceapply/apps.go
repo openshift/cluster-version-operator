@@ -31,7 +31,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 
 	var original appsv1.Deployment
 	existing.DeepCopyInto(&original)
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
@@ -64,7 +64,7 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 		return nil, false, nil
 	}
 
-	modified := pointer.BoolPtr(false)
+	modified := pointer.Bool(false)
 	resourcemerge.EnsureDaemonSet(modified, existing, *required)
 	if !*modified {
 		return existing, false, nil
