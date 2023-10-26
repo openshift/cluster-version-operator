@@ -9,6 +9,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -182,7 +183,7 @@ func (optr *Operator) getUpgradeable() *upgradeable {
 }
 
 type upgradeableCheck interface {
-	// returns a not-nil condition when the check fails.
+	// Check returns a not-nil condition when the check fails.
 	Check() *configv1.ClusterOperatorStatusCondition
 }
 
