@@ -24,6 +24,42 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 		wants func(*testing.T, []prometheus.Metric)
 	}{
 		{
+			name: "collect conditional update recommendations",
+			optr: &Operator{
+				name:           "test",
+				releaseCreated: time.Unix(2, 0),
+				cvLister: &cvLister{
+					Items: []*configv1.ClusterVersion{
+						{
+							ObjectMeta: metav1.ObjectMeta{Name: "test"},
+							Status: configv1.ClusterVersionStatus{
+								ConditionalUpdates: []configv1.ConditionalUpdate{
+									{
+										Release: configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+										Conditions: []metav1.Condition{
+											{
+												Type:               ConditionalUpdateConditionTypeRecommended,
+												Status:             metav1.ConditionTrue,
+												LastTransitionTime: metav1.NewTime(time.Unix(3, 0)),
+												Reason:             "RiskDoesNotApply",
+												Message:            "Risk is not risky so you do not risk",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			wants: func(t *testing.T, metrics []prometheus.Metric) {
+				if len(metrics) != 5 {
+					t.Fatalf("Unexpected metrics %s", spew.Sdump(metrics))
+				}
+				expectMetric(t, metrics[2], 3, map[string]string{"condition": "Recommended", "reason": "RiskDoesNotApply", "status": "True", "version": "4.5.6"})
+			},
+		},
+		{
 			name: "collects current version",
 			optr: &Operator{
 				release: configv1.Release{
@@ -723,6 +759,182 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 				collected = append(collected, sample)
 			}
 			tt.wants(t, collected)
+		})
+	}
+}
+
+func TestCollectUnknownConditionalUpdates(t *testing.T) {
+	anchorTime := time.Now()
+
+	type valueWithLabels struct {
+		value  float64
+		labels map[string]string
+	}
+	testCases := []struct {
+		name     string
+		updates  []configv1.ConditionalUpdate
+		expected []valueWithLabels
+	}{
+		{
+			name:     "no conditional updates",
+			updates:  []configv1.ConditionalUpdate{},
+			expected: []valueWithLabels{},
+		},
+		{
+			name: "no recommended conditions on updates",
+			updates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               "SomethingElseThanRecommended",
+						Status:             "Unknown",
+						LastTransitionTime: metav1.NewTime(anchorTime),
+						Reason:             "NoIdea",
+						Message:            "No Idea",
+					}},
+				},
+			},
+			expected: []valueWithLabels{},
+		},
+		{
+			name: "recommended false",
+			updates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionFalse,
+						LastTransitionTime: metav1.NewTime(anchorTime),
+						Reason:             "RiskApplies",
+						Message:            "Risk is risky so do not risk it",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				value:  float64(anchorTime.Unix()),
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
+			}},
+		},
+		{
+			name: "recommended true",
+			updates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionTrue,
+						LastTransitionTime: metav1.NewTime(anchorTime),
+						Reason:             "RiskDoesNotApply",
+						Message:            "Risk is not risky so you do not risk",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				value:  float64(anchorTime.Unix()),
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
+			}},
+		},
+		{
+			name: "recommended unknown",
+			updates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionUnknown,
+						LastTransitionTime: metav1.NewTime(anchorTime),
+						Reason:             "EvaluationFailed",
+						Message:            "No idea sorry",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				value:  float64(anchorTime.Unix()),
+				labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
+			}},
+		},
+		{
+			name: "multiple versions with different transition times",
+			updates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionFalse,
+						LastTransitionTime: metav1.NewTime(anchorTime),
+						Reason:             "RiskApplies",
+						Message:            "Risk is risky so do not risk it",
+					}},
+				},
+				{
+					Release: configv1.Release{Version: "4.13.2", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionTrue,
+						LastTransitionTime: metav1.NewTime(anchorTime.Add(time.Minute)),
+						Reason:             "RiskDoesNotApply",
+						Message:            "Risk is not risky",
+					}},
+				},
+				{
+					Release: configv1.Release{Version: "4.13.3", Image: "pullspec"},
+					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
+					Conditions: []metav1.Condition{{
+						Type:               ConditionalUpdateConditionTypeRecommended,
+						Status:             metav1.ConditionUnknown,
+						LastTransitionTime: metav1.NewTime(anchorTime.Add(time.Minute * 2)),
+						Reason:             "EvaluationFailed",
+						Message:            "Metrics stack was abducted by aliens",
+					}},
+				},
+			},
+			expected: []valueWithLabels{
+				{
+					value:  float64(anchorTime.Unix()),
+					labels: map[string]string{"version": "4.13.1", "condition": "Recommended", "status": "False", "reason": "RiskApplies"},
+				},
+				{
+					value:  float64(anchorTime.Unix() + 60),
+					labels: map[string]string{"version": "4.13.2", "condition": "Recommended", "status": "True", "reason": "RiskDoesNotApply"},
+				},
+				{
+					value:  float64(anchorTime.Unix() + 120),
+					labels: map[string]string{"version": "4.13.3", "condition": "Recommended", "status": "Unknown", "reason": "EvaluationFailed"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			optr := &Operator{}
+			m := newOperatorMetrics(optr)
+			ch := make(chan prometheus.Metric)
+
+			go func() {
+				m.collectConditionalUpdates(ch, tc.updates)
+				close(ch)
+			}()
+
+			var collected []prometheus.Metric
+			for item := range ch {
+				collected = append(collected, item)
+			}
+
+			if lenC, lenE := len(collected), len(tc.expected); lenC != lenE {
+
+				t.Fatalf("Expected %d metrics, got %d metrics\nGot metrics: %s", lenE, lenC, spew.Sdump(collected))
+			}
+			for i := range tc.expected {
+				expectMetric(t, collected[i], tc.expected[i].value, tc.expected[i].labels)
+			}
 		})
 	}
 }

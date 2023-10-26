@@ -92,10 +92,11 @@ func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condit
 			},
 			Conditions: []metav1.Condition{
 				{
-					Type:    "Recommended",
-					Status:  metav1.ConditionFalse,
-					Reason:  "FourFiveSix",
-					Message: "Four Five Five is just fine https://example.com/" + to,
+					Type:               "Recommended",
+					Status:             metav1.ConditionFalse,
+					Reason:             "FourFiveSix",
+					Message:            "Four Five Five is just fine https://example.com/" + to,
+					LastTransitionTime: metav1.Now(),
 				},
 			},
 		},
@@ -167,26 +168,59 @@ func TestSyncAvailableUpdates(t *testing.T) {
 func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.T) {
 	testCases := []struct {
 		name                string
-		modifyOriginalState func(condition *metav1.Condition)
+		modifyOriginalState func(optr *Operator)
+		modifyCV            func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate)
 		expectTimeChange    bool
 	}{
 		{
 			name:                "lastTransitionTime is not updated when nothing changes",
-			modifyOriginalState: func(condition *metav1.Condition) {},
+			modifyOriginalState: func(optr *Operator) {},
+			modifyCV:            func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {},
 		},
 		{
 			name: "lastTransitionTime is not updated when changed but status is identical",
-			modifyOriginalState: func(condition *metav1.Condition) {
-				condition.Reason = "OldReason"
-				condition.Message = "This message should be changed to something else"
+			modifyOriginalState: func(optr *Operator) {
+				optr.availableUpdates.ConditionalUpdates[0].Conditions[0].Reason = "OldReason"
+				optr.availableUpdates.ConditionalUpdates[0].Conditions[0].Message = "This message should be changed to something else"
 			},
+			modifyCV: func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {},
 		},
 		{
 			name: "lastTransitionTime is updated when status changes",
-			modifyOriginalState: func(condition *metav1.Condition) {
-				condition.Status = metav1.ConditionUnknown
+			modifyOriginalState: func(optr *Operator) {
+				optr.availableUpdates.ConditionalUpdates[0].Conditions[0].Status = metav1.ConditionUnknown
+			},
+			modifyCV:         func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {},
+			expectTimeChange: true,
+		},
+		{
+			name: "lastTransitionTime is updated on first fetch with empty CV status",
+			modifyOriginalState: func(optr *Operator) {
+				optr.availableUpdates = nil
+			},
+			modifyCV:         func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {},
+			expectTimeChange: true,
+		},
+		{
+			name: "lastTransitionTime is updated on first fetch when condition status in CV status differs from fetched status",
+			modifyOriginalState: func(optr *Operator) {
+				optr.availableUpdates = nil
+			},
+			modifyCV: func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {
+				cv.Status.ConditionalUpdates = []configv1.ConditionalUpdate{*update.DeepCopy()}
+				cv.Status.ConditionalUpdates[0].Conditions[0].Status = metav1.ConditionUnknown
 			},
 			expectTimeChange: true,
+		},
+		{
+			name: "lastTransitionTime is not updated on first fetch when condition status in CV status matches fetched status",
+			modifyOriginalState: func(optr *Operator) {
+				optr.availableUpdates = nil
+			},
+			modifyCV: func(cv *configv1.ClusterVersion, update configv1.ConditionalUpdate) {
+				cv.Status.ConditionalUpdates = []configv1.ConditionalUpdate{*update.DeepCopy()}
+			},
+			expectTimeChange: false,
 		},
 	}
 
@@ -199,9 +233,11 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			optr.availableUpdates.ConditionalUpdates = conditionalUpdates
 			expectedConditions := []metav1.Condition{{}}
 			conditionalUpdates[0].Conditions[0].DeepCopyInto(&expectedConditions[0])
-			tc.modifyOriginalState(&optr.availableUpdates.ConditionalUpdates[0].Conditions[0])
+			cv := cvFixture.DeepCopy()
+			tc.modifyOriginalState(optr)
+			tc.modifyCV(cv, conditionalUpdates[0])
 
-			err := optr.syncAvailableUpdates(context.Background(), cvFixture)
+			err := optr.syncAvailableUpdates(context.Background(), cv)
 
 			if err != nil {
 				t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)

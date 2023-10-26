@@ -14,6 +14,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -31,11 +32,19 @@ const (
 	// and indicates the cluster is not healthy.
 	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
 
+	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
+	// that indicates whether the conditional update is recommended or not
+	ConditionalUpdateConditionTypeRecommended = "Recommended"
+
 	// MaxHistory is the maximum size of ClusterVersion history. Once exceeded
 	// ClusterVersion history will be pruned. It is declared here and passed
 	// into the pruner function to allow easier testing.
 	MaxHistory = 100
 )
+
+func findRecommendedCondition(conditions []metav1.Condition) *metav1.Condition {
+	return meta.FindStatusCondition(conditions, ConditionalUpdateConditionTypeRecommended)
+}
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Release) bool {
 	if len(desired.Image) > 0 && desired.Image == current.Image {

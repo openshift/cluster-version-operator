@@ -56,6 +56,7 @@ type operatorMetrics struct {
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
+	clusterVersionConditionalUpdateConditionSeconds       *prometheus.GaugeVec
 }
 
 func newOperatorMetrics(optr *Operator) *operatorMetrics {
@@ -114,6 +115,10 @@ penultimate completed version for 'completed'.
 			Name: "cluster_version_operator_update_retrieval_timestamp_seconds",
 			Help: "Reports when updates were last successfully retrieved.",
 		}, []string{"name"}),
+		clusterVersionConditionalUpdateConditionSeconds: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_conditional_update_condition_seconds",
+			Help: "Reports when the Recommended condition status on a conditional update changed to its current state.",
+		}, []string{"version", "condition", "status", "reason"}),
 	}
 }
 
@@ -346,8 +351,25 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
+	ch <- m.clusterVersionConditionalUpdateConditionSeconds.WithLabelValues("", "", "", "").Desc()
 }
 
+func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric, updates []configv1.ConditionalUpdate) {
+	for _, update := range updates {
+		for _, condition := range update.Conditions {
+			if condition.Type != ConditionalUpdateConditionTypeRecommended {
+				continue
+			}
+
+			g := m.clusterVersionConditionalUpdateConditionSeconds
+			gauge := g.WithLabelValues(update.Release.Version, condition.Type, string(condition.Status), condition.Reason)
+			gauge.Set(float64(condition.LastTransitionTime.Unix()))
+			ch <- gauge
+		}
+	}
+}
+
+// Collect collects metrics from the operator into the channel ch
 func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 	current := m.optr.currentVersion()
 	var completed configv1.UpdateHistory
@@ -468,6 +490,8 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 			}
 			ch <- g
 		}
+
+		m.collectConditionalUpdates(ch, cv.Status.ConditionalUpdates)
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)

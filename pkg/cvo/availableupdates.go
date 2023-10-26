@@ -50,6 +50,12 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
 		optrAvailableUpdates = &availableUpdates{}
+		// Populate known conditional updates from CV status, if present. They will be re-fetched later,
+		// but we need to populate existing conditions to avoid bumping lastTransitionTime fields on
+		// conditions if their status hasn't changed since previous CVO evaluated them.
+		for i := range config.Status.ConditionalUpdates {
+			optrAvailableUpdates.ConditionalUpdates = append(optrAvailableUpdates.ConditionalUpdates, *config.Status.ConditionalUpdates[i].DeepCopy())
+		}
 	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 	} else if channel != optrAvailableUpdates.Channel {
@@ -59,7 +65,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if upstream == optrAvailableUpdates.Upstream || (upstream == optr.defaultUpstreamServer && optrAvailableUpdates.Upstream == "") {
 		needsConditionalUpdateEval := false
 		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
-			if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+			if recommended := findRecommendedCondition(conditionalUpdate.Conditions); recommended == nil {
 				needsConditionalUpdateEval = true
 				break
 			} else if recommended.Status != metav1.ConditionTrue && recommended.Status != metav1.ConditionFalse {
@@ -120,7 +126,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	queueKey := optr.queueKey()
 	for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
-		if recommended := meta.FindStatusCondition(conditionalUpdate.Conditions, "Recommended"); recommended == nil {
+		if recommended := findRecommendedCondition(conditionalUpdate.Conditions); recommended == nil {
 			klog.Warningf("Requeue available-update evaluation, because %q lacks a Recommended condition", conditionalUpdate.Release.Version)
 			optr.availableUpdatesQueue.AddAfter(queueKey, time.Second)
 			break
@@ -382,14 +388,13 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		vj := semver.MustParse(u.ConditionalUpdates[j].Release.Version)
 		return vi.GTE(vj)
 	})
-
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
 			u.removeUpdate(conditionalUpdate.Release.Image)
 		} else {
 			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
-				Type:   "Recommended",
+				Type:   ConditionalUpdateConditionTypeRecommended,
 				Status: metav1.ConditionTrue,
 				// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
 				Reason:  "AsExpected",
@@ -398,6 +403,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 			u.addUpdate(conditionalUpdate.Release)
 		}
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
+
 	}
 }
 
@@ -428,7 +434,7 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 
 func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
 	recommended := &metav1.Condition{
-		Type: "Recommended",
+		Type: ConditionalUpdateConditionTypeRecommended,
 	}
 	messages := []string{}
 	for _, risk := range conditionalUpdate.Risks {
