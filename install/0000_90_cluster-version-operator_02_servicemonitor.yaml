@@ -76,7 +76,7 @@ spec:
     - alert: ClusterReleaseNotAccepted
       annotations:
         summary: The desired cluster release has not been accepted for at least an hour.
-        description: The desired cluster release has not been accepted because {{ "${{ $labels.reason }}" }}, and the cluster will continue to reconcile an earlier release instead of moving towards that desired release.  For more information refer to 'oc adm upgrade'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+        description: The desired cluster release has not been accepted because {{ "{{ $labels.reason }}" }}, and the cluster will continue to reconcile an earlier release instead of moving towards that desired release.  For more information refer to 'oc adm upgrade'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
         max by (namespace, name, reason) (cluster_operator_conditions{name="version", condition="ReleaseAccepted", endpoint="metrics"} == 0)
       for: 60m
@@ -96,7 +96,7 @@ spec:
     - alert: ClusterOperatorDown
       annotations:
         summary: Cluster operator has not been available for 10 minutes.
-        description: The {{ "{{ $labels.name }}" }} operator may be down or disabled because {{ "${{ $labels.reason }}" }}, and the components it manages may be unavailable or degraded.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
+        description: The {{ "{{ $labels.name }}" }} operator may be down or disabled because {{ "{{ $labels.reason }}" }}, and the components it manages may be unavailable or degraded.  Cluster upgrades may not complete. For more information refer to 'oc get -o yaml clusteroperator {{ "{{ $labels.name }}" }}'{{ "{{ with $console_url := \"console_url\" | query }}{{ if ne (len (label \"url\" (first $console_url ) ) ) 0}} or {{ label \"url\" (first $console_url ) }}/settings/cluster/{{ end }}{{ end }}" }}.
       expr: |
         max by (namespace, name, reason) (cluster_operator_up{job="cluster-version-operator"} == 0)
       for: 10m
