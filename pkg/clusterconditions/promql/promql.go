@@ -50,7 +50,7 @@ func NewPromQL(kubeClient kubernetes.Interface) *cache.Cache {
 			},
 			QueryTimeout: 5 * time.Minute,
 		},
-		MinBetweenMatches: 10 * time.Minute,
+		MinBetweenMatches: 1 * time.Second,
 		MinForCondition:   time.Hour,
 		Expiration:        24 * time.Hour,
 	}
