@@ -70,8 +70,10 @@ func New(
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
 	}
 
-	cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
-	coInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	// Explicitly ignore errors because I am only making linter happy in a 4.12 backport, no intent
+	// to change behavior.
+	_, _ = cvInformer.Informer().AddEventHandler(ctrl.eventHandler())
+	_, _ = coInformer.Informer().AddEventHandler(ctrl.eventHandler())
 
 	ctrl.syncHandler = ctrl.sync
 

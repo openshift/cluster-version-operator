@@ -36,7 +36,9 @@ import (
 // Prometheus implementation.
 func (optr *Operator) RegisterMetrics(coInformer cache.SharedInformer) error {
 	m := newOperatorMetrics(optr)
-	coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	// Explicitly ignore errors because I am only making linter happy in a 4.12 backport, no intent
+	// to change behavior.
+	_, _ = coInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		UpdateFunc: m.clusterOperatorChanged,
 	})
 	return prometheus.Register(m)

@@ -3772,7 +3772,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	configManagedInformer := informers.NewSharedInformerFactory(f, 0)
 	cmInformerLister := configManagedInformer.Core().V1().ConfigMaps()
 	cmInformer := configManagedInformer.Core().V1().ConfigMaps().Informer()
-	cmInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
+	_, _ = cmInformer.AddEventHandler(&cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cm := obj.(*corev1.ConfigMap)
 			t.Logf("cm added: %s/%s", cm.Namespace, cm.Name)

@@ -213,11 +213,13 @@ func New(
 		conditionRegistry:  standard.NewConditionRegistry(kubeClient),
 	}
 
-	cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())
-	cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
-	cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
+	// Explicitly ignore errors because I am only making linter happy in a 4.12 backport, no intent
+	// to change behavior.
+	_, _ = cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler())
+	_, _ = cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler())
+	_, _ = cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler())
 
-	coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler())
+	_, _ = coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler())
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
 

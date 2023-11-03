@@ -41,7 +41,9 @@ func New(
 	}
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
-	featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	// Explicitly ignore errors because I am only making linter happy in a 4.12 backport, no intent
+	// to change behavior.
+	_, _ = featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			c.queue.Add("cluster")
 		},
