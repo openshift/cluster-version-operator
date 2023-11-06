@@ -24,13 +24,18 @@ func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBindin
 // modified is set to true when existing had to be updated with required.
 func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rbacv1.ClusterRole) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {
-		*modified = true
-		existing.Rules = required.Rules
-	}
 	if !equality.Semantic.DeepEqual(existing.AggregationRule, required.AggregationRule) {
 		*modified = true
 		existing.AggregationRule = required.AggregationRule
+	}
+	if required.AggregationRule != nil {
+		// The control plane overwrites any values that are manually specified in the rules field of an aggregate ClusterRole.
+		// Skip reconciling on Rules field
+		return
+	}
+	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {
+		*modified = true
+		existing.Rules = required.Rules
 	}
 }
 
