@@ -42,6 +42,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
+	"github.com/openshift/library-go/pkg/verify/store/serial"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 )
 
@@ -4203,7 +4204,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 		}
 		t.Run(tt.name, func(t *testing.T) {
 			f := kfake.NewSimpleClientset()
-			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, sigstore.DefaultClient, f.CoreV1())
+			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, sigstore.DefaultClient, f.CoreV1(), &serial.Store{})
 			if err == nil {
 				if tt.expectedError != "" {
 					t.Fatalf("loadConfigMapVerifierDataFromUpdate succeeded when we expected error \"%s\"", tt.expectedError)

@@ -33,6 +33,7 @@ import (
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/openshift/library-go/pkg/verify"
+	"github.com/openshift/library-go/pkg/verify/store"
 	"github.com/openshift/library-go/pkg/verify/store/configmap"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 
@@ -41,6 +42,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
+	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -292,8 +294,14 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		return fmt.Errorf("unable to create a configuration client: %v", err)
 	}
 
+	customSignatureStore := &customsignaturestore.Store{
+		Lister:     optr.cvLister,
+		Name:       optr.name,
+		HTTPClient: httpClientConstructor.HTTPClient,
+	}
+
 	// attempt to load a verifier as defined in the payload
-	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, httpClientConstructor.HTTPClient, configClient)
+	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, httpClientConstructor.HTTPClient, configClient, customSignatureStore)
 	if err != nil {
 		return err
 	}
@@ -360,7 +368,7 @@ func (optr *Operator) ownerReferenceModifier(object metav1.Object) {
 // It returns an error if the data is not valid, or no verifier if no config map is found. See the verify
 // package for more details on the algorithm for verification. If the annotation is set, a verifier or error
 // is always returned.
-func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder sigstore.HTTPClient, configMapClient coreclientsetv1.ConfigMapsGetter) (verify.Interface, *verify.StorePersister, error) {
+func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder sigstore.HTTPClient, configMapClient coreclientsetv1.ConfigMapsGetter, customSignatureStore store.Store) (verify.Interface, *verify.StorePersister, error) {
 	verifier, err := verify.NewFromManifests(update.Manifests, clientBuilder)
 	if err != nil {
 		return nil, nil, err
@@ -368,6 +376,8 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder s
 	if verifier == nil {
 		return nil, nil, nil
 	}
+
+	verifier.AddStore(customSignatureStore)
 
 	// allow the verifier to consult the cluster for signature data, and also configure
 	// a process that writes signatures back to that store
