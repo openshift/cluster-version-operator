@@ -945,6 +945,15 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 	var reportEffectErrors []error
 
+	manifestVerbosity := klog.Level(4)
+	switch {
+	case work.Attempt > 0:
+		manifestVerbosity = 2
+	case work.State == payload.UpdatingPayload ||
+		work.State == payload.InitializingPayload:
+		manifestVerbosity = 2
+	}
+
 	// update each object
 	errs := payload.RunGraph(ctx, graph, maxWorkers, func(ctx context.Context, tasks []*payload.Task) error {
 		// attempt to precreate a set of known types (currently ClusterOperator) without retries
@@ -956,14 +965,14 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				continue
 			}
 			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
-				klog.V(2).Infof("Skipping precreation of %s: %s", task, err)
+				klog.V(manifestVerbosity).Infof("Skipping precreation of %s: %s", task, err)
 				continue
 			}
 			if err := w.builder.Apply(ctx, task.Manifest, payload.PrecreatingPayload); err != nil {
 				klog.V(2).Infof("Unable to precreate resource %s: %v", task, err)
 				continue
 			}
-			klog.V(2).Infof("Precreated resource %s", task)
+			klog.V(manifestVerbosity).Infof("Precreated resource %s", task)
 		}
 
 		for _, task := range tasks {
@@ -972,10 +981,10 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			}
 			cr.Update()
 
-			klog.V(2).Infof("Running sync for %s", task)
+			klog.V(manifestVerbosity).Infof("Running sync for %s", task)
 
 			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
-				klog.V(2).Infof("Skipping %s: %s", task, err)
+				klog.V(manifestVerbosity).Infof("Skipping %s: %s", task, err)
 				continue
 			}
 			if err := task.Run(ctx, payloadUpdate.Release.Version, w.builder, work.State); err != nil {
@@ -987,7 +996,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				}
 			}
 			cr.Inc()
-			klog.V(2).Infof("Done syncing for %s", task)
+			klog.V(manifestVerbosity).Infof("Done syncing for %s", task)
 		}
 		return nil
 	})
