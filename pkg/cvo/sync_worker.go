@@ -589,14 +589,14 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 			// determine whether we need to do work
 			changed := w.calculateNext(work)
 			if !changed && waitingToReconcile {
-				klog.V(2).Infof("No change, waiting")
+				klog.V(4).Infof("No change, waiting")
 				continue
 			}
 
 			// until Update() has been called at least once, we do nothing
 			if work.Empty() {
 				next = time.After(w.minimumReconcileInterval)
-				klog.V(2).Infof("No work, waiting")
+				klog.V(4).Infof("No work, waiting")
 				continue
 			}
 
@@ -698,7 +698,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	if p.Failure != nil && status.Failure == nil {
 		if p.Actual.Image == status.Actual.Image {
 			if fractionComplete < previousFractionComplete {
-				klog.V(2).Infof("Dropping status report from earlier in sync loop")
+				klog.V(4).Infof("Dropping status report from earlier in sync loop")
 				return
 			}
 		}
@@ -972,7 +972,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			}
 			cr.Update()
 
-			klog.V(2).Infof("Running sync for %s", task)
+			klog.V(4).Infof("Running sync for %s", task)
 
 			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
 				klog.V(2).Infof("Skipping %s: %s", task, err)
@@ -987,7 +987,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				}
 			}
 			cr.Inc()
-			klog.V(2).Infof("Done syncing for %s", task)
+			klog.V(4).Infof("Done syncing for %s", task)
 		}
 		return nil
 	})
