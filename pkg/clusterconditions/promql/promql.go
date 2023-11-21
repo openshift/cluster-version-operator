@@ -7,8 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -24,6 +27,35 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/cache"
 )
+
+// statusCodeNotImplementedForPostClient returns an empty response containing the status
+// code 501 (Not Implemented) for POST requests.
+//
+// The downstream client attempts a POST request and, on a 405 or 501 status code,
+// fallbacks to a GET request. The default PromQL service in OpenShift maps the initial
+// POST request to the CREATE verb using a kube-rbac-proxy (when the service's tenancy
+// port is accessed). To ensure the request is mapped to the GET verb, this client will
+// force the downstream client to create a GET request.
+type statusCodeNotImplementedForPostClient struct {
+	client api.Client
+}
+
+func (c *statusCodeNotImplementedForPostClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
+	if req.Method == http.MethodPost {
+		if req.Body != nil {
+			req.Body.Close() // typically, the HTTP client's transport is responsible for closing the body
+		}
+		return &http.Response{
+			StatusCode: http.StatusNotImplemented,
+			Body:       io.NopCloser(strings.NewReader("")), // the body must not be nill as per documentation
+		}, []byte{}, nil
+	}
+	return c.client.Do(ctx, req)
+}
+
+func (c *statusCodeNotImplementedForPostClient) URL(ep string, args map[string]string) *url.URL {
+	return c.client.URL(ep, args)
+}
 
 // PromQL implements a cluster condition that matches based on PromQL.
 type PromQL struct {
@@ -117,9 +149,13 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 		return false, fmt.Errorf("creating PromQL round-tripper: %w", err)
 	}
 
-	client, err := api.NewClient(clientConfig)
+	promqlClient, err := api.NewClient(clientConfig)
 	if err != nil {
 		return false, fmt.Errorf("creating PromQL client: %w", err)
+	}
+
+	client := &statusCodeNotImplementedForPostClient{
+		client: promqlClient,
 	}
 
 	v1api := prometheusv1.NewAPI(client)
