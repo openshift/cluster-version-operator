@@ -8,7 +8,6 @@ RUN hack/build-go.sh; \
 FROM registry.ci.openshift.org/ocp/4.15:base-rhel9
 COPY --from=builder /tmp/build/cluster-version-operator /usr/bin/
 COPY install /manifests
-COPY vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusterversion.crd.yaml /manifests/
-COPY vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml /manifests/
+COPY vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_* /manifests/
 COPY bootstrap /bootstrap
 ENTRYPOINT ["/usr/bin/cluster-version-operator"]
