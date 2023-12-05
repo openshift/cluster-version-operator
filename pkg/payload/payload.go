@@ -159,12 +159,14 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 	var manifests []manifest.Manifest
 	var errs []error
 	for _, task := range tasks {
+		klog.V(2).Infof("loading update manifests from %q", task.idir)
 		files, err := os.ReadDir(task.idir)
 		if err != nil {
 			return nil, err
 		}
 
 		for _, file := range files {
+			klog.V(2).Infof("loading update manifests from %q %q", task.idir, file.Name())
 			if file.IsDir() {
 				continue
 			}
@@ -172,11 +174,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			switch filepath.Ext(file.Name()) {
 			case ".yaml", ".yml", ".json":
 			default:
+				klog.V(2).Infof("unrecognized suffix on %q", file.Name())
 				continue
 			}
 
 			p := filepath.Join(task.idir, file.Name())
 			if task.skipFiles.Has(p) {
+				klog.V(2).Infof("skip file %q", p)
 				continue
 			}
 
@@ -205,6 +209,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			// Filter out manifests that should be excluded based on annotation
 			filteredMs := []manifest.Manifest{}
 
+			klog.V(2).Infof("loaded %d manifests from %q before checking inclusion", len(ms), originalFilename)
 			for _, manifest := range ms {
 				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil); err != nil {
 					klog.V(2).Infof("excluding %s: %v\n", manifest.String(), err)
@@ -212,6 +217,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 				}
 				filteredMs = append(filteredMs, manifest)
 			}
+			klog.V(2).Infof("loaded %d manifests from %q after checking inclusion", len(filteredMs), originalFilename)
 			manifests = append(manifests, filteredMs...)
 		}
 	}
