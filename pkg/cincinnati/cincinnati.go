@@ -116,7 +116,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 			//nolint:staticcheck // SA1019: TLSClientConfig.RootCAs.Subjects() is deprecated because
 			// "if s was returned by SystemCertPool, Subjects will not include the system roots"
 			// but that should not apply for us, we construct it ourselves in Operator.getTLSConfig()
-			klog.V(2).Infof("Using a root CA pool with %n root CA subjects to request updates from %s", len(c.transport.TLSClientConfig.RootCAs.Subjects()), uri)
+			klog.V(2).Infof("Using a root CA pool with %d root CA subjects to request updates from %s", len(c.transport.TLSClientConfig.RootCAs.Subjects()), uri)
 		}
 	}
 

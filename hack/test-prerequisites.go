@@ -27,7 +27,7 @@ func main() {
 
 	client := apiext.NewForConfigOrDie(cfg)
 	for _, path := range []string{
-		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusterversion.crd.yaml",
+		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusterversion-Default.crd.yaml",
 		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml",
 	} {
 		var name string

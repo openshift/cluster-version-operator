@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/pkg/errors"
@@ -13,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
-// Render renders all the manifests from /manifests to outputDir.
+// Render renders critical manifests from /manifests to outputDir.
 func Render(outputDir, releaseImage, clusterProfile string) error {
 	var (
 		manifestsDir  = filepath.Join(DefaultPayloadDir, CVOManifestDir)
@@ -73,6 +74,12 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 			continue
 		}
 		if skipFiles.Has(file.Name()) {
+			continue
+		}
+		if strings.Contains(file.Name(), "CustomNoUpgrade") || strings.Contains(file.Name(), "TechPreviewNoUpgrade") {
+			// CustomNoUpgrade and TechPreviewNoUpgrade may add features to manifests like the ClusterVersion CRD,
+			// but we do not need those features during bootstrap-render time.  In those clusters, the production
+			// CVO will be along shortly to update the manifests and deliver the gated features.
 			continue
 		}
 
