@@ -240,7 +240,8 @@ func (w *SyncWorker) NotifyAboutManagedResourceActivity(message string) {
 // existing implicitly enabled capabilities. If no new implicitly enabled capabilities are found, just the previously
 // existing implicitly enabled capabilities are returned.
 //
-// Assumes SyncWorker is locked before syncPayload is called
+// Assumes SyncWorker is locked before syncPayload is called. It yields the lock while retrieving the payload image
+// (potentially long-running IO operation) but acquires it immediately after.
 func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
 	// reporter hides status updates that occur earlier than the previous failure,
 	// so that we don't fail, then immediately start reporting an earlier status
@@ -283,7 +284,13 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
+
+		// syncPayload executes while locked, but RetrievePayload is a potentially long-running operation
+		// which does not need the lock, so holding it may block other loops (mainly the apply loop) from
+		// execution
+		w.lock.Unlock()
 		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
+		w.lock.Lock()
 		if err != nil {
 			msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
