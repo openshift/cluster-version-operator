@@ -295,9 +295,9 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	}
 
 	customSignatureStore := &customsignaturestore.Store{
-		Lister:     optr.cvLister,
-		Name:       optr.name,
-		HTTPClient: httpClientConstructor.HTTPClient,
+		ClusterVersionLister: optr.cvLister,
+		Name:                 optr.name,
+		ConfigMapLister:      optr.cmConfigLister,
 	}
 
 	// attempt to load a verifier as defined in the payload
