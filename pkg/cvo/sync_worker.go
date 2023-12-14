@@ -288,8 +288,9 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		})
 		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
 		if err != nil {
-			msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+			msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
+			msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
 			reporter.ReportPayload(LoadPayloadStatus{
 				Failure:            err,
 				Step:               "RetrievePayload",
@@ -302,21 +303,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 		}
 		acceptedRisksMsg := ""
 		if info.VerificationError != nil {
-			for err := info.VerificationError; err != nil; err = errors.Unwrap(err) {
-				details := err.Error()
-
-				// library-go/pkg/verify wraps the details, but does not include them
-				// in the top-level error string.  If we have an error like that,
-				// include the details here.
-
-				if acceptedRisksMsg == "" {
-					acceptedRisksMsg = details
-					continue
-				}
-				if !strings.Contains(acceptedRisksMsg, details) {
-					acceptedRisksMsg = fmt.Sprintf("%s\n%s", acceptedRisksMsg, details)
-				}
-			}
+			acceptedRisksMsg = unwrappedErrorAggregate(info.VerificationError)
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
 		}
 
@@ -1299,4 +1286,25 @@ func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, buc
 			}
 		}
 	}, 1*time.Second)
+}
+
+// unwrappedErrorAggregate recursively calls Unwrap on the input error
+// and generates a string discussing all the results it considers
+// This is helpful for getting details out of errors where one of the
+// higher-level wrappers decides to not include some of the
+// lower-level details, for use-cases where you want to dig back down
+// and get those lower-level details.
+func unwrappedErrorAggregate(err error) string {
+	msg := ""
+	for ; err != nil; err = errors.Unwrap(err) {
+		details := err.Error()
+		if msg == "" {
+			msg = details
+			continue
+		}
+		if !strings.Contains(msg, details) {
+			msg = fmt.Sprintf("%s\n%s", msg, details)
+		}
+	}
+	return msg
 }
