@@ -83,7 +83,7 @@ type SyncWork struct {
 }
 
 // Empty returns true if the image is empty for this work.
-func (w SyncWork) Empty() bool {
+func (w *SyncWork) Empty() bool {
 	return len(w.Desired.Image) == 0
 }
 
@@ -574,7 +574,9 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 			}
 
 			// determine whether we need to do work
-			changed := w.calculateNext(work)
+			w.lock.Lock()
+			changed := work.calculateNextFrom(w.work)
+			w.lock.Unlock()
 			if !changed && waitingToReconcile {
 				klog.V(2).Infof("No change, waiting")
 				continue
@@ -701,35 +703,32 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	w.w.updateApplyStatus(status)
 }
 
-// calculateNext updates the passed work object with the desired next state and
+// calculateNextFrom updates the work object with the desired next state and
 // returns true if any changes were made. The reconciling flag is set the first
 // time work transitions from empty to not empty (as a result of someone invoking
 // Update).
-func (w *SyncWorker) calculateNext(work *SyncWork) bool {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-
-	sameVersion, sameOverrides, sameCapabilities := equalSyncWork(work, w.work, "calculating next work")
-	changed := !sameVersion || !sameOverrides || !sameCapabilities
+func (w *SyncWork) calculateNextFrom(desired *SyncWork) bool {
+	sameVersion, sameOverrides, sameCapabilities := equalSyncWork(w, desired, "calculating next work")
+	changed := !(sameVersion && sameOverrides && sameCapabilities)
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
-	if work.Empty() {
-		work.State = w.work.State
-		work.Attempt = 0
-	} else if changed && work.State != payload.InitializingPayload {
-		klog.V(2).Infof("Work changed, transitioning from %s to %s", work.State, payload.UpdatingPayload)
-		work.State = payload.UpdatingPayload
-		work.Attempt = 0
+	if w.Empty() {
+		w.State = desired.State
+		w.Attempt = 0
+	} else if changed && w.State != payload.InitializingPayload {
+		klog.V(2).Infof("Work changed, transitioning from %s to %s", w.State, payload.UpdatingPayload)
+		w.State = payload.UpdatingPayload
+		w.Attempt = 0
 	}
 
-	if w.work != nil {
-		work.Desired = w.work.Desired
-		work.Overrides = w.work.Overrides
-		work.Capabilities = w.work.Capabilities
+	if desired != nil {
+		w.Desired = desired.Desired
+		w.Overrides = desired.Overrides
+		w.Capabilities = desired.Capabilities
 	}
 
-	work.Generation = w.work.Generation
+	w.Generation = desired.Generation
 
 	return changed
 }
