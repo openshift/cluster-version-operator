@@ -94,6 +94,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 			upstream = ""
 		}
 
+		optrAvailableUpdates.LastAttempt = time.Now()
 		optrAvailableUpdates.Upstream = upstream
 		optrAvailableUpdates.Channel = channel
 		optrAvailableUpdates.Architecture = arch
@@ -183,7 +184,6 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *confi
 func (optr *Operator) setAvailableUpdates(u *availableUpdates) {
 	success := false
 	if u != nil {
-		u.LastAttempt = time.Now()
 		if u.Condition.Type == configv1.RetrievedUpdates {
 			success = u.Condition.Status == configv1.ConditionTrue
 		} else {
