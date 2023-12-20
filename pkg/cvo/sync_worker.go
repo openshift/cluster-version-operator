@@ -59,13 +59,6 @@ type PayloadRetriever interface {
 	RetrievePayload(ctx context.Context, desired configv1.Update) (PayloadInfo, error)
 }
 
-// StatusReporter abstracts how status is reported by the worker run method. Introduced for testing.
-type StatusReporter interface {
-	Report(status SyncWorkerStatus)
-	ReportPayload(payLoadStatus LoadPayloadStatus)
-	ValidPayloadStatus(update configv1.Update) bool
-}
-
 // SyncWork represents the work that should be done in a sync iteration.
 type SyncWork struct {
 	Generation int64
@@ -249,7 +242,7 @@ func (w *SyncWorker) NotifyAboutManagedResourceActivity(message string) {
 //
 // Assumes SyncWorker is locked before syncPayload is called
 func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
-	reporter StatusReporter) ([]configv1.ClusterVersionCapability, error) {
+	reporter *statusWrapper) ([]configv1.ClusterVersionCapability, error) {
 
 	implicitlyEnabledCaps := work.Capabilities.ImplicitlyEnabledCapabilities
 
@@ -878,7 +871,8 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 //
 // Acquires the SyncWorker lock, so it must not be locked when apply is called.
 // Acquires the lock in SyncWorker reporter.w, so it must not be locked when apply is called.
-func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
+// SyncWorker w and SyncWorker reporter.w can be identical instances
+func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, reporter *statusWrapper) error {
 	klog.V(2).Infof("apply: %s on generation %d in state %s at attempt %d", work.Desired.Version, work.Generation, work.State, work.Attempt)
 
 	if work.Attempt == 0 {
@@ -1054,7 +1048,7 @@ type consistentReporter struct {
 	completed int
 	total     int
 	done      int
-	reporter  StatusReporter
+	reporter  *statusWrapper
 }
 
 func (r *consistentReporter) Inc() {
@@ -1063,6 +1057,9 @@ func (r *consistentReporter) Inc() {
 	r.done++
 }
 
+// Update updates the status based on the current state of the graph runner.
+//
+// Acquires the lock in SyncWorker r.reporter.w, so it must not be locked when Update is called.
 func (r *consistentReporter) Update() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -1074,6 +1071,9 @@ func (r *consistentReporter) Update() {
 	r.reporter.Report(copied)
 }
 
+// Errors updates the status based on the current state of the graph runner.
+//
+// Acquires the lock in SyncWorker r.reporter.w, so it must not be locked when Errors is called.
 func (r *consistentReporter) Errors(errs []error) error {
 	err := summarizeTaskGraphErrors(errs)
 
@@ -1095,6 +1095,9 @@ func (r *consistentReporter) ContextError(err error) error {
 	return errContext{fmt.Errorf("update %s at %d of %d", err, r.done, r.total)}
 }
 
+// Complete updates the status based on the current state of the graph runner.
+//
+// Acquires the lock in SyncWorker r.reporter.w, so it must not be locked when Complete is called.
 func (r *consistentReporter) Complete() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
