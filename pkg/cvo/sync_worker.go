@@ -890,19 +890,22 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 	total := len(payloadUpdate.Manifests)
 	cr := &consistentReporter{
 		status: SyncWorkerStatus{
-			Generation:   work.Generation,
-			Initial:      work.State.Initializing(),
-			Reconciling:  work.State.Reconciling(),
-			VersionHash:  payloadUpdate.ManifestHash,
-			Architecture: w.status.Architecture,
-			Actual:       payloadUpdate.Release,
-			Verified:     payloadUpdate.VerifiedImage,
+			Generation:  work.Generation,
+			Initial:     work.State.Initializing(),
+			Reconciling: work.State.Reconciling(),
+			VersionHash: payloadUpdate.ManifestHash,
+			Actual:      payloadUpdate.Release,
+			Verified:    payloadUpdate.VerifiedImage,
 		},
 		completed: work.Completed,
 		version:   payloadUpdate.Release.Version,
 		total:     total,
 		reporter:  reporter,
 	}
+
+	w.lock.Lock()
+	cr.status.Architecture = w.status.Architecture
+	w.lock.Unlock()
 
 	var tasks []*payload.Task
 	backoff := w.backoff
