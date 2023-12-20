@@ -246,6 +246,8 @@ func (w *SyncWorker) NotifyAboutManagedResourceActivity(message string) {
 // more resources which are enabled in the current payload. All such capabilities are returned along with any previously
 // existing implicitly enabled capabilities. If no new implicitly enabled capabilities are found, just the previously
 // existing implicitly enabled capabilities are returned.
+//
+// Assumes SyncWorker is locked before syncPayload is called
 func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 	reporter StatusReporter) ([]configv1.ClusterVersionCapability, error) {
 
@@ -410,6 +412,9 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 }
 
 // loadUpdatedPayload retrieves the image. If successfully retrieved it updates payload otherwise it returns an error.
+//
+// Assumes SyncWorker is locked before loadUpdatedPayload is called. This locked instance is also passed
+// into statusWrapper instance this method creates.
 func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
 
 	// reporter hides status updates that occur earlier than the previous failure,
@@ -429,6 +434,8 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]
 // the initial state or whatever the last recorded status was.
 // TODO: in the future it may be desirable for changes that alter desired to wait briefly before returning,
 // giving the sync loop the opportunity to observe our change and begin working towards it.
+//
+// Acquires the SyncWorker lock, so it must not be locked when Update is called
 func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion,
 	state payload.State) *SyncWorkerStatus {
 
@@ -550,6 +557,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 // Start periodically invokes run, detecting whether content has changed.
 // It is edge-triggered when Update() is invoked and level-driven after the
 // apply() has succeeded for a given input (we are said to be "reconciling").
+//
+// Acquires the SyncWorker lock, so it must not be locked when Start is called
 func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	klog.V(2).Infof("Start: starting sync worker")
 
@@ -665,7 +674,9 @@ func (w *statusWrapper) ValidPayloadStatus(update configv1.Update) bool {
 	return equalDigest(w.previousStatus.loadPayloadStatus.Update.Image, update.Image)
 }
 
-// ReportPayload reports payload load status. SyncWorker must be locked before ReportPayload is called.
+// ReportPayload reports payload load status.
+//
+// Assumes the lock in SyncWorker w.w is acquired before ReportPayload is called
 func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
 	status := w.previousStatus
 	status.loadPayloadStatus = payloadStatus
@@ -674,6 +685,8 @@ func (w *statusWrapper) ReportPayload(payloadStatus LoadPayloadStatus) {
 
 // Report reports payload application status. It does not overwrite payload load status and capabilities status
 // since payload application does not update these statuses they could therefore be out-of-date.
+//
+// Acquires the lock in SyncWorker w.w, so it must not be locked when Report is called
 func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	p := w.previousStatus
 	var fractionComplete float32
@@ -801,6 +814,8 @@ func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides
 // testability. It sets Generation, Failure, Done, Total, Completed, Reconciling, Initial,
 // VersionHash, LastProgress, Actual, and Verified statuses which are manged by the payload
 // apply sync action.
+//
+// Acquires the SyncWorker lock, so it must not be locked when updateApplyStatus is called.
 func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
@@ -824,7 +839,8 @@ func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 // observation by others. It sends a copy of the update to the report channel for improved
 // testability. It sets Generation, Reconciling, Actual, Verified, payload load, and
 // capabilities statuses which are manged by the payload load sync action.
-// SyncWorker must be locked before updateLoadStatus is called.
+//
+// Assumes the SyncWorker lock is acquired before updateLoadStatus is called
 func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
 
 	// do not overwrite these status values which are not managed by load
@@ -848,6 +864,8 @@ func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
 }
 
 // Status returns a copy of the current worker status.
+//
+// SyncWorker must not be locked before Status is called.
 func (w *SyncWorker) Status() *SyncWorkerStatus {
 	w.lock.Lock()
 	defer w.lock.Unlock()
@@ -857,6 +875,9 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // apply applies the current payload to the server, executing in parallel if maxWorkers is set greater
 // than 1, returning an error if the update could not be completely applied. The status is updated as we
 // progress. Cancelling the context will abort the execution of apply.
+//
+// Acquires the SyncWorker lock, so it must not be locked when apply is called.
+// Acquires the lock in SyncWorker reporter.w, so it must not be locked when apply is called.
 func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, reporter StatusReporter) error {
 	klog.V(2).Infof("apply: %s on generation %d in state %s at attempt %d", work.Desired.Version, work.Generation, work.State, work.Attempt)
 
@@ -965,6 +986,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			if err := ctx.Err(); err != nil {
 				return cr.ContextError(err)
 			}
+			// This locks the sync worker deep inside
 			cr.Update()
 
 			klog.V(manifestVerbosity).Infof("Running sync for %s", task)
