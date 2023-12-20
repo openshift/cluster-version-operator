@@ -619,11 +619,9 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				w.lock.Unlock()
 				defer cancelFn()
 
-				// reporter hides status updates that occur earlier than the previous failure,
-				// so that we don't fail, then immediately start reporting an earlier status
-				reporter := &statusWrapper{w: w, previousStatus: w.Status()}
-				klog.V(2).Infof("Previous sync status: %#v", reporter.previousStatus)
-				return w.apply(ctx, work, maxWorkers, reporter)
+				previousStatus := w.Status()
+				klog.V(2).Infof("Previous sync status: %#v", previousStatus)
+				return w.apply(ctx, work, maxWorkers, previousStatus)
 			}()
 			if err != nil {
 				// backoff wait
@@ -872,13 +870,16 @@ func (w *SyncWorker) Status() *SyncWorkerStatus {
 // Acquires the SyncWorker lock, so it must not be locked when apply is called.
 // Acquires the lock in SyncWorker reporter.w, so it must not be locked when apply is called.
 // SyncWorker w and SyncWorker reporter.w can be identical instances
-func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, reporter *statusWrapper) error {
+func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, previousStatus *SyncWorkerStatus) error {
 	klog.V(2).Infof("apply: %s on generation %d in state %s at attempt %d", work.Desired.Version, work.Generation, work.State, work.Attempt)
 
 	if work.Attempt == 0 {
 		payload.InitCOUpdateStartTimes()
 	}
 	payloadUpdate := w.payload
+	// reporter hides status updates that occur earlier than the previous failure,
+	// so that we don't fail, then immediately start reporting an earlier status
+	reporter := &statusWrapper{w: w, previousStatus: previousStatus}
 
 	// encapsulate status reporting in a threadsafe updater
 	total := len(payloadUpdate.Manifests)
