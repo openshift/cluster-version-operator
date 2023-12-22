@@ -99,7 +99,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	co := readClusterOperatorV1OrDie(b.raw)
 
 	// add cluster operator's start time if not already there
-	payload.COUpdateStartTimesEnsureName(co.Name)
+	payload.COUpdateStartTimesEnsure(co.Name)
 
 	if b.modifier != nil {
 		b.modifier(co)
@@ -144,7 +144,14 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	return checkOperatorHealth(ctx, b.client, co, b.mode)
+	err := checkOperatorHealth(ctx, b.client, co, b.mode)
+	if err == nil {
+		// Operator is updated to desired version and healthy. These times are now only used to compute
+		// the "waiting 40 minutes" message, so once we succeed, keeping time when we *first* started
+		// to upgrade this CO makes no sense. We need to track when the current ongoing upgrade started.
+		payload.COUpdateStartTimesRemove(co.Name)
+	}
+	return err
 }
 
 func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
