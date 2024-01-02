@@ -6,16 +6,20 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/go-cmp/cmp"
+
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
 )
@@ -118,6 +122,26 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 			return err
 		}
 		return nil
+	} else if b.mode == resourcebuilder.ReconcilingMode {
+		existing, err := b.client.Get(ctx, os.Name)
+		if err != nil {
+			return err
+		}
+
+		var original configv1.ClusterOperator
+		existing.DeepCopyInto(&original)
+		var modified bool
+		resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, os.ObjectMeta)
+		if modified {
+			if diff := cmp.Diff(&original, existing); diff != "" {
+				klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", os.Name, diff)
+			} else {
+				klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", os.Name)
+			}
+			if _, err := b.createClient.Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
+				return err
+			}
+		}
 	}
 
 	return checkOperatorHealth(ctx, b.client, os, b.mode)
