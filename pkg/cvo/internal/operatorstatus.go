@@ -32,17 +32,17 @@ var (
 )
 
 func init() {
-	if err := configv1.AddToScheme(osScheme); err != nil {
+	if err := configv1.Install(osScheme); err != nil {
 		panic(err)
 	}
 
-	osMapper.RegisterGVK(configv1.SchemeGroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
+	osMapper.RegisterGVK(configv1.GroupVersion.WithKind("ClusterOperator"), newClusterOperatorBuilder)
 	osMapper.AddToMap(resourcebuilder.Mapper)
 }
 
 // readClusterOperatorV1OrDie reads clusteroperator object from bytes. Panics on error.
 func readClusterOperatorV1OrDie(objBytes []byte) *configv1.ClusterOperator {
-	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(configv1.SchemeGroupVersion), objBytes)
+	requiredObj, err := runtime.Decode(osCodecs.UniversalDecoder(configv1.GroupVersion), objBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -96,25 +96,25 @@ func (b *clusterOperatorBuilder) WithModifier(f resourcebuilder.MetaV1ObjectModi
 }
 
 func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
-	os := readClusterOperatorV1OrDie(b.raw)
+	co := readClusterOperatorV1OrDie(b.raw)
 
 	// add cluster operator's start time if not already there
-	payload.COUpdateStartTimesEnsureName(os.Name)
+	payload.COUpdateStartTimesEnsureName(co.Name)
 
 	if b.modifier != nil {
-		b.modifier(os)
+		b.modifier(co)
 	}
 
 	// create the object, and if we successfully created, update the status
 	if b.mode == resourcebuilder.PrecreatingMode {
-		clusterOperator, err := b.createClient.Create(ctx, os, metav1.CreateOptions{})
+		clusterOperator, err := b.createClient.Create(ctx, co, metav1.CreateOptions{})
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
 				return nil
 			}
 			return err
 		}
-		clusterOperator.Status.RelatedObjects = os.Status.DeepCopy().RelatedObjects
+		clusterOperator.Status.RelatedObjects = co.Status.DeepCopy().RelatedObjects
 		if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, metav1.UpdateOptions{}); err != nil {
 			if kerrors.IsConflict(err) {
 				return nil
@@ -123,7 +123,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		}
 		return nil
 	} else if b.mode == resourcebuilder.ReconcilingMode {
-		existing, err := b.client.Get(ctx, os.Name)
+		existing, err := b.client.Get(ctx, co.Name)
 		if err != nil {
 			return err
 		}
@@ -131,12 +131,12 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		var original configv1.ClusterOperator
 		existing.DeepCopyInto(&original)
 		var modified bool
-		resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, os.ObjectMeta)
+		resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, co.ObjectMeta)
 		if modified {
 			if diff := cmp.Diff(&original, existing); diff != "" {
-				klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", os.Name, diff)
+				klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", co.Name, diff)
 			} else {
-				klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", os.Name)
+				klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", co.Name)
 			}
 			if _, err := b.createClient.Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
 				return err
@@ -144,7 +144,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		}
 	}
 
-	return checkOperatorHealth(ctx, b.client, os, b.mode)
+	return checkOperatorHealth(ctx, b.client, co, b.mode)
 }
 
 func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, expected *configv1.ClusterOperator, mode resourcebuilder.Mode) error {
