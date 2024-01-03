@@ -10,9 +10,6 @@ import (
 // matching the container names.
 func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, httpProxy, httpsProxy, noProxy string) error {
 	hasProxy := len(httpsProxy) > 0 || len(httpProxy) > 0 || len(noProxy) > 0
-	if !hasProxy {
-		return nil
-	}
 
 	for _, containerName := range containerNames {
 		found := false
@@ -22,9 +19,11 @@ func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, ht
 			}
 			found = true
 
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
-			podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			if hasProxy {
+				podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
+				podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
+				podSpec.Containers[i].Env = append(podSpec.Containers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			}
 		}
 		for i := range podSpec.InitContainers {
 			if podSpec.InitContainers[i].Name != containerName {
@@ -32,9 +31,11 @@ func updatePodSpecWithProxy(podSpec *corev1.PodSpec, containerNames []string, ht
 			}
 			found = true
 
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
-			podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			if hasProxy {
+				podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTP_PROXY", Value: httpProxy})
+				podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "HTTPS_PROXY", Value: httpsProxy})
+				podSpec.InitContainers[i].Env = append(podSpec.InitContainers[i].Env, corev1.EnvVar{Name: "NO_PROXY", Value: noProxy})
+			}
 		}
 
 		if !found {
