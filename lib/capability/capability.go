@@ -13,14 +13,14 @@ const (
 )
 
 type ClusterCapabilities struct {
-	KnownCapabilities             map[configv1.ClusterVersionCapability]struct{}
-	EnabledCapabilities           map[configv1.ClusterVersionCapability]struct{}
-	ImplicitlyEnabledCapabilities []configv1.ClusterVersionCapability
+	Known             map[configv1.ClusterVersionCapability]struct{}
+	Enabled           map[configv1.ClusterVersionCapability]struct{}
+	ImplicitlyEnabled []configv1.ClusterVersionCapability
 }
 
 func (c *ClusterCapabilities) Equal(capabilities *ClusterCapabilities) error {
-	if !reflect.DeepEqual(c.EnabledCapabilities, capabilities.EnabledCapabilities) {
-		return fmt.Errorf("enabled %v not equal to %v", c.EnabledCapabilities, capabilities.EnabledCapabilities)
+	if !reflect.DeepEqual(c.Enabled, capabilities.Enabled) {
+		return fmt.Errorf("enabled %v not equal to %v", c.Enabled, capabilities.Enabled)
 	}
 
 	return nil
@@ -38,9 +38,9 @@ func SetCapabilities(config *configv1.ClusterVersion,
 	existingEnabled map[configv1.ClusterVersionCapability]struct{}) ClusterCapabilities {
 
 	var capabilities ClusterCapabilities
-	capabilities.KnownCapabilities = setKnownCapabilities()
+	capabilities.Known = setKnownCapabilities()
 
-	capabilities.EnabledCapabilities, capabilities.ImplicitlyEnabledCapabilities = setEnabledCapabilities(config.Spec.Capabilities,
+	capabilities.Enabled, capabilities.ImplicitlyEnabled = setEnabledCapabilities(config.Spec.Capabilities,
 		existingEnabled)
 
 	return capabilities
@@ -61,10 +61,10 @@ func GetCapabilitiesAsMap(capabilities []configv1.ClusterVersionCapability) map[
 func SetFromImplicitlyEnabledCapabilities(implicitlyEnabled []configv1.ClusterVersionCapability,
 	capabilities ClusterCapabilities) ClusterCapabilities {
 
-	capabilities.ImplicitlyEnabledCapabilities = implicitlyEnabled
+	capabilities.ImplicitlyEnabled = implicitlyEnabled
 	for _, c := range implicitlyEnabled {
-		if _, ok := capabilities.EnabledCapabilities[c]; !ok {
-			capabilities.EnabledCapabilities[c] = struct{}{}
+		if _, ok := capabilities.Enabled[c]; !ok {
+			capabilities.Enabled[c] = struct{}{}
 		}
 	}
 	return capabilities
@@ -84,11 +84,11 @@ func GetKnownCapabilities() []configv1.ClusterVersionCapability {
 // GetCapabilitiesStatus populates and returns ClusterVersion capabilities status from given capabilities.
 func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVersionCapabilitiesStatus {
 	var status configv1.ClusterVersionCapabilitiesStatus
-	for k := range capabilities.EnabledCapabilities {
+	for k := range capabilities.Enabled {
 		status.EnabledCapabilities = append(status.EnabledCapabilities, k)
 	}
 	sort.Sort(capabilitiesSort(status.EnabledCapabilities))
-	for k := range capabilities.KnownCapabilities {
+	for k := range capabilities.Known {
 		status.KnownCapabilities = append(status.KnownCapabilities, k)
 	}
 	sort.Sort(capabilitiesSort(status.KnownCapabilities))
@@ -108,8 +108,8 @@ func GetImplicitlyEnabledCapabilities(enabledManifestCaps []configv1.ClusterVers
 		if Contains(enabledManifestCaps, c) {
 			continue
 		}
-		if _, ok := capabilities.EnabledCapabilities[c]; !ok {
-			if !Contains(capabilities.ImplicitlyEnabledCapabilities, c) {
+		if _, ok := capabilities.Enabled[c]; !ok {
+			if !Contains(capabilities.ImplicitlyEnabled, c) {
 				caps = append(caps, c)
 			}
 		}

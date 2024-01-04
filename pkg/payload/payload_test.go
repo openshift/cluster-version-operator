@@ -231,8 +231,8 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "basic",
 			pathExt: "test1",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap2"),
@@ -243,8 +243,8 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "basic with unknown cap",
 			pathExt: "test1",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap2"),
@@ -259,25 +259,25 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "current manifest not enabled",
 			pathExt: "test3",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
 			},
 		},
 		{
 			name:    "new cap already enabled",
 			pathExt: "test4",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
 			},
 		},
 		{
 			name:    "already implicitly enabled",
 			pathExt: "test5",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{"cap2"},
+				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap2"},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap2"),
@@ -288,8 +288,8 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "only add cap once",
 			pathExt: "test6",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap2"),
@@ -306,7 +306,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "complex",
 			pathExt: "test7",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities: map[configv1.ClusterVersionCapability]struct{}{
+				Known: map[configv1.ClusterVersionCapability]struct{}{
 					"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}, "cap6": {},
 					"cap7": {}, "cap8": {}, "cap9": {}, "cap10": {}, "cap11": {}, "cap12": {},
 					"cap13": {}, "cap14": {}, "cap15": {}, "cap16": {}, "cap17": {}, "cap18": {},
@@ -315,13 +315,13 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 					"cap117": {}, "cap118": {}, "cap119": {}, "cap1111": {}, "cap1113": {}, "cap1115": {},
 					"cap1110": {}, "cap1112": {}, "cap1114": {}, "cap1116": {},
 				},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{
 					"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}, "cap6": {},
 					"cap7": {}, "cap8": {}, "cap9": {}, "cap10": {}, "cap11": {}, "cap12": {},
 					"cap13": {}, "cap14": {}, "cap15": {}, "cap16": {}, "cap17": {}, "cap18": {},
 					"cap19": {}, "cap20": {}, "cap21": {}, "cap22": {}, "cap23": {}, "cap24": {},
 				},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{
+				ImplicitlyEnabled: []configv1.ClusterVersionCapability{
 					configv1.ClusterVersionCapability("cap000"),
 					configv1.ClusterVersionCapability("cap111"),
 					configv1.ClusterVersionCapability("cap112"),
@@ -354,9 +354,9 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "no update manifests",
 			pathExt: "test8",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				EnabledCapabilities:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{"cap1"},
+				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap1"},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap1"),
@@ -367,9 +367,9 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "no current manifests",
 			pathExt: "test9",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				EnabledCapabilities:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{"cap1"},
+				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap1"},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap1"),
@@ -380,8 +380,8 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "duplicate manifests",
 			pathExt: "test10",
 			capabilities: capability.ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
 			},
 			wantImplicit: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapability("cap2"),
