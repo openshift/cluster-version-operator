@@ -9,8 +9,6 @@ import (
 )
 
 const (
-	CapabilityAnnotation = "capability.openshift.io/name"
-
 	DefaultCapabilitySet = configv1.ClusterVersionCapabilitySetCurrent
 )
 
