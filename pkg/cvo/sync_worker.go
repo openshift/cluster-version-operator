@@ -241,8 +241,10 @@ func (w *SyncWorker) NotifyAboutManagedResourceActivity(message string) {
 // existing implicitly enabled capabilities are returned.
 //
 // Assumes SyncWorker is locked before syncPayload is called
-func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
-	reporter *statusWrapper) ([]configv1.ClusterVersionCapability, error) {
+func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
+	// reporter hides status updates that occur earlier than the previous failure,
+	// so that we don't fail, then immediately start reporting an earlier status
+	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
 
 	implicitlyEnabledCaps := work.Capabilities.ImplicitlyEnabledCapabilities
 
@@ -409,12 +411,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork,
 // Assumes SyncWorker is locked before loadUpdatedPayload is called. This locked instance is also passed
 // into statusWrapper instance this method creates.
 func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
-
-	// reporter hides status updates that occur earlier than the previous failure,
-	// so that we don't fail, then immediately start reporting an earlier status
-	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
-
-	implicitlyEnabledCaps, err := w.syncPayload(ctx, work, reporter)
+	implicitlyEnabledCaps, err := w.syncPayload(ctx, work)
 	if err != nil {
 		klog.V(2).Infof("loadUpdatedPayload syncPayload err=%v", err)
 		return nil, err
