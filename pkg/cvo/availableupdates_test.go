@@ -274,7 +274,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
-				Reason:  recommendedReasonAsExpected,
+				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
 		},
@@ -295,7 +295,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
-				Reason:  recommendedReasonAsExpected,
+				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
 		},
@@ -337,7 +337,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
-				Reason:  recommendedReasonRiskApplies,
+				Reason:  recommendedReasonExposed,
 				Message: "This is a risk! https://match.es",
 			},
 		},

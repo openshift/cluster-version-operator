@@ -441,13 +441,13 @@ func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStat
 }
 
 const (
-	recommendedReasonAsExpected       = "AsExpected"
+	recommendedReasonRisksNotExposed  = "NotExposedToRisks"
 	recommendedReasonEvaluationFailed = "EvaluationFailed"
 	recommendedReasonMultiple         = "MultipleReasons"
 
-	// recommendedReasonRiskApplies is used instead of the original name if it
-	// does not match the pattern for a valid k8s condition reason.
-	recommendedReasonRiskApplies = "RiskAppliesToCluster"
+	// recommendedReasonExposed is used instead of the original name if it does
+	// not match the pattern for a valid k8s condition reason.
+	recommendedReasonExposed = "ExposedToRisks"
 )
 
 // Reasons follow same pattern as k8s Condition Reasons
@@ -456,7 +456,7 @@ var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
 
 func newRecommendedReason(now, want string) string {
 	switch {
-	case now == recommendedReasonAsExpected:
+	case now == recommendedReasonRisksNotExposed:
 		return want
 	case now == want:
 		return now
@@ -470,7 +470,7 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 		Type:   ConditionalUpdateConditionTypeRecommended,
 		Status: metav1.ConditionTrue,
 		// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
-		Reason:  recommendedReasonAsExpected,
+		Reason:  recommendedReasonRisksNotExposed,
 		Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 	}
 
@@ -482,7 +482,7 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
 		} else if match {
 			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
-			wantReason := recommendedReasonRiskApplies
+			wantReason := recommendedReasonExposed
 			if reasonPattern.MatchString(risk.Name) {
 				wantReason = risk.Name
 			}
