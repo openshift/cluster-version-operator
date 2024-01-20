@@ -192,7 +192,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 			worker.payload = up
 
-			err := worker.apply(ctx, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, &SyncWork{}, 1, worker.Status())
 			if !test.wantErr && err != nil {
 				t.Fatal(err)
 			}
@@ -411,7 +411,7 @@ func Test_SyncWorker_apply_generic(t *testing.T) {
 			}
 			worker.payload = up
 			ctx := context.Background()
-			err := worker.apply(ctx, &SyncWork{}, 1, &statusWrapper{w: worker, previousStatus: worker.Status()})
+			err := worker.apply(ctx, &SyncWork{}, 1, worker.Status())
 			if err != nil {
 				t.Fatal(err)
 			}
