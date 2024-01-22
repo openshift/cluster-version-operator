@@ -267,15 +267,16 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			capStrings := make([]string, len(caps))
 			for i, c := range caps {
 				capStrings[i] = string(c)
-				if !capability.Contains(implicitlyEnabledCaps, c) {
-					implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
+				if implicitlyEnabledCaps == nil {
+					implicitlyEnabledCaps = sets.New[configv1.ClusterVersionCapability]()
 				}
+				implicitlyEnabledCaps.Insert(c)
 			}
 			klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",
 				getManifestResourceId(updateManifest), strings.Join(capStrings, ", "))
 		}
 	}
-	return implicitlyEnabledCaps
+	return sets.List[configv1.ClusterVersionCapability](implicitlyEnabledCaps) // TOOD(muller): Return value is a set
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
