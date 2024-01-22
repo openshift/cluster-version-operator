@@ -44,13 +44,20 @@ func InitCOUpdateStartTimes() {
 	clusterOperatorUpdateStartTimes.lock.Unlock()
 }
 
-// COUpdateStartTimesEnsureName adds name to clusterOperatorUpdateStartTimes map and sets to
+// COUpdateStartTimesEnsure adds name to clusterOperatorUpdateStartTimes map and sets to
 // current time if name does not already exist in map.
-func COUpdateStartTimesEnsureName(name string) {
+func COUpdateStartTimesEnsure(name string) {
 	clusterOperatorUpdateStartTimes.lock.Lock()
 	if _, ok := clusterOperatorUpdateStartTimes.m[name]; !ok {
 		clusterOperatorUpdateStartTimes.m[name] = time.Now()
 	}
+	clusterOperatorUpdateStartTimes.lock.Unlock()
+}
+
+// COUpdateStartTimesRemove removes name from clusterOperatorUpdateStartTimes
+func COUpdateStartTimesRemove(name string) {
+	clusterOperatorUpdateStartTimes.lock.Lock()
+	delete(clusterOperatorUpdateStartTimes.m, name)
 	clusterOperatorUpdateStartTimes.lock.Unlock()
 }
 
