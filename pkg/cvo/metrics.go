@@ -504,6 +504,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 
 	// output cluster operator version and condition info
 	operators, _ := m.optr.coLister.List(labels.Everything())
+	now := time.Now()
 	for _, op := range operators {
 		var version string
 		for _, v := range op.Status.Versions {
@@ -525,6 +526,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 		g := m.clusterOperatorUp.WithLabelValues(op.Name, version, reason)
 		g.Set(isUp)
+		klog.V(2).Infof("HACK: round %s set cluster_operator_up for %q", now, op.Name)
 		ch <- g
 		for _, condition := range op.Status.Conditions {
 			if condition.Status != configv1.ConditionFalse && condition.Status != configv1.ConditionTrue {
