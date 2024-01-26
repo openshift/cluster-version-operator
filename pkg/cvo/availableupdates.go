@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -389,19 +390,15 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return vi.GTE(vj)
 	})
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		if errorCondition := evaluateConditionalUpdate(ctx, &conditionalUpdate, u.ConditionRegistry); errorCondition != nil {
-			meta.SetStatusCondition(&conditionalUpdate.Conditions, *errorCondition)
-			u.removeUpdate(conditionalUpdate.Release.Image)
-		} else {
-			meta.SetStatusCondition(&conditionalUpdate.Conditions, metav1.Condition{
-				Type:   ConditionalUpdateConditionTypeRecommended,
-				Status: metav1.ConditionTrue,
-				// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
-				Reason:  "AsExpected",
-				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
-			})
+		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry)
+
+		if condition.Status == metav1.ConditionTrue {
 			u.addUpdate(conditionalUpdate.Release)
+		} else {
+			u.removeUpdate(conditionalUpdate.Release.Image)
 		}
+
+		meta.SetStatusCondition(&conditionalUpdate.Conditions, condition)
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 
 	}
@@ -432,36 +429,71 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
 }
 
-func evaluateConditionalUpdate(ctx context.Context, conditionalUpdate *configv1.ConditionalUpdate, conditionRegistry clusterconditions.ConditionRegistry) *metav1.Condition {
-	recommended := &metav1.Condition{
-		Type: ConditionalUpdateConditionTypeRecommended,
+func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStatus {
+	switch {
+	case now == metav1.ConditionFalse || want == metav1.ConditionFalse:
+		return metav1.ConditionFalse
+	case now == metav1.ConditionUnknown || want == metav1.ConditionUnknown:
+		return metav1.ConditionUnknown
+	default:
+		return want
 	}
-	messages := []string{}
-	for _, risk := range conditionalUpdate.Risks {
+}
+
+const (
+	recommendedReasonRisksNotExposed  = "NotExposedToRisks"
+	recommendedReasonEvaluationFailed = "EvaluationFailed"
+	recommendedReasonMultiple         = "MultipleReasons"
+
+	// recommendedReasonExposed is used instead of the original name if it does
+	// not match the pattern for a valid k8s condition reason.
+	recommendedReasonExposed = "ExposedToRisks"
+)
+
+// Reasons follow same pattern as k8s Condition Reasons
+// https://github.com/openshift/api/blob/59fa376de7cb668ddb95a7ee4e9879d7f6ca2767/vendor/k8s.io/apimachinery/pkg/apis/meta/v1/types.go#L1535-L1536
+var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
+
+func newRecommendedReason(now, want string) string {
+	switch {
+	case now == recommendedReasonRisksNotExposed:
+		return want
+	case now == want:
+		return now
+	default:
+		return recommendedReasonMultiple
+	}
+}
+
+func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) metav1.Condition {
+	recommended := metav1.Condition{
+		Type:   ConditionalUpdateConditionTypeRecommended,
+		Status: metav1.ConditionTrue,
+		// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
+		Reason:  recommendedReasonRisksNotExposed,
+		Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
+	}
+
+	var errorMessages []string
+	for _, risk := range risks {
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
-			if recommended.Status != metav1.ConditionFalse {
-				recommended.Status = metav1.ConditionUnknown
-			}
-			if recommended.Reason == "" || recommended.Reason == "EvaluationFailed" {
-				recommended.Reason = "EvaluationFailed"
-			} else {
-				recommended.Reason = "MultipleReasons"
-			}
-			messages = append(messages, unknownExposureMessage(risk, err))
+			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionUnknown)
+			recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonEvaluationFailed)
+			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
 		} else if match {
-			recommended.Status = metav1.ConditionFalse
-			if recommended.Reason == "" {
-				recommended.Reason = risk.Name
-			} else {
-				recommended.Reason = "MultipleReasons"
+			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
+			wantReason := recommendedReasonExposed
+			if reasonPattern.MatchString(risk.Name) {
+				wantReason = risk.Name
 			}
-			messages = append(messages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
+			recommended.Reason = newRecommendedReason(recommended.Reason, wantReason)
+			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
 		}
 	}
-	if recommended.Status == "" {
-		return nil
+	if len(errorMessages) > 0 {
+		recommended.Message = strings.Join(errorMessages, "\n\n")
 	}
-	recommended.Message = strings.Join(messages, "\n\n")
+
 	return recommended
 }
 

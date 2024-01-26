@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -32,7 +33,7 @@ func (n notFoundProxyLister) List(labels.Selector) ([]*configv1.Proxy, error) {
 }
 
 func (n notFoundProxyLister) Get(name string) (*configv1.Proxy, error) {
-	return nil, errors.NewNotFound(schema.GroupResource{Group: configv1.GroupName, Resource: "proxy"}, name)
+	return nil, k8serrors.NewNotFound(schema.GroupResource{Group: configv1.GroupName, Resource: "proxy"}, name)
 }
 
 type notFoundConfigMapLister struct{}
@@ -42,7 +43,7 @@ func (n notFoundConfigMapLister) List(labels.Selector) ([]*corev1.ConfigMap, err
 }
 
 func (n notFoundConfigMapLister) Get(name string) (*corev1.ConfigMap, error) {
-	return nil, errors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmap"}, name)
+	return nil, k8serrors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmap"}, name)
 }
 
 // osusWithSingleConditionalEdge helper returns:
@@ -256,6 +257,178 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			}
 			if !tc.expectTimeChange && timeBefore != timeAfter {
 				t.Errorf("lastTransitionTime was updated but was not expected to: before=%s after=%s", timeBefore, timeAfter)
+			}
+		})
+	}
+}
+
+func TestEvaluateConditionalUpdate(t *testing.T) {
+	testcases := []struct {
+		name       string
+		risks      []configv1.ConditionalUpdateRisk
+		mockPromql clusterconditions.Condition
+		expected   metav1.Condition
+	}{
+		{
+			name: "no risks",
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionTrue,
+				Reason:  recommendedReasonRisksNotExposed,
+				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
+			},
+		},
+		{
+			name: "one risk that does not match",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://doesnotmat.ch",
+					Name:          "ShouldNotApply",
+					Message:       "ShouldNotApply",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: false, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionTrue,
+				Reason:  recommendedReasonRisksNotExposed,
+				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
+			},
+		},
+		{
+			name: "one risk that matches",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RiskThatApplies",
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RiskThatApplies",
+				Message: "This is a risk! https://match.es",
+			},
+		},
+		{
+			name: "matching risk with name that cannot be used as a condition reason",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RISK-THAT-APPLIES", // Condition reasons are CamelCase names, must not contain dashes
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionFalse,
+				Reason:  recommendedReasonExposed,
+				Message: "This is a risk! https://match.es",
+			},
+		},
+		{
+			name: "two risks that match",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RiskThatApplies",
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+				{
+					URL:           "https://match.es/too",
+					Name:          "RiskThatAppliesToo",
+					Message:       "This is a risk too!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil, nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: true, Error: nil}},
+			},
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionFalse,
+				Reason:  recommendedReasonMultiple,
+				Message: "This is a risk! https://match.es\n\nThis is a risk too! https://match.es/too",
+			},
+		},
+		{
+			name: "first risk matches, second fails to evaluate",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RiskThatApplies",
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+				{
+					URL:           "https://whokno.ws",
+					Name:          "RiskThatFailsToEvaluate",
+					Message:       "This is a risk too!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil, nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: errors.New("ERROR")}},
+			},
+			expected: metav1.Condition{
+				Type:   "Recommended",
+				Status: metav1.ConditionFalse,
+				Reason: recommendedReasonMultiple,
+				Message: "This is a risk! https://match.es\n\n" +
+					"Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
+					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
+					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
+			},
+		},
+		{
+			name: "one risk that fails to evaluate",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://whokno.ws",
+					Name:          "RiskThatFailsToEvaluate",
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: false, Error: errors.New("ERROR")}},
+			},
+			expected: metav1.Condition{
+				Type:   "Recommended",
+				Status: metav1.ConditionUnknown,
+				Reason: recommendedReasonEvaluationFailed,
+				Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
+					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
+					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
+			},
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			registry := clusterconditions.NewConditionRegistry()
+			registry.Register("PromQL", tc.mockPromql)
+			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry)
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("actual condition differs from expected:\n%s", diff)
 			}
 		})
 	}
