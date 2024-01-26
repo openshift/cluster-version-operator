@@ -1,8 +1,6 @@
 package capability
 
 import (
-	"fmt"
-	"reflect"
 	"sort"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -16,16 +14,7 @@ const (
 type ClusterCapabilities struct {
 	Known             sets.Set[configv1.ClusterVersionCapability]
 	Enabled           sets.Set[configv1.ClusterVersionCapability]
-	ImplicitlyEnabled sets.Set[configv1.ClusterVersionCapability] // TODO(muller): Get rid of this slice and use a set instead
-}
-
-func (c *ClusterCapabilities) Equal(capabilities *ClusterCapabilities) error {
-	// TODO: Replace this with a set equivalences
-	if !reflect.DeepEqual(c.Enabled, capabilities.Enabled) {
-		return fmt.Errorf("enabled %v not equal to %v", c.Enabled, capabilities.Enabled)
-	}
-
-	return nil
+	ImplicitlyEnabled sets.Set[configv1.ClusterVersionCapability]
 }
 
 type capabilitiesSort []configv1.ClusterVersionCapability

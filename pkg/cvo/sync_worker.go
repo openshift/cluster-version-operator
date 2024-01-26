@@ -793,7 +793,10 @@ func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
-	capabilitiesError := a.Capabilities.Equal(&b.Capabilities)
+	var capabilitiesError error
+	if !a.Capabilities.Enabled.Equal(b.Capabilities.Enabled) {
+		capabilitiesError = fmt.Errorf("enabled %v not equal to %v", sets.List(a.Capabilities.Enabled), sets.List(b.Capabilities.Enabled))
+	}
 
 	var msgs []string
 	if !sameVersion {
