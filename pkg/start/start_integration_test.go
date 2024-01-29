@@ -185,7 +185,8 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	enabledGates := cvo.FeatureGates{}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, enabledGates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +318,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	enabledGates := cvo.FeatureGates{}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, enabledGates)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +513,8 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	startingFeatureSet := ""
-	controllers, err := options.NewControllerContext(cb, startingFeatureSet)
+	enabledGates := cvo.FeatureGates{}
+	controllers, err := options.NewControllerContext(cb, startingFeatureSet, enabledGates)
 	if err != nil {
 		t.Fatal(err)
 	}

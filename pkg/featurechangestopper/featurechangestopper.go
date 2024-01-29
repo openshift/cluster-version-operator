@@ -15,11 +15,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
 
 // FeatureChangeStopper calls stop when the value of the featureset changes
 type FeatureChangeStopper struct {
 	startingRequiredFeatureSet string
+	startingCvoFeatureGates    cvo.FeatureGates
 
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
@@ -31,10 +34,12 @@ type FeatureChangeStopper struct {
 // New returns a new FeatureChangeStopper.
 func New(
 	startingRequiredFeatureSet string,
+	startingCvoGates cvo.FeatureGates,
 	featureGateInformer configinformersv1.FeatureGateInformer,
 ) (*FeatureChangeStopper, error) {
 	c := &FeatureChangeStopper{
 		startingRequiredFeatureSet: startingRequiredFeatureSet,
+		startingCvoFeatureGates:    startingCvoGates,
 		featureGateLister:          featureGateInformer.Lister(),
 		cacheSynced:                []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
 		queue:                      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
@@ -61,22 +66,32 @@ func New(
 // syncHandler processes a single work entry, with the
 // processNextWorkItem caller handling the queue management.  It returns
 // done when there will be no more work (because the feature gate changed).
-func (c *FeatureChangeStopper) syncHandler(ctx context.Context) (done bool, err error) {
+func (c *FeatureChangeStopper) syncHandler(_ context.Context) (done bool, err error) {
 	var current configv1.FeatureSet
+	var currentCvoGates cvo.FeatureGates
 	if featureGates, err := c.featureGateLister.Get("cluster"); err == nil {
 		current = featureGates.Spec.FeatureSet
+		currentCvoGates = cvo.GetCvoGatesFrom(featureGates)
 	} else if !apierrors.IsNotFound(err) {
 		return false, err
 	}
 
-	if string(current) != c.startingRequiredFeatureSet {
+	featureSetChanged := string(current) != c.startingRequiredFeatureSet
+	cvoFeaturesChanged := currentCvoGates != c.startingCvoFeatureGates
+	if featureSetChanged || cvoFeaturesChanged {
 		var action string
 		if c.shutdownFn == nil {
 			action = "no shutdown function configured"
 		} else {
 			action = "requesting shutdown"
 		}
-		klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.startingRequiredFeatureSet, current, action)
+		if featureSetChanged {
+			klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.startingRequiredFeatureSet, current, action)
+		}
+		if cvoFeaturesChanged {
+			klog.Infof("CVO feature flags were %v, but changed to %v; %s.", c.startingCvoFeatureGates, currentCvoGates, action)
+		}
+
 		if c.shutdownFn != nil {
 			c.shutdownFn()
 		}

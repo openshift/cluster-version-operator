@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	externalversions "github.com/openshift/client-go/config/informers/externalversions"
+	"github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
@@ -159,6 +160,9 @@ func (o *Options) Run(ctx context.Context) error {
 	// to be off.  If this value changes, the binary will shutdown and expect the pod lifecycle to restart it.
 	startingFeatureSet := ""
 
+	// enabledGates control gated CVO functionality (not gated cluster functionality)
+	enabledGates := cvo.DefaultGatesWhenUnknown()
+
 	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
 	// retry the remaining ones ourselves. If we fail longer than that, the operator won't be able to do work
 	// anyway. Return the error and crashloop.
@@ -180,6 +184,7 @@ func (o *Options) Run(ctx context.Context) error {
 			return false, nil
 		default:
 			startingFeatureSet = string(gate.Spec.FeatureSet)
+			enabledGates = cvo.GetCvoGatesFrom(gate)
 			return true, nil
 		}
 	}); err != nil {
@@ -189,13 +194,19 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
+	klog.Infof("Feature set detected at startup: %q", startingFeatureSet)
+	if enabledGates.UnknownVersion {
+		klog.Infof("CVO features could not be detected from FeatureGate; will use defaults plus special UnkownVersion feature gate")
+	}
+	klog.Infof("CVO features enabled at startup: %+v", enabledGates)
+
 	lock, err := createResourceLock(cb, o.Namespace, o.Name)
 	if err != nil {
 		return err
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet)
+	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet, enabledGates)
 	if err != nil {
 		return err
 	}
@@ -471,7 +482,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string) (*Context, error) {
+func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet string, enabledFeatureGates cvo.FeatureGates) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 
@@ -484,7 +495,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
 
 	coInformer := sharedInformers.Config().V1().ClusterOperators()
-	featureChangeStopper, err := featurechangestopper.New(startingFeatureSet, sharedInformers.Config().V1().FeatureGates())
+	featureChangeStopper, err := featurechangestopper.New(startingFeatureSet, enabledFeatureGates, sharedInformers.Config().V1().FeatureGates())
 	if err != nil {
 		return nil, err
 	}
@@ -506,6 +517,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		cvoKubeClient,
 		o.Exclude,
 		startingFeatureSet,
+		enabledFeatureGates,
 		o.ClusterProfile,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,

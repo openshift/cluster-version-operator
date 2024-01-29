@@ -9,44 +9,68 @@ import (
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configv1informer "github.com/openshift/client-go/config/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 func TestTechPreviewChangeStopper(t *testing.T) {
 	tests := []struct {
 		name                       string
 		startingRequiredFeatureSet string
-		featureGate                string
-		expectedShutdownCalled     bool
+		startingCvoFeatureGates    cvo.FeatureGates
+
+		featureSet        string
+		featureGateStatus *configv1.FeatureGateStatus
+
+		expectedShutdownCalled bool
 	}{
 		{
 			name:                       "default-no-change",
 			startingRequiredFeatureSet: "",
-			featureGate:                "",
+			featureSet:                 "",
 			expectedShutdownCalled:     false,
 		},
 		{
 			name:                       "default-with-change-to-tech-preview",
 			startingRequiredFeatureSet: "",
-			featureGate:                "TechPreviewNoUpgrade",
+			featureSet:                 "TechPreviewNoUpgrade",
 			expectedShutdownCalled:     true,
 		},
 		{
 			name:                       "default-with-change-to-other",
 			startingRequiredFeatureSet: "",
-			featureGate:                "AnythingElse",
+			featureSet:                 "AnythingElse",
 			expectedShutdownCalled:     true,
 		},
 		{
 			name:                       "techpreview-to-techpreview",
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
-			featureGate:                "TechPreviewNoUpgrade",
+			featureSet:                 "TechPreviewNoUpgrade",
 			expectedShutdownCalled:     false,
 		},
 		{
 			name:                       "techpreview-to-not-tech-preview", // this isn't allowed today
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
-			featureGate:                "",
+			featureSet:                 "",
 			expectedShutdownCalled:     true,
+		},
+		{
+			name:                       "cvo flags changed",
+			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
+			startingCvoFeatureGates: cvo.FeatureGates{
+				UnknownVersion: true,
+			},
+			featureSet: "TechPreviewNoUpgrade",
+			featureGateStatus: &configv1.FeatureGateStatus{
+				FeatureGates: []configv1.FeatureGateDetails{
+					{
+						Version: version.Version.String(),
+						Enabled: []configv1.FeatureGateAttributes{{Name: configv1.FeatureGateUpgradeStatus}},
+					},
+				},
+			},
+			expectedShutdownCalled: true,
 		},
 	}
 	for _, tt := range tests {
@@ -59,20 +83,26 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				actualShutdownCalled = true
 			}
 
-			client := fakeconfigv1client.NewSimpleClientset(
-				&configv1.FeatureGate{
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-					Spec: configv1.FeatureGateSpec{
-						FeatureGateSelection: configv1.FeatureGateSelection{
-							FeatureSet: configv1.FeatureSet(tt.featureGate),
-						},
+			fg := &configv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.FeatureSet(tt.featureSet),
 					},
 				},
-			)
+			}
+			if tt.featureGateStatus != nil {
+				fg.Status = *tt.featureGateStatus
+			} else {
+				fg.Status = configv1.FeatureGateStatus{}
+				tt.startingCvoFeatureGates = cvo.FeatureGates{UnknownVersion: true}
+			}
+
+			client := fakeconfigv1client.NewSimpleClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
 			featureGates := informerFactory.Config().V1().FeatureGates()
-			c, err := New(tt.startingRequiredFeatureSet, featureGates)
+			c, err := New(tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates, featureGates)
 			if err != nil {
 				t.Fatal(err)
 			}
