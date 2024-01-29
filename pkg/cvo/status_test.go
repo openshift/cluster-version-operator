@@ -6,12 +6,18 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 func Test_mergeEqualVersions(t *testing.T) {
@@ -186,6 +192,140 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 			}
 			if err != nil {
 				return
+			}
+		})
+	}
+}
+
+func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
+	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
+
+	testCases := []struct {
+		name string
+
+		unknownVersion bool
+		oldCondition   *configv1.ClusterOperatorStatusCondition
+		failure        error
+
+		expectedRriCondition *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name:                 "RRI disabled, version known, no failure => condition not present",
+			unknownVersion:       false,
+			expectedRriCondition: nil,
+		},
+		{
+			name:                 "RRI disabled, version known, failure => condition not present",
+			unknownVersion:       false,
+			failure:              fmt.Errorf("Something happened"),
+			expectedRriCondition: nil,
+		},
+		{
+			name: "RRI disabled, version unknown, failure, existing condition => condition present",
+			oldCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionFalse,
+				Reason:  noResourceReconciliationIssuesReason,
+				Message: "Happy condition is happy",
+			},
+			unknownVersion: true,
+			failure:        fmt.Errorf("Something happened"),
+			expectedRriCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: "Issues found during resource reconciliation: Something happened",
+			},
+		},
+		{
+			name:                 "RRI disabled, version unknown, failure, no existing condition => condition not present",
+			unknownVersion:       true,
+			failure:              fmt.Errorf("Something happened"),
+			expectedRriCondition: nil,
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gates := featuregates.CvoGates{
+				UnknownVersion:                        tc.unknownVersion,
+				ResourceReconciliationIssuesCondition: false,
+			}
+			release := configv1.Release{}
+			getAvailableUpdates := func() *availableUpdates { return nil }
+			var noErrors field.ErrorList
+			cvStatus := configv1.ClusterVersionStatus{}
+			if tc.oldCondition != nil {
+				cvStatus.Conditions = append(cvStatus.Conditions, *tc.oldCondition)
+			}
+			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{Failure: tc.failure}, release, getAvailableUpdates, gates, noErrors)
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+			if diff := cmp.Diff(tc.expectedRriCondition, condition, ignoreLastTransitionTime); diff != "" {
+				t.Errorf("unexpected condition\n:%s", diff)
+			}
+		})
+
+	}
+
+}
+
+func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
+	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
+
+	testCases := []struct {
+		name             string
+		syncWorkerStatus SyncWorkerStatus
+
+		enabled bool
+
+		expectedCondition *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name:             "ResourceReconciliationIssues present and happy when gate is enabled and no failures happened",
+			syncWorkerStatus: SyncWorkerStatus{},
+			enabled:          true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionFalse,
+				Reason:  noResourceReconciliationIssuesReason,
+				Message: noResourceReconciliationIssuesMessage,
+			},
+		},
+		{
+			name: "ResourceReconciliationIssues present and unhappy when gate is enabled and failures happened",
+			syncWorkerStatus: SyncWorkerStatus{
+				Failure: fmt.Errorf("Something happened"),
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: "Issues found during resource reconciliation: Something happened",
+			},
+		},
+		{
+			name: "ResourceReconciliationIssues not present when gate is enabled and failures happened",
+			syncWorkerStatus: SyncWorkerStatus{
+				Failure: fmt.Errorf("Something happened"),
+			},
+			enabled:           false,
+			expectedCondition: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gates := featuregates.CvoGates{ResourceReconciliationIssuesCondition: tc.enabled}
+			release := configv1.Release{}
+			getAvailableUpdates := func() *availableUpdates { return nil }
+			var noErrors field.ErrorList
+			cvStatus := configv1.ClusterVersionStatus{}
+			updateClusterVersionStatus(&cvStatus, &tc.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+			if diff := cmp.Diff(tc.expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
+				t.Errorf("unexpected condition\n:%s", diff)
 			}
 		})
 	}
