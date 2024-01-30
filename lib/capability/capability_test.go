@@ -329,16 +329,12 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 	tests := []struct {
 		name             string
-		implicit         []configv1.ClusterVersionCapability
+		implicit         sets.Set[configv1.ClusterVersionCapability]
 		capabilities     ClusterCapabilities
 		wantCapabilities ClusterCapabilities
 	}{
 		{name: "implicitly enable capabilities",
-			implicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-				configv1.ClusterVersionCapability("cap3"),
-				configv1.ClusterVersionCapability("cap4"),
-			},
+			implicit: sets.New[configv1.ClusterVersionCapability]("cap2", "cap3", "cap4"),
 			capabilities: ClusterCapabilities{
 				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3", "cap4", "cap5"),
 				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
@@ -351,9 +347,7 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 			},
 		},
 		{name: "already enabled capability",
-			implicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
+			implicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
 				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
 				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
@@ -450,6 +444,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			if len(caps) != len(test.wantImplicit) {
 				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %d. Implicitly enabled capabilities returned: %v", len(test.wantImplicit), caps)
 			}
+			// TODO(muller): this can use set operations
 			for _, wanted := range test.wantImplicit {
 				found := false
 				for _, have := range caps {

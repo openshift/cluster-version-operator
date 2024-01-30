@@ -424,6 +424,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 //
 // Assumes SyncWorker is locked before loadUpdatedPayload is called. This locked instance is also passed
 // into statusWrapper instance this method creates.
+// TODO(muller): can return a set
 func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]configv1.ClusterVersionCapability, error) {
 	implicitlyEnabledCaps, err := w.syncPayload(ctx, work)
 	if err != nil {
@@ -534,7 +535,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 
 	// Update capabilities settings and status to include any capabilities that were implicitly enabled due
 	// to previously managed resources.
-	w.work.Capabilities = capability.SetFromImplicitlyEnabledCapabilities(implicit, w.work.Capabilities)
+	w.work.Capabilities = capability.SetFromImplicitlyEnabledCapabilities(sets.New[configv1.ClusterVersionCapability](implicit...), w.work.Capabilities)
 	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = listOrNil(w.work.Capabilities.ImplicitlyEnabled)
 	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 

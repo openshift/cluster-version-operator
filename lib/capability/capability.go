@@ -38,17 +38,16 @@ func GetClusterCapabilities(config *configv1.ClusterVersion, existingEnabled set
 // SetFromImplicitlyEnabledCapabilities, given implicitly enabled capabilities and cluster capabilities, updates
 // the latter with the given implicitly enabled capabilities and ensures each is in the enabled map. The updated
 // cluster capabilities are returned.
-func SetFromImplicitlyEnabledCapabilities(implicitlyEnabled []configv1.ClusterVersionCapability, capabilities ClusterCapabilities) ClusterCapabilities {
+func SetFromImplicitlyEnabledCapabilities(implicitlyEnabled sets.Set[configv1.ClusterVersionCapability], capabilities ClusterCapabilities) ClusterCapabilities {
 	if len(implicitlyEnabled) > 0 {
-		capabilities.ImplicitlyEnabled = sets.New[configv1.ClusterVersionCapability](implicitlyEnabled...)
+		capabilities.ImplicitlyEnabled = implicitlyEnabled.Clone()
 	} else {
 		capabilities.ImplicitlyEnabled = nil
 	}
-	for _, c := range implicitlyEnabled {
-		if _, ok := capabilities.Enabled[c]; !ok {
-			capabilities.Enabled[c] = struct{}{}
-		}
-	}
+
+	// TODO(muller): this get only enabled as a parameter
+	capabilities.Enabled = capabilities.Enabled.Union(implicitlyEnabled)
+
 	return capabilities
 }
 
