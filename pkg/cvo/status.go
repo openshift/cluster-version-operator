@@ -198,7 +198,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(config, status, optr, validationErrs)
+	updateClusterVersionStatus(config, status, optr.release, optr.getAvailableUpdates, validationErrs)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
@@ -208,7 +208,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	return err
 }
 
-func updateClusterVersionStatus(config *configv1.ClusterVersion, status *SyncWorkerStatus, optr *Operator, validationErrs field.ErrorList) {
+func updateClusterVersionStatus(config *configv1.ClusterVersion, status *SyncWorkerStatus, release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
 	config.Status.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
 		config.Status.VersionHash = status.VersionHash
@@ -216,19 +216,19 @@ func updateClusterVersionStatus(config *configv1.ClusterVersion, status *SyncWor
 
 	now := metav1.Now()
 	version := versionStringFromRelease(status.Actual)
-	if status.Actual.Image == optr.release.Image {
+	if status.Actual.Image == release.Image {
 		// backfill any missing information from the operator (payload).
 		if status.Actual.Version == "" {
-			status.Actual.Version = optr.release.Version
+			status.Actual.Version = release.Version
 		}
 		if len(status.Actual.URL) == 0 {
-			status.Actual.URL = optr.release.URL
+			status.Actual.URL = release.URL
 		}
 		if status.Actual.Channels == nil {
-			status.Actual.Channels = append(optr.release.Channels[:0:0], optr.release.Channels...) // copy
+			status.Actual.Channels = append(release.Channels[:0:0], release.Channels...) // copy
 		}
 	}
-	desired := optr.mergeReleaseMetadata(status.Actual)
+	desired := mergeReleaseMetadata(status.Actual, getAvailableUpdates)
 
 	risksMsg := ""
 	if desired.Image == status.loadPayloadStatus.Update.Image {
