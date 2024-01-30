@@ -208,7 +208,10 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	return err
 }
 
-func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus, release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
+// updateClusterVersionStatus updates the passed cvStatus with the latest status information
+func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
+	release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
+
 	cvStatus.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
 		cvStatus.VersionHash = status.VersionHash
