@@ -198,6 +198,17 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
+	updateClusterVersionStatus(config, status, optr, validationErrs)
+
+	if klog.V(6).Enabled() {
+		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
+	}
+	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
+	optr.rememberLastUpdate(updated)
+	return err
+}
+
+func updateClusterVersionStatus(config *configv1.ClusterVersion, status *SyncWorkerStatus, optr *Operator, validationErrs field.ErrorList) {
 	config.Status.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
 		config.Status.VersionHash = status.VersionHash
@@ -373,13 +384,6 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			LastTransitionTime: now,
 		})
 	}
-
-	if klog.V(6).Enabled() {
-		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
-	}
-	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return err
 }
 
 func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, implicitlyEnabled []configv1.ClusterVersionCapability,
