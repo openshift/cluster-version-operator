@@ -68,6 +68,7 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	for k := range capabilities.Enabled {
 		status.EnabledCapabilities = append(status.EnabledCapabilities, k)
 	}
+	// TODO(muller): we can use sets and let them return sorted lists
 	sort.Sort(capabilitiesSort(status.EnabledCapabilities))
 	for k := range capabilities.Known {
 		status.KnownCapabilities = append(status.KnownCapabilities, k)
