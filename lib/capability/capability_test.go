@@ -192,7 +192,7 @@ func TestSetCapabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, nil)
+			caps := GetClusterCapabilities(test.config, nil)
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
@@ -240,7 +240,7 @@ func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, test.priorEnabled)
+			caps := GetClusterCapabilities(test.config, test.priorEnabled)
 			if len(caps.ImplicitlyEnabled) != len(test.wantImplicit) {
 				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %q. ImplicitlyEnabled returned: %v", test.wantImplicit, caps.ImplicitlyEnabled)
 			}

@@ -23,9 +23,9 @@ func (caps capabilitiesSort) Len() int           { return len(caps) }
 func (caps capabilitiesSort) Swap(i, j int)      { caps[i], caps[j] = caps[j], caps[i] }
 func (caps capabilitiesSort) Less(i, j int) bool { return string(caps[i]) < string(caps[j]) }
 
-// SetCapabilities populates and returns cluster capabilities from ClusterVersion capabilities spec. This method also
-// ensures that no previously enabled capability is now disabled and returns any such implicitly enabled capabilities.
-func SetCapabilities(config *configv1.ClusterVersion, existingEnabled sets.Set[configv1.ClusterVersionCapability]) ClusterCapabilities { // TODO(muller): existingEnabled is a set, method is a get
+// GetClusterCapabilities returns cluster capabilities from ClusterVersion capabilities spec. This method also ensures that no
+// previously enabled capability is now disabled and returns any such implicitly enabled capabilities.
+func GetClusterCapabilities(config *configv1.ClusterVersion, existingEnabled sets.Set[configv1.ClusterVersionCapability]) ClusterCapabilities {
 	enabled, implicitlyEnabled := getEnabledCapabilities(config.Spec.Capabilities, existingEnabled)
 
 	return ClusterCapabilities{

@@ -469,7 +469,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	work.Capabilities = capability.SetCapabilities(config, priorCaps)
+	work.Capabilities = capability.GetClusterCapabilities(config, priorCaps)
 
 	versionEqual, overridesEqual, capabilitiesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
