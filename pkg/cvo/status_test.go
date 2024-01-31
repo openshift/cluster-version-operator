@@ -270,7 +270,7 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 			if tc.oldCondition != nil {
 				cvStatus.Conditions = append(cvStatus.Conditions, *tc.oldCondition)
 			}
-			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{Failure: tc.failure}, release, getAvailableUpdates, gates, noErrors)
+			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{FailureSummary: tc.failure}, release, getAvailableUpdates, gates, noErrors)
 			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
 			if diff := cmp.Diff(tc.expectedRriCondition, condition, ignoreLastTransitionTime); diff != "" {
 				t.Errorf("unexpected condition\n:%s", diff)
@@ -306,7 +306,7 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 		{
 			name: "ResourceReconciliationIssues present and unhappy when gate is enabled and failures happened",
 			syncWorkerStatus: SyncWorkerStatus{
-				Failure: fmt.Errorf("Something happened"),
+				FailureSummary: fmt.Errorf("Something happened"),
 			},
 			enabled: true,
 			expectedCondition: &configv1.ClusterOperatorStatusCondition{
@@ -319,7 +319,7 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 		{
 			name: "ResourceReconciliationIssues not present when gate is enabled and failures happened",
 			syncWorkerStatus: SyncWorkerStatus{
-				Failure: fmt.Errorf("Something happened"),
+				FailureSummary: fmt.Errorf("Something happened"),
 			},
 			enabled:           false,
 			expectedCondition: nil,

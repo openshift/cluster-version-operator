@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -3473,7 +3475,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			Done:        2,
 			Total:       3,
 			VersionHash: "DL-FFQ2Uem8=", Architecture: architecture,
-			Failure: &payload.UpdateError{
+			FailureSummary: &payload.UpdateError{
 				Nested:  fmt.Errorf("unable to proceed"),
 				Reason:  "UpdatePayloadFailed",
 				Message: "Could not update test \"file-yml\" (3 of 3)",
@@ -3644,7 +3646,7 @@ func TestCVO_ParallelError(t *testing.T) {
 	//
 	// verify we observe the remaining changes in the first sync
 	for status := range worker.StatusCh() {
-		if status.Failure == nil {
+		if status.FailureSummary == nil {
 			if status.Done == 0 || (status.Done == 1 && status.Total == 3) {
 				if !reflect.DeepEqual(status, SyncWorkerStatus{
 					Initial:      true,
@@ -3673,7 +3675,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			}
 			continue
 		}
-		err := status.Failure
+		err := status.FailureSummary
 		uErr, ok := err.(*payload.UpdateError)
 		if !ok || uErr.Reason != "MultipleErrors" || uErr.Message != "Multiple errors are preventing progress:\n* Failed to reconcile 10-a-file resource\n* Failed to reconcile 20-b-file resource" {
 			t.Fatalf("unexpected error: %v", err)
@@ -3681,9 +3683,34 @@ func TestCVO_ParallelError(t *testing.T) {
 		if status.LastProgress.IsZero() {
 			t.Fatalf("unexpected last progress: %v", status.LastProgress)
 		}
-		if !reflect.DeepEqual(status, SyncWorkerStatus{
-			Initial:      true,
-			Failure:      err,
+		if diff := cmp.Diff(status, SyncWorkerStatus{
+			Initial:        true,
+			FailureSummary: err,
+			Failures: []error{
+				&payload.UpdateError{
+					UpdateEffect: payload.UpdateEffectNone,
+					Message:      "Failed to reconcile 10-a-file resource",
+					Task: &payload.Task{
+						Index: 1,
+						Total: 3,
+						Manifest: &manifest.Manifest{
+							OriginalFilename: "0000_10_a_file.yaml",
+							GVK:              schema.GroupVersionKind{Version: "v1", Kind: "Test"},
+						},
+					},
+				},
+				&payload.UpdateError{
+					UpdateEffect: payload.UpdateEffectNone,
+					Message:      "Failed to reconcile 20-b-file resource",
+					Task: &payload.Task{
+						Index: 3,
+						Total: 3,
+						Manifest: &manifest.Manifest{
+							OriginalFilename: "0000_20_b_file.yaml",
+							GVK:              schema.GroupVersionKind{Version: "v1", Kind: "Test"},
+						},
+					},
+				}},
 			Done:         1,
 			Total:        3,
 			VersionHash:  "Gyh2W6qcDO4=",
@@ -3703,8 +3730,8 @@ func TestCVO_ParallelError(t *testing.T) {
 				LastTransitionTime: status.loadPayloadStatus.LastTransitionTime,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
-		}) {
-			t.Fatalf("unexpected final: %v", status)
+		}, cmp.AllowUnexported(SyncWorkerStatus{}), cmpopts.IgnoreFields(manifest.Manifest{}, "id", "Raw", "Obj")); diff != "" {
+			t.Fatalf("finals differs from expected: %s", diff)
 		}
 		break
 	}
@@ -3962,6 +3989,10 @@ func verifyAllStatusOptionalDone(t *testing.T, stepName string, ignoreDone bool,
 		actual, ok := <-ch
 		if !ok {
 			t.Fatalf("%s: channel closed after reading only %d items", testName, i)
+		}
+
+		if expect.FailureSummary != nil {
+			expect.Failures = []error{expect.FailureSummary}
 		}
 
 		if nextTime := actual.LastProgress; !nextTime.Equal(lastTime) {
