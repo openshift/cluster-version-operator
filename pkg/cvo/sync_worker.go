@@ -16,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -100,7 +101,8 @@ type CapabilityStatus struct {
 type SyncWorkerStatus struct {
 	Generation int64
 
-	Failure error
+	FailureSummary error
+	Failures       []error
 
 	Done  int
 	Total int
@@ -692,7 +694,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 	if p.Total > 0 {
 		previousFractionComplete = float32(p.Done) / float32(p.Total)
 	}
-	if p.Failure != nil && status.Failure == nil {
+	if p.FailureSummary != nil && status.FailureSummary == nil {
 		if p.Actual.Image == status.Actual.Image {
 			if fractionComplete < previousFractionComplete {
 				klog.V(2).Infof("Dropping status report from earlier in sync loop")
@@ -700,7 +702,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 			}
 		}
 	}
-	if fractionComplete > previousFractionComplete || status.Completed > p.Completed || (status.Failure == nil && status.Actual.Image != p.Actual.Image) {
+	if fractionComplete > previousFractionComplete || status.Completed > p.Completed || (status.FailureSummary == nil && status.Actual.Image != p.Actual.Image) {
 		status.LastProgress = time.Now()
 	}
 	if status.Generation == 0 {
@@ -839,7 +841,7 @@ func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
 
 	// do not overwrite these status values which are not managed by load
-	update.Failure = w.status.Failure
+	update.FailureSummary = w.status.FailureSummary
 	update.Done = w.status.Done
 	update.Total = w.status.Total
 	update.Completed = w.status.Completed
@@ -1088,7 +1090,8 @@ func (r *consistentReporter) Errors(errs []error) error {
 	copied.Done = r.done
 	copied.Total = r.total
 	if err != nil {
-		copied.Failure = err
+		copied.FailureSummary = err
+		copied.Failures = errs
 	}
 	r.reporter.Report(copied)
 	return err
@@ -1248,25 +1251,6 @@ func condenseClusterOperators(errs []error) []error {
 	return condensed
 }
 
-// uniqueStrings returns an array with all sequential identical items removed. It modifies the contents
-// of arr. Sort the input array before calling to remove all duplicates.
-func uniqueStrings(arr []string) []string {
-	var last int
-	for i := 1; i < len(arr); i++ {
-		if arr[i] == arr[last] {
-			continue
-		}
-		last++
-		if last != i {
-			arr[last] = arr[i]
-		}
-	}
-	if last < len(arr) {
-		last++
-	}
-	return arr[:last]
-}
-
 // newMultipleError reports a generic set of errors that block progress. This method expects multiple
 // errors but handles singular and empty arrays gracefully. If all errors have the same message, the
 // first item is returned.
@@ -1277,19 +1261,19 @@ func newMultipleError(errs []error) error {
 	if len(errs) == 1 {
 		return errs[0]
 	}
-	messages := make([]string, 0, len(errs))
+	messages := sets.New[string]()
 	for _, err := range errs {
-		messages = append(messages, err.Error())
+		messages.Insert(err.Error())
 	}
-	sort.Strings(messages)
-	messages = uniqueStrings(messages)
+
 	if len(messages) == 0 {
 		return errs[0]
 	}
+
 	return &payload.UpdateError{
 		Nested:  apierrors.NewAggregate(errs),
 		Reason:  "MultipleErrors",
-		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(messages, "\n* ")),
+		Message: fmt.Sprintf("Multiple errors are preventing progress:\n* %s", strings.Join(sets.List(messages), "\n* ")),
 	}
 }
 
@@ -1307,7 +1291,7 @@ func runThrottledStatusNotifier(ctx context.Context, interval time.Duration, buc
 				return
 			case next := <-ch:
 				// only throttle if we aren't on an edge
-				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.Reconciling == last.Reconciling && (next.Failure != nil) == (last.Failure != nil) {
+				if next.Generation == last.Generation && next.Actual.Image == last.Actual.Image && next.Reconciling == last.Reconciling && (next.FailureSummary != nil) == (last.FailureSummary != nil) {
 					if err := throttle.Wait(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 						utilruntime.HandleError(fmt.Errorf("unable to throttle status notification: %v", err))
 					}

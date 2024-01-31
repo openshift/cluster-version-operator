@@ -179,7 +179,7 @@ const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "Impli
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	// Be more verbose when we are syncing something interesting
 	verbosityLevel := klog.Level(4)
-	if len(validationErrs) != 0 || status.Failure != nil {
+	if len(validationErrs) != 0 || status.FailureSummary != nil {
 		verbosityLevel = klog.Level(2)
 	}
 	klog.V(verbosityLevel).Infof("Synchronizing status errs=%#v status=%#v", validationErrs, status)
@@ -295,7 +295,7 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 
 	progressReason, progressMessage, skipFailure := convertErrorToProgressing(cvStatus.History, now.Time, status)
 
-	if err := status.Failure; err != nil && !skipFailure {
+	if err := status.FailureSummary; err != nil && !skipFailure {
 		var reason string
 		msg := progressMessage
 		if uErr, ok := err.(*payload.UpdateError); ok {
@@ -389,10 +389,10 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 			Reason:  noReconciliationIssuesReason,
 			Message: noReconciliationIssuesMessage,
 		}
-		if status.Failure != nil {
+		if status.FailureSummary != nil {
 			riCondition.Status = configv1.ConditionTrue
 			riCondition.Reason = reconciliationIssuesFoundReason
-			riCondition.Message = fmt.Sprintf("%s: %s", reconciliationIssuesFoundMessage, status.Failure.Error())
+			riCondition.Message = fmt.Sprintf("%s: %s", reconciliationIssuesFoundMessage, status.FailureSummary.Error())
 		}
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, riCondition)
 	} else if oldRiCondition != nil {
@@ -476,10 +476,10 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 // failing. An error may indicate the update is failing or that if the error continues for a defined interval the
 // update is failing.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
-	if len(history) == 0 || status.Failure == nil || status.Reconciling {
+	if len(history) == 0 || status.FailureSummary == nil || status.Reconciling {
 		return "", "", false
 	}
-	uErr, ok := status.Failure.(*payload.UpdateError)
+	uErr, ok := status.FailureSummary.(*payload.UpdateError)
 	if !ok {
 		return "", "", false
 	}
