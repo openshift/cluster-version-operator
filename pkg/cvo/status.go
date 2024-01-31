@@ -65,21 +65,21 @@ func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Releas
 	return false
 }
 
-func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Release, verified bool, now metav1.Time,
+func mergeOperatorHistory(cvStatus *configv1.ClusterVersionStatus, desired configv1.Release, verified bool, now metav1.Time,
 	completed bool, acceptedRisksMsg string, localPayload bool) {
 
 	// if we have no image, we cannot reproduce the update later and so it cannot be part of the history
 	if len(desired.Image) == 0 {
 		// make the array empty
-		if config.Status.History == nil {
-			config.Status.History = []configv1.UpdateHistory{}
+		if cvStatus.History == nil {
+			cvStatus.History = []configv1.UpdateHistory{}
 		}
 		return
 	}
 
-	if len(config.Status.History) == 0 {
+	if len(cvStatus.History) == 0 {
 		klog.V(2).Infof("initialize new history completed=%t desired=%#v", completed, desired)
-		config.Status.History = append(config.Status.History, configv1.UpdateHistory{
+		cvStatus.History = append(cvStatus.History, configv1.UpdateHistory{
 			Version: desired.Version,
 			Image:   desired.Image,
 
@@ -89,7 +89,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 		})
 	}
 
-	last := &config.Status.History[0]
+	last := &cvStatus.History[0]
 
 	if len(last.State) == 0 {
 		last.State = configv1.PartialUpdate
@@ -114,7 +114,7 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 			last.CompletionTime = &now
 		}
 		if completed {
-			config.Status.History = append([]configv1.UpdateHistory{
+			cvStatus.History = append([]configv1.UpdateHistory{
 				{
 					Version: desired.Version,
 					Image:   desired.Image,
@@ -124,9 +124,9 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 					CompletionTime: &now,
 					AcceptedRisks:  acceptedRisksMsg,
 				},
-			}, config.Status.History...)
+			}, cvStatus.History...)
 		} else {
-			config.Status.History = append([]configv1.UpdateHistory{
+			cvStatus.History = append([]configv1.UpdateHistory{
 				{
 					Version: desired.Version,
 					Image:   desired.Image,
@@ -135,27 +135,27 @@ func mergeOperatorHistory(config *configv1.ClusterVersion, desired configv1.Rele
 					StartedTime:   now,
 					AcceptedRisks: acceptedRisksMsg,
 				},
-			}, config.Status.History...)
+			}, cvStatus.History...)
 		}
 	}
 
 	// leave this here in case we find other future history bugs and need to debug it
-	if klog.V(2).Enabled() && len(config.Status.History) > 1 {
-		if config.Status.History[0].Image == config.Status.History[1].Image && config.Status.History[0].Version == config.Status.History[1].Version {
-			data, _ := json.MarshalIndent(config.Status.History, "", "  ")
+	if klog.V(2).Enabled() && len(cvStatus.History) > 1 {
+		if cvStatus.History[0].Image == cvStatus.History[1].Image && cvStatus.History[0].Version == cvStatus.History[1].Version {
+			data, _ := json.MarshalIndent(cvStatus.History, "", "  ")
 			panic(fmt.Errorf("tried to update cluster version history to contain duplicate image entries: %s", string(data)))
 		}
 	}
 
 	// payloads can be verified during sync
 	if verified {
-		config.Status.History[0].Verified = true
+		cvStatus.History[0].Verified = true
 	}
 
 	// Prune least informative history entry when at maxHistory.
-	config.Status.History = prune(config.Status.History, MaxHistory)
+	cvStatus.History = prune(cvStatus.History, MaxHistory)
 
-	config.Status.Desired = desired
+	cvStatus.Desired = desired
 }
 
 // ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
@@ -198,35 +198,49 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	config.Status.ObservedGeneration = status.Generation
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, validationErrs)
+
+	if klog.V(6).Enabled() {
+		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
+	}
+	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
+	optr.rememberLastUpdate(updated)
+	return err
+}
+
+// updateClusterVersionStatus updates the passed cvStatus with the latest status information
+func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
+	release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
+
+	cvStatus.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
-		config.Status.VersionHash = status.VersionHash
+		cvStatus.VersionHash = status.VersionHash
 	}
 
 	now := metav1.Now()
 	version := versionStringFromRelease(status.Actual)
-	if status.Actual.Image == optr.release.Image {
+	if status.Actual.Image == release.Image {
 		// backfill any missing information from the operator (payload).
 		if status.Actual.Version == "" {
-			status.Actual.Version = optr.release.Version
+			status.Actual.Version = release.Version
 		}
 		if len(status.Actual.URL) == 0 {
-			status.Actual.URL = optr.release.URL
+			status.Actual.URL = release.URL
 		}
 		if status.Actual.Channels == nil {
-			status.Actual.Channels = append(optr.release.Channels[:0:0], optr.release.Channels...) // copy
+			status.Actual.Channels = append(release.Channels[:0:0], release.Channels...) // copy
 		}
 	}
-	desired := optr.mergeReleaseMetadata(status.Actual)
+	desired := mergeReleaseMetadata(status.Actual, getAvailableUpdates)
 
 	risksMsg := ""
 	if desired.Image == status.loadPayloadStatus.Update.Image {
 		risksMsg = status.loadPayloadStatus.AcceptedRisks
 	}
 
-	mergeOperatorHistory(config, desired, status.Verified, now, status.Completed > 0, risksMsg, status.loadPayloadStatus.Local)
+	mergeOperatorHistory(cvStatus, desired, status.Verified, now, status.Completed > 0, risksMsg, status.loadPayloadStatus.Local)
 
-	config.Status.Capabilities = status.CapabilitiesStatus.Status
+	cvStatus.Capabilities = status.CapabilitiesStatus.Status
 
 	// update validation errors
 	var reason string
@@ -242,7 +256,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		}
 		reason = "InvalidClusterVersion"
 
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               ClusterVersionInvalid,
 			Status:             configv1.ConditionTrue,
 			Reason:             reason,
@@ -250,18 +264,18 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.RemoveOperatorStatusCondition(&config.Status.Conditions, ClusterVersionInvalid)
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, ClusterVersionInvalid)
 	}
 
 	// set the implicitly enabled capabilities condition
-	setImplicitlyEnabledCapabilitiesCondition(config, status.CapabilitiesStatus.ImplicitlyEnabledCaps, now)
+	setImplicitlyEnabledCapabilitiesCondition(cvStatus, status.CapabilitiesStatus.ImplicitlyEnabledCaps, now)
 
 	// set the desired release accepted condition
-	setDesiredReleaseAcceptedCondition(config, status.loadPayloadStatus, now)
+	setDesiredReleaseAcceptedCondition(cvStatus, status.loadPayloadStatus, now)
 
 	// set the available condition
 	if status.Completed > 0 {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorAvailable,
 			Status:             configv1.ConditionTrue,
 			Message:            fmt.Sprintf("Done applying %s", version),
@@ -269,15 +283,15 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		})
 	}
 	// default the available condition if not set
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorAvailable) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+	if resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, configv1.OperatorAvailable) == nil {
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.OperatorAvailable,
 			Status:             configv1.ConditionFalse,
 			LastTransitionTime: now,
 		})
 	}
 
-	progressReason, progressMessage, skipFailure := convertErrorToProgressing(config.Status.History, now.Time, status)
+	progressReason, progressMessage, skipFailure := convertErrorToProgressing(cvStatus.History, now.Time, status)
 
 	if err := status.Failure; err != nil && !skipFailure {
 		var reason string
@@ -292,7 +306,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		}
 
 		// set the failing condition
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               ClusterStatusFailing,
 			Status:             configv1.ConditionTrue,
 			Reason:             reason,
@@ -302,7 +316,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 		// update progressing
 		if status.Reconciling {
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionFalse,
 				Reason:             reason,
@@ -310,7 +324,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 				LastTransitionTime: now,
 			})
 		} else {
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionTrue,
 				Reason:             reason,
@@ -321,7 +335,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	} else {
 		// clear the failure condition
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{Type: ClusterStatusFailing, Status: configv1.ConditionFalse, LastTransitionTime: now})
 
 		// update progressing
 		if status.Reconciling {
@@ -329,7 +343,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			if len(validationErrs) > 0 {
 				message = fmt.Sprintf("Stopped at %s: the cluster version is invalid", version)
 			}
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionFalse,
 				Reason:             reason,
@@ -355,7 +369,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 			default:
 				message = fmt.Sprintf("Working towards %s", version)
 			}
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               configv1.OperatorProgressing,
 				Status:             configv1.ConditionTrue,
 				Reason:             reason,
@@ -366,23 +380,16 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	}
 
 	// default retrieved updates if it is not set
-	if resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.RetrievedUpdates) == nil {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+	if resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, configv1.RetrievedUpdates) == nil {
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               configv1.RetrievedUpdates,
 			Status:             configv1.ConditionFalse,
 			LastTransitionTime: now,
 		})
 	}
-
-	if klog.V(6).Enabled() {
-		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
-	}
-	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
-	optr.rememberLastUpdate(updated)
-	return err
 }
 
-func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, implicitlyEnabled []configv1.ClusterVersionCapability,
+func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersionStatus, implicitlyEnabled []configv1.ClusterVersionCapability,
 	now metav1.Time) {
 
 	if len(implicitlyEnabled) > 0 {
@@ -394,7 +401,7 @@ func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, 
 		sort.Strings(caps)
 		message = message + strings.Join([]string(caps), ", ")
 
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               ImplicitlyEnabledCapabilities,
 			Status:             configv1.ConditionTrue,
 			Reason:             "CapabilitiesImplicitlyEnabled",
@@ -402,7 +409,7 @@ func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, 
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               ImplicitlyEnabledCapabilities,
 			Status:             configv1.ConditionFalse,
 			Reason:             "AsExpected",
@@ -412,9 +419,9 @@ func setImplicitlyEnabledCapabilitiesCondition(config *configv1.ClusterVersion, 
 	}
 }
 
-func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status LoadPayloadStatus, now metav1.Time) {
+func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus, status LoadPayloadStatus, now metav1.Time) {
 	if status.Step == "PayloadLoaded" {
-		resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 			Type:               DesiredReleaseAccepted,
 			Status:             configv1.ConditionTrue,
 			Reason:             status.Step,
@@ -423,7 +430,7 @@ func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status 
 		})
 	} else if status.Step != "" {
 		if status.Failure != nil {
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               DesiredReleaseAccepted,
 				Status:             configv1.ConditionFalse,
 				Reason:             status.Step,
@@ -431,7 +438,7 @@ func setDesiredReleaseAcceptedCondition(config *configv1.ClusterVersion, status 
 				LastTransitionTime: now,
 			})
 		} else {
-			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
 				Type:               DesiredReleaseAccepted,
 				Status:             configv1.ConditionUnknown,
 				Reason:             status.Step,
@@ -534,7 +541,7 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 		LastTransitionTime: now,
 	})
 
-	mergeOperatorHistory(config, optr.currentVersion(), false, now, false, "", false)
+	mergeOperatorHistory(&config.Status, optr.currentVersion(), false, now, false, "", false)
 
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)

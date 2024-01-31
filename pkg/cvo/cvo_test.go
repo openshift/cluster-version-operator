@@ -4343,7 +4343,7 @@ func TestOperator_mergeReleaseMetadata(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			optr := Operator{availableUpdates: testCase.availableUpdates}
-			actual := optr.mergeReleaseMetadata(testCase.input)
+			actual := mergeReleaseMetadata(testCase.input, optr.getAvailableUpdates)
 			if !reflect.DeepEqual(actual, testCase.expected) {
 				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(testCase.expected, actual))
 			}

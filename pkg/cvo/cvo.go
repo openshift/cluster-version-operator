@@ -811,18 +811,18 @@ func versionStringFromRelease(release configv1.Release) string {
 // are used as fallbacks for any properties not defined in the release
 // image itself.
 func (optr *Operator) currentVersion() configv1.Release {
-	return optr.mergeReleaseMetadata(optr.release)
+	return mergeReleaseMetadata(optr.release, optr.getAvailableUpdates)
 }
 
 // mergeReleaseMetadata returns a deep copy of the input release.
 // Values from any matching availableUpdates release are used as
 // fallbacks for any properties not defined in the input release.
-func (optr *Operator) mergeReleaseMetadata(release configv1.Release) configv1.Release {
+func mergeReleaseMetadata(release configv1.Release, getAvailableUpdates func() *availableUpdates) configv1.Release {
 	merged := *release.DeepCopy()
 
 	if merged.Version == "" || len(merged.URL) == 0 || merged.Channels == nil {
 		// only fill in missing values from availableUpdates, to avoid clobbering data from payload.LoadUpdate.
-		availableUpdates := optr.getAvailableUpdates()
+		availableUpdates := getAvailableUpdates()
 		if availableUpdates != nil {
 			var update *configv1.Release
 			if equalDigest(merged.Image, availableUpdates.Current.Image) {
