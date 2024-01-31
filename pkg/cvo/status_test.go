@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
@@ -9,14 +10,17 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/manifest"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_mergeEqualVersions(t *testing.T) {
@@ -246,7 +250,7 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 				Type:    resourceReconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
 				Reason:  resourceReconciliationIssuesFoundReason,
-				Message: "Issues found during resource reconciliation: Something happened",
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
 			},
 		},
 		{
@@ -284,6 +288,46 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 
+	resourceUpdateError := payload.UpdateError{
+		Nested:              fmt.Errorf("This is a nested error"),
+		UpdateEffect:        payload.UpdateEffectReport,
+		Reason:              "SomeReason",
+		PluralReason:        "MultipleReasons",
+		Message:             "Message about update error",
+		PluralMessageFormat: "We do not carry this to RRI",
+		Name:                "No idea",
+		Names:               []string{"one", "two"},
+		Task: &payload.Task{
+			Manifest: &manifest.Manifest{
+				OriginalFilename: "0000_00_some-configmap.yaml",
+				GVK:              schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+			},
+		},
+	}
+
+	matchingResourceReconciliationIssue := ResourceReconciliationIssue{
+		UpdateError: &ResourceReconciliationIssueUpdateError{
+			NestedMessage:    "This is a nested error",
+			Effect:           "Report",
+			Reason:           "SomeReason",
+			PluralReason:     "MultipleReasons",
+			Message:          "Message about update error",
+			Name:             "No idea",
+			Names:            "one, two",
+			ManifestFilename: "0000_00_some-configmap.yaml",
+			ResourceGroup:    "",
+			ResourceVersion:  "v1",
+			ResourceKind:     "ConfigMap",
+			ResourceSummary:  "",
+		},
+	}
+
+	rriAsJsonRaw, err := json.Marshal(matchingResourceReconciliationIssue)
+	if err != nil {
+		t.Fatalf("Failed to marshal resource reconciliation issue: %v", err)
+	}
+	rriAsJson := string(rriAsJsonRaw)
+
 	testCases := []struct {
 		name             string
 		syncWorkerStatus SyncWorkerStatus
@@ -293,7 +337,7 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 		expectedCondition *configv1.ClusterOperatorStatusCondition
 	}{
 		{
-			name:             "ResourceReconciliationIssues present and happy when gate is enabled and no failures happened",
+			name:             "gate enabled, no failures => condition present and happy",
 			syncWorkerStatus: SyncWorkerStatus{},
 			enabled:          true,
 			expectedCondition: &configv1.ClusterOperatorStatusCondition{
@@ -304,7 +348,7 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 			},
 		},
 		{
-			name: "ResourceReconciliationIssues present and unhappy when gate is enabled and failures happened",
+			name: "gate enabled, failure summary present but failures empty => condition present and unhappy, backfilled from failure summary",
 			syncWorkerStatus: SyncWorkerStatus{
 				FailureSummary: fmt.Errorf("Something happened"),
 			},
@@ -313,13 +357,59 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 				Type:    resourceReconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
 				Reason:  resourceReconciliationIssuesFoundReason,
-				Message: "Issues found during resource reconciliation: Something happened",
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
 			},
 		},
 		{
-			name: "ResourceReconciliationIssues not present when gate is enabled and failures happened",
+			name: "gate enabled, update failure => condition present and unhappy",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: &resourceUpdateError,
+				Failures:       []error{&resourceUpdateError},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: fmt.Sprintf("[%s]", string(rriAsJson)),
+			},
+		},
+		{
+			name: "gate enabled, non-update error => condition present and unhappy",
 			syncWorkerStatus: SyncWorkerStatus{
 				FailureSummary: fmt.Errorf("Something happened"),
+				Failures:       []error{fmt.Errorf("Something happened")},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
+			},
+		},
+		{
+			name: "gate enabled, update and non-update error => condition present and unhappy, contains both errors",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Some kind of summary of both errors"),
+				Failures: []error{
+					fmt.Errorf("Something happened"),
+					&resourceUpdateError,
+				},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: fmt.Sprintf(`[{"simpleError":{"message":"Something happened"}},%s]`, string(rriAsJson)),
+			},
+		},
+		{
+			name: "gate disabled, failure summary and failures present => condition not present",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Something happened"),
+				Failures:       []error{fmt.Errorf("Something happened")},
 			},
 			enabled:           false,
 			expectedCondition: nil,
