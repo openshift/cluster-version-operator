@@ -52,13 +52,11 @@ func SetFromImplicitlyEnabledCapabilities(implicitlyEnabled sets.Set[configv1.Cl
 }
 
 // GetKnownCapabilities returns all known capabilities as defined in ClusterVersion.
-func GetKnownCapabilities() []configv1.ClusterVersionCapability {
-	var known []configv1.ClusterVersionCapability
-
+func GetKnownCapabilities() sets.Set[configv1.ClusterVersionCapability] {
+	known := sets.New[configv1.ClusterVersionCapability]()
 	for _, v := range configv1.ClusterVersionCapabilitySets {
-		known = append(known, v...)
+		known.Insert(v...)
 	}
-	sort.Sort(capabilitiesSort(known))
 	return known
 }
 

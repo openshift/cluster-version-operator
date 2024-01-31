@@ -138,6 +138,7 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
+// TODO(muller): knownCapabilities is a set
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet string, profile string,
 	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
 
