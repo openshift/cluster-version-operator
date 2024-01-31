@@ -392,7 +392,11 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		if status.FailureSummary != nil {
 			riCondition.Status = configv1.ConditionTrue
 			riCondition.Reason = reconciliationIssuesFoundReason
-			riCondition.Message = fmt.Sprintf("%s: %s", reconciliationIssuesFoundMessage, status.FailureSummary.Error())
+			if len(status.Failures) == 0 { // this should not happen with non-nil FailureSummary but lets be defensive
+				riCondition.Message = reconciliationIssuesFromErrors([]error{status.FailureSummary})
+			} else {
+				riCondition.Message = reconciliationIssuesFromErrors(status.Failures)
+			}
 		}
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, riCondition)
 	} else if oldRiCondition != nil {
