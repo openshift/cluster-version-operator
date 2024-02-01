@@ -63,15 +63,16 @@ func GetKnownCapabilities() sets.Set[configv1.ClusterVersionCapability] {
 // GetCapabilitiesStatus populates and returns ClusterVersion capabilities status from given capabilities.
 func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVersionCapabilitiesStatus {
 	var status configv1.ClusterVersionCapabilitiesStatus
-	for k := range capabilities.Enabled {
-		status.EnabledCapabilities = append(status.EnabledCapabilities, k)
-	}
-	// TODO(muller): we can use sets and let them return sorted lists
-	sort.Sort(capabilitiesSort(status.EnabledCapabilities))
-	for k := range capabilities.Known {
-		status.KnownCapabilities = append(status.KnownCapabilities, k)
-	}
-	sort.Sort(capabilitiesSort(status.KnownCapabilities))
+
+	enabled := sets.New(status.EnabledCapabilities...)
+	enabled = enabled.Union(capabilities.Enabled)
+
+	known := sets.New(status.KnownCapabilities...)
+	known = known.Union(capabilities.Known)
+
+	status.EnabledCapabilities = sets.List(enabled)
+	status.KnownCapabilities = sets.List(known)
+
 	return status
 }
 
