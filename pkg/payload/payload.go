@@ -262,8 +262,8 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true); err != nil {
 				continue
 			}
-			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
-				updateManifest.GetManifestCapabilities(), capabilities)
+			caps := capability.GetImplicitlyEnabledCapabilities(sets.New(currentManifest.GetManifestCapabilities()...),
+				sets.New(updateManifest.GetManifestCapabilities()...), capabilities)
 
 			capStrings := make([]string, len(caps))
 			for i, c := range caps {

@@ -80,36 +80,15 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 // the resource's capabilities from an update release. Any of the updated resource's capabilities that do not
 // exist in the current resource, are not enabled, and do not already exist in the implicitly enabled list of
 // capabilities are returned. The returned list are capabilities which must be implicitly enabled.
-// TODO(muller): enabledManifestCaps is a set
-// TODO(muller): updatedManifestCaps is a set
 // TODO(muller): return values is a set
-func GetImplicitlyEnabledCapabilities(enabledManifestCaps []configv1.ClusterVersionCapability,
-	updatedManifestCaps []configv1.ClusterVersionCapability,
+func GetImplicitlyEnabledCapabilities(enabledManifestCaps, updatedManifestCaps sets.Set[configv1.ClusterVersionCapability],
 	capabilities ClusterCapabilities) []configv1.ClusterVersionCapability {
 
-	var caps []configv1.ClusterVersionCapability
-	for _, c := range updatedManifestCaps {
-		if Contains(enabledManifestCaps, c) {
-			continue
-		}
-		if !(capabilities.Enabled.Has(c) || capabilities.ImplicitlyEnabled.Has(c)) {
-			caps = append(caps, c)
-		}
-	}
+	var caps = updatedManifestCaps.Difference(enabledManifestCaps)
+	caps = caps.Difference(capabilities.Enabled)
+	caps = caps.Difference(capabilities.ImplicitlyEnabled)
 
-	sort.Sort(capabilitiesSort(caps))
-	return caps
-}
-
-func Contains(caps []configv1.ClusterVersionCapability, capability configv1.ClusterVersionCapability) bool {
-	found := false
-	for _, c := range caps {
-		if capability == c {
-			found = true
-			break
-		}
-	}
-	return found
+	return sets.List(caps)
 }
 
 // allKnownCapabilities returns a set of all known capabilities as defined in ClusterVersion.

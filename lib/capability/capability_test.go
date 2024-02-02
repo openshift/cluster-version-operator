@@ -383,55 +383,55 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 	tests := []struct {
 		name           string
-		enabledManCaps []configv1.ClusterVersionCapability
-		updatedManCaps []configv1.ClusterVersionCapability
+		enabledManCaps sets.Set[configv1.ClusterVersionCapability]
+		updatedManCaps sets.Set[configv1.ClusterVersionCapability]
 		capabilities   ClusterCapabilities
 		wantImplicit   []string
 	}{
 		{name: "implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
 				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
 			wantImplicit: []string{"cap2"},
 		},
 		{name: "no prior caps, implicitly enabled capability",
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			wantImplicit:   []string{"cap2"},
 		},
 		{name: "multiple implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap4", "cap5", "cap6"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap4", "cap5", "cap6"),
 			wantImplicit:   []string{"cap4", "cap5", "cap6"},
 		},
 		{name: "no implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap1"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			capabilities: ClusterCapabilities{
 				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
 		},
 		{name: "prior cap, no updated caps, no implicitly enabled capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
 		},
 		{name: "no implicitly enable capability, already enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap2"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
 				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
 			},
 		},
 		{name: "no implicitly enable capability, new cap but already enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
 				Enabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 		},
 		{name: "no implicitly enable capability, already implicitly enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
 				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap2"),
 				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
