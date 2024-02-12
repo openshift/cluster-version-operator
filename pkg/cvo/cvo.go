@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -279,7 +278,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	}
 
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.requiredFeatureSet,
-		optr.clusterProfile, sets.List[configv1.ClusterVersionCapability](capability.GetKnownCapabilities()))
+		optr.clusterProfile, capability.GetKnownCapabilities())
 
 	if err != nil {
 		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)

@@ -138,9 +138,8 @@ type metadata struct {
 	Metadata map[string]interface{}
 }
 
-// TODO(muller): knownCapabilities is a set
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet string, profile string,
-	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
+	knownCapabilities sets.Set[configv1.ClusterVersionCapability]) (*Update, error) {
 
 	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
 	if err != nil {
@@ -153,8 +152,9 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 		// We only pass known capabilities at payload load time to avoid doing any capability
 		// enable filtering which only occurs during apply.
 		onlyKnownCaps = &configv1.ClusterVersionCapabilitiesStatus{
-			EnabledCapabilities: knownCapabilities,
-			KnownCapabilities:   knownCapabilities}
+			EnabledCapabilities: sets.List(knownCapabilities),
+			KnownCapabilities:   sets.List(knownCapabilities),
+		}
 	}
 
 	var manifests []manifest.Manifest
@@ -264,9 +264,8 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			}
 			caps := capability.GetImplicitlyEnabledCapabilities(sets.New(currentManifest.GetManifestCapabilities()...),
 				sets.New(updateManifest.GetManifestCapabilities()...), capabilities)
-
 			capStrings := make([]string, len(caps))
-			for i, c := range caps {
+			for i, c := range sets.List(caps) {
 				capStrings[i] = string(c)
 				if implicitlyEnabledCaps == nil {
 					implicitlyEnabledCaps = sets.New[configv1.ClusterVersionCapability]()

@@ -447,7 +447,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			// TODO(muller): this can use set operations
 			for _, wanted := range test.wantImplicit {
 				found := false
-				for _, have := range caps {
+				for have := range caps {
 					if wanted == string(have) {
 						found = true
 						break
