@@ -66,6 +66,11 @@ type Options struct {
 	PromQLTarget              clusterconditions.PromQLTarget
 	InjectClusterIdIntoPromQL bool
 
+	// UpdateService configures the preferred update service.  If set,
+	// this option overrides any upstream value configured in ClusterVersion
+	// spec.
+	UpdateService string
+
 	// Exclude is used to determine whether to exclude
 	// certain manifests based on an annotation:
 	// exclude.release.openshift.io/<identifier>=true
@@ -509,6 +514,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, startingFeatureSet str
 		o.ClusterProfile,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
+		o.UpdateService,
 	)
 	if err != nil {
 		return nil, err

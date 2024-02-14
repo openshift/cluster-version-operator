@@ -97,7 +97,7 @@ type Operator struct {
 	eventRecorder record.EventRecorder
 
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
-	// the upstream.
+	// the update service.
 	minimumUpdateCheckInterval time.Duration
 	// architecture identifies the current architecture being used to retrieve available updates
 	// from OSUS. It's possible values and how it's set are defined by the OSUS Cincinnati API's
@@ -105,8 +105,11 @@ type Operator struct {
 	architecture string
 	// payloadDir is intended for testing. If unset it will default to '/'
 	payloadDir string
-	// defaultUpstreamServer is intended for testing.
-	defaultUpstreamServer string
+
+	// updateService configures the preferred update service.  If set,
+	// this option overrides any upstream value configured in ClusterVersion
+	// spec.
+	updateService string
 
 	cvLister              configlistersv1.ClusterVersionLister
 	coLister              configlistersv1.ClusterOperatorLister
@@ -191,6 +194,7 @@ func New(
 	clusterProfile string,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
+	updateService string,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -208,7 +212,7 @@ func New(
 		minimumUpdateCheckInterval: minimumInterval,
 		upgradeableCheckIntervals:  defaultUpgradeableCheckIntervals(),
 		payloadDir:                 overridePayloadDir,
-		defaultUpstreamServer:      "https://api.openshift.com/api/upgrades_info/v1/graph",
+		updateService:              updateService,
 
 		client:        client,
 		kubeClient:    kubeClient,
@@ -807,7 +811,7 @@ func versionStringFromRelease(release configv1.Release) string {
 }
 
 // currentVersion returns an update object describing the current
-// known cluster version.  Values from the upstream Cincinnati service
+// known cluster version.  Values from the update service
 // are used as fallbacks for any properties not defined in the release
 // image itself.
 func (optr *Operator) currentVersion() configv1.Release {
