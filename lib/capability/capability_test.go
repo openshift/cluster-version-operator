@@ -11,8 +11,8 @@ func TestSetCapabilities(t *testing.T) {
 	tests := []struct {
 		name            string
 		config          *configv1.ClusterVersion
-		wantKnownKeys   []string
-		wantEnabledKeys []string
+		wantKnownKeys   []configv1.ClusterVersionCapability
+		wantEnabledKeys []configv1.ClusterVersionCapability
 	}{
 		{name: "capabilities nil",
 			config: &configv1.ClusterVersion{},
@@ -34,23 +34,8 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
-			wantEnabledKeys: []string{},
+			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantEnabledKeys: []configv1.ClusterVersionCapability{},
 		},
 		{name: "set capabilities 4_11",
 			config: &configv1.ClusterVersion{
@@ -61,27 +46,12 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
-			wantEnabledKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
+			wantKnownKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantEnabledKeys: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapabilityBaremetal,
+				configv1.ClusterVersionCapabilityMarketplace,
+				configv1.ClusterVersionCapabilityOpenShiftSamples,
+				configv1.ClusterVersionCapabilityMachineAPI,
 			},
 		},
 		{name: "set capabilities vCurrent",
@@ -93,38 +63,8 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
-			wantEnabledKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
+			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantEnabledKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
 		},
 		{name: "set capabilities None with additional",
 			config: &configv1.ClusterVersion{
@@ -135,23 +75,8 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
-			wantEnabledKeys: []string{"cap1", "cap2", "cap3"},
+			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantEnabledKeys: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3"},
 		},
 		{name: "set capabilities 4_11 with additional",
 			config: &configv1.ClusterVersion{
@@ -162,27 +87,12 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityConsole),
-				string(configv1.ClusterVersionCapabilityInsights),
-				string(configv1.ClusterVersionCapabilityStorage),
-				string(configv1.ClusterVersionCapabilityCSISnapshot),
-				string(configv1.ClusterVersionCapabilityNodeTuning),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
-				string(configv1.ClusterVersionCapabilityImageRegistry),
-				string(configv1.ClusterVersionCapabilityDeploymentConfig),
-				string(configv1.ClusterVersionCapabilityBuild),
-				string(configv1.ClusterVersionCapabilityOperatorLifecycleManager),
-				string(configv1.ClusterVersionCapabilityCloudCredential),
-			},
-			wantEnabledKeys: []string{
-				string(configv1.ClusterVersionCapabilityBaremetal),
-				string(configv1.ClusterVersionCapabilityMarketplace),
-				string(configv1.ClusterVersionCapabilityOpenShiftSamples),
-				string(configv1.ClusterVersionCapabilityMachineAPI),
+			wantKnownKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantEnabledKeys: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapabilityBaremetal,
+				configv1.ClusterVersionCapabilityMarketplace,
+				configv1.ClusterVersionCapabilityOpenShiftSamples,
+				configv1.ClusterVersionCapabilityMachineAPI,
 				"cap1",
 				"cap2",
 				"cap3",
@@ -195,14 +105,14 @@ func TestSetCapabilities(t *testing.T) {
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
-				test.wantKnownKeys = getDefaultCapabilities()
-				test.wantEnabledKeys = getDefaultCapabilities()
+				test.wantKnownKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
+				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
 			}
 			if len(caps.KnownCapabilities) != len(test.wantKnownKeys) {
 				t.Errorf("Incorrect number of KnownCapabilities keys, wanted: %q. KnownCapabilities returned: %v", test.wantKnownKeys, caps.KnownCapabilities)
 			}
 			for _, v := range test.wantKnownKeys {
-				if _, ok := caps.KnownCapabilities[configv1.ClusterVersionCapability(v)]; !ok {
+				if _, ok := caps.KnownCapabilities[v]; !ok {
 					t.Errorf("Missing KnownCapabilities key %q. KnownCapabilities returned : %v", v, caps.KnownCapabilities)
 				}
 			}
@@ -210,7 +120,7 @@ func TestSetCapabilities(t *testing.T) {
 				t.Errorf("Incorrect number of EnabledCapabilities keys, wanted: %q. EnabledCapabilities returned: %v", test.wantEnabledKeys, caps.EnabledCapabilities)
 			}
 			for _, v := range test.wantEnabledKeys {
-				if _, ok := caps.EnabledCapabilities[configv1.ClusterVersionCapability(v)]; !ok {
+				if _, ok := caps.EnabledCapabilities[v]; !ok {
 					t.Errorf("Missing EnabledCapabilities key %q. EnabledCapabilities returned : %v", v, caps.EnabledCapabilities)
 				}
 			}
@@ -473,13 +383,4 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			}
 		})
 	}
-}
-
-func getDefaultCapabilities() []string {
-	var caps []string
-
-	for _, v := range configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet] {
-		caps = append(caps, string(v))
-	}
-	return caps
 }
