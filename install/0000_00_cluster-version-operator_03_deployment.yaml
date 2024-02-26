@@ -18,6 +18,7 @@ spec:
       name: cluster-version-operator
       annotations:
         target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
+        openshift.io/required-scc: hostaccess
       labels:
         k8s-app: cluster-version-operator
     spec:
