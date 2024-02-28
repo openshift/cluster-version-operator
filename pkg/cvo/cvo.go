@@ -165,7 +165,7 @@ type Operator struct {
 	// via annotation
 	exclude string
 
-	clusterFeatures featuregates.ClusterFeatures
+	enabledFeatureGates featuregates.CvoGateChecker
 
 	clusterProfile string
 	uid            types.UID
@@ -186,7 +186,6 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	exclude string,
-	clusterFeatures featuregates.ClusterFeatures,
 	clusterProfile string,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
@@ -218,10 +217,14 @@ func New(
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
 		exclude:                   exclude,
-		clusterFeatures:           clusterFeatures,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
+
+		// Because of OCPBUGS-30080, we can only detect the enabled feature gates after Operator loads the initial payload
+		// from disk via LoadInitialPayload. We must not have any gate-checking code until that happens, so we initialize
+		// this field with a checker that panics when used.
+		enabledFeatureGates: featuregates.PanicOnUsageBeforeInitialization,
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
@@ -253,10 +256,9 @@ func New(
 	return optr, nil
 }
 
-// InitializeFromPayload waits until a ClusterVersion object exists. It then retrieves the payload contents and verifies the
-// initial state, then configures the controller that loads and applies content to the cluster. It returns an error if the
-// payload appears to be in error rather than continuing.
-func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
+// LoadInitialPayload waits until a ClusterVersion object exists. It then retrieves the payload contents, verifies the
+// initial state and returns it. If the payload is invalid, an error is returned.
+func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFeatureSet configv1.FeatureSet, restConfig *rest.Config) (*payload.Update, error) {
 
 	// wait until cluster version object exists
 	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -273,24 +275,19 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		}
 		return true, nil
 	}); err != nil {
-		return fmt.Errorf("Error when attempting to get cluster version object: %w", err)
+		return nil, fmt.Errorf("Error when attempting to get cluster version object: %w", err)
 	}
 
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.clusterFeatures.StartingRequiredFeatureSet,
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, string(startingRequiredFeatureSet),
 		optr.clusterProfile, capability.GetKnownCapabilities())
 
 	if err != nil {
-		return fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
+		return nil, fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
-
-	optr.release = update.Release
-	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
-	optr.SetArchitecture(update.Architecture)
-
 	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(optr.HTTPClient, nil)
 	configClient, err := coreclientsetv1.NewForConfig(restConfig)
 	if err != nil {
-		return fmt.Errorf("unable to create a configuration client: %v", err)
+		return nil, fmt.Errorf("unable to create a configuration client: %v", err)
 	}
 
 	customSignatureStore := &customsignaturestore.Store{
@@ -302,7 +299,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	// attempt to load a verifier as defined in the payload
 	verifier, signatureStore, err := loadConfigMapVerifierDataFromUpdate(update, httpClientConstructor.HTTPClient, configClient, customSignatureStore)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if verifier != nil {
 		klog.Infof("Verifying release authenticity: %v", verifier)
@@ -312,6 +309,16 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	}
 	optr.verifier = verifier
 	optr.signatureStore = signatureStore
+	return update, nil
+}
+
+// InitializeFromPayload configures the controller that loads and applies content to the cluster given an initial payload
+// and feature gate data.
+func (optr *Operator) InitializeFromPayload(update *payload.Update, requiredFeatureSet configv1.FeatureSet, cvoFlags featuregates.CvoGateChecker, restConfig *rest.Config, burstRestConfig *rest.Config) {
+	optr.enabledFeatureGates = cvoFlags
+	optr.release = update.Release
+	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
+	optr.SetArchitecture(update.Architecture)
 
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
@@ -327,12 +334,10 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 			Cap:      time.Second * 15,
 		},
 		optr.exclude,
-		optr.clusterFeatures.StartingRequiredFeatureSet,
+		requiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
 	)
-
-	return nil
 }
 
 // ownerReferenceModifier sets the owner reference to the current CV resource if no other reference exists. It also resets

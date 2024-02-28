@@ -17,7 +17,6 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 func Test_mergeEqualVersions(t *testing.T) {
@@ -197,6 +196,19 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 	}
 }
 
+type fakeRriFlags struct {
+	unknownVersion                        bool
+	resourceReconciliationIssuesCondition bool
+}
+
+func (f fakeRriFlags) UnknownVersion() bool {
+	return f.unknownVersion
+}
+
+func (f fakeRriFlags) ResourceReconciliationIssuesCondition() bool {
+	return f.resourceReconciliationIssuesCondition
+}
+
 func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 
@@ -247,9 +259,9 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gates := featuregates.CvoGates{
-				UnknownVersion:                        tc.unknownVersion,
-				ResourceReconciliationIssuesCondition: false,
+			gates := fakeRriFlags{
+				unknownVersion:                        tc.unknownVersion,
+				resourceReconciliationIssuesCondition: false,
 			}
 			release := configv1.Release{}
 			getAvailableUpdates := func() *availableUpdates { return nil }
@@ -317,7 +329,10 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gates := featuregates.CvoGates{ResourceReconciliationIssuesCondition: tc.enabled}
+			gates := fakeRriFlags{
+				unknownVersion:                        false,
+				resourceReconciliationIssuesCondition: tc.enabled,
+			}
 			release := configv1.Release{}
 			getAvailableUpdates := func() *availableUpdates { return nil }
 			var noErrors field.ErrorList

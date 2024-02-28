@@ -199,7 +199,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.clusterFeatures.StartingCvoFeatureGates, validationErrs)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
@@ -211,7 +211,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
-	release configv1.Release, getAvailableUpdates func() *availableUpdates, enabledGates featuregates.CvoGates,
+	release configv1.Release, getAvailableUpdates func() *availableUpdates, enabledGates featuregates.CvoGateChecker,
 	validationErrs field.ErrorList) {
 
 	cvStatus.ObservedGeneration = status.Generation
@@ -382,7 +382,7 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 	}
 
 	oldRriCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
-	if enabledGates.ResourceReconciliationIssuesCondition || (oldRriCondition != nil && enabledGates.UnknownVersion) {
+	if enabledGates.ResourceReconciliationIssuesCondition() || (oldRriCondition != nil && enabledGates.UnknownVersion()) {
 		rriCondition := configv1.ClusterOperatorStatusCondition{
 			Type:    resourceReconciliationIssuesConditionType,
 			Status:  configv1.ConditionFalse,

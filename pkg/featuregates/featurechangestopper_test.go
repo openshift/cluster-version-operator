@@ -15,7 +15,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 	versionForGates := "1.2.3"
 	tests := []struct {
 		name                       string
-		startingRequiredFeatureSet string
+		startingRequiredFeatureSet configv1.FeatureSet
 		startingCvoFeatureGates    CvoGates
 
 		featureSet        string
@@ -57,7 +57,8 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 			name:                       "cvo flags changed",
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
 			startingCvoFeatureGates: CvoGates{
-				UnknownVersion: true,
+				desiredVersion: versionForGates,
+				unknownVersion: true,
 			},
 			featureSet: "TechPreviewNoUpgrade",
 			featureGateStatus: &configv1.FeatureGateStatus{
@@ -93,22 +94,17 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				fg.Status = *tt.featureGateStatus
 			} else {
 				fg.Status = configv1.FeatureGateStatus{}
-				tt.startingCvoFeatureGates = CvoGates{UnknownVersion: true}
+				tt.startingCvoFeatureGates = CvoGates{unknownVersion: true}
 			}
 
 			client := fakeconfigv1client.NewSimpleClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
-			featureGates := informerFactory.Config().V1().FeatureGates()
-			cf := ClusterFeatures{
-				StartingRequiredFeatureSet: tt.startingRequiredFeatureSet,
-				StartingCvoFeatureGates:    tt.startingCvoFeatureGates,
-				VersionForGates:            versionForGates,
-			}
-			c, err := New(cf, featureGates)
+			c, err := NewChangeStopper(informerFactory.Config().V1().FeatureGates())
 			if err != nil {
 				t.Fatal(err)
 			}
+			c.SetStartingFeatures(tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates)
 			informerFactory.Start(ctx.Done())
 
 			if err := c.Run(ctx, shutdownFn); err != nil {

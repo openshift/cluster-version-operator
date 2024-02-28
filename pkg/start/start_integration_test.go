@@ -33,7 +33,6 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
-	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -185,13 +184,12 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
-	var clusterFeatures featuregates.ClusterFeatures
-	controllers, err := options.NewControllerContext(cb, clusterFeatures)
+	controllers, err := options.NewControllerContext(cb)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", clusterFeatures.StartingRequiredFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -317,13 +315,12 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
-	var clusterFeatures featuregates.ClusterFeatures
-	controllers, err := options.NewControllerContext(cb, clusterFeatures)
+	controllers, err := options.NewControllerContext(cb)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", clusterFeatures.StartingRequiredFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -512,13 +509,12 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 
-	var clusterFeatures featuregates.ClusterFeatures
-	controllers, err := options.NewControllerContext(cb, clusterFeatures)
+	controllers, err := options.NewControllerContext(cb)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", clusterFeatures.StartingRequiredFeatureSet, record.NewFakeRecorder(100), payload.DefaultClusterProfile)
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	arch := runtime.GOARCH
