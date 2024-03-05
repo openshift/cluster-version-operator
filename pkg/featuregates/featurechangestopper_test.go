@@ -1,4 +1,4 @@
-package featurechangestopper
+package featuregates
 
 import (
 	"context"
@@ -9,16 +9,14 @@ import (
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configv1informer "github.com/openshift/client-go/config/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/openshift/cluster-version-operator/pkg/cvo"
-	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 func TestTechPreviewChangeStopper(t *testing.T) {
+	versionForGates := "1.2.3"
 	tests := []struct {
 		name                       string
 		startingRequiredFeatureSet string
-		startingCvoFeatureGates    cvo.FeatureGates
+		startingCvoFeatureGates    CvoGates
 
 		featureSet        string
 		featureGateStatus *configv1.FeatureGateStatus
@@ -58,14 +56,14 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 		{
 			name:                       "cvo flags changed",
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
-			startingCvoFeatureGates: cvo.FeatureGates{
+			startingCvoFeatureGates: CvoGates{
 				UnknownVersion: true,
 			},
 			featureSet: "TechPreviewNoUpgrade",
 			featureGateStatus: &configv1.FeatureGateStatus{
 				FeatureGates: []configv1.FeatureGateDetails{
 					{
-						Version: version.Version.String(),
+						Version: versionForGates,
 						Enabled: []configv1.FeatureGateAttributes{{Name: configv1.FeatureGateUpgradeStatus}},
 					},
 				},
@@ -95,14 +93,19 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				fg.Status = *tt.featureGateStatus
 			} else {
 				fg.Status = configv1.FeatureGateStatus{}
-				tt.startingCvoFeatureGates = cvo.FeatureGates{UnknownVersion: true}
+				tt.startingCvoFeatureGates = CvoGates{UnknownVersion: true}
 			}
 
 			client := fakeconfigv1client.NewSimpleClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
 			featureGates := informerFactory.Config().V1().FeatureGates()
-			c, err := New(tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates, featureGates)
+			cf := ClusterFeatures{
+				StartingRequiredFeatureSet: tt.startingRequiredFeatureSet,
+				StartingCvoFeatureGates:    tt.startingCvoFeatureGates,
+				VersionForGates:            versionForGates,
+			}
+			c, err := New(cf, featureGates)
 			if err != nil {
 				t.Fatal(err)
 			}

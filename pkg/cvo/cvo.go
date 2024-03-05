@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -46,6 +45,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
@@ -56,61 +56,6 @@ const (
 	// maxRetries is the number of times a work-item will be retried before it is dropped out of the queue.
 	maxRetries = 15
 )
-
-// FeatureGates contains flags that control CVO functionality gated by product feature gates. The
-// names do not correspond to product feature gates, the booleans here are "smaller" (product-level
-// gate will enable multiple CVO behaviors).
-type FeatureGates struct {
-	// UnknownVersion flag is set to true if CVO did not find a matching version in the FeatureGate
-	// status resource, meaning the current set of enabled and disabled feature gates is unknown for
-	// this version. This should be a temporary state (config-operator should eventually add the
-	// enabled/disabled flags for this version), so CVO should try to behave in a way that reflects
-	// a "good default": default-on flags are enabled, default-off flags are disabled. Where reasonable,
-	// It can also attempt to tolerate the existing state: if it finds evidence that a feature was
-	// enabled, it can continue to behave as if it was enabled and vice versa. This temporary state
-	// should be eventually resolved when the FeatureGate status resource is updated, which forces CVO
-	// to restart when the flags change.
-	UnknownVersion bool
-
-	// ResourceReconciliationIssuesCondition controls whether CVO maintains a Condition with
-	// ResourceReconciliationIssues type, containing a JSON that describes all "issues" that prevented
-	// or delayed CVO from reconciling individual resources in the cluster. This is a pseudo-API
-	// that the experimental work for "oc adm upgrade status" uses to report upgrade status, and
-	// should never be relied upon by any production code. We may want to eventually turn this into
-	// some kind of "real" API.
-	ResourceReconciliationIssuesCondition bool
-}
-
-func DefaultGatesWhenUnknown() FeatureGates {
-	return FeatureGates{
-		UnknownVersion: true,
-
-		ResourceReconciliationIssuesCondition: false,
-	}
-}
-
-func GetCvoGatesFrom(gate *configv1.FeatureGate) FeatureGates {
-	enabledGates := DefaultGatesWhenUnknown()
-	// This is analogical to VersionForOperatorFromEnv() from o/library-go but the import is pretty
-	// heavy for a single, simple os.Getenv wrapper, so we just inline the logic here.
-	operatorVersion := os.Getenv("OPERATOR_IMAGE_VERSION")
-	klog.Infof("Looking up feature gates for version %s", operatorVersion)
-	for _, g := range gate.Status.FeatureGates {
-
-		if g.Version != operatorVersion {
-			continue
-		}
-		// We found the matching version, so we do not need to run in the unknown version mode
-		enabledGates.UnknownVersion = false
-		for _, enabled := range g.Enabled {
-			if enabled.Name == configv1.FeatureGateUpgradeStatus {
-				enabledGates.ResourceReconciliationIssuesCondition = true
-			}
-		}
-	}
-
-	return enabledGates
-}
 
 // Operator defines cluster version operator. The CVO attempts to reconcile the appropriate image
 // onto the cluster, writing status to the ClusterVersion object as it goes. A background loop
@@ -220,14 +165,7 @@ type Operator struct {
 	// via annotation
 	exclude string
 
-	// requiredFeatureSet is set the value of featuregates.config.openshift.io|.spec.featureSet.  It's a very slow
-	// moving resource, so it is not re-detected live.
-	requiredFeatureSet string
-
-	// enabledFeatureGates contains flags that control CVO functionality gated by product feature gates. The
-	// names do not correspond to product feature gates, the booleans here are "smaller" (product-level
-	// gate will enable multiple CVO behaviors).
-	enabledFeatureGates FeatureGates
+	clusterFeatures featuregates.ClusterFeatures
 
 	clusterProfile string
 	uid            types.UID
@@ -248,8 +186,7 @@ func New(
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	exclude string,
-	requiredFeatureSet string,
-	enabledFeatureGates FeatureGates,
+	clusterFeatures featuregates.ClusterFeatures,
 	clusterProfile string,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
@@ -281,8 +218,7 @@ func New(
 		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
 
 		exclude:                   exclude,
-		requiredFeatureSet:        requiredFeatureSet,
-		enabledFeatureGates:       enabledFeatureGates,
+		clusterFeatures:           clusterFeatures,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
@@ -340,7 +276,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 		return fmt.Errorf("Error when attempting to get cluster version object: %w", err)
 	}
 
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.requiredFeatureSet,
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, optr.clusterFeatures.StartingRequiredFeatureSet,
 		optr.clusterProfile, capability.GetKnownCapabilities())
 
 	if err != nil {
@@ -391,7 +327,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 			Cap:      time.Second * 15,
 		},
 		optr.exclude,
-		optr.requiredFeatureSet,
+		optr.clusterFeatures.StartingRequiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
 	)

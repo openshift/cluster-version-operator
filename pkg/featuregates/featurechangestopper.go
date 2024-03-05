@@ -1,4 +1,4 @@
-package featurechangestopper
+package featuregates
 
 import (
 	"context"
@@ -15,14 +15,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-
-	"github.com/openshift/cluster-version-operator/pkg/cvo"
 )
 
-// FeatureChangeStopper calls stop when the value of the featureset changes
-type FeatureChangeStopper struct {
-	startingRequiredFeatureSet string
-	startingCvoFeatureGates    cvo.FeatureGates
+// ChangeStopper calls stop when the value of the featureset changes
+type ChangeStopper struct {
+	clusterFeatures ClusterFeatures
 
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
@@ -31,18 +28,16 @@ type FeatureChangeStopper struct {
 	shutdownFn context.CancelFunc
 }
 
-// New returns a new FeatureChangeStopper.
+// New returns a new ChangeStopper.
 func New(
-	startingRequiredFeatureSet string,
-	startingCvoGates cvo.FeatureGates,
+	clusterFeatures ClusterFeatures,
 	featureGateInformer configinformersv1.FeatureGateInformer,
-) (*FeatureChangeStopper, error) {
-	c := &FeatureChangeStopper{
-		startingRequiredFeatureSet: startingRequiredFeatureSet,
-		startingCvoFeatureGates:    startingCvoGates,
-		featureGateLister:          featureGateInformer.Lister(),
-		cacheSynced:                []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
-		queue:                      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
+) (*ChangeStopper, error) {
+	c := &ChangeStopper{
+		clusterFeatures:   clusterFeatures,
+		featureGateLister: featureGateInformer.Lister(),
+		cacheSynced:       []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
 	}
 
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
@@ -66,18 +61,18 @@ func New(
 // syncHandler processes a single work entry, with the
 // processNextWorkItem caller handling the queue management.  It returns
 // done when there will be no more work (because the feature gate changed).
-func (c *FeatureChangeStopper) syncHandler(_ context.Context) (done bool, err error) {
+func (c *ChangeStopper) syncHandler(_ context.Context) (done bool, err error) {
 	var current configv1.FeatureSet
-	var currentCvoGates cvo.FeatureGates
+	var currentCvoGates CvoGates
 	if featureGates, err := c.featureGateLister.Get("cluster"); err == nil {
 		current = featureGates.Spec.FeatureSet
-		currentCvoGates = cvo.GetCvoGatesFrom(featureGates)
+		currentCvoGates = getCvoGatesFrom(featureGates, c.clusterFeatures.VersionForGates)
 	} else if !apierrors.IsNotFound(err) {
 		return false, err
 	}
 
-	featureSetChanged := string(current) != c.startingRequiredFeatureSet
-	cvoFeaturesChanged := currentCvoGates != c.startingCvoFeatureGates
+	featureSetChanged := string(current) != c.clusterFeatures.StartingRequiredFeatureSet
+	cvoFeaturesChanged := currentCvoGates != c.clusterFeatures.StartingCvoFeatureGates
 	if featureSetChanged || cvoFeaturesChanged {
 		var action string
 		if c.shutdownFn == nil {
@@ -86,10 +81,10 @@ func (c *FeatureChangeStopper) syncHandler(_ context.Context) (done bool, err er
 			action = "requesting shutdown"
 		}
 		if featureSetChanged {
-			klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.startingRequiredFeatureSet, current, action)
+			klog.Infof("FeatureSet was %q, but the current feature set is %q; %s.", c.clusterFeatures.StartingRequiredFeatureSet, current, action)
 		}
 		if cvoFeaturesChanged {
-			klog.Infof("CVO feature flags were %v, but changed to %v; %s.", c.startingCvoFeatureGates, currentCvoGates, action)
+			klog.Infof("CVO feature flags were %v, but changed to %v; %s.", c.clusterFeatures.StartingCvoFeatureGates, currentCvoGates, action)
 		}
 
 		if c.shutdownFn != nil {
@@ -101,7 +96,7 @@ func (c *FeatureChangeStopper) syncHandler(_ context.Context) (done bool, err er
 }
 
 // Run launches the controller and blocks until it is canceled or work completes.
-func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.CancelFunc) error {
+func (c *ChangeStopper) Run(ctx context.Context, shutdownFn context.CancelFunc) error {
 	// don't let panics crash the process
 	defer utilruntime.HandleCrash()
 	// make sure the work queue is shutdown which will trigger workers to end
@@ -114,7 +109,7 @@ func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.Cance
 	}()
 	c.shutdownFn = shutdownFn
 
-	klog.Infof("Starting stop-on-featureset-change controller with %q.", c.startingRequiredFeatureSet)
+	klog.Infof("Starting stop-on-featureset-change controller with %q.", c.clusterFeatures.StartingRequiredFeatureSet)
 
 	// wait for your secondary caches to fill before starting your work
 	if !cache.WaitForCacheSync(ctx.Done(), c.cacheSynced...) {
@@ -129,7 +124,7 @@ func (c *FeatureChangeStopper) Run(ctx context.Context, shutdownFn context.Cance
 // runWorker handles a single worker poll round, processing as many
 // work items as possible, and returning done when there will be no
 // more work.
-func (c *FeatureChangeStopper) runWorker(ctx context.Context) (done bool, err error) {
+func (c *ChangeStopper) runWorker(ctx context.Context) (done bool, err error) {
 	// hot loop until we're told to stop.  processNextWorkItem will
 	// automatically wait until there's work available, so we don't worry
 	// about secondary waits
@@ -142,7 +137,7 @@ func (c *FeatureChangeStopper) runWorker(ctx context.Context) (done bool, err er
 
 // processNextWorkItem deals with one key off the queue.  It returns
 // done when there will be no more work.
-func (c *FeatureChangeStopper) processNextWorkItem(ctx context.Context) (done bool, err error) {
+func (c *ChangeStopper) processNextWorkItem(ctx context.Context) (done bool, err error) {
 	// pull the next work item from queue.  It should be a key we use to lookup
 	// something in a cache
 	key, quit := c.queue.Get()
