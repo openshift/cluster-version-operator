@@ -454,7 +454,9 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 
 		if len(cv.Spec.Upstream) > 0 || len(cv.Status.AvailableUpdates) > 0 || resourcemerge.IsOperatorStatusConditionTrue(cv.Status.Conditions, configv1.RetrievedUpdates) {
 			upstream := "<default>"
-			if len(cv.Spec.Upstream) > 0 {
+			if len(m.optr.updateService) > 0 {
+				upstream = string(m.optr.updateService)
+			} else if len(cv.Spec.Upstream) > 0 {
 				upstream = string(cv.Spec.Upstream)
 			}
 			g := m.availableUpdates.WithLabelValues(upstream, cv.Spec.Channel)
