@@ -172,6 +172,7 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	if err != nil {
 		return false, fmt.Errorf("executing PromQL query: %w", err)
 	}
+	klog.V(2).Infof("DEBUG: evaluated %s cluster condition: %q:\n%v\n%v", condition.Type, condition.PromQL.PromQL, result, warnings)
 
 	for _, warning := range warnings {
 		klog.Warning(warning)
@@ -189,6 +190,7 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	if vector.Len() != 1 {
 		return false, fmt.Errorf("invalid PromQL result length must be one, but is %d", vector.Len())
 	}
+	klog.V(2).Infof("DEBUG: evaluated %s cluster condition: %q: vector length %d", condition.Type, condition.PromQL.PromQL, vector.Len())
 
 	sample := vector[0]
 	if sample.Value == 0 {
