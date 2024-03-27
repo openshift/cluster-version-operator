@@ -381,22 +381,22 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		}
 	}
 
-	oldRriCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
-	if enabledGates.ResourceReconciliationIssuesCondition() || (oldRriCondition != nil && enabledGates.UnknownVersion()) {
-		rriCondition := configv1.ClusterOperatorStatusCondition{
-			Type:    resourceReconciliationIssuesConditionType,
+	oldRiCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
+	if enabledGates.ReconciliationIssuesCondition() || (oldRiCondition != nil && enabledGates.UnknownVersion()) {
+		riCondition := configv1.ClusterOperatorStatusCondition{
+			Type:    reconciliationIssuesConditionType,
 			Status:  configv1.ConditionFalse,
-			Reason:  noResourceReconciliationIssuesReason,
-			Message: noResourceReconciliationIssuesMessage,
+			Reason:  noReconciliationIssuesReason,
+			Message: noReconciliationIssuesMessage,
 		}
 		if status.Failure != nil {
-			rriCondition.Status = configv1.ConditionTrue
-			rriCondition.Reason = resourceReconciliationIssuesFoundReason
-			rriCondition.Message = fmt.Sprintf("%s: %s", resourceReconciliationIssuesFoundMessage, status.Failure.Error())
+			riCondition.Status = configv1.ConditionTrue
+			riCondition.Reason = reconciliationIssuesFoundReason
+			riCondition.Message = fmt.Sprintf("%s: %s", reconciliationIssuesFoundMessage, status.Failure.Error())
 		}
-		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, rriCondition)
-	} else if oldRriCondition != nil {
-		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, riCondition)
+	} else if oldRiCondition != nil {
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, reconciliationIssuesConditionType)
 	}
 
 	// default retrieved updates if it is not set

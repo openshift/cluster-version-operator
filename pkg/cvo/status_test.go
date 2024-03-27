@@ -196,20 +196,20 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 	}
 }
 
-type fakeRriFlags struct {
-	unknownVersion                        bool
-	resourceReconciliationIssuesCondition bool
+type fakeRiFlags struct {
+	unknownVersion                bool
+	reconciliationIssuesCondition bool
 }
 
-func (f fakeRriFlags) UnknownVersion() bool {
+func (f fakeRiFlags) UnknownVersion() bool {
 	return f.unknownVersion
 }
 
-func (f fakeRriFlags) ResourceReconciliationIssuesCondition() bool {
-	return f.resourceReconciliationIssuesCondition
+func (f fakeRiFlags) ReconciliationIssuesCondition() bool {
+	return f.reconciliationIssuesCondition
 }
 
-func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
+func TestUpdateClusterVersionStatus_UnknownVersionAndReconciliationIssues(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 
 	testCases := []struct {
@@ -219,49 +219,49 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 		oldCondition   *configv1.ClusterOperatorStatusCondition
 		failure        error
 
-		expectedRriCondition *configv1.ClusterOperatorStatusCondition
+		expectedRiCondition *configv1.ClusterOperatorStatusCondition
 	}{
 		{
-			name:                 "RRI disabled, version known, no failure => condition not present",
-			unknownVersion:       false,
-			expectedRriCondition: nil,
+			name:                "ReconciliationIssues disabled, version known, no failure => condition not present",
+			unknownVersion:      false,
+			expectedRiCondition: nil,
 		},
 		{
-			name:                 "RRI disabled, version known, failure => condition not present",
-			unknownVersion:       false,
-			failure:              fmt.Errorf("Something happened"),
-			expectedRriCondition: nil,
+			name:                "ReconciliationIssues disabled, version known, failure => condition not present",
+			unknownVersion:      false,
+			failure:             fmt.Errorf("Something happened"),
+			expectedRiCondition: nil,
 		},
 		{
-			name: "RRI disabled, version unknown, failure, existing condition => condition present",
+			name: "ReconciliationIssues disabled, version unknown, failure, existing condition => condition present",
 			oldCondition: &configv1.ClusterOperatorStatusCondition{
-				Type:    resourceReconciliationIssuesConditionType,
+				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionFalse,
-				Reason:  noResourceReconciliationIssuesReason,
+				Reason:  noReconciliationIssuesReason,
 				Message: "Happy condition is happy",
 			},
 			unknownVersion: true,
 			failure:        fmt.Errorf("Something happened"),
-			expectedRriCondition: &configv1.ClusterOperatorStatusCondition{
-				Type:    resourceReconciliationIssuesConditionType,
+			expectedRiCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
-				Reason:  resourceReconciliationIssuesFoundReason,
-				Message: "Issues found during resource reconciliation: Something happened",
+				Reason:  reconciliationIssuesFoundReason,
+				Message: "Issues found during reconciliation: Something happened",
 			},
 		},
 		{
-			name:                 "RRI disabled, version unknown, failure, no existing condition => condition not present",
-			unknownVersion:       true,
-			failure:              fmt.Errorf("Something happened"),
-			expectedRriCondition: nil,
+			name:                "ReconciliationIssues disabled, version unknown, failure, no existing condition => condition not present",
+			unknownVersion:      true,
+			failure:             fmt.Errorf("Something happened"),
+			expectedRiCondition: nil,
 		},
 	}
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gates := fakeRriFlags{
-				unknownVersion:                        tc.unknownVersion,
-				resourceReconciliationIssuesCondition: false,
+			gates := fakeRiFlags{
+				unknownVersion:                tc.unknownVersion,
+				reconciliationIssuesCondition: false,
 			}
 			release := configv1.Release{}
 			getAvailableUpdates := func() *availableUpdates { return nil }
@@ -271,8 +271,8 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 				cvStatus.Conditions = append(cvStatus.Conditions, *tc.oldCondition)
 			}
 			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{Failure: tc.failure}, release, getAvailableUpdates, gates, noErrors)
-			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
-			if diff := cmp.Diff(tc.expectedRriCondition, condition, ignoreLastTransitionTime); diff != "" {
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
+			if diff := cmp.Diff(tc.expectedRiCondition, condition, ignoreLastTransitionTime); diff != "" {
 				t.Errorf("unexpected condition\n:%s", diff)
 			}
 		})
@@ -281,7 +281,7 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
 
 }
 
-func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
+func TestUpdateClusterVersionStatus_ReconciliationIssues(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 
 	testCases := []struct {
@@ -293,31 +293,31 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 		expectedCondition *configv1.ClusterOperatorStatusCondition
 	}{
 		{
-			name:             "ResourceReconciliationIssues present and happy when gate is enabled and no failures happened",
+			name:             "ReconciliationIssues present and happy when gate is enabled and no failures happened",
 			syncWorkerStatus: SyncWorkerStatus{},
 			enabled:          true,
 			expectedCondition: &configv1.ClusterOperatorStatusCondition{
-				Type:    resourceReconciliationIssuesConditionType,
+				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionFalse,
-				Reason:  noResourceReconciliationIssuesReason,
-				Message: noResourceReconciliationIssuesMessage,
+				Reason:  noReconciliationIssuesReason,
+				Message: noReconciliationIssuesMessage,
 			},
 		},
 		{
-			name: "ResourceReconciliationIssues present and unhappy when gate is enabled and failures happened",
+			name: "ReconciliationIssues present and unhappy when gate is enabled and failures happened",
 			syncWorkerStatus: SyncWorkerStatus{
 				Failure: fmt.Errorf("Something happened"),
 			},
 			enabled: true,
 			expectedCondition: &configv1.ClusterOperatorStatusCondition{
-				Type:    resourceReconciliationIssuesConditionType,
+				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
-				Reason:  resourceReconciliationIssuesFoundReason,
-				Message: "Issues found during resource reconciliation: Something happened",
+				Reason:  reconciliationIssuesFoundReason,
+				Message: "Issues found during reconciliation: Something happened",
 			},
 		},
 		{
-			name: "ResourceReconciliationIssues not present when gate is enabled and failures happened",
+			name: "ReconciliationIssues not present when gate is enabled and failures happened",
 			syncWorkerStatus: SyncWorkerStatus{
 				Failure: fmt.Errorf("Something happened"),
 			},
@@ -329,16 +329,16 @@ func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			gates := fakeRriFlags{
-				unknownVersion:                        false,
-				resourceReconciliationIssuesCondition: tc.enabled,
+			gates := fakeRiFlags{
+				unknownVersion:                false,
+				reconciliationIssuesCondition: tc.enabled,
 			}
 			release := configv1.Release{}
 			getAvailableUpdates := func() *availableUpdates { return nil }
 			var noErrors field.ErrorList
 			cvStatus := configv1.ClusterVersionStatus{}
 			updateClusterVersionStatus(&cvStatus, &tc.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
-			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
 			if diff := cmp.Diff(tc.expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 				t.Errorf("unexpected condition\n:%s", diff)
 			}

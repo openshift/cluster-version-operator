@@ -17,13 +17,13 @@ type CvoGateChecker interface {
 	// to restart when the flags change.
 	UnknownVersion() bool
 
-	// ResourceReconciliationIssuesCondition controls whether CVO maintains a Condition with
-	// ResourceReconciliationIssues type, containing a JSON that describes all "issues" that prevented
+	// ReconciliationIssuesCondition controls whether CVO maintains a Condition with
+	// ReconciliationIssues type, containing a JSON that describes all "issues" that prevented
 	// or delayed CVO from reconciling individual resources in the cluster. This is a pseudo-API
 	// that the experimental work for "oc adm upgrade status" uses to report upgrade status, and
 	// should never be relied upon by any production code. We may want to eventually turn this into
 	// some kind of "real" API.
-	ResourceReconciliationIssuesCondition() bool
+	ReconciliationIssuesCondition() bool
 }
 
 type panicOnUsageBeforeInitializationFunc func()
@@ -36,7 +36,7 @@ func panicOnUsageBeforeInitialization() {
 // be used before CVO feature gates are actually known and some code tries to check them.
 var PanicOnUsageBeforeInitialization = panicOnUsageBeforeInitializationFunc(panicOnUsageBeforeInitialization)
 
-func (p panicOnUsageBeforeInitializationFunc) ResourceReconciliationIssuesCondition() bool {
+func (p panicOnUsageBeforeInitializationFunc) ReconciliationIssuesCondition() bool {
 	p()
 	return false
 }
@@ -55,12 +55,12 @@ type CvoGates struct {
 	desiredVersion string
 
 	// individual flags mirror the CvoGateChecker interface
-	unknownVersion                        bool
-	resourceReconciliationIssuesCondition bool
+	unknownVersion                bool
+	reconciliationIssuesCondition bool
 }
 
-func (c CvoGates) ResourceReconciliationIssuesCondition() bool {
-	return c.resourceReconciliationIssuesCondition
+func (c CvoGates) ReconciliationIssuesCondition() bool {
+	return c.reconciliationIssuesCondition
 }
 
 func (c CvoGates) UnknownVersion() bool {
@@ -70,9 +70,9 @@ func (c CvoGates) UnknownVersion() bool {
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
-		desiredVersion:                        version,
-		unknownVersion:                        true,
-		resourceReconciliationIssuesCondition: false,
+		desiredVersion:                version,
+		unknownVersion:                true,
+		reconciliationIssuesCondition: false,
 	}
 }
 
@@ -90,12 +90,12 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		enabledGates.unknownVersion = false
 		for _, enabled := range g.Enabled {
 			if enabled.Name == configv1.FeatureGateUpgradeStatus {
-				enabledGates.resourceReconciliationIssuesCondition = true
+				enabledGates.reconciliationIssuesCondition = true
 			}
 		}
 		for _, disabled := range g.Disabled {
 			if disabled.Name == configv1.FeatureGateUpgradeStatus {
-				enabledGates.resourceReconciliationIssuesCondition = false
+				enabledGates.reconciliationIssuesCondition = false
 			}
 		}
 	}
