@@ -23,6 +23,7 @@ import (
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -178,7 +179,7 @@ const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "Impli
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
 	// Be more verbose when we are syncing something interesting
 	verbosityLevel := klog.Level(4)
-	if len(validationErrs) != 0 || status.Failure != nil {
+	if len(validationErrs) != 0 || status.FailureSummary != nil {
 		verbosityLevel = klog.Level(2)
 	}
 	klog.V(verbosityLevel).Infof("Synchronizing status errs=%#v status=%#v", validationErrs, status)
@@ -198,7 +199,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, validationErrs)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
@@ -210,7 +211,8 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
-	release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
+	release configv1.Release, getAvailableUpdates func() *availableUpdates, enabledGates featuregates.CvoGateChecker,
+	validationErrs field.ErrorList) {
 
 	cvStatus.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
@@ -293,7 +295,7 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 
 	progressReason, progressMessage, skipFailure := convertErrorToProgressing(cvStatus.History, now.Time, status)
 
-	if err := status.Failure; err != nil && !skipFailure {
+	if err := status.FailureSummary; err != nil && !skipFailure {
 		var reason string
 		msg := progressMessage
 		if uErr, ok := err.(*payload.UpdateError); ok {
@@ -379,6 +381,29 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		}
 	}
 
+	oldRriCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+	if enabledGates.ResourceReconciliationIssuesCondition() || (oldRriCondition != nil && enabledGates.UnknownVersion()) {
+		rriCondition := configv1.ClusterOperatorStatusCondition{
+			Type:    resourceReconciliationIssuesConditionType,
+			Status:  configv1.ConditionFalse,
+			Reason:  noResourceReconciliationIssuesReason,
+			Message: noResourceReconciliationIssuesMessage,
+		}
+		if status.FailureSummary != nil {
+			rriCondition.Status = configv1.ConditionTrue
+			rriCondition.Reason = resourceReconciliationIssuesFoundReason
+			if len(status.Failures) == 0 { // this should not happen with non-nil FailureSummary but lets be defensive
+				rriCondition.Message = resourceReconciliationIssuesFromErrors([]error{status.FailureSummary})
+			} else {
+				rriCondition.Message = resourceReconciliationIssuesFromErrors(status.Failures)
+			}
+
+		}
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, rriCondition)
+	} else if oldRriCondition != nil {
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+	}
+
 	// default retrieved updates if it is not set
 	if resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, configv1.RetrievedUpdates) == nil {
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -456,10 +481,10 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 // failing. An error may indicate the update is failing or that if the error continues for a defined interval the
 // update is failing.
 func convertErrorToProgressing(history []configv1.UpdateHistory, now time.Time, status *SyncWorkerStatus) (reason string, message string, ok bool) {
-	if len(history) == 0 || status.Failure == nil || status.Reconciling {
+	if len(history) == 0 || status.FailureSummary == nil || status.Reconciling {
 		return "", "", false
 	}
-	uErr, ok := status.Failure.(*payload.UpdateError)
+	uErr, ok := status.FailureSummary.(*payload.UpdateError)
 	if !ok {
 		return "", "", false
 	}

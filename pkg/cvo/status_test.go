@@ -2,16 +2,25 @@ package cvo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/manifest"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_mergeEqualVersions(t *testing.T) {
@@ -186,6 +195,242 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 			}
 			if err != nil {
 				return
+			}
+		})
+	}
+}
+
+type fakeRriFlags struct {
+	unknownVersion                        bool
+	resourceReconciliationIssuesCondition bool
+}
+
+func (f fakeRriFlags) UnknownVersion() bool {
+	return f.unknownVersion
+}
+
+func (f fakeRriFlags) ResourceReconciliationIssuesCondition() bool {
+	return f.resourceReconciliationIssuesCondition
+}
+
+func TestUpdateClusterVersionStatus_UnknownVersionAndRRI(t *testing.T) {
+	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
+
+	testCases := []struct {
+		name string
+
+		unknownVersion bool
+		oldCondition   *configv1.ClusterOperatorStatusCondition
+		failure        error
+
+		expectedRriCondition *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name:                 "RRI disabled, version known, no failure => condition not present",
+			unknownVersion:       false,
+			expectedRriCondition: nil,
+		},
+		{
+			name:                 "RRI disabled, version known, failure => condition not present",
+			unknownVersion:       false,
+			failure:              fmt.Errorf("Something happened"),
+			expectedRriCondition: nil,
+		},
+		{
+			name: "RRI disabled, version unknown, failure, existing condition => condition present",
+			oldCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionFalse,
+				Reason:  noResourceReconciliationIssuesReason,
+				Message: "Happy condition is happy",
+			},
+			unknownVersion: true,
+			failure:        fmt.Errorf("Something happened"),
+			expectedRriCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
+			},
+		},
+		{
+			name:                 "RRI disabled, version unknown, failure, no existing condition => condition not present",
+			unknownVersion:       true,
+			failure:              fmt.Errorf("Something happened"),
+			expectedRriCondition: nil,
+		},
+	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gates := fakeRriFlags{
+				unknownVersion:                        tc.unknownVersion,
+				resourceReconciliationIssuesCondition: false,
+			}
+			release := configv1.Release{}
+			getAvailableUpdates := func() *availableUpdates { return nil }
+			var noErrors field.ErrorList
+			cvStatus := configv1.ClusterVersionStatus{}
+			if tc.oldCondition != nil {
+				cvStatus.Conditions = append(cvStatus.Conditions, *tc.oldCondition)
+			}
+			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{FailureSummary: tc.failure}, release, getAvailableUpdates, gates, noErrors)
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+			if diff := cmp.Diff(tc.expectedRriCondition, condition, ignoreLastTransitionTime); diff != "" {
+				t.Errorf("unexpected condition\n:%s", diff)
+			}
+		})
+
+	}
+
+}
+
+func TestUpdateClusterVersionStatus_ResourceReconciliationIssues(t *testing.T) {
+	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
+
+	resourceUpdateError := payload.UpdateError{
+		Nested:              fmt.Errorf("This is a nested error"),
+		UpdateEffect:        payload.UpdateEffectReport,
+		Reason:              "SomeReason",
+		PluralReason:        "MultipleReasons",
+		Message:             "Message about update error",
+		PluralMessageFormat: "We do not carry this to RRI",
+		Name:                "No idea",
+		Names:               []string{"one", "two"},
+		Task: &payload.Task{
+			Manifest: &manifest.Manifest{
+				OriginalFilename: "0000_00_some-configmap.yaml",
+				GVK:              schema.GroupVersionKind{Version: "v1", Kind: "ConfigMap"},
+			},
+		},
+	}
+
+	matchingResourceReconciliationIssue := ResourceReconciliationIssue{
+		UpdateError: &ResourceReconciliationIssueUpdateError{
+			NestedMessage:    "This is a nested error",
+			Effect:           "Report",
+			Reason:           "SomeReason",
+			PluralReason:     "MultipleReasons",
+			Message:          "Message about update error",
+			Name:             "No idea",
+			Names:            "one, two",
+			ManifestFilename: "0000_00_some-configmap.yaml",
+			ResourceGroup:    "",
+			ResourceVersion:  "v1",
+			ResourceKind:     "ConfigMap",
+			ResourceSummary:  "",
+		},
+	}
+
+	rriAsJsonRaw, err := json.Marshal(matchingResourceReconciliationIssue)
+	if err != nil {
+		t.Fatalf("Failed to marshal resource reconciliation issue: %v", err)
+	}
+	rriAsJson := string(rriAsJsonRaw)
+
+	testCases := []struct {
+		name             string
+		syncWorkerStatus SyncWorkerStatus
+
+		enabled bool
+
+		expectedCondition *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name:             "gate enabled, no failures => condition present and happy",
+			syncWorkerStatus: SyncWorkerStatus{},
+			enabled:          true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionFalse,
+				Reason:  noResourceReconciliationIssuesReason,
+				Message: noResourceReconciliationIssuesMessage,
+			},
+		},
+		{
+			name: "gate enabled, failure summary present but failures empty => condition present and unhappy, backfilled from failure summary",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Something happened"),
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
+			},
+		},
+		{
+			name: "gate enabled, update failure => condition present and unhappy",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: &resourceUpdateError,
+				Failures:       []error{&resourceUpdateError},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: fmt.Sprintf("[%s]", string(rriAsJson)),
+			},
+		},
+		{
+			name: "gate enabled, non-update error => condition present and unhappy",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Something happened"),
+				Failures:       []error{fmt.Errorf("Something happened")},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: `[{"simpleError":{"message":"Something happened"}}]`,
+			},
+		},
+		{
+			name: "gate enabled, update and non-update error => condition present and unhappy, contains both errors",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Some kind of summary of both errors"),
+				Failures: []error{
+					fmt.Errorf("Something happened"),
+					&resourceUpdateError,
+				},
+			},
+			enabled: true,
+			expectedCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    resourceReconciliationIssuesConditionType,
+				Status:  configv1.ConditionTrue,
+				Reason:  resourceReconciliationIssuesFoundReason,
+				Message: fmt.Sprintf(`[{"simpleError":{"message":"Something happened"}},%s]`, string(rriAsJson)),
+			},
+		},
+		{
+			name: "gate disabled, failure summary and failures present => condition not present",
+			syncWorkerStatus: SyncWorkerStatus{
+				FailureSummary: fmt.Errorf("Something happened"),
+				Failures:       []error{fmt.Errorf("Something happened")},
+			},
+			enabled:           false,
+			expectedCondition: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gates := fakeRriFlags{
+				unknownVersion:                        false,
+				resourceReconciliationIssuesCondition: tc.enabled,
+			}
+			release := configv1.Release{}
+			getAvailableUpdates := func() *availableUpdates { return nil }
+			var noErrors field.ErrorList
+			cvStatus := configv1.ClusterVersionStatus{}
+			updateClusterVersionStatus(&cvStatus, &tc.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
+			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, resourceReconciliationIssuesConditionType)
+			if diff := cmp.Diff(tc.expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
+				t.Errorf("unexpected condition\n:%s", diff)
 			}
 		})
 	}

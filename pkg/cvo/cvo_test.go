@@ -39,11 +39,12 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
-
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/openshift/library-go/pkg/verify/store/serial"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
+
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 var (
@@ -193,7 +194,7 @@ func TestOperator_sync(t *testing.T) {
 			syncStatus: &SyncWorkerStatus{
 				Reconciling: false,
 				Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-				Failure: &payload.UpdateError{
+				FailureSummary: &payload.UpdateError{
 					Reason:  "UpdatePayloadIntegrity",
 					Message: "unable to apply object",
 				},
@@ -274,7 +275,7 @@ func TestOperator_sync(t *testing.T) {
 					Returns: &SyncWorkerStatus{
 						Reconciling: true,
 						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-						Failure: &payload.UpdateError{
+						FailureSummary: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
 						},
@@ -351,7 +352,7 @@ func TestOperator_sync(t *testing.T) {
 						Reconciling: true,
 						Completed:   2,
 						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-						Failure: &payload.UpdateError{
+						FailureSummary: &payload.UpdateError{
 							Reason:  "UpdatePayloadIntegrity",
 							Message: "unable to apply object",
 						},
@@ -425,9 +426,9 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				configSync: &fakeSyncRecorder{
 					Returns: &SyncWorkerStatus{
-						Actual:      configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
-						Failure:     fmt.Errorf("injected error"),
-						VersionHash: "foo",
+						Actual:         configv1.Release{Version: "0.0.1-abc", Image: "image/image:v4.0.1"},
+						FailureSummary: fmt.Errorf("injected error"),
+						VersionHash:    "foo",
 					},
 				},
 				client: fake.NewSimpleClientset(
@@ -490,8 +491,8 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "invalid image reports image error",
 			syncStatus: &SyncWorkerStatus{
-				Failure: os.ErrNotExist,
-				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				FailureSummary: os.ErrNotExist,
+				Actual:         configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: &Operator{
 				release: configv1.Release{
@@ -545,10 +546,10 @@ func TestOperator_sync(t *testing.T) {
 		{
 			name: "invalid image while progressing preserves progressing order and partial history",
 			syncStatus: &SyncWorkerStatus{
-				Done:    600,
-				Total:   1000,
-				Failure: os.ErrNotExist,
-				Actual:  configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
+				Done:           600,
+				Total:          1000,
+				FailureSummary: os.ErrNotExist,
+				Actual:         configv1.Release{Image: "image/image:v4.0.1", Version: "4.0.1"},
 			},
 			optr: &Operator{
 				release: configv1.Release{
@@ -2273,6 +2274,7 @@ func TestOperator_sync(t *testing.T) {
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
 			optr.eventRecorder = record.NewFakeRecorder(100)
+			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
 
 			ctx := context.Background()
 			err := optr.sync(ctx, optr.queueKey())

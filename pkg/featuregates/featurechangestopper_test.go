@@ -1,4 +1,4 @@
-package featurechangestopper
+package featuregates
 
 import (
 	"context"
@@ -12,41 +12,64 @@ import (
 )
 
 func TestTechPreviewChangeStopper(t *testing.T) {
+	versionForGates := "1.2.3"
 	tests := []struct {
 		name                       string
-		startingRequiredFeatureSet string
-		featureGate                string
-		expectedShutdownCalled     bool
+		startingRequiredFeatureSet configv1.FeatureSet
+		startingCvoFeatureGates    CvoGates
+
+		featureSet        string
+		featureGateStatus *configv1.FeatureGateStatus
+
+		expectedShutdownCalled bool
 	}{
 		{
 			name:                       "default-no-change",
 			startingRequiredFeatureSet: "",
-			featureGate:                "",
+			featureSet:                 "",
 			expectedShutdownCalled:     false,
 		},
 		{
 			name:                       "default-with-change-to-tech-preview",
 			startingRequiredFeatureSet: "",
-			featureGate:                "TechPreviewNoUpgrade",
+			featureSet:                 "TechPreviewNoUpgrade",
 			expectedShutdownCalled:     true,
 		},
 		{
 			name:                       "default-with-change-to-other",
 			startingRequiredFeatureSet: "",
-			featureGate:                "AnythingElse",
+			featureSet:                 "AnythingElse",
 			expectedShutdownCalled:     true,
 		},
 		{
 			name:                       "techpreview-to-techpreview",
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
-			featureGate:                "TechPreviewNoUpgrade",
+			featureSet:                 "TechPreviewNoUpgrade",
 			expectedShutdownCalled:     false,
 		},
 		{
 			name:                       "techpreview-to-not-tech-preview", // this isn't allowed today
 			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
-			featureGate:                "",
+			featureSet:                 "",
 			expectedShutdownCalled:     true,
+		},
+		{
+			name:                       "cvo flags changed",
+			startingRequiredFeatureSet: "TechPreviewNoUpgrade",
+			startingCvoFeatureGates: CvoGates{
+				desiredVersion: versionForGates,
+				unknownVersion: true,
+			},
+			featureSet: "TechPreviewNoUpgrade",
+			featureGateStatus: &configv1.FeatureGateStatus{
+				FeatureGates: []configv1.FeatureGateDetails{
+					{
+						Version: versionForGates,
+						Enabled: []configv1.FeatureGateAttributes{{Name: configv1.FeatureGateUpgradeStatus}},
+					},
+				},
+			},
+			expectedShutdownCalled: true,
 		},
 	}
 	for _, tt := range tests {
@@ -59,23 +82,29 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				actualShutdownCalled = true
 			}
 
-			client := fakeconfigv1client.NewSimpleClientset(
-				&configv1.FeatureGate{
-					ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-					Spec: configv1.FeatureGateSpec{
-						FeatureGateSelection: configv1.FeatureGateSelection{
-							FeatureSet: configv1.FeatureSet(tt.featureGate),
-						},
+			fg := &configv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.FeatureSet(tt.featureSet),
 					},
 				},
-			)
+			}
+			if tt.featureGateStatus != nil {
+				fg.Status = *tt.featureGateStatus
+			} else {
+				fg.Status = configv1.FeatureGateStatus{}
+				tt.startingCvoFeatureGates = CvoGates{unknownVersion: true}
+			}
+
+			client := fakeconfigv1client.NewSimpleClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
-			featureGates := informerFactory.Config().V1().FeatureGates()
-			c, err := New(tt.startingRequiredFeatureSet, featureGates)
+			c, err := NewChangeStopper(informerFactory.Config().V1().FeatureGates())
 			if err != nil {
 				t.Fatal(err)
 			}
+			c.SetStartingFeatures(tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates)
 			informerFactory.Start(ctx.Done())
 
 			if err := c.Run(ctx, shutdownFn); err != nil {
