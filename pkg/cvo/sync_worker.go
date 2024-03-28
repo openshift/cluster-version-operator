@@ -178,14 +178,14 @@ type SyncWorker struct {
 
 	// requiredFeatureSet is set to the value of Feature.config.openshift.io|spec.featureSet, which contributes to
 	// whether or not some manifests are included for reconciliation.
-	requiredFeatureSet string
+	requiredFeatureSet configv1.FeatureSet
 
 	clusterProfile string
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
-func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet string, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
+func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
 	return &SyncWorker{
 		retriever:     retriever,
 		builder:       builder,
@@ -210,7 +210,7 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 // NewSyncWorkerWithPreconditions initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
 // to a server, and obey limits about how often to reconcile or retry on errors.
 // It allows providing preconditions for loading payload.
-func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet string, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
+func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.ResourceBuilder, preconditions precondition.List, reconcileInterval time.Duration, backoff wait.Backoff, exclude string, requiredFeatureSet configv1.FeatureSet, eventRecorder record.EventRecorder, clusterProfile string) *SyncWorker {
 	worker := NewSyncWorker(retriever, builder, reconcileInterval, backoff, exclude, requiredFeatureSet, eventRecorder, clusterProfile)
 	worker.preconditions = preconditions
 	return worker
@@ -315,7 +315,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 
 		// Capability filtering is not done here since unknown capabilities are allowed
 		// during updated payload load and enablement checking only occurs during apply.
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, w.requiredFeatureSet, w.clusterProfile, nil)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil)
 
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)

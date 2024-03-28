@@ -26,10 +26,11 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 var architecture string
@@ -108,14 +109,15 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 	}
 
 	o := &Operator{
-		namespace:      "test",
-		name:           "version",
-		queue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
-		client:         client,
-		cvLister:       &clientCVLister{client: client},
-		exclude:        "exclude-test",
-		eventRecorder:  record.NewFakeRecorder(100),
-		clusterProfile: payload.DefaultClusterProfile,
+		namespace:           "test",
+		name:                "version",
+		queue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
+		client:              client,
+		enabledFeatureGates: featuregates.DefaultCvoGates("version"),
+		cvLister:            &clientCVLister{client: client},
+		exclude:             "exclude-test",
+		eventRecorder:       record.NewFakeRecorder(100),
+		clusterProfile:      payload.DefaultClusterProfile,
 	}
 
 	dynamicScheme := apiruntime.NewScheme()

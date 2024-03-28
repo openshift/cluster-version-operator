@@ -23,6 +23,7 @@ import (
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -198,7 +199,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, validationErrs)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
@@ -210,7 +211,8 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
-	release configv1.Release, getAvailableUpdates func() *availableUpdates, validationErrs field.ErrorList) {
+	release configv1.Release, getAvailableUpdates func() *availableUpdates, enabledGates featuregates.CvoGateChecker,
+	validationErrs field.ErrorList) {
 
 	cvStatus.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
@@ -377,6 +379,24 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 				LastTransitionTime: now,
 			})
 		}
+	}
+
+	oldRiCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
+	if enabledGates.ReconciliationIssuesCondition() || (oldRiCondition != nil && enabledGates.UnknownVersion()) {
+		riCondition := configv1.ClusterOperatorStatusCondition{
+			Type:    reconciliationIssuesConditionType,
+			Status:  configv1.ConditionFalse,
+			Reason:  noReconciliationIssuesReason,
+			Message: noReconciliationIssuesMessage,
+		}
+		if status.Failure != nil {
+			riCondition.Status = configv1.ConditionTrue
+			riCondition.Reason = reconciliationIssuesFoundReason
+			riCondition.Message = fmt.Sprintf("%s: %s", reconciliationIssuesFoundMessage, status.Failure.Error())
+		}
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, riCondition)
+	} else if oldRiCondition != nil {
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, reconciliationIssuesConditionType)
 	}
 
 	// default retrieved updates if it is not set

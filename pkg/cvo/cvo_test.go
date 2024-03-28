@@ -39,11 +39,12 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
-
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/openshift/library-go/pkg/verify/store/serial"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
+
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 var (
@@ -2273,6 +2274,7 @@ func TestOperator_sync(t *testing.T) {
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
 			optr.eventRecorder = record.NewFakeRecorder(100)
+			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
 
 			ctx := context.Background()
 			err := optr.sync(ctx, optr.queueKey())
