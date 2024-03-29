@@ -116,7 +116,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 	registry.Register("Always", &always.Always{})
 	registry.Register("PromQL", promqlMock)
 	operator := &Operator{
-		defaultUpstreamServer: url,
+		updateService:         url,
 		architecture:          "amd64",
 		proxyLister:           notFoundProxyLister{},
 		cmConfigManagedLister: notFoundConfigMapLister{},
@@ -149,6 +149,7 @@ func TestSyncAvailableUpdates(t *testing.T) {
 	fakeOsus, mockPromql, expectedConditionalUpdates, version := osusWithSingleConditionalEdge()
 	defer fakeOsus.Close()
 	expectedAvailableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
+	expectedAvailableUpdates.UpdateService = fakeOsus.URL
 	expectedAvailableUpdates.ConditionalUpdates = expectedConditionalUpdates
 	expectedAvailableUpdates.Channel = cvFixture.Spec.Channel
 	expectedAvailableUpdates.Condition = configv1.ClusterOperatorStatusCondition{

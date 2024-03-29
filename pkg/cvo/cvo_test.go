@@ -1240,8 +1240,8 @@ func TestOperator_sync(t *testing.T) {
 				namespace: "test",
 				name:      "default",
 				availableUpdates: &availableUpdates{
-					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
+					UpdateService: "http://localhost:8080/graph",
+					Channel:       "fast",
 					Current: configv1.Release{
 						Version:  "0.0.1-abc",
 						Image:    "image/image:v4.0.1",
@@ -1568,7 +1568,7 @@ func TestOperator_sync(t *testing.T) {
 			},
 		},
 		{
-			name: "new available updates for the default upstream URL, client has no upstream",
+			name: "new available updates for the default update service URL, client has no update service",
 			syncStatus: &SyncWorkerStatus{
 				Generation:  2,
 				Reconciling: true,
@@ -1579,12 +1579,12 @@ func TestOperator_sync(t *testing.T) {
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
-				namespace:             "test",
-				name:                  "default",
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				namespace:     "test",
+				name:          "default",
+				updateService: "http://localhost:8080/graph",
 				availableUpdates: &availableUpdates{
-					Upstream: "",
-					Channel:  "fast",
+					UpdateService: "",
+					Channel:       "fast",
 					Updates: []configv1.Release{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
@@ -1669,8 +1669,8 @@ func TestOperator_sync(t *testing.T) {
 				namespace: "test",
 				name:      "default",
 				availableUpdates: &availableUpdates{
-					Upstream: "http://localhost:8080/graph",
-					Channel:  "fast",
+					UpdateService: "http://localhost:8080/graph",
+					Channel:       "fast",
 					Updates: []configv1.Release{
 						{Version: "4.0.2", Image: "test/image:1"},
 						{Version: "4.0.3", Image: "test/image:2"},
@@ -2324,13 +2324,15 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 		},
 		{
-			name: "report an error condition when no upstream is set",
+			name: "no operator or ClusterVersion upstream uses the default update service",
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
+				architecture: "amd64",
 				release: configv1.Release{
-					Image: "image/image:v4.0.1",
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
 				},
 				namespace: "test",
 				name:      "default",
@@ -2352,13 +2354,14 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream: "",
-				Channel:  "fast",
+				UpdateService: "",
+				Channel:       "fast",
+				Architecture:  "amd64",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
-					Reason:  "NoUpstream",
-					Message: "No upstream server has been set to retrieve updates.",
+					Reason:  "VersionNotFound",
+					Message: `Unable to retrieve available updates: currently reconciling cluster version 4.0.1 not found in the "fast" channel`,
 				},
 			},
 		},
@@ -2368,7 +2371,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -2393,8 +2396,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream: "",
-				Channel:  "",
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2409,8 +2412,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -2435,9 +2438,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "",
-				Architecture: "amd64",
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "",
+				Architecture:  "amd64",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2452,8 +2455,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
 				release: configv1.Release{
 					Image: "image/image:v4.0.1",
 				},
@@ -2477,9 +2480,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "fast",
+				Architecture:  "amd64",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2494,8 +2497,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2526,9 +2529,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "fast",
+				Architecture:  "amd64",
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2557,8 +2560,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				`)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2590,9 +2593,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "fast",
+				Architecture:  "amd64",
 				Current: configv1.Release{
 					Version:  "4.0.1",
 					Image:    "image/image:v4.0.1",
@@ -2624,8 +2627,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				`)
 			},
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
-				architecture:          "amd64",
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
 				release: configv1.Release{
 					Version: "4.0.1",
 					Image:   "image/image:v4.0.1",
@@ -2657,10 +2660,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 			wantUpdates: &availableUpdates{
-				Upstream:     "",
-				Channel:      "fast",
-				Architecture: "amd64",
-				Current:      configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "fast",
+				Architecture:  "amd64",
+				Current:       configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 				Updates: []configv1.Release{
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
 					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
@@ -2677,12 +2680,12 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
 			optr: &Operator{
-				defaultUpstreamServer:      "http://localhost:8080/graph",
+				updateService:              "http://localhost:8080/graph",
 				minimumUpdateCheckInterval: 1 * time.Minute,
 				availableUpdates: &availableUpdates{
-					Upstream:    "http://localhost:8080/graph",
-					Channel:     "fast",
-					LastAttempt: time.Now(),
+					UpdateService: "http://localhost:8080/graph",
+					Channel:       "fast",
+					LastAttempt:   time.Now(),
 				},
 				release: configv1.Release{
 					Version: "4.0.1",
@@ -2717,6 +2720,56 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				),
 			},
 		},
+		{
+			name: "operator update service takes precedence over ClusterVersion upstream",
+			handler: func(w http.ResponseWriter, req *http.Request) {
+				http.Error(w, "bad things", http.StatusInternalServerError)
+			},
+			optr: &Operator{
+				updateService: "http://localhost:8080/graph",
+				architecture:  "amd64",
+				release: configv1.Release{
+					Version: "4.0.1",
+					Image:   "image/image:v4.0.1",
+				},
+				namespace: "test",
+				name:      "default",
+				client: fake.NewSimpleClientset(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "default",
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID: configv1.ClusterID(id),
+							Upstream:  configv1.URL("http://localhost:8080/does-not-exist"),
+							Channel:   "fast",
+						},
+						Status: configv1.ClusterVersionStatus{
+							History: []configv1.UpdateHistory{
+								{Image: "image/image:v4.0.1"},
+							},
+							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying image/image:v4.0.1"},
+								{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
+							},
+						},
+					},
+				),
+			},
+			wantUpdates: &availableUpdates{
+				UpdateService: "http://localhost:8080/graph",
+				Channel:       "fast",
+				Architecture:  "amd64",
+				Condition: configv1.ClusterOperatorStatusCondition{
+					Type:    configv1.RetrievedUpdates,
+					Status:  configv1.ConditionFalse,
+					Reason:  "ResponseFailed",
+					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2728,14 +2781,16 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			optr.cmConfigManagedLister = &cmConfigLister{}
 			optr.eventRecorder = record.NewFakeRecorder(100)
 
+			var updateServiceURI string
 			if tt.handler != nil {
 				s := httptest.NewServer(http.HandlerFunc(tt.handler))
 				defer s.Close()
-				if optr.defaultUpstreamServer == "http://localhost:8080/graph" {
-					optr.defaultUpstreamServer = s.URL
+				updateServiceURI = s.URL
+				if optr.updateService == "http://localhost:8080/graph" {
+					optr.updateService = updateServiceURI
 				}
-				if optr.availableUpdates != nil && optr.availableUpdates.Upstream == "http://localhost:8080/graph" {
-					optr.availableUpdates.Upstream = s.URL
+				if optr.availableUpdates != nil && optr.availableUpdates.UpdateService == "http://localhost:8080/graph" {
+					optr.availableUpdates.UpdateService = updateServiceURI
 				}
 			}
 			old := optr.availableUpdates
@@ -2757,13 +2812,14 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			}
 
 			if optr.availableUpdates != nil {
-				if optr.availableUpdates.Upstream == optr.defaultUpstreamServer && len(optr.defaultUpstreamServer) > 0 {
-					optr.availableUpdates.Upstream = "<default>"
-				}
 				optr.availableUpdates.Condition.LastTransitionTime = metav1.Time{}
 				optr.availableUpdates.LastAttempt = time.Time{}
 				optr.availableUpdates.LastSyncOrConfigChange = time.Time{}
+				if updateServiceURI != "" && optr.availableUpdates.UpdateService == updateServiceURI {
+					optr.availableUpdates.UpdateService = "http://localhost:8080/graph"
+				}
 			}
+
 			if !reflect.DeepEqual(optr.availableUpdates, tt.wantUpdates) {
 				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.wantUpdates, optr.availableUpdates))
 			}
@@ -2865,7 +2921,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "report error condition when the single clusteroperator is not upgradeable",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -2918,7 +2974,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another has no conditions",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -2979,7 +3035,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "report error condition when single clusteroperator is not upgradeable and another is upgradeable",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -3043,7 +3099,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "report error condition when two clusteroperators are not upgradeable",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -3109,7 +3165,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "report error condition when clusteroperators and version are not upgradeable",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -3188,7 +3244,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "no error conditions",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -3222,7 +3278,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "no error conditions",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.0.0",
 					Image:   "image/image:v4.0.1",
@@ -3258,7 +3314,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "no error conditions and admin ack gate does not apply to version",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.9.0",
 					Image:   "image/image:v4.9.1",
@@ -3306,7 +3362,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin-gates configmap gate does not have value",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3350,7 +3406,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin ack required",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3394,7 +3450,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin ack required and admin ack gate does not apply to version",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3438,7 +3494,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin ack required and configmap gate does not have value",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3482,7 +3538,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "multiple admin acks required",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3527,7 +3583,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin ack found",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3568,7 +3624,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin ack 2 of 3 found",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3618,7 +3674,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "multiple admin acks found",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3663,7 +3719,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin-acks configmap not found",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
@@ -3712,7 +3768,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			name: "admin-gates configmap not found",
 			optr: &Operator{
-				defaultUpstreamServer: "http://localhost:8080/graph",
+				updateService: "http://localhost:8080/graph",
 				release: configv1.Release{
 					Version: "v4.8.0",
 					Image:   "image/image:v4.8.1",
