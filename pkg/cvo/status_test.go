@@ -246,7 +246,7 @@ func TestUpdateClusterVersionStatus_UnknownVersionAndReconciliationIssues(t *tes
 				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
 				Reason:  reconciliationIssuesFoundReason,
-				Message: "Issues found during reconciliation: Something happened",
+				Message: `{"message":"Something happened"}`,
 			},
 		},
 		{
@@ -313,7 +313,7 @@ func TestUpdateClusterVersionStatus_ReconciliationIssues(t *testing.T) {
 				Type:    reconciliationIssuesConditionType,
 				Status:  configv1.ConditionTrue,
 				Reason:  reconciliationIssuesFoundReason,
-				Message: "Issues found during reconciliation: Something happened",
+				Message: `{"message":"Something happened"}`,
 			},
 		},
 		{
