@@ -247,6 +247,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						}
 						klog.Infof("Failed to initialize from payload; shutting down: %v", err)
 						resultChannel <- asyncResult{name: "payload initialization", error: firstError}
+						return
 					}
 
 					resultChannelCount++
