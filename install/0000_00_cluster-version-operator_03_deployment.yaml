@@ -35,6 +35,7 @@ spec:
           - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
           - "--serving-key-file=/etc/tls/serving-cert/tls.key"
           - "--v=2"
+          - "--always-enable-capabilities=Ingress"
         resources:
           requests:
             cpu: 20m

@@ -172,6 +172,10 @@ type Operator struct {
 
 	clusterProfile string
 	uid            types.UID
+
+	// alwaysEnableCapabilities is a list of the cluster capabilities which should
+	// always be implicitly enabled.
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 }
 
 // New returns a new cluster version operator.
@@ -193,6 +197,7 @@ func New(
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
 	updateService string,
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -228,7 +233,8 @@ func New(
 		// Because of OCPBUGS-30080, we can only detect the enabled feature gates after Operator loads the initial payload
 		// from disk via LoadInitialPayload. We must not have any gate-checking code until that happens, so we initialize
 		// this field with a checker that panics when used.
-		enabledFeatureGates: featuregates.PanicOnUsageBeforeInitialization,
+		enabledFeatureGates:      featuregates.PanicOnUsageBeforeInitialization,
+		alwaysEnableCapabilities: alwaysEnableCapabilities,
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
@@ -341,6 +347,7 @@ func (optr *Operator) InitializeFromPayload(update *payload.Update, requiredFeat
 		requiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
+		optr.alwaysEnableCapabilities,
 	)
 }
 
