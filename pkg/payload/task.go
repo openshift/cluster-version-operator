@@ -89,7 +89,6 @@ type Task struct {
 	Index    int
 	Total    int
 	Manifest *manifest.Manifest
-	Requeued int
 	Backoff  wait.Backoff
 }
 
@@ -98,7 +97,6 @@ func (st *Task) Copy() *Task {
 		Index:    st.Index,
 		Total:    st.Total,
 		Manifest: st.Manifest,
-		Requeued: st.Requeued,
 	}
 }
 
