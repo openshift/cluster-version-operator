@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -65,6 +66,11 @@ type reconciliationIssue struct {
 
 	Effect   string              `json:"effect,omitempty"`
 	Manifest *reconciledManifest `json:"manifest,omitempty"`
+
+	// TransitionStart records when this resource was most
+	// recently requested to update.  Optional; only tracked for some
+	// manifest types.
+	TransitionStart *time.Time `json:"transitionStart,omitempty"`
 }
 
 type reconciledManifest struct {
@@ -103,6 +109,12 @@ func reconciliationIssueFromError(err error) (string, error) {
 				if updateErr.Task.Manifest.Obj != nil {
 					entry.Manifest.Namespace = updateErr.Task.Manifest.Obj.GetNamespace()
 					entry.Manifest.Name = updateErr.Task.Manifest.Obj.GetName()
+					if updateErr.Task.Manifest.GVK == configv1.GroupVersion.WithKind("ClusterOperator") {
+						start := payload.COUpdateStartTimesGet(entry.Manifest.Name)
+						if !start.IsZero() {
+							entry.TransitionStart = &start
+						}
+					}
 				}
 			}
 		}
