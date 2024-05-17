@@ -11,7 +11,9 @@ import (
 	"golang.org/x/net/http/httpproxy"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/version"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Returns a User-Agent to be used for outgoing HTTP requests.
@@ -25,7 +27,7 @@ func (optr *Operator) getUserAgent() string {
 
 // getTransport constructs an HTTP transport configuration, including
 // any custom proxy configuration.
-func (optr *Operator) getTransport() (*http.Transport, error) {
+func (optr *Operator) getTransport(caConfigMap string) (*http.Transport, error) {
 	transport := &http.Transport{}
 
 	proxyConfig, err := optr.getProxyConfig()
@@ -41,7 +43,7 @@ func (optr *Operator) getTransport() (*http.Transport, error) {
 		}
 	}
 
-	tlsConfig, err := optr.getTLSConfig()
+	tlsConfig, err := optr.getTLSConfig(caConfigMap)
 	if err != nil {
 		return transport, err
 	} else if tlsConfig != nil {
@@ -70,8 +72,20 @@ func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
 	}, nil
 }
 
-func (optr *Operator) getTLSConfig() (*tls.Config, error) {
-	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
+func (optr *Operator) getTLSConfig(caConfigMap string) (*tls.Config, error) {
+	var namespace, key string
+	var cm *corev1.ConfigMap
+	var err error
+	if caConfigMap == "" {
+		namespace = internal.ConfigManagedNamespace
+		caConfigMap = "trusted-ca-bundle"
+		key = "ca-bundle.crt"
+		cm, err = optr.cmConfigManagedLister.Get(caConfigMap)
+	} else {
+		namespace = internal.ConfigNamespace
+		key = "ca.crt"
+		cm, err = optr.cmConfigLister.Get(caConfigMap)
+	}
 	if apierrors.IsNotFound(err) {
 		return nil, nil
 	}
@@ -81,9 +95,9 @@ func (optr *Operator) getTLSConfig() (*tls.Config, error) {
 
 	certPool := x509.NewCertPool()
 
-	if cm.Data["ca-bundle.crt"] != "" {
-		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
-			return nil, fmt.Errorf("unable to add ca-bundle.crt certificates")
+	if cm.Data[key] != "" {
+		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data[key])); !ok {
+			return nil, fmt.Errorf("unable to add %s certificates from the %s ConfigMap in the %s namespace", key, caConfigMap, namespace)
 		}
 	} else {
 		return nil, nil
