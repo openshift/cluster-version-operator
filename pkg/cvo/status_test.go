@@ -497,6 +497,13 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions",
 			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorNotAvailable",
+				Message: "Cluster operator A is not available",
+			},
 		},
 		{
 			name: "MultipleErrors of UpdateEffectNone and UpdateEffectNone",
@@ -526,6 +533,11 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is updating versions\n* Cluster operator B is getting conscious",
+			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:   ClusterStatusFailing,
+				Status: configv1.ConditionFalse,
 			},
 		},
 		{
@@ -562,6 +574,13 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions\n* Cluster operator C is degraded",
 			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "MultipleErrors",
+				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator C is degraded",
+			},
 		},
 	}
 	for _, tc := range tests {
@@ -597,6 +616,179 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				if diff := cmp.Diff(expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 					t.Errorf("unexpected condition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
 				}
+			}
+		})
+	}
+}
+
+func Test_filterOutUpdateErrors(t *testing.T) {
+	type args struct {
+		errs             []error
+		updateEffectType payload.UpdateEffectType
+	}
+	tests := []struct {
+		name string
+		args args
+		want []error
+	}{
+		{
+			name: "empty errors",
+			args: args{
+				errs:             []error{},
+				updateEffectType: payload.UpdateEffectNone,
+			},
+			want: []error{},
+		},
+		{
+			name: "single update error of the specified value",
+			args: args{
+				errs: []error{
+					&payload.UpdateError{
+						Name:         "None",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+				},
+				updateEffectType: payload.UpdateEffectNone,
+			},
+			want: []error{},
+		},
+		{
+			name: "errors do not contain update errors of the specified value",
+			args: args{
+				errs: []error{
+					&payload.UpdateError{
+						Name:         "Fail",
+						UpdateEffect: payload.UpdateEffectFail,
+					},
+					&payload.UpdateError{
+						Name:         "Report",
+						UpdateEffect: payload.UpdateEffectReport,
+					},
+					&payload.UpdateError{
+						Name:         "Fail After Interval",
+						UpdateEffect: payload.UpdateEffectFailAfterInterval,
+					},
+				},
+				updateEffectType: payload.UpdateEffectNone,
+			},
+			want: []error{
+				&payload.UpdateError{
+					Name:         "Fail",
+					UpdateEffect: payload.UpdateEffectFail,
+				},
+				&payload.UpdateError{
+					Name:         "Report",
+					UpdateEffect: payload.UpdateEffectReport,
+				},
+				&payload.UpdateError{
+					Name:         "Fail After Interval",
+					UpdateEffect: payload.UpdateEffectFailAfterInterval,
+				},
+			},
+		},
+		{
+			name: "errors contain update errors of the specified value UpdateEffectNone",
+			args: args{
+				errs: []error{
+					&payload.UpdateError{
+						Name:         "Fail After Interval",
+						UpdateEffect: payload.UpdateEffectFailAfterInterval,
+					},
+					&payload.UpdateError{
+						Name:         "None #1",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+					&payload.UpdateError{
+						Name:         "Report",
+						UpdateEffect: payload.UpdateEffectReport,
+					},
+					&payload.UpdateError{
+						Name:         "None #2",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+				},
+				updateEffectType: payload.UpdateEffectNone,
+			},
+			want: []error{
+				&payload.UpdateError{
+					Name:         "Fail After Interval",
+					UpdateEffect: payload.UpdateEffectFailAfterInterval,
+				},
+				&payload.UpdateError{
+					Name:         "Report",
+					UpdateEffect: payload.UpdateEffectReport,
+				},
+			},
+		},
+		{
+			name: "errors contain update errors of the specified value UpdateEffectReport",
+			args: args{
+				errs: []error{
+					&payload.UpdateError{
+						Name:         "Fail After Interval",
+						UpdateEffect: payload.UpdateEffectFailAfterInterval,
+					},
+					&payload.UpdateError{
+						Name:         "None #1",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+					&payload.UpdateError{
+						Name:         "Report",
+						UpdateEffect: payload.UpdateEffectReport,
+					},
+					&payload.UpdateError{
+						Name:         "None #2",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+				},
+				updateEffectType: payload.UpdateEffectReport,
+			},
+			want: []error{
+				&payload.UpdateError{
+					Name:         "Fail After Interval",
+					UpdateEffect: payload.UpdateEffectFailAfterInterval,
+				},
+				&payload.UpdateError{
+					Name:         "None #1",
+					UpdateEffect: payload.UpdateEffectNone,
+				},
+				&payload.UpdateError{
+					Name:         "None #2",
+					UpdateEffect: payload.UpdateEffectNone,
+				},
+			},
+		},
+		{
+			name: "errors contain only update errors of the specified value UpdateEffectNone",
+			args: args{
+				errs: []error{
+					&payload.UpdateError{
+						Name:         "None #1",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+					&payload.UpdateError{
+						Name:         "None #2",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+					&payload.UpdateError{
+						Name:         "None #3",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+					&payload.UpdateError{
+						Name:         "None #4",
+						UpdateEffect: payload.UpdateEffectNone,
+					},
+				},
+				updateEffectType: payload.UpdateEffectNone,
+			},
+			want: []error{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := filterOutUpdateErrors(tt.args.errs, tt.args.updateEffectType)
+			if difference := cmp.Diff(filtered, tt.want); difference != "" {
+				t.Errorf("got errors differ from expected:\n%s", difference)
 			}
 		})
 	}
