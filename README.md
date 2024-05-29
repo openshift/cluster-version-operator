@@ -1,5 +1,7 @@
 # Cluster Version Operator
 
+NOP
+
 The Cluster Version Operator (CVO) is one of the [Cluster Operators][dev-guide-operators] that run in every OpenShift
 cluster. CVO consumes an artifact called a _"release payload image,"_ which represents a specific version of OpenShift.
 The release payload image contains the [resource manifests][kube-glossary-manifest] necessary for the cluster to
