@@ -294,16 +294,16 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFe
 	if err != nil {
 		return nil, fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
 	}
-	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(func() (*http.Client, error) { return optr.HTTPClient("") }, nil)
+	httpClientConstructor := sigstore.NewCachedHTTPClientConstructor(optr.HTTPClient, nil)
 	configClient, err := coreclientsetv1.NewForConfig(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create a configuration client: %v", err)
 	}
 
 	customSignatureStore := &customsignaturestore.Store{
-		Name:                 optr.name,
-		ClusterVersionLister: optr.cvLister,
-		HTTPClient:           optr.HTTPClient,
+		Lister:     optr.cvLister,
+		Name:       optr.name,
+		HTTPClient: httpClientConstructor.HTTPClient,
 	}
 
 	// attempt to load a verifier as defined in the payload
@@ -980,8 +980,8 @@ func (optr *Operator) defaultPreconditionChecks() precondition.List {
 
 // HTTPClient provides a method for generating an HTTP client
 // with the proxy and trust settings, if set in the cluster.
-func (optr *Operator) HTTPClient(caConfigMap string) (*http.Client, error) {
-	transportOption, err := optr.getTransport(caConfigMap)
+func (optr *Operator) HTTPClient() (*http.Client, error) {
+	transportOption, err := optr.getTransport()
 	if err != nil {
 		return nil, err
 	}

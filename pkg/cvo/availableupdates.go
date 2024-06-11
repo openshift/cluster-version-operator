@@ -93,7 +93,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	}
 
 	if needFreshFetch {
-		transport, err := optr.getTransport("")
+		transport, err := optr.getTransport()
 		if err != nil {
 			return err
 		}
