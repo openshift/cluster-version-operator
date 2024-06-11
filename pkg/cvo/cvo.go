@@ -789,7 +789,7 @@ func (optr *Operator) rememberLastUpdate(config *configv1.ClusterVersion) {
 }
 
 // getClusterVersion returns the cluster version object, with an indication of whether it's older
-// than the previousily returned and saved cluster version object, or an error.
+// than the previously returned and saved cluster version object, or an error.
 func (optr *Operator) getClusterVersion() (*configv1.ClusterVersion, bool, error) {
 	obj, err := optr.cvLister.Get(optr.name)
 	if err == nil {

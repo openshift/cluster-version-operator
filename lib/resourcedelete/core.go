@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteNamespacev1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter, required *corev1.Namespace,
 	updateMode bool) (bool, error) {
@@ -39,7 +39,7 @@ func DeleteNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter
 }
 
 // DeleteServicev1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteServicev1(ctx context.Context, client coreclientv1.ServicesGetter, required *corev1.Service,
 	updateMode bool) (bool, error) {
@@ -68,7 +68,7 @@ func DeleteServicev1(ctx context.Context, client coreclientv1.ServicesGetter, re
 }
 
 // DeleteServiceAccountv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount,
 	updateMode bool) (bool, error) {
@@ -97,7 +97,7 @@ func DeleteServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAcco
 }
 
 // DeleteConfigMapv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap,
 	updateMode bool) (bool, error) {

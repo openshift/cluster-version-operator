@@ -35,7 +35,7 @@ func (caps capabilitiesSort) Swap(i, j int)      { caps[i], caps[j] = caps[j], c
 func (caps capabilitiesSort) Less(i, j int) bool { return string(caps[i]) < string(caps[j]) }
 
 // SetCapabilities populates and returns cluster capabilities from ClusterVersion capabilities spec. This method also
-// ensures that no previousily enabled capability is now disabled and returns any such implicitly enabled capabilities.
+// ensures that no previously enabled capability is now disabled and returns any such implicitly enabled capabilities.
 func SetCapabilities(config *configv1.ClusterVersion,
 	existingEnabled, alwaysEnabled map[configv1.ClusterVersionCapability]struct{}) ClusterCapabilities {
 
@@ -148,7 +148,7 @@ func setKnownCapabilities() map[configv1.ClusterVersionCapability]struct{} {
 
 // setEnabledCapabilities populates a map keyed by capability from all enabled capabilities as defined in ClusterVersion.
 // DefaultCapabilitySet is used if a baseline capability set is not defined by ClusterVersion. A check is then made to
-// ensure that no previousily enabled capability is now disabled and if any such capabilities are found each is enabled,
+// ensure that no previously enabled capability is now disabled and if any such capabilities are found each is enabled,
 // saved, and returned.
 // The required capabilities are added to the implicitly enabled.
 func setEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitiesSpec,
