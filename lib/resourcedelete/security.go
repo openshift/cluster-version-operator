@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteSecurityContextConstraintsv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteSecurityContextConstraintsv1(ctx context.Context, client securityclientv1.SecurityContextConstraintsGetter,
 	required *securityv1.SecurityContextConstraints, updateMode bool) (bool, error) {

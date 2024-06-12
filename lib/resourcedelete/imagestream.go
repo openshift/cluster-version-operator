@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteImageStreamv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsGetter, required *imagev1.ImageStream,
 	updateMode bool) (bool, error) {

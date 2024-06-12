@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteClusterRoleBindingv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterRoleBindingsGetter, required *rbacv1.ClusterRoleBinding,
 	updateMode bool) (bool, error) {
@@ -39,7 +39,7 @@ func DeleteClusterRoleBindingv1(ctx context.Context, client rbacclientv1.Cluster
 }
 
 // DeleteClusterRolev1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGetter, required *rbacv1.ClusterRole,
 	updateMode bool) (bool, error) {
@@ -68,7 +68,7 @@ func DeleteClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGe
 }
 
 // DeleteRoleBindingv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGetter, required *rbacv1.RoleBinding,
 	updateMode bool) (bool, error) {
@@ -97,7 +97,7 @@ func DeleteRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGe
 }
 
 // DeleteRolev1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required *rbacv1.Role,
 	updateMode bool) (bool, error) {

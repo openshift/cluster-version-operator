@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteDeploymentv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGetter, required *appsv1.Deployment,
 	updateMode bool) (bool, error) {
@@ -39,7 +39,7 @@ func DeleteDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGett
 }
 
 // DeleteDaemonSetv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet,
 	updateMode bool) (bool, error) {

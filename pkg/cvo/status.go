@@ -170,7 +170,7 @@ const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccep
 
 // ImplicitlyEnabledCapabilities is True if there are enabled capabilities which the user is not currently
 // requesting via spec.capabilities, because the cluster version operator does not support uninstalling
-// capabilities if any associated resources were previously managed by the CVO or disabling previousily
+// capabilities if any associated resources were previously managed by the CVO or disabling previously
 // enabled capabilities.
 const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
 

@@ -10,7 +10,7 @@ import (
 )
 
 // DeleteCustomResourceDefinitionv1 checks the given resource for a valid delete annotation. If found
-// it checks the status of a previousily issued delete request. If delete has not been
+// it checks the status of a previously issued delete request. If delete has not been
 // requested and in UpdatingMode it will issue a delete request.
 func DeleteCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter,
 	required *apiextv1.CustomResourceDefinition, updateMode bool) (bool, error) {
