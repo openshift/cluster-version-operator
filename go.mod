@@ -1,8 +1,8 @@
 module github.com/openshift/cluster-version-operator
 
-go 1.22
+go 1.21
 
-toolchain go1.22.1
+toolchain go1.21.6
 
 require (
 	github.com/blang/semver/v4 v4.0.0
