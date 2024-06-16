@@ -10,6 +10,8 @@ import (
 
 	"github.com/pkg/errors"
 
+	_ "github.com/openshift/api/config/v1/zz_generated.crd-manifests"
+
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
