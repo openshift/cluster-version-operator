@@ -12,7 +12,6 @@ GOOS=${GOOS:-${GOHOSTOS}}
 GOARCH=${GOARCH:-${GOHOSTARCH}}
 
 # Go to the root of the repo
-cd "$(git rev-parse --show-cdup)"
 
 VERSION_OVERRIDE=${VERSION_OVERRIDE:-${OS_GIT_VERSION:-}}
 if [ -z "${VERSION_OVERRIDE:-}" ]; then
