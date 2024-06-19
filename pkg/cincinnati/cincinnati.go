@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -236,13 +237,32 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 		}
 	}
 
+	for i, conditionalUpdate := range conditionalUpdates {
+		if !slices.Contains(conditionalUpdate.Release.Channels, channel) {
+			conditionalUpdates[i].Risks = append(conditionalUpdate.Risks, differentChannelRisk(conditionalUpdate.Release, channel))
+		}
+	}
+
 	for i := len(updates) - 1; i >= 0; i-- {
+		dropped := false
 		for _, conditionalUpdate := range conditionalUpdates {
 			if conditionalUpdate.Release.Image == updates[i].Image {
 				klog.Warningf("Update to %s listed as both a conditional and unconditional update; preferring the conditional update.", conditionalUpdate.Release.Version)
 				updates = append(updates[:i], updates[i+1:]...)
+				dropped = true
 				break
 			}
+		}
+		if dropped {
+			continue
+		}
+
+		if !slices.Contains(updates[i].Channels, channel) {
+			conditionalUpdates = append(conditionalUpdates, configv1.ConditionalUpdate{
+				Release: updates[i],
+				Risks:   []configv1.ConditionalUpdateRisk{differentChannelRisk(updates[i], channel)},
+			})
+			updates = append(updates[:i], updates[i+1:]...)
 		}
 	}
 
@@ -345,4 +365,13 @@ func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
 		sort.Strings(cvoUpdate.Channels)
 	}
 	return cvoUpdate, nil
+}
+
+func differentChannelRisk(release configv1.Release, channel string) configv1.ConditionalUpdateRisk {
+	return configv1.ConditionalUpdateRisk{
+		Name:          "DifferentChannel",
+		URL:           "https://example.com/FIXME", // Maybe a KCS?  New doc section that we think might be stable between 4.y?  Other?
+		Message:       fmt.Sprintf("%s channels (%s) do not include this cluster's %s", release.Version, strings.Join(release.Channels, ", "), channel),
+		MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+	}
 }

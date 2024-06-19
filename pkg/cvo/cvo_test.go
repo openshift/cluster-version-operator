@@ -2614,9 +2614,9 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				fmt.Fprintf(w, `
 				{
 					"nodes": [
-						{"version":"4.0.1",            "payload": "image/image:v4.0.1"},
-						{"version":"4.0.2-prerelease", "payload": "some.other.registry/image/image:v4.0.2"},
-						{"version":"4.0.2",            "payload": "image/image:v4.0.2"}
+						{"version":"4.0.1",            "payload": "image/image:v4.0.1",                     "metadata": {"io.openshift.upgrades.graph.release.channels": "fast"}},
+						{"version":"4.0.2-prerelease", "payload": "some.other.registry/image/image:v4.0.2", "metadata": {"io.openshift.upgrades.graph.release.channels": "fast"}},
+						{"version":"4.0.2",            "payload": "image/image:v4.0.2",                     "metadata": {"io.openshift.upgrades.graph.release.channels": "fast"}}
 					],
 					"edges": [
 						[0, 1],
@@ -2663,10 +2663,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
 				Architecture:  "amd64",
-				Current:       configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
+				Current:       configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1", Channels: []string{"fast"}},
 				Updates: []configv1.Release{
-					{Version: "4.0.2", Image: "image/image:v4.0.2"},
-					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2"},
+					{Version: "4.0.2", Image: "image/image:v4.0.2", Channels: []string{"fast"}},
+					{Version: "4.0.2-prerelease", Image: "some.other.registry/image/image:v4.0.2", Channels: []string{"fast"}},
 				},
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:   configv1.RetrievedUpdates,
