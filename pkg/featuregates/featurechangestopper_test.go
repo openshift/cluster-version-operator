@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configv1informer "github.com/openshift/client-go/config/informers/externalversions"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestTechPreviewChangeStopper(t *testing.T) {
@@ -65,7 +67,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				FeatureGates: []configv1.FeatureGateDetails{
 					{
 						Version: versionForGates,
-						Enabled: []configv1.FeatureGateAttributes{{Name: configv1.FeatureGateUpgradeStatus}},
+						Enabled: []configv1.FeatureGateAttributes{{Name: features.FeatureGateUpgradeStatus}},
 					},
 				},
 			},
