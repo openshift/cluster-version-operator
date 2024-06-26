@@ -76,8 +76,8 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 		if skipFiles.Has(file.Name()) {
 			continue
 		}
-		if strings.Contains(file.Name(), "CustomNoUpgrade") || strings.Contains(file.Name(), "TechPreviewNoUpgrade") {
-			// CustomNoUpgrade and TechPreviewNoUpgrade may add features to manifests like the ClusterVersion CRD,
+		if strings.Contains(file.Name(), "CustomNoUpgrade") || strings.Contains(file.Name(), "TechPreviewNoUpgrade") || strings.Contains(file.Name(), "DevPreviewNoUpgrade") {
+			// CustomNoUpgrade, TechPreviewNoUpgrade and DevPreviewNoUpgrade may add features to manifests like the ClusterVersion CRD,
 			// but we do not need those features during bootstrap-render time.  In those clusters, the production
 			// CVO will be along shortly to update the manifests and deliver the gated features.
 			continue

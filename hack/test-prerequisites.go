@@ -27,8 +27,8 @@ func main() {
 
 	client := apiext.NewForConfigOrDie(cfg)
 	for _, path := range []string{
-		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusterversion-Default.crd.yaml",
-		"vendor/github.com/openshift/api/config/v1/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml",
+		"vendor/github.com/openshift/api/config/v1/zz_generated.crd-manifests/0000_00_cluster-version-operator_01_clusterversions-Default.crd.yaml",
+		"vendor/github.com/openshift/api/config/v1/zz_generated.crd-manifests/0000_00_cluster-version-operator_01_clusteroperators.crd.yaml",
 	} {
 		var name string
 		err := wait.PollUntilContextTimeout(ctx, time.Second, 30*time.Second, true, func(localCtx context.Context) (bool, error) {
