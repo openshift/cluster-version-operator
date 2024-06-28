@@ -2,7 +2,6 @@ package featuregates
 
 import (
 	configv1 "github.com/openshift/api/config/v1"
-	features "github.com/openshift/api/features"
 )
 
 // CvoGateChecker allows CVO code to check which feature gates are enabled
@@ -90,12 +89,12 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		// We found the matching version, so we do not need to run in the unknown version mode
 		enabledGates.unknownVersion = false
 		for _, enabled := range g.Enabled {
-			if enabled.Name == features.FeatureGateUpgradeStatus {
+			if enabled.Name == configv1.FeatureGateUpgradeStatus {
 				enabledGates.reconciliationIssuesCondition = true
 			}
 		}
 		for _, disabled := range g.Disabled {
-			if disabled.Name == features.FeatureGateUpgradeStatus {
+			if disabled.Name == configv1.FeatureGateUpgradeStatus {
 				enabledGates.reconciliationIssuesCondition = false
 			}
 		}

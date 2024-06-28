@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"path"
@@ -102,7 +103,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 
 			defer func() {
 				// read the remaining body to avoid breaking the connection
-				io.Copy(io.Discard, r)
+				io.Copy(ioutil.Discard, r)
 				body.Close()
 			}()
 
@@ -113,7 +114,7 @@ func checkHTTPSignatures(ctx context.Context, client *http.Client, u url.URL, ma
 				return nil, fmt.Errorf("response status %d", resp.StatusCode)
 			}
 
-			return io.ReadAll(resp.Body)
+			return ioutil.ReadAll(resp.Body)
 		}()
 		if err != nil {
 			err := fmt.Errorf("unable to retrieve signature from %s: %w", sigURL.String(), err)
