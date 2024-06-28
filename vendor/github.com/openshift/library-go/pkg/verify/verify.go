@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,7 +29,7 @@ import (
 // in this package uses the container signature format defined at https://github.com/containers/image
 // to authenticate that a given release image digest has been signed by a trusted party.
 type Interface interface {
-	// Verify should return nil if the provided release digest has sufficient signatures to be considered
+	// Verify should return nil if the provided release digest has suffient signatures to be considered
 	// valid. It should return an error in all other cases.
 	Verify(ctx context.Context, releaseDigest string) error
 
@@ -296,7 +297,7 @@ func (s *fileStore) Signatures(ctx context.Context, name string, digest string, 
 		}
 
 		path := base + strconv.Itoa(i)
-		data, err := os.ReadFile(path)
+		data, err := ioutil.ReadFile(path)
 		if os.IsNotExist(err) {
 			break
 		}
@@ -331,7 +332,7 @@ func verifySignatureWithKeyring(r io.Reader, keyring openpgp.EntityList) ([]byte
 	if !md.IsSigned {
 		return nil, "", fmt.Errorf("not signed")
 	}
-	content, err := io.ReadAll(md.UnverifiedBody)
+	content, err := ioutil.ReadAll(md.UnverifiedBody)
 	if err != nil {
 		return nil, "", err
 	}
