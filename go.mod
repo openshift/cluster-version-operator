@@ -10,9 +10,9 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/uuid v1.3.0
-	github.com/openshift/api v0.0.0-20240301093301-ce10821dc999
-	github.com/openshift/client-go v0.0.0-20230926161409-848405da69e1
-	github.com/openshift/library-go v0.0.0-20231017173800-126f85ed0cc7
+	github.com/openshift/api v0.0.0-20240702171116-4b89b3a92a17
+	github.com/openshift/client-go v0.0.0-20240405120947-c67c8325cdd8
+	github.com/openshift/library-go v0.0.0-20240711192904-190fec8c3f09
 	github.com/operator-framework/api v0.17.1
 	github.com/operator-framework/operator-lifecycle-manager v0.22.0
 	github.com/pkg/errors v0.9.1
