@@ -161,6 +161,9 @@ type SyncWorker struct {
 	// coordination between the sync loop and external callers
 	notify chan string
 	report chan SyncWorkerStatus
+	// startApply is used to start the initial attempt to apply a payload. It may be
+	// used consecutively to start additional attempts as well.
+	startApply chan string
 
 	// lock guards changes to these fields
 	lock     sync.Mutex
@@ -199,7 +202,8 @@ func NewSyncWorker(retriever PayloadRetriever, builder payload.ResourceBuilder, 
 
 		minimumReconcileInterval: reconcileInterval,
 
-		notify: make(chan string, 1),
+		notify:     make(chan string, 1),
+		startApply: make(chan string, 1),
 		// report is a large buffered channel to improve local testing - most consumers should invoke
 		// Status() or use the result of calling Update() instead because the channel can be out of date
 		// if the reader is not fast enough.
@@ -547,7 +551,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	}
 	msg := "new work is available"
 	select {
-	case w.notify <- msg:
+	case w.startApply <- msg:
 		klog.V(2).Info("Notify the sync worker that new work is available")
 	default:
 		klog.V(2).Info("The sync worker has already been notified that new work is available")
@@ -565,6 +569,23 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 	klog.V(2).Infof("Start: starting sync worker")
 
 	work := &SyncWork{}
+	initialStartApplyReceived := make(chan string, 1) // a local channel to not cause a potential deadlock
+
+	// Until Update() has finished at least once, we do nothing.
+	for loop := true; loop; {
+		select {
+		case <-ctx.Done():
+			klog.V(2).Infof("The sync worker was shut down while waiting for the initial signal")
+			return
+		case <-w.notify:
+			// Do not queue any retries until the worker has started
+			klog.V(2).Infof("The sync worker was notified; however, it is waiting for the initial signal")
+		case msg := <-w.startApply:
+			klog.V(2).Infof("The sync worker has received the initial signal")
+			initialStartApplyReceived <- msg
+			loop = false
+		}
+	}
 
 	wait.Until(func() {
 		consecutiveErrors := 0
@@ -581,6 +602,10 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				waitingToReconcile = false
 				klog.V(2).Infof("Wait finished")
 			case msg := <-w.notify:
+				klog.V(2).Info(msg)
+			case msg := <-w.startApply:
+				klog.V(2).Info(msg)
+			case msg := <-initialStartApplyReceived:
 				klog.V(2).Info(msg)
 			}
 
