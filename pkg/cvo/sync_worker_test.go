@@ -476,3 +476,55 @@ func Test_equalDigest(t *testing.T) {
 		})
 	}
 }
+
+func Test_SyncWorkerShouldNotPanicDueToNotifySignalAtStartUp(t *testing.T) {
+	o, _, _, _, shutdownFn := setupCVOTest("testdata/panic")
+	defer shutdownFn()
+	syncChannel := make(chan bool)
+
+	// Start() should not cause a panic when the notify channel already contains elements at its startup
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := o.configSync.(*SyncWorker)
+	worker.notify <- "Notify the sync worker: Cluster operator A changed versions"
+	go func() {
+		worker.Start(ctx, 1)
+		syncChannel <- true
+	}()
+
+	// A panic must not occur due to the notify signal; wait a reasonable time for a potential panic
+	<-time.After(3 * time.Second)
+
+	// Shut down the sync worker and wait for the confirmation
+	cancel()
+	select {
+	case <-syncChannel:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Sync worker did not shut down in time after its context was cancelled")
+	}
+}
+
+func Test_SyncWorkerShouldShutDownImmediatelyAtStartUpWhenContextCancelled(t *testing.T) {
+	o, _, _, _, shutdownFn := setupCVOTest("testdata/panic")
+	defer shutdownFn()
+	syncChannel := make(chan bool)
+
+	// Start() shuts down immediately while waiting for its initial signal
+	// Only the context cancellation signal is received
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := o.configSync.(*SyncWorker)
+	go func() {
+		worker.Start(ctx, 1)
+		syncChannel <- true
+	}()
+
+	// A panic must not occur due to the notify signal; wait a reasonable time for a potential panic
+	<-time.After(3 * time.Second)
+
+	// Shut down the sync worker and wait for the confirmation
+	cancel()
+	select {
+	case <-syncChannel:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Sync worker did not shut down in time after its context was cancelled")
+	}
+}
