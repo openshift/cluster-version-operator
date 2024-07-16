@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"k8s.io/client-go/informers"
+	"k8s.io/klog/v2"
 
 	mcfginformers "github.com/openshift/client-go/machineconfiguration/informers/externalversions"
 
@@ -31,5 +32,6 @@ func newWorkerPoolsUpdateInformer(coreInformers informers.SharedInformerFactory,
 }
 
 func (c *workerPoolsUpdateInformer) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	klog.Info("Worker Pools Update Informer :: SYNC")
 	return nil
 }

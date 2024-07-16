@@ -2,9 +2,11 @@ package updatestatus
 
 import (
 	"context"
+	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 
 	configv1alpha1 "github.com/openshift/api/config/v1alpha1"
 	configclientv1alpha1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha1"
@@ -23,11 +25,12 @@ func newUpdateStatusController(updateStatusClient configclientv1alpha1.UpdateSta
 		recorder:           eventsRecorder,
 	}
 
-	return factory.New().WithSync(c.sync).ToController("UpdateStatusController", eventsRecorder.WithComponentSuffix("update-status-controller"))
+	return factory.New().WithSync(c.sync).ResyncEvery(time.Minute).ToController("UpdateStatusController", eventsRecorder.WithComponentSuffix("update-status-controller"))
 
 }
 
 func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	klog.Info("Update Status Controller :: SYNC")
 	updateStatus, err := c.updateStatusClient.Get(ctx, "cluster", metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		updateStatus = &configv1alpha1.UpdateStatus{
