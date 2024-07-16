@@ -44,14 +44,19 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 
 	klog.Info("Run :: Created clients")
 
+	cpInformer, getControlPlaneUpdateStatus := newControlPlaneUpdateInformer(configInformers, cc.EventRecorder)
 	controllers := []factory.Controller{
 		newUpdateStatusController(configV1Alpha1Client.UpdateStatuses(), cc.EventRecorder),
-		newUpdateInsightScraper(cc.EventRecorder),
-		newControlPlaneUpdateInformer(configInformers, cc.EventRecorder),
+		newUpdateInsightScraper(getControlPlaneUpdateStatus, cc.EventRecorder),
+		cpInformer,
 		newWorkerPoolsUpdateInformer(coreInformers, mcfgInformers, cc.EventRecorder),
 	}
 
-	for _, controller := range controllers {
+	configInformers.Start(ctx.Done())
+	coreInformers.Start(ctx.Done())
+	mcfgInformers.Start(ctx.Done())
+
+	for _, controller := range controllers[2:3] {
 		go controller.Run(ctx, 1)
 	}
 
