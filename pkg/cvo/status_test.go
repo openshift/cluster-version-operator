@@ -8,8 +8,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
+	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 
@@ -341,6 +343,260 @@ func TestUpdateClusterVersionStatus_ReconciliationIssues(t *testing.T) {
 			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
 			if diff := cmp.Diff(tc.expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 				t.Errorf("unexpected condition\n:%s", diff)
+			}
+		})
+	}
+}
+
+func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {
+	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
+	type args struct {
+		syncWorkerStatus *SyncWorkerStatus
+	}
+	tests := []struct {
+		name                                             string
+		args                                             args
+		shouldModifyWhenNotReconcilingAndHistoryNotEmpty bool
+		expectedConditionNotModified                     *configv1.ClusterOperatorStatusCondition
+		expectedConditionModified                        *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name: "no errors are present",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: nil,
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:   ClusterStatusFailing,
+				Status: configv1.ConditionFalse,
+			},
+		},
+		{
+			name: "single generic error",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: fmt.Errorf("error has happened"),
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Message: "error has happened",
+			},
+		},
+		{
+			name: "single UpdateEffectNone error",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						UpdateEffect: payload.UpdateEffectNone,
+						Reason:       "ClusterOperatorUpdating",
+						Message:      "Cluster operator A is updating",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Cluster operator A is updating",
+			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:   ClusterStatusFailing,
+				Status: configv1.ConditionFalse,
+			},
+		},
+		{
+			name: "single condensed UpdateEffectFail UpdateError",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						Nested: apierrors.NewAggregate([]error{
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFail,
+								Reason:       "ClusterOperatorNotAvailable",
+								Message:      "Cluster operator A is not available",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFail,
+								Reason:       "ClusterOperatorNotAvailable",
+								Message:      "Cluster operator B is not available",
+							},
+						}),
+						UpdateEffect: payload.UpdateEffectFail,
+						Reason:       "ClusterOperatorNotAvailable",
+						Message:      "Cluster operators A, B are not available",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorNotAvailable",
+				Message: "Cluster operators A, B are not available",
+			},
+		},
+		{
+			name: "MultipleErrors of UpdateEffectFail and UpdateEffectFailAfterInterval",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						Nested: apierrors.NewAggregate([]error{
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFail,
+								Reason:       "ClusterOperatorNotAvailable",
+								Message:      "Cluster operator A is not available",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFailAfterInterval,
+								Reason:       "ClusterOperatorDegraded",
+								Message:      "Cluster operator B is degraded",
+							},
+						}),
+						UpdateEffect: payload.UpdateEffectFail,
+						Reason:       "MultipleErrors",
+						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is degraded",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "MultipleErrors",
+				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is degraded",
+			},
+		},
+		{
+			name: "MultipleErrors of UpdateEffectFail and UpdateEffectNone",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						Nested: apierrors.NewAggregate([]error{
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFail,
+								Reason:       "ClusterOperatorNotAvailable",
+								Message:      "Cluster operator A is not available",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectNone,
+								Reason:       "ClusterOperatorUpdating",
+								Message:      "Cluster operator B is updating versions",
+							},
+						}),
+						UpdateEffect: payload.UpdateEffectFail,
+						Reason:       "MultipleErrors",
+						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "MultipleErrors",
+				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions",
+			},
+		},
+		{
+			name: "MultipleErrors of UpdateEffectNone and UpdateEffectNone",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						Nested: apierrors.NewAggregate([]error{
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectNone,
+								Reason:       "ClusterOperatorUpdating",
+								Message:      "Cluster operator A is updating versions",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectNone,
+								Reason:       "NewUpdateEffectNoneReason",
+								Message:      "Cluster operator B is getting conscious",
+							},
+						}),
+						UpdateEffect: payload.UpdateEffectFail,
+						Reason:       "MultipleErrors",
+						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is updating versions\n* Cluster operator B is getting conscious",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "MultipleErrors",
+				Message: "Multiple errors are preventing progress:\n* Cluster operator A is updating versions\n* Cluster operator B is getting conscious",
+			},
+		},
+		{
+			name: "MultipleErrors of UpdateEffectFail, UpdateEffectFailAfterInterval, and UpdateEffectNone",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Failure: &payload.UpdateError{
+						Nested: apierrors.NewAggregate([]error{
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFail,
+								Reason:       "ClusterOperatorNotAvailable",
+								Message:      "Cluster operator A is not available",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectNone,
+								Reason:       "ClusterOperatorUpdating",
+								Message:      "Cluster operator B is updating versions",
+							},
+							&payload.UpdateError{
+								UpdateEffect: payload.UpdateEffectFailAfterInterval,
+								Reason:       "ClusterOperatorDegraded",
+								Message:      "Cluster operator C is degraded",
+							},
+						}),
+						UpdateEffect: payload.UpdateEffectFail,
+						Reason:       "MultipleErrors",
+						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions\n* Cluster operator C is degraded",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "MultipleErrors",
+				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions\n* Cluster operator C is degraded",
+			},
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		gates := fakeRiFlags{}
+		release := configv1.Release{}
+		getAvailableUpdates := func() *availableUpdates { return nil }
+		var noErrors field.ErrorList
+
+		t.Run(tc.name, func(t *testing.T) {
+			type helper struct {
+				isReconciling  bool
+				isHistoryEmpty bool
+			}
+			combinations := []helper{
+				{false, false},
+				{false, true},
+				{true, false},
+				{true, true},
+			}
+			for _, c := range combinations {
+				tc.args.syncWorkerStatus.Reconciling = c.isReconciling
+				cvStatus := &configv1.ClusterVersionStatus{}
+				if !c.isHistoryEmpty {
+					cvStatus.History = []configv1.UpdateHistory{{State: configv1.PartialUpdate}}
+				}
+				expectedCondition := tc.expectedConditionNotModified
+				if tc.shouldModifyWhenNotReconcilingAndHistoryNotEmpty && !c.isReconciling && !c.isHistoryEmpty {
+					expectedCondition = tc.expectedConditionModified
+				}
+				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
+				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, ClusterStatusFailing)
+				if diff := cmp.Diff(expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
+					t.Errorf("unexpected condition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
+				}
 			}
 		})
 	}
