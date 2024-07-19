@@ -4,11 +4,14 @@ import (
 	"context"
 	"time"
 
+	configv1alpha1 "github.com/openshift/api/config/v1alpha1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configv1alpha1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1alpha1"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	mcfgclient "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
 	mcfginformers "github.com/openshift/client-go/machineconfiguration/informers/externalversions"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	coreinformers "k8s.io/client-go/informers"
 	corev1client "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -16,6 +19,12 @@ import (
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/openshift/library-go/pkg/controller/factory"
 )
+
+var cfgScheme = runtime.NewScheme()
+
+func init() {
+	utilruntime.Must(configv1alpha1.Install(cfgScheme))
+}
 
 func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	configV1Alpha1Client, err := configv1alpha1client.NewForConfig(cc.KubeConfig)
@@ -44,9 +53,9 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 
 	klog.Info("Run :: Created clients")
 
+	usc := newUpdateStatusController(configV1Alpha1Client.UpdateStatuses(), cc.EventRecorder)
 	cpInformer, getControlPlaneUpdateStatus := newControlPlaneUpdateInformer(configInformers, cc.EventRecorder)
-	controllers := []factory.Controller{
-		newUpdateStatusController(configV1Alpha1Client.UpdateStatuses(), cc.EventRecorder),
+	_ = []factory.Controller{
 		newUpdateInsightScraper(getControlPlaneUpdateStatus, cc.EventRecorder),
 		cpInformer,
 		newWorkerPoolsUpdateInformer(coreInformers, mcfgInformers, cc.EventRecorder),
@@ -56,9 +65,7 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	coreInformers.Start(ctx.Done())
 	mcfgInformers.Start(ctx.Done())
 
-	for _, controller := range controllers[2:3] {
-		go controller.Run(ctx, 1)
-	}
+	go usc.Run(ctx, 1)
 
 	klog.Info("Run :: Launched controllers")
 
