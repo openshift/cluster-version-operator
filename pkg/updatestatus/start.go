@@ -53,10 +53,10 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 
 	klog.Info("Run :: Created clients")
 
-	usc := newUpdateStatusController(configV1Alpha1Client.UpdateStatuses(), cc.EventRecorder)
+	usc, getUpdateStatus := newUpdateStatusController(configV1Alpha1Client.UpdateStatuses(), cc.EventRecorder)
 	cpInformer, getControlPlaneUpdateStatus := newControlPlaneUpdateInformer(configInformers, cc.EventRecorder)
+	insightScraper := newUpdateInsightScraper(getControlPlaneUpdateStatus, getUpdateStatus, cc.EventRecorder)
 	_ = []factory.Controller{
-		newUpdateInsightScraper(getControlPlaneUpdateStatus, cc.EventRecorder),
 		cpInformer,
 		newWorkerPoolsUpdateInformer(coreInformers, mcfgInformers, cc.EventRecorder),
 	}
@@ -66,6 +66,8 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 	mcfgInformers.Start(ctx.Done())
 
 	go usc.Run(ctx, 1)
+	go insightScraper.Run(ctx, 1)
+	go cpInformer.Run(ctx, 1)
 
 	klog.Info("Run :: Launched controllers")
 
