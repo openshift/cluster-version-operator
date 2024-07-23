@@ -34,7 +34,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{},
 		},
 		{name: "set capabilities 4_11",
@@ -46,7 +46,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantKnownKeys: configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapabilityBaremetal,
 				configv1.ClusterVersionCapabilityMarketplace,
@@ -63,7 +63,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
 		},
 		{name: "set capabilities None with additional",
@@ -75,7 +75,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys:   configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3"},
 		},
 		{name: "set capabilities 4_11 with additional",
@@ -87,7 +87,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
-			wantKnownKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+			wantKnownKeys: configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapabilityBaremetal,
 				configv1.ClusterVersionCapabilityMarketplace,
@@ -105,7 +105,7 @@ func TestSetCapabilities(t *testing.T) {
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
-				test.wantKnownKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
+				test.wantKnownKeys = configv1.KnownClusterVersionCapabilities
 				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
 			}
 			if len(caps.KnownCapabilities) != len(test.wantKnownKeys) {
