@@ -105,16 +105,18 @@ github.com/munnerz/goautoneg
 # github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 ## explicit
 github.com/mwitkow/go-conntrack
-# github.com/openshift/api v0.0.0-20240301093301-ce10821dc999
+# github.com/openshift/api v0.0.0-20240702171116-4b89b3a92a17
 ## explicit; go 1.21
 github.com/openshift/api/config/v1
+github.com/openshift/api/config/v1/zz_generated.crd-manifests
 github.com/openshift/api/config/v1alpha1
+github.com/openshift/api/features
 github.com/openshift/api/image/docker10
 github.com/openshift/api/image/dockerpre012
 github.com/openshift/api/image/v1
 github.com/openshift/api/security/v1
-# github.com/openshift/client-go v0.0.0-20230926161409-848405da69e1
-## explicit; go 1.20
+# github.com/openshift/client-go v0.0.0-20240405120947-c67c8325cdd8
+## explicit; go 1.21
 github.com/openshift/client-go/config/applyconfigurations/config/v1
 github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1
 github.com/openshift/client-go/config/applyconfigurations/internal
@@ -143,8 +145,8 @@ github.com/openshift/client-go/security/clientset/versioned/fake
 github.com/openshift/client-go/security/clientset/versioned/scheme
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1/fake
-# github.com/openshift/library-go v0.0.0-20231017173800-126f85ed0cc7
-## explicit; go 1.20
+# github.com/openshift/library-go v0.0.0-20240711192904-190fec8c3f09
+## explicit; go 1.21
 github.com/openshift/library-go/pkg/config/clusterstatus
 github.com/openshift/library-go/pkg/config/leaderelection
 github.com/openshift/library-go/pkg/crypto
