@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	configv1 "github.com/openshift/api/config/v1"
+	configv1alpha "github.com/openshift/api/config/v1alpha1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -132,22 +133,23 @@ func Test_ControlPlaneUpdateInformer_Sync_Conditions_UpdateProgressing(t *testin
 }
 
 func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
-	twentyMinutesAgo := metav1.NewTime(time.Now().Add(-20 * time.Minute))
-	fifteenMinutesAgo := metav1.NewTime(time.Now().Add(-15 * time.Minute))
-	tenMinutesAgo := metav1.NewTime(time.Now().Add(-10 * time.Minute))
-	fiveMinutesAgo := metav1.NewTime(time.Now().Add(-5 * time.Minute))
+	var minutesAgo [60]metav1.Time
+	for i := range minutesAgo {
+		minutesAgo[i] = metav1.NewTime(time.Now().Add(time.Duration(-i) * time.Minute))
+	}
 
 	testCases := []struct {
 		name             string
 		history          []configv1.UpdateHistory
 		expectedVersions versions
+		expectedInsights []configv1alpha.UpdateInsight
 	}{
 		{
 			name: "Installation: Single version in progress",
 			history: []configv1.UpdateHistory{
 				{
 					State:       configv1.PartialUpdate,
-					StartedTime: tenMinutesAgo,
+					StartedTime: minutesAgo[10],
 					Version:     "v0-Installed",
 				},
 			},
@@ -161,8 +163,8 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 			history: []configv1.UpdateHistory{
 				{
 					State:          configv1.CompletedUpdate,
-					StartedTime:    tenMinutesAgo,
-					CompletionTime: &fiveMinutesAgo,
+					StartedTime:    minutesAgo[10],
+					CompletionTime: &minutesAgo[5],
 					Version:        "v0-installed",
 				},
 			},
@@ -176,14 +178,14 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 			history: []configv1.UpdateHistory{
 				{
 					State:          configv1.PartialUpdate,
-					StartedTime:    tenMinutesAgo,
-					CompletionTime: &fiveMinutesAgo,
+					StartedTime:    minutesAgo[10],
+					CompletionTime: &minutesAgo[5],
 					Version:        "v1-updating",
 				},
 				{
 					State:          configv1.CompletedUpdate,
-					StartedTime:    twentyMinutesAgo,
-					CompletionTime: &fifteenMinutesAgo,
+					StartedTime:    minutesAgo[20],
+					CompletionTime: &minutesAgo[15],
 					Version:        "v0-installed",
 				},
 			},
@@ -197,42 +199,72 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 			history: []configv1.UpdateHistory{
 				{
 					State:          configv1.PartialUpdate,
-					StartedTime:    tenMinutesAgo,
-					CompletionTime: &fiveMinutesAgo,
-					Version:        "v1-updating",
+					StartedTime:    minutesAgo[10],
+					CompletionTime: &minutesAgo[5],
+					Version:        "v2-updating",
 				},
 				{
 					State:          configv1.PartialUpdate,
-					StartedTime:    twentyMinutesAgo,
-					CompletionTime: &fifteenMinutesAgo,
+					StartedTime:    minutesAgo[20],
+					CompletionTime: &minutesAgo[15],
+					Version:        "v1-partial",
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					StartedTime:    minutesAgo[30],
 					Version:        "v0-installed",
+					CompletionTime: &minutesAgo[25],
 				},
 			},
 			expectedVersions: versions{
-				target:            "v1-updating",
-				previous:          "v0-installed",
+				target:            "v2-updating",
+				previous:          "v1-partial",
 				isPreviousPartial: true,
+			},
+			expectedInsights: []configv1alpha.UpdateInsight{
+				{
+					StartedAt: minutesAgo[10],
+					Scope: configv1alpha.UpdateInsightScope{
+						Type:      configv1alpha.ScopeTypeControlPlane,
+						Resources: []configv1alpha.ResourceRef{{APIGroup: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version"}},
+					},
+					Impact: configv1alpha.UpdateInsightImpact{
+						Level:       configv1alpha.WarningImpactLevel,
+						Type:        configv1alpha.NoneImpactType,
+						Summary:     "Previous update to v1-partial never completed, last complete update was v0-installed",
+						Description: "Current update to v2-updating was initiated while the previous update to version v1-partial was still in progress",
+					},
+					Remediation: configv1alpha.UpdateInsightRemediation{
+						Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
+					},
+				},
 			},
 		},
 		{
 			name: "Update completed from a partial update",
 			history: []configv1.UpdateHistory{
 				{
-					State:          configv1.CompletedUpdate,
-					StartedTime:    tenMinutesAgo,
-					CompletionTime: &fiveMinutesAgo,
-					Version:        "v1-updating",
+					State:          configv1.PartialUpdate,
+					StartedTime:    minutesAgo[10],
+					CompletionTime: &minutesAgo[5],
+					Version:        "v2-updating",
 				},
 				{
 					State:          configv1.PartialUpdate,
-					StartedTime:    twentyMinutesAgo,
-					CompletionTime: &fifteenMinutesAgo,
+					StartedTime:    minutesAgo[20],
+					CompletionTime: &minutesAgo[15],
+					Version:        "v1-partial",
+				},
+				{
+					State:          configv1.CompletedUpdate,
+					StartedTime:    minutesAgo[30],
 					Version:        "v0-installed",
+					CompletionTime: &minutesAgo[25],
 				},
 			},
 			expectedVersions: versions{
-				target:            "v1-updating",
-				previous:          "v0-installed",
+				target:            "v2-updating",
+				previous:          "v1-partial",
 				isPreviousPartial: true,
 			},
 		},
@@ -251,7 +283,7 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 						{
 							Type:               configv1.OperatorProgressing,
 							Status:             progressingStatus,
-							LastTransitionTime: tenMinutesAgo,
+							LastTransitionTime: minutesAgo[10],
 							Reason:             "SomeReason",
 							Message:            "Progressing",
 						},
@@ -270,6 +302,9 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 			status := controller.getControlPlaneUpdateStatus()
 			if diff := cmp.Diff(tc.expectedVersions, status.versions, allowUnexported); diff != "" {
 				t.Fatalf("unexpected status (-expected +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tc.expectedInsights, controller.getInsights()); diff != "" {
+				t.Fatalf("unexpected insights (-expected +got):\n%s", diff)
 			}
 		})
 
