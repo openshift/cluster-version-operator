@@ -2,6 +2,7 @@ package updatestatus
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,9 @@ type controlPlaneUpdateInformer struct {
 
 	statusLock sync.Mutex
 	status     controlPlaneUpdateStatus
+
+	insightsLock sync.Mutex
+	insights     []configv1alpha.UpdateInsight
 
 	recorder events.Recorder
 }
@@ -92,35 +96,35 @@ func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha
 	}
 
 	var insights []configv1alpha.UpdateInsight
-	// if !controlPlaneCompleted && versionData.isPreviousPartial {
-	// 	lastComplete := "unknown"
-	// 	if len(history) > 2 {
-	// 		for _, item := range history[2:] {
-	// 			if item.State == configv1.CompletedUpdate {
-	// 				lastComplete = item.Version
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// 	insights = []configv1alpha.UpdateInsight{
-	// 		{
-	// 			StartedAt: metav1.NewTime(history[0].StartedTime.Time),
-	// 			Scope: configv1alpha.UpdateInsightScope{
-	// 				Type:      scopeTypeControlPlane,
-	// 				Resources: []configv1alpha.ResourceRef{cvScope},
-	// 			},
-	// 			Impact: configv1alpha.UpdateInsightImpact{
-	// 				Level:       warningImpactLevel,
-	// 				Type:        noneImpactType,
-	// 				Summary:     fmt.Sprintf("Previous update to %s never completed, last complete update was %s", versionData.previous, lastComplete),
-	// 				Description: fmt.Sprintf("Current update to %s was initiated while the previous update to version %s was still in progress", versionData.target, versionData.previous),
-	// 			},
-	// 			Remediation: configv1alpha.UpdateInsightRemediation{
-	// 				Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
-	// 			},
-	// 		},
-	// 	}
-	// }
+	if !controlPlaneCompleted && versionData.isPreviousPartial {
+		lastComplete := "unknown"
+		if len(history) > 2 {
+			for _, item := range history[2:] {
+				if item.State == configv1.CompletedUpdate {
+					lastComplete = item.Version
+					break
+				}
+			}
+		}
+		insights = []configv1alpha.UpdateInsight{
+			{
+				StartedAt: metav1.NewTime(history[0].StartedTime.Time),
+				Scope: configv1alpha.UpdateInsightScope{
+					Type:      configv1alpha.ScopeTypeControlPlane,
+					Resources: []configv1alpha.ResourceRef{cvScope},
+				},
+				Impact: configv1alpha.UpdateInsightImpact{
+					Level:       configv1alpha.WarningImpactLevel,
+					Type:        configv1alpha.NoneImpactType,
+					Summary:     fmt.Sprintf("Previous update to %s never completed, last complete update was %s", versionData.previous, lastComplete),
+					Description: fmt.Sprintf("Current update to %s was initiated while the previous update to version %s was still in progress", versionData.target, versionData.previous),
+				},
+				Remediation: configv1alpha.UpdateInsightRemediation{
+					Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
+				},
+			},
+		}
+	}
 
 	return versionData, insights
 }
@@ -209,4 +213,16 @@ func (c *controlPlaneUpdateInformer) getControlPlaneUpdateStatus() controlPlaneU
 		versions:   c.status.versions,
 		conditions: append([]metav1.Condition{}, c.status.conditions...),
 	}
+}
+
+func (c *controlPlaneUpdateInformer) getInsights() []configv1alpha.UpdateInsight {
+	c.insightsLock.Lock()
+	defer c.insightsLock.Unlock()
+
+	var insights []configv1alpha.UpdateInsight
+	for _, insight := range c.insights {
+		insights = append(insights, *insight.DeepCopy())
+	}
+
+	return insights
 }

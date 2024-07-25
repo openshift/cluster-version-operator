@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -18,7 +19,7 @@ import (
 type getUpdateStatusFunc func() lockedUpdateStatus
 
 type lockedUpdateStatus struct {
-	*configv1alpha1.UpdateStatus
+	*configv1alpha1.UpdateStatusStatus
 	*sync.Mutex
 }
 
@@ -40,7 +41,7 @@ func newUpdateStatusController(updateStatusClient configclientv1alpha1.UpdateSta
 	}
 	controller := factory.New().WithSync(c.sync).ResyncEvery(time.Minute).ToController("UpdateStatusController", eventsRecorder.WithComponentSuffix("update-status-controller"))
 	getUpdateStatus := func() lockedUpdateStatus {
-		return lockedUpdateStatus{Mutex: &c.updateStatusLock, UpdateStatus: c.updateStatus}
+		return lockedUpdateStatus{Mutex: &c.updateStatusLock, UpdateStatusStatus: &c.updateStatus.Status}
 	}
 	return controller, getUpdateStatus
 }
@@ -58,7 +59,7 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 	defer c.updateStatusLock.Unlock()
 	if c.updateStatus == nil && exists {
 		klog.Info("USC :: SYNC :: Initial Sync :: Load UpdateStatus from cluster")
-		c.updateStatus = updateStatus
+		c.updateStatus = updateStatus.DeepCopy()
 		syncCtx.Queue().AddRateLimited(syncCtx.QueueKey())
 		return nil
 	}
@@ -79,7 +80,18 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 		return err
 	}
 
-	klog.Info("USC :: SYNC :: Update UpdateStatus")
-	_, err = c.updateStatusClient.UpdateStatus(ctx, c.updateStatus, metav1.UpdateOptions{})
+	diff := cmp.Diff(updateStatus.Status, c.updateStatus.Status)
+	if diff == "" {
+		klog.Info("USC :: SYNC :: UpdateStatus unchanged")
+		return nil
+	}
+
+	status := updateStatus.DeepCopy()
+	status.Status = c.updateStatus.Status
+
+	klog.Info("USC :: SYNC :: UpdateStatus changed: updating")
+	klog.Infof("Diff:\n%s", diff)
+
+	_, err = c.updateStatusClient.UpdateStatus(ctx, status, metav1.UpdateOptions{})
 	return err
 }
