@@ -60,7 +60,7 @@ func queueKeys(obj runtime.Object) []string {
 	return nil
 }
 
-func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInformerFactory, eventsRecorder events.Recorder) (factory.Controller, func() controlPlaneUpdateStatus) {
+func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInformerFactory, eventsRecorder events.Recorder) (factory.Controller, *controlPlaneUpdateInformer) {
 	c := controlPlaneUpdateInformer{
 		clusterVersionLister:  configInformers.Config().V1().ClusterVersions().Lister(),
 		clusterOperatorLister: configInformers.Config().V1().ClusterOperators().Lister(),
@@ -74,7 +74,7 @@ func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInfor
 		configInformers.Config().V1().ClusterOperators().Informer(),
 	).ResyncEvery(10*time.Minute).
 		WithSync(c.sync).
-		ToController("ControlPlaneUpdateInformer", eventsRecorder.WithComponentSuffix("control-plane-update-informer")), c.getControlPlaneUpdateStatus
+		ToController("ControlPlaneUpdateInformer", eventsRecorder.WithComponentSuffix("control-plane-update-informer")), &c
 }
 
 func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha.ResourceRef, controlPlaneCompleted bool) (versions, []configv1alpha.UpdateInsight) {
@@ -166,11 +166,19 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 		c.statusLock.Lock()
 		defer c.statusLock.Unlock()
 
-		c.status.versions, _ = versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
+		versions, insights := versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
 			APIGroup: "config.openshift.io/v1",
 			Kind:     "ClusterVersion",
 			Name:     cv.Name,
-		}, cvProgressing.Status == configv1.ConditionTrue)
+		}, cvProgressing.Status == configv1.ConditionFalse)
+
+		c.status.versions = versions
+
+		// TODO: Merge instead of replace
+		c.insightsLock.Lock()
+		c.insights = nil
+		c.insights = append(c.insights, insights...)
+		c.insightsLock.Unlock()
 
 		progressing := meta.FindStatusCondition(c.status.conditions, "UpdateProgressing")
 		if progressing == nil {
@@ -194,6 +202,7 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 			progressing.Message = cvProgressing.Message
 			progressing.LastTransitionTime = cvProgressing.LastTransitionTime
 		}
+
 	case "co":
 		klog.Infof("Control Plane Update Informer :: SYNC :: ClusterOperator :: %s (TODO)", name)
 	default:
