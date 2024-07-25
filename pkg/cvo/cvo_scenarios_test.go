@@ -35,12 +35,16 @@ import (
 
 var architecture string
 var sortedCaps = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
+var sortedKnownCaps = configv1.KnownClusterVersionCapabilities
 
 func init() {
 	architecture = runtime.GOARCH
 
 	sort.Slice(sortedCaps, func(i, j int) bool {
 		return sortedCaps[i] < sortedCaps[j]
+	})
+	sort.Slice(sortedKnownCaps, func(i, j int) bool {
+		return sortedKnownCaps[i] < sortedKnownCaps[j]
 	})
 }
 
@@ -226,7 +230,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -283,7 +287,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 		},
@@ -308,7 +312,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 					EnabledCapabilities: sortedCaps,
 				},
 			},
@@ -335,7 +339,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 		},
@@ -362,7 +366,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 		},
@@ -403,7 +407,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			},
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 				EnabledCapabilities: sortedCaps,
 			},
 			History: []configv1.UpdateHistory{
@@ -438,7 +442,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -464,7 +468,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -490,7 +494,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -517,7 +521,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -642,7 +646,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, AcceptedRisks: "The update cannot be verified: some random error"},
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 				EnabledCapabilities: sortedCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -699,7 +703,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -727,7 +731,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -755,7 +759,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -810,7 +814,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -844,7 +848,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -872,7 +876,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -900,7 +904,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -929,7 +933,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1047,7 +1051,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -1109,7 +1113,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 		},
@@ -1136,7 +1140,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 		},
@@ -1156,7 +1160,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1209,7 +1213,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1243,7 +1247,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1270,7 +1274,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1297,7 +1301,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1325,7 +1329,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1541,7 +1545,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1588,7 +1592,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -1802,7 +1806,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -1836,7 +1840,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 			VersionHash:        "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -1973,7 +1977,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 	// confirm capabilities are updated
 	checkStatus(t, actions[1], "update", "clusterversions", "status", "", configv1.ClusterVersionCapabilitiesStatus{
 		EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress, configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace},
-		KnownCapabilities:   sortedCaps,
+		KnownCapabilities:   sortedKnownCaps,
 	})
 }
 
@@ -2077,7 +2081,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBuild, configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityCloudControllerManager, configv1.ClusterVersionCapabilityCloudCredential, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityDeploymentConfig, configv1.ClusterVersionCapabilityImageRegistry, configv1.ClusterVersionCapabilityIngress, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityMachineAPI, configv1.ClusterVersionCapabilityNodeTuning, configv1.ClusterVersionCapabilityOperatorLifecycleManager, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
@@ -2120,7 +2124,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: Build, CSISnapshot, CloudControllerManager, CloudCredential, Console, DeploymentConfig, ImageRegistry, Ingress, Insights, MachineAPI, NodeTuning, OperatorLifecycleManager, Storage, marketplace, openshift-samples"},
@@ -2332,7 +2336,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2380,7 +2384,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: "The update cannot be verified: some random error"},
@@ -2417,7 +2421,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		CapabilitiesStatus: CapabilityStatus{
 			Status: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 		},
 		loadPayloadStatus: LoadPayloadStatus{
@@ -2592,7 +2596,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2616,7 +2620,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2640,7 +2644,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -2687,7 +2691,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.1-abc", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -2826,7 +2830,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 		CapabilitiesStatus: CapabilityStatus{
 			Status: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 		},
 		loadPayloadStatus: LoadPayloadStatus{
@@ -2945,7 +2949,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			},
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -3077,7 +3081,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3102,7 +3106,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3127,7 +3131,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3170,7 +3174,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3194,7 +3198,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3219,7 +3223,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3244,7 +3248,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3403,7 +3407,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3439,7 +3443,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3490,7 +3494,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3531,7 +3535,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 			VersionHash: "DL-FFQ2Uem8=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.CompletedUpdate, Image: "image/image:1", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
@@ -3659,7 +3663,7 @@ func TestCVO_ParallelError(t *testing.T) {
 					CapabilitiesStatus: CapabilityStatus{
 						Status: configv1.ClusterVersionCapabilitiesStatus{
 							EnabledCapabilities: sortedCaps,
-							KnownCapabilities:   sortedCaps,
+							KnownCapabilities:   sortedKnownCaps,
 						},
 					},
 					loadPayloadStatus: LoadPayloadStatus{
@@ -3695,7 +3699,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			CapabilitiesStatus: CapabilityStatus{
 				Status: configv1.ClusterVersionCapabilitiesStatus{
 					EnabledCapabilities: sortedCaps,
-					KnownCapabilities:   sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
@@ -3739,7 +3743,7 @@ func TestCVO_ParallelError(t *testing.T) {
 			VersionHash:        "Gyh2W6qcDO4=",
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
 			},
 			History: []configv1.UpdateHistory{
 				{State: configv1.PartialUpdate, Image: "image/image:1", Version: "1.0.0-abc", StartedTime: defaultStartedTime},
