@@ -12,16 +12,20 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type getInsightsFunc func() []v1alpha1.UpdateInsight
+
 type updateInsightScraper struct {
 	controlPlaneUpdateStatus    controlPlaneUpdateStatus
 	getControlPlaneUpdateStatus func() controlPlaneUpdateStatus
+
+	insightsGetters map[string]getInsightsFunc
 
 	getUpdateStatus getUpdateStatusFunc
 
 	recorder events.Recorder
 }
 
-func newUpdateInsightScraper(getControlPlaneUpdateStatus func() controlPlaneUpdateStatus, getUpdateStatus getUpdateStatusFunc, eventsRecorder events.Recorder) factory.Controller {
+func newUpdateInsightScraper(getControlPlaneUpdateStatus func() controlPlaneUpdateStatus, getUpdateStatus getUpdateStatusFunc, eventsRecorder events.Recorder) (factory.Controller, *updateInsightScraper) {
 	c := updateInsightScraper{
 		getControlPlaneUpdateStatus: getControlPlaneUpdateStatus,
 		getUpdateStatus:             getUpdateStatus,
@@ -31,20 +35,24 @@ func newUpdateInsightScraper(getControlPlaneUpdateStatus func() controlPlaneUpda
 
 	return factory.New().WithInformers().ResyncEvery(time.Minute).
 		WithSync(c.sync).
-		ToController("UpdateInsightScraper", eventsRecorder.WithComponentSuffix("update-insight-scraper"))
+		ToController("UpdateInsightScraper", eventsRecorder.WithComponentSuffix("update-insight-scraper")), &c
+}
+
+func (c *updateInsightScraper) registerInsightsInformer(name string, getter getInsightsFunc) {
+	c.insightsGetters[name] = getter
 }
 
 func (c *updateInsightScraper) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	klog.Info("Update Insight Scraper :: SYNC")
 	c.controlPlaneUpdateStatus = c.getControlPlaneUpdateStatus()
 
-	progressing := meta.FindStatusCondition(c.controlPlaneUpdateStatus.conditions, "Progressing")
+	progressing := meta.FindStatusCondition(c.controlPlaneUpdateStatus.conditions, "UpdateProgressing")
 	if progressing == nil {
-		klog.Info("Update Insight Scraper :: No Progressing condition found")
+		klog.Info("Update Insight Scraper :: No UpdateProgressing condition found")
 		return nil
 	}
 
-	klog.Infof("Update Insight Scraper :: Progressing=%s", progressing.Status)
+	klog.Infof("Update Insight Scraper :: UpdateProgressing=%s", progressing.Status)
 
 	updateStatus := c.getUpdateStatus()
 	updateStatus.Lock()
@@ -64,8 +72,22 @@ func (c *updateInsightScraper) sync(ctx context.Context, syncCtx factory.SyncCon
 		Previous:          c.controlPlaneUpdateStatus.versions.previous,
 		IsPreviousPartial: c.controlPlaneUpdateStatus.versions.isPreviousPartial,
 		Target:            c.controlPlaneUpdateStatus.versions.target,
-		IsTargetInstall:   c.controlPlaneUpdateStatus.versions.isTargetInstall,
+
+		IsTargetInstall: c.controlPlaneUpdateStatus.versions.isTargetInstall,
 	}
 
+	cpStatus.Informers = nil
+
+	for name, getter := range c.insightsGetters {
+		informer := v1alpha1.UpdateInformer{Name: name}
+		for _, insight := range getter() {
+			if insight.Scope.Type == v1alpha1.ScopeTypeControlPlane {
+				informer.Insights = append(informer.Insights, insight)
+			}
+		}
+		if len(informer.Insights) > 0 {
+			cpStatus.Informers = append(cpStatus.Informers, informer)
+		}
+	}
 	return nil
 }

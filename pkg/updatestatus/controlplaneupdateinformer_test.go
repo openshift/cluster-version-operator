@@ -244,7 +244,7 @@ func Test_controlPlaneUpdateInformer_sync_versions(t *testing.T) {
 			name: "Update completed from a partial update",
 			history: []configv1.UpdateHistory{
 				{
-					State:          configv1.PartialUpdate,
+					State:          configv1.CompletedUpdate,
 					StartedTime:    minutesAgo[10],
 					CompletionTime: &minutesAgo[5],
 					Version:        "v2-updating",
