@@ -90,3 +90,26 @@ insightsdatagathers.config.openshift.io:
   - InsightsConfig
   Version: v1alpha1
 
+updatestatuses.config.openshift.io:
+  Annotations: {}
+  ApprovedPRNumber: TODO
+  CRDName: updatestatuses.config.openshift.io
+  Capability: ""
+  Category: ""
+  FeatureGates:
+  - UpgradeStatus
+  FilenameOperatorName: cluster-version-operator
+  FilenameOperatorOrdering: "02"
+  FilenameRunLevel: "0000_00"
+  GroupName: config.openshift.io
+  HasStatus: true
+  KindName: UpdateStatus
+  Labels: {}
+  PluralName: updatestatuses
+  PrinterColumns: []
+  Scope: Cluster
+  ShortNames: null
+  TopLevelFeatureGates:
+  - UpgradeStatus
+  Version: v1alpha1
+
