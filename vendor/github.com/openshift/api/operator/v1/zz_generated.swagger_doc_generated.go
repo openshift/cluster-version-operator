@@ -722,6 +722,7 @@ func (EtcdSpec) SwaggerDoc() map[string]string {
 var map_AWSClassicLoadBalancerParameters = map[string]string{
 	"":                      "AWSClassicLoadBalancerParameters holds configuration parameters for an AWS Classic load balancer.",
 	"connectionIdleTimeout": "connectionIdleTimeout specifies the maximum time period that a connection may be idle before the load balancer closes the connection.  The value must be parseable as a time duration value; see <https://pkg.go.dev/time#ParseDuration>.  A nil or zero value means no opinion, in which case a default value is used.  The default value for this field is 60s.  This default is subject to change.",
+	"subnets":               "subnets specifies the subnets to which the load balancer will attach. The subnets may be specified by either their ID or name. The total number of subnets is limited to 10.\n\nIn order for the load balancer to be provisioned with subnets, each subnet must exist, each subnet must be from a different availability zone, and the load balancer service must be recreated to pick up new values.\n\nWhen omitted from the spec, the subnets will be auto-discovered for each availability zone. Auto-discovered subnets are not reported in the status of the IngressController object.",
 }
 
 func (AWSClassicLoadBalancerParameters) SwaggerDoc() map[string]string {
@@ -740,11 +741,23 @@ func (AWSLoadBalancerParameters) SwaggerDoc() map[string]string {
 }
 
 var map_AWSNetworkLoadBalancerParameters = map[string]string{
-	"": "AWSNetworkLoadBalancerParameters holds configuration parameters for an AWS Network load balancer.",
+	"":               "AWSNetworkLoadBalancerParameters holds configuration parameters for an AWS Network load balancer. For Example: Setting AWS EIPs https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html",
+	"subnets":        "subnets specifies the subnets to which the load balancer will attach. The subnets may be specified by either their ID or name. The total number of subnets is limited to 10.\n\nIn order for the load balancer to be provisioned with subnets, each subnet must exist, each subnet must be from a different availability zone, and the load balancer service must be recreated to pick up new values.\n\nWhen omitted from the spec, the subnets will be auto-discovered for each availability zone. Auto-discovered subnets are not reported in the status of the IngressController object.",
+	"eipAllocations": "eipAllocations is a list of IDs for Elastic IP (EIP) addresses that are assigned to the Network Load Balancer. The following restrictions apply:\n\neipAllocations can only be used with external scope, not internal. An EIP can be allocated to only a single IngressController. The number of EIP allocations must match the number of subnets that are used for the load balancer. Each EIP allocation must be unique. A maximum of 10 EIP allocations are permitted.\n\nSee https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/elastic-ip-addresses-eip.html for general information about configuration, characteristics, and limitations of Elastic IP addresses.",
 }
 
 func (AWSNetworkLoadBalancerParameters) SwaggerDoc() map[string]string {
 	return map_AWSNetworkLoadBalancerParameters
+}
+
+var map_AWSSubnets = map[string]string{
+	"":      "AWSSubnets contains a list of references to AWS subnets by ID or name.",
+	"ids":   "ids specifies a list of AWS subnets by subnet ID. Subnet IDs must start with \"subnet-\", consist only of alphanumeric characters, must be exactly 24 characters long, must be unique, and the total number of subnets specified by ids and names must not exceed 10.",
+	"names": "names specifies a list of AWS subnets by subnet name. Subnet names must not start with \"subnet-\", must not include commas, must be under 256 characters in length, must be unique, and the total number of subnets specified by ids and names must not exceed 10.",
+}
+
+func (AWSSubnets) SwaggerDoc() map[string]string {
+	return map_AWSSubnets
 }
 
 var map_AccessLogging = map[string]string{
