@@ -119,4 +119,4 @@ require (
 
 replace github.com/openshift/api => github.com/petr-muller/api v0.0.0-20240725222538-9f84fbbe5167
 
-replace github.com/openshift/client-go => github.com/petr-muller/openshift-client-go update-status-operator
+replace github.com/openshift/client-go => github.com/petr-muller/openshift-client-go v0.0.0-20240726144403-69702aa6b491

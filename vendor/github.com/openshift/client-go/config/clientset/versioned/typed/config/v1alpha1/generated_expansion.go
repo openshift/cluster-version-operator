@@ -9,3 +9,5 @@ type ClusterImagePolicyExpansion interface{}
 type ImagePolicyExpansion interface{}
 
 type InsightsDataGatherExpansion interface{}
+
+type UpdateStatusExpansion interface{}
