@@ -14,7 +14,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
@@ -28,8 +27,8 @@ type versions struct {
 }
 
 type controlPlaneUpdateStatus struct {
-	conditions []metav1.Condition
-	versions   versions
+	updating *metav1.Condition
+	versions versions
 }
 
 type controlPlaneUpdateInformer struct {
@@ -180,27 +179,26 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 		c.insights = append(c.insights, insights...)
 		c.insightsLock.Unlock()
 
-		progressing := meta.FindStatusCondition(c.status.conditions, "UpdateProgressing")
-		if progressing == nil {
-			last := len(c.status.conditions)
-			c.status.conditions = append(c.status.conditions, metav1.Condition{})
-			progressing = &c.status.conditions[last]
-			progressing.Type = "UpdateProgressing"
+		if c.status.updating == nil {
+			c.status.updating = &metav1.Condition{
+				Type: string(configv1alpha.UpdateProgressing),
+			}
 		}
+		updating := c.status.updating
 
 		if cvProgressing.Status == configv1.ConditionTrue {
-			progressing.Status = metav1.ConditionTrue
-			progressing.Reason = "ClusterVersionProgressing"
-			progressing.Message = cvProgressing.Message
-			progressing.LastTransitionTime = cvProgressing.LastTransitionTime
+			updating.Status = metav1.ConditionTrue
+			updating.Reason = "ClusterVersionProgressing"
+			updating.Message = cvProgressing.Message
+			updating.LastTransitionTime = cvProgressing.LastTransitionTime
 			if len(cv.Status.History) > 0 {
-				progressing.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
+				updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
 			}
 		} else {
-			progressing.Status = metav1.ConditionFalse
-			progressing.Reason = "ClusterVersionNotProgressing"
-			progressing.Message = cvProgressing.Message
-			progressing.LastTransitionTime = cvProgressing.LastTransitionTime
+			updating.Status = metav1.ConditionFalse
+			updating.Reason = "ClusterVersionNotProgressing"
+			updating.Message = cvProgressing.Message
+			updating.LastTransitionTime = cvProgressing.LastTransitionTime
 		}
 
 	case "co":
@@ -219,8 +217,8 @@ func (c *controlPlaneUpdateInformer) getControlPlaneUpdateStatus() controlPlaneU
 
 	// TODO: Deepcopy (this emulates an remote scrape call)
 	return controlPlaneUpdateStatus{
-		versions:   c.status.versions,
-		conditions: append([]metav1.Condition{}, c.status.conditions...),
+		versions: c.status.versions,
+		updating: c.status.updating.DeepCopy(),
 	}
 }
 

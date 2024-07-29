@@ -11,7 +11,6 @@ import (
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -57,7 +56,7 @@ func Test_ControlPlaneUpdateInformer_Sync_Conditions_UpdateProgressing(t *testin
 				Message:            "An upgrade is in progress. Working towards 4.17.0-ec.2: 782 of 960 done (81% complete), waiting on dns, network",
 			},
 			expectedUpdateProgressing: &metav1.Condition{
-				Type:               "UpdateProgressing",
+				Type:               string(configv1alpha.UpdateProgressing),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: tenMinutesAgo,
 				Reason:             "ClusterVersionProgressing",
@@ -79,7 +78,7 @@ func Test_ControlPlaneUpdateInformer_Sync_Conditions_UpdateProgressing(t *testin
 				Version:     "4.17.0-ec.2",
 			},
 			expectedUpdateProgressing: &metav1.Condition{
-				Type:               "UpdateProgressing",
+				Type:               string(configv1alpha.UpdateProgressing),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: fiveMinutesAgo,
 				Reason:             "ClusterVersionProgressing",
@@ -95,7 +94,7 @@ func Test_ControlPlaneUpdateInformer_Sync_Conditions_UpdateProgressing(t *testin
 				Message:            "Cluster version is 4.17.0-ec.2",
 			},
 			expectedUpdateProgressing: &metav1.Condition{
-				Type:               "UpdateProgressing",
+				Type:               string(configv1alpha.UpdateProgressing),
 				Status:             metav1.ConditionFalse,
 				LastTransitionTime: tenMinutesAgo,
 				Reason:             "ClusterVersionNotProgressing",
@@ -124,8 +123,7 @@ func Test_ControlPlaneUpdateInformer_Sync_Conditions_UpdateProgressing(t *testin
 			}
 
 			status := controller.getControlPlaneUpdateStatus()
-			progressing := meta.FindStatusCondition(status.conditions, "UpdateProgressing")
-			if diff := cmp.Diff(tc.expectedUpdateProgressing, progressing, allowUnexported); diff != "" {
+			if diff := cmp.Diff(tc.expectedUpdateProgressing, status.updating, allowUnexported); diff != "" {
 				t.Fatalf("unexpected status (-expected +got):\n%s", diff)
 			}
 		})
@@ -357,14 +355,12 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 					target:   "v1-updated",
 					previous: "v0-installed",
 				},
-				conditions: []metav1.Condition{
-					{
-						Type:               "UpdateProgressing",
-						Status:             metav1.ConditionFalse,
-						LastTransitionTime: tenMinutesAgo,
-						Reason:             "ClusterVersionNotProgressing",
-						Message:            "Cluster version is 4.17.0-ec.2",
-					},
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: tenMinutesAgo,
+					Reason:             "ClusterVersionNotProgressing",
+					Message:            "Cluster version is 4.17.0-ec.2",
 				},
 			},
 		},
@@ -402,14 +398,12 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 					target:   "v1-updated",
 					previous: "v0-installed",
 				},
-				conditions: []metav1.Condition{
-					{
-						Type:               "UpdateProgressing",
-						Status:             metav1.ConditionTrue,
-						LastTransitionTime: tenMinutesAgo,
-						Reason:             "ClusterVersionProgressing",
-						Message:            "Cluster is progressing towards 4.17.0-ec.2",
-					},
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: tenMinutesAgo,
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.0-ec.2",
 				},
 			},
 		},

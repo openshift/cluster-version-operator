@@ -46,23 +46,23 @@ func (c *updateInsightScraper) sync(ctx context.Context, syncCtx factory.SyncCon
 	klog.Info("Update Insight Scraper :: SYNC")
 	c.controlPlaneUpdateStatus = c.getControlPlaneUpdateStatus()
 
-	progressing := meta.FindStatusCondition(c.controlPlaneUpdateStatus.conditions, "UpdateProgressing")
-	if progressing == nil {
+	updating := c.controlPlaneUpdateStatus.updating
+	if updating == nil {
 		klog.Info("Update Insight Scraper :: No UpdateProgressing condition found")
 		return nil
 	}
 
-	klog.Infof("Update Insight Scraper :: UpdateProgressing=%s", progressing.Status)
+	klog.Infof("Update Insight Scraper :: UpdateProgressing=%s", updating.Status)
 
 	updateStatus := c.getUpdateStatus()
 	updateStatus.Lock()
 	ctx.Done()
 	defer updateStatus.Unlock()
 	cpStatus := &updateStatus.ControlPlane
-	meta.SetStatusCondition(&cpStatus.Conditions, *progressing)
-	if progressing.Status == metav1.ConditionTrue {
+	meta.SetStatusCondition(&cpStatus.Conditions, *updating)
+	if updating.Status == metav1.ConditionTrue {
 		cpStatus.Assessment = "Progressing"
-		cpStatus.StartedAt = progressing.LastTransitionTime
+		cpStatus.StartedAt = updating.LastTransitionTime
 		cpStatus.CompletedAt = metav1.NewTime(time.Time{})
 		cpStatus.EstimatedCompletedAt = metav1.NewTime(time.Time{})
 		cpStatus.Completion = 0
