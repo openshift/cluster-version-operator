@@ -457,6 +457,277 @@ func cvSyncContext(t *testing.T, cv *configv1.ClusterVersion) factory.SyncContex
 	}
 }
 
+func Test_controlPlaneUpdateStatus_updateForClusterOperator(t *testing.T) {
+	var minutesAgo [90]metav1.Time
+	for i := 0; i < 90; i++ {
+		minutesAgo[i] = metav1.NewTime(time.Now().Add(time.Duration(-i) * time.Minute))
+	}
+
+	testCases := []struct {
+		name  string
+		state controlPlaneUpdateStatus
+		co    *configv1.ClusterOperator
+
+		expected         map[string]metav1.Condition
+		expectedInsights []configv1alpha.UpdateInsight
+	}{
+		{
+			name: "updated operator",
+			state: controlPlaneUpdateStatus{
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.1",
+				},
+				versions: versions{
+					target:   "4.17.1",
+					previous: "4.17.0",
+				},
+				now: func() metav1.Time { return minutesAgo[0] },
+			},
+			co: &configv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: "updated-operator"},
+				Status: configv1.ClusterOperatorStatus{
+					Versions: []configv1.OperandVersion{
+						{
+							Name:    "operator",
+							Version: "4.17.1",
+						},
+					},
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionTrue,
+							LastTransitionTime: minutesAgo[2],
+							Reason:             "SomethingAfterUpdate",
+							Message:            "Operator already updated but Progressing=True",
+						},
+					},
+				},
+			},
+			expected: map[string]metav1.Condition{
+				"updated-operator": {
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: minutesAgo[0],
+					Reason:             "Updated",
+					Message:            "Operator finished updating to 4.17.1",
+				},
+			},
+		},
+		{
+			name: "updating operator",
+			state: controlPlaneUpdateStatus{
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.1",
+				},
+				versions: versions{
+					target:   "4.17.1",
+					previous: "4.17.0",
+				},
+				now: func() metav1.Time { return minutesAgo[0] },
+			},
+			co: &configv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: "updating-operator"},
+				Status: configv1.ClusterOperatorStatus{
+					Versions: []configv1.OperandVersion{
+						{
+							Name:    "operator",
+							Version: "4.17.0",
+						},
+					},
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionTrue,
+							LastTransitionTime: minutesAgo[2],
+							Reason:             "Updating",
+							Message:            "Operator is updating to 4.17.1",
+						},
+					},
+				},
+			},
+			expected: map[string]metav1.Condition{
+				"updating-operator": {
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[2],
+					Reason:             "Updating",
+					Message:            "Operator is updating to 4.17.1",
+				},
+			},
+		},
+		{
+			name: "pending operator",
+			state: controlPlaneUpdateStatus{
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.1",
+				},
+				versions: versions{
+					target:   "4.17.1",
+					previous: "4.17.0",
+				},
+				now: func() metav1.Time { return minutesAgo[0] },
+			},
+			co: &configv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: "pending-operator"},
+				Status: configv1.ClusterOperatorStatus{
+					Versions: []configv1.OperandVersion{
+						{
+							Name:    "operator",
+							Version: "4.17.0",
+						},
+					},
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionFalse,
+							LastTransitionTime: minutesAgo[40],
+							Reason:             "Pending",
+							Message:            "Operator is pending an update to %s",
+						},
+					},
+				},
+			},
+			expected: map[string]metav1.Condition{
+				"pending-operator": {
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionFalse,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "Pending",
+					Message:            "Operator is pending an update to 4.17.1",
+				},
+			},
+		},
+		// {
+		// 	name: "not a core operator",
+		// },
+		// {
+		// 	name: "cluster is not updating",
+		// },
+		{
+			name: "no version data yet",
+			state: controlPlaneUpdateStatus{
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.1",
+				},
+				now: func() metav1.Time { return minutesAgo[0] },
+			},
+			co: &configv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: "operador"},
+				Status: configv1.ClusterOperatorStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionTrue,
+							LastTransitionTime: minutesAgo[2],
+							Reason:             "Updating",
+							Message:            "Operator is updating to 4.17.1",
+						},
+					},
+					Versions: []configv1.OperandVersion{
+						{
+							Name:    "operator",
+							Version: "4.17.1",
+						},
+					},
+				},
+			},
+			expected: map[string]metav1.Condition{
+				"operador": {
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionUnknown,
+					LastTransitionTime: minutesAgo[0],
+					Reason:             "ClusterVersionUnknown",
+					Message:            "Unable to determine current cluster version",
+				},
+			},
+		},
+		// {
+		// 	name: "no progressing condition yet",
+		// },
+		{
+			name: "co status is missing operator version",
+			state: controlPlaneUpdateStatus{
+				updating: &metav1.Condition{
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionTrue,
+					LastTransitionTime: minutesAgo[20],
+					Reason:             "ClusterVersionProgressing",
+					Message:            "Cluster is progressing towards 4.17.1",
+				},
+				versions: versions{
+					target:   "4.17.1",
+					previous: "4.17.0",
+				},
+				now: func() metav1.Time { return minutesAgo[0] },
+			},
+			co: &configv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{Name: "missing-operator-version"},
+				Status: configv1.ClusterOperatorStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionTrue,
+							LastTransitionTime: minutesAgo[2],
+							Reason:             "Updating",
+							Message:            "Operator is updating to 4.17.1",
+						},
+					},
+					Versions: []configv1.OperandVersion{
+						{
+							Name:    "operand",
+							Version: "4.17.1",
+						},
+					},
+				},
+			},
+			expected: map[string]metav1.Condition{
+				"missing-operator-version": {
+					Type:               string(configv1alpha.UpdateProgressing),
+					Status:             metav1.ConditionUnknown,
+					LastTransitionTime: minutesAgo[0],
+					Reason:             "ClusterOperatorVersionMissing",
+					Message:            "ClusterOperator status is missing an operator version",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			insights, err := tc.state.updateForClusterOperator(tc.co)
+
+			// TODO: Test & handle errors
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if diff := cmp.Diff(tc.expected, tc.state.operators, allowUnexported); diff != "" {
+				t.Errorf("unexpected status (-expected +got):\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tc.expectedInsights, insights, allowUnexported); diff != "" {
+				t.Errorf("unexpected insights (-expected +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_controlPlaneUpdateStatus_updateForClusterVersion(t *testing.T) {
 	var minutesAgo [90]metav1.Time
 	for i := 0; i < 90; i++ {
