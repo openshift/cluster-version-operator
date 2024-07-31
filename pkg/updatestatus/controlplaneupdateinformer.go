@@ -27,16 +27,70 @@ type versions struct {
 }
 
 type controlPlaneUpdateStatus struct {
+	sync.Mutex
+
 	updating *metav1.Condition
 	versions versions
+
+	now func() metav1.Time
+}
+
+func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterVersion) ([]configv1alpha.UpdateInsight, error) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.updating == nil {
+		c.updating = &metav1.Condition{
+			Type: string(configv1alpha.UpdateProgressing),
+		}
+	}
+
+	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
+
+	versions, insights := versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
+		APIGroup: "config.openshift.io/v1",
+		Kind:     "ClusterVersion",
+		Name:     cv.Name,
+	})
+
+	c.versions = versions
+
+	if cvProgressing == nil {
+		c.updating.Status = metav1.ConditionUnknown
+		c.updating.Reason = "ClusterVersionProgressingMissing"
+		c.updating.Message = "ClusterVersion resource does not have a Progressing condition"
+		c.updating.LastTransitionTime = c.now()
+		return insights, nil
+	}
+
+	c.updating.Message = cvProgressing.Message
+	c.updating.LastTransitionTime = cvProgressing.LastTransitionTime
+	switch cvProgressing.Status {
+	case configv1.ConditionTrue:
+		c.updating.Status = metav1.ConditionTrue
+		c.updating.Reason = "ClusterVersionProgressing"
+		if len(cv.Status.History) > 0 {
+			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
+		}
+	case configv1.ConditionFalse:
+		c.updating.Status = metav1.ConditionFalse
+		c.updating.Reason = "ClusterVersionNotProgressing"
+		if len(cv.Status.History) > 0 {
+			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].CompletionTime.Time)
+		}
+	case configv1.ConditionUnknown:
+		c.updating.Status = metav1.ConditionUnknown
+		c.updating.Reason = "ClusterVersionProgressingUnknown"
+	}
+
+	return insights, nil
 }
 
 type controlPlaneUpdateInformer struct {
 	clusterVersionLister  configv1listers.ClusterVersionLister
 	clusterOperatorLister configv1listers.ClusterOperatorLister
 
-	statusLock sync.Mutex
-	status     controlPlaneUpdateStatus
+	status controlPlaneUpdateStatus
 
 	insightsLock sync.Mutex
 	insights     []configv1alpha.UpdateInsight
@@ -64,6 +118,10 @@ func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInfor
 		clusterVersionLister:  configInformers.Config().V1().ClusterVersions().Lister(),
 		clusterOperatorLister: configInformers.Config().V1().ClusterOperators().Lister(),
 
+		status: controlPlaneUpdateStatus{
+			now: metav1.Now,
+		},
+
 		recorder: eventsRecorder,
 	}
 
@@ -76,14 +134,18 @@ func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInfor
 		ToController("ControlPlaneUpdateInformer", eventsRecorder.WithComponentSuffix("control-plane-update-informer")), &c
 }
 
-func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha.ResourceRef, controlPlaneCompleted bool) (versions, []configv1alpha.UpdateInsight) {
+func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha.ResourceRef) (versions, []configv1alpha.UpdateInsight) {
 	versionData := versions{
 		target:   "unknown",
 		previous: "unknown",
 	}
+
 	if len(history) > 0 {
 		versionData.target = history[0].Version
+	} else {
+		return versionData, nil
 	}
+
 	if len(history) == 1 {
 		versionData.isTargetInstall = true
 		versionData.previous = ""
@@ -95,6 +157,7 @@ func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha
 	}
 
 	var insights []configv1alpha.UpdateInsight
+	controlPlaneCompleted := history[0].State == configv1.CompletedUpdate
 	if !controlPlaneCompleted && versionData.isPreviousPartial {
 		lastComplete := "unknown"
 		if len(history) > 2 {
@@ -156,22 +219,10 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 			return nil
 		}
 
-		cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
-		if cvProgressing == nil {
-			klog.Errorf("Control Plane Update Informer :: SYNC :: ClusterVersion :: %s :: no Progressing condition", name)
-			return nil
+		insights, err := c.status.updateForClusterVersion(cv)
+		if err != nil {
+			return err
 		}
-
-		c.statusLock.Lock()
-		defer c.statusLock.Unlock()
-
-		versions, insights := versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
-			APIGroup: "config.openshift.io/v1",
-			Kind:     "ClusterVersion",
-			Name:     cv.Name,
-		}, cvProgressing.Status == configv1.ConditionFalse)
-
-		c.status.versions = versions
 
 		// TODO: Merge instead of replace
 		c.insightsLock.Lock()
@@ -179,30 +230,13 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 		c.insights = append(c.insights, insights...)
 		c.insightsLock.Unlock()
 
-		if c.status.updating == nil {
-			c.status.updating = &metav1.Condition{
-				Type: string(configv1alpha.UpdateProgressing),
-			}
-		}
-		updating := c.status.updating
-
-		if cvProgressing.Status == configv1.ConditionTrue {
-			updating.Status = metav1.ConditionTrue
-			updating.Reason = "ClusterVersionProgressing"
-			updating.Message = cvProgressing.Message
-			updating.LastTransitionTime = cvProgressing.LastTransitionTime
-			if len(cv.Status.History) > 0 {
-				updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
-			}
-		} else {
-			updating.Status = metav1.ConditionFalse
-			updating.Reason = "ClusterVersionNotProgressing"
-			updating.Message = cvProgressing.Message
-			updating.LastTransitionTime = cvProgressing.LastTransitionTime
-		}
-
 	case "co":
-		klog.Infof("Control Plane Update Informer :: SYNC :: ClusterOperator :: %s (TODO)", name)
+		klog.Infof("Control Plane Update Informer :: SYNC :: ClusterOperator :: %s", name)
+		_, err := c.clusterOperatorLister.Get(name)
+		if err != nil {
+			klog.Errorf("Control Plane Update Informer :: SYNC :: ClusterOperator :: %s :: %v", name, err)
+			return nil
+		}
 	default:
 		klog.Errorf("Control Plane Update Informer :: SYNC :: Invalid Kind %s", kind)
 		return nil
@@ -212,8 +246,8 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 }
 
 func (c *controlPlaneUpdateInformer) getControlPlaneUpdateStatus() controlPlaneUpdateStatus {
-	c.statusLock.Lock()
-	defer c.statusLock.Unlock()
+	c.status.Lock()
+	defer c.status.Unlock()
 
 	// TODO: Deepcopy (this emulates an remote scrape call)
 	return controlPlaneUpdateStatus{
