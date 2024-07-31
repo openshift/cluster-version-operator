@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/v1helpers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
@@ -27,18 +28,15 @@ type versions struct {
 }
 
 type controlPlaneUpdateStatus struct {
-	sync.Mutex
-
 	updating *metav1.Condition
 	versions versions
+
+	operators map[string]metav1.Condition
 
 	now func() metav1.Time
 }
 
 func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterVersion) ([]configv1alpha.UpdateInsight, error) {
-	c.Lock()
-	defer c.Unlock()
-
 	if c.updating == nil {
 		c.updating = &metav1.Condition{
 			Type: string(configv1alpha.UpdateProgressing),
@@ -84,6 +82,68 @@ func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterV
 	}
 
 	return insights, nil
+}
+
+func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.ClusterOperator) ([]configv1alpha.UpdateInsight, error) {
+	if c.operators == nil {
+		c.operators = make(map[string]metav1.Condition)
+	}
+
+	version := v1helpers.FindOperandVersion(co.Status.Versions, "operator")
+	if version == nil {
+		c.operators[co.Name] = metav1.Condition{
+			Type:               string(configv1alpha.UpdateProgressing),
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: c.now(),
+			Reason:             "ClusterOperatorVersionMissing",
+			Message:            "ClusterOperator status is missing an operator version",
+		}
+		return nil, nil
+	}
+
+	if c.versions.target == "unknown" || c.versions.target == "" {
+		c.operators[co.Name] = metav1.Condition{
+			Type:               string(configv1alpha.UpdateProgressing),
+			Status:             metav1.ConditionUnknown,
+			LastTransitionTime: c.now(),
+			Reason:             "ClusterVersionUnknown",
+			Message:            "Unable to determine current cluster version",
+		}
+		return nil, nil
+	}
+
+	if version.Version == c.versions.target {
+		c.operators[co.Name] = metav1.Condition{
+			Type:   string(configv1alpha.UpdateProgressing),
+			Status: metav1.ConditionFalse,
+			// TODO: Do not overwrite times when a condition is already false
+			LastTransitionTime: c.now(),
+			Reason:             "Updated",
+			Message:            fmt.Sprintf("Operator finished updating to %s", c.versions.target),
+		}
+		return nil, nil
+	} else {
+		progressing := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorProgressing)
+		if progressing == nil || progressing.Status != configv1.ConditionTrue {
+			c.operators[co.Name] = metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: c.updating.LastTransitionTime,
+				Reason:             "Pending",
+				Message:            fmt.Sprintf("Operator is pending an update to %s", c.versions.target),
+			}
+		} else {
+			c.operators[co.Name] = metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: progressing.LastTransitionTime,
+				Reason:             "Updating",
+				Message:            fmt.Sprintf("Operator is updating to %s", c.versions.target),
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 type controlPlaneUpdateInformer struct {
@@ -246,9 +306,6 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 }
 
 func (c *controlPlaneUpdateInformer) getControlPlaneUpdateStatus() controlPlaneUpdateStatus {
-	c.status.Lock()
-	defer c.status.Unlock()
-
 	// TODO: Deepcopy (this emulates an remote scrape call)
 	return controlPlaneUpdateStatus{
 		versions: c.status.versions,

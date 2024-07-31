@@ -56,7 +56,6 @@ func (c *updateInsightScraper) sync(ctx context.Context, syncCtx factory.SyncCon
 
 	updateStatus := c.getUpdateStatus()
 	updateStatus.Lock()
-	ctx.Done()
 	defer updateStatus.Unlock()
 	cpStatus := &updateStatus.ControlPlane
 	meta.SetStatusCondition(&cpStatus.Conditions, *updating)
@@ -72,9 +71,18 @@ func (c *updateInsightScraper) sync(ctx context.Context, syncCtx factory.SyncCon
 		Previous:          c.controlPlaneUpdateStatus.versions.previous,
 		IsPreviousPartial: c.controlPlaneUpdateStatus.versions.isPreviousPartial,
 		Target:            c.controlPlaneUpdateStatus.versions.target,
-
-		IsTargetInstall: c.controlPlaneUpdateStatus.versions.isTargetInstall,
+		IsTargetInstall:   c.controlPlaneUpdateStatus.versions.isTargetInstall,
 	}
+
+	var updated, total int
+	for _, coUpdateProgressing := range c.controlPlaneUpdateStatus.operators {
+		total++
+		if coUpdateProgressing.Status == metav1.ConditionFalse && coUpdateProgressing.Reason == "Updated" {
+			updated++
+		}
+	}
+
+	cpStatus.Completion = int32(float64(updated) / float64(total) * 100.0)
 
 	cpStatus.Informers = nil
 
