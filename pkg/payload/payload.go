@@ -169,9 +169,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 				continue
 			}
 
-			switch filepath.Ext(file.Name()) {
-			case ".yaml", ".yml", ".json":
-			default:
+			if !hasManifestExtension(file.Name()) {
 				continue
 			}
 
@@ -436,4 +434,13 @@ func loadImageReferences(releaseDir string) (*imagev1.ImageStream, error) {
 		return imageRef, nil
 	}
 	return nil, fmt.Errorf("%s is a %T, not a v1 ImageStream", imageReferencesFile, imageRefObj)
+}
+
+func hasManifestExtension(filename string) bool {
+	switch filepath.Ext(filename) {
+	case ".yaml", ".yml", ".json":
+		return true
+	default:
+		return false
+	}
 }
