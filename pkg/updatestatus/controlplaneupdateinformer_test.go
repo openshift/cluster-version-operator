@@ -2,10 +2,12 @@ package updatestatus
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1alpha "github.com/openshift/api/config/v1alpha1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
@@ -17,6 +19,7 @@ import (
 )
 
 var allowUnexported = cmp.AllowUnexported(controlPlaneUpdateStatus{}, versions{})
+var ignoreMutexes = cmpopts.IgnoreUnexported(sync.Mutex{})
 
 func makeTestController(t *testing.T, cv *configv1.ClusterVersion) *controlPlaneUpdateInformer {
 	t.Helper()
@@ -318,7 +321,7 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 	testCases := []struct {
 		name     string
 		cv       *configv1.ClusterVersion
-		expected controlPlaneUpdateStatus
+		expected *controlPlaneUpdateStatus
 	}{
 		{
 			name: "cluster finished upgrading control plane",
@@ -350,7 +353,7 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 					},
 				},
 			},
-			expected: controlPlaneUpdateStatus{
+			expected: &controlPlaneUpdateStatus{
 				versions: versions{
 					target:   "v1-updated",
 					previous: "v0-installed",
@@ -358,7 +361,7 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 				updating: &metav1.Condition{
 					Type:               string(configv1alpha.UpdateProgressing),
 					Status:             metav1.ConditionFalse,
-					LastTransitionTime: tenMinutesAgo,
+					LastTransitionTime: fiveMinutesAgo,
 					Reason:             "ClusterVersionNotProgressing",
 					Message:            "Cluster version is 4.17.0-ec.2",
 				},
@@ -393,7 +396,7 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 					},
 				},
 			},
-			expected: controlPlaneUpdateStatus{
+			expected: &controlPlaneUpdateStatus{
 				versions: versions{
 					target:   "v1-updated",
 					previous: "v0-installed",
@@ -417,7 +420,7 @@ func Test_controlPlaneUpdateInformer_sync_cv(t *testing.T) {
 			}
 
 			status := controller.getControlPlaneUpdateStatus()
-			if diff := cmp.Diff(tc.expected, status, allowUnexported); diff != "" {
+			if diff := cmp.Diff(tc.expected, &status, allowUnexported, ignoreMutexes); diff != "" {
 				t.Fatalf("unexpected status (-expected +got):\n%s", diff)
 			}
 		})
@@ -451,5 +454,307 @@ func cvSyncContext(t *testing.T, cv *configv1.ClusterVersion) factory.SyncContex
 	return testSyncContext{
 		queueKey:      keys[0],
 		eventRecorder: events.NewInMemoryRecorder("test"),
+	}
+}
+
+func Test_controlPlaneUpdateStatus_updateForClusterVersion(t *testing.T) {
+	var minutesAgo [90]metav1.Time
+	for i := 0; i < 90; i++ {
+		minutesAgo[i] = metav1.NewTime(time.Now().Add(time.Duration(-i) * time.Minute))
+	}
+
+	historyItemInstallation := configv1.UpdateHistory{
+		State:          configv1.CompletedUpdate,
+		StartedTime:    minutesAgo[70],
+		CompletionTime: &minutesAgo[60],
+		Version:        "4.17.0-ec.2",
+	}
+
+	historyItemPartialUpdate := configv1.UpdateHistory{
+		State:          configv1.PartialUpdate,
+		StartedTime:    minutesAgo[40],
+		CompletionTime: &minutesAgo[30],
+		Version:        "4.17.1",
+	}
+
+	historyItemCompletedUpdate := configv1.UpdateHistory{
+		State:          configv1.CompletedUpdate,
+		StartedTime:    minutesAgo[30],
+		CompletionTime: &minutesAgo[25],
+		Version:        "4.17.2",
+	}
+
+	historyItemCurrentUpdate := configv1.UpdateHistory{
+		State:       configv1.PartialUpdate,
+		StartedTime: minutesAgo[10],
+		Version:     "4.17.3",
+	}
+
+	testCases := []struct {
+		name string
+
+		// TODO: Changes from nonempty initial state
+
+		cvProgressing *configv1.ClusterOperatorStatusCondition
+		cvHistory     []configv1.UpdateHistory
+
+		expectedUpdateProgressing *metav1.Condition
+		expectedVersions          *versions
+
+		expectedInsights []configv1alpha.UpdateInsight
+	}{
+		{
+			name: "Installation still in progress",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				LastTransitionTime: minutesAgo[10],
+				Reason:             "SomeReason",
+				Message:            "Cluster is progressing towards 4.17.0-ec.2",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				{
+					State:       configv1.PartialUpdate,
+					StartedTime: minutesAgo[8],
+					Version:     "4.17.0-ec.2",
+				},
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: minutesAgo[8], // history StartedTime wins
+				Reason:             "ClusterVersionProgressing",
+				Message:            "Cluster is progressing towards 4.17.0-ec.2",
+			},
+			expectedVersions: &versions{
+				target:          "4.17.0-ec.2",
+				isTargetInstall: true,
+			},
+		},
+		{
+			name: "Installation completed",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionFalse,
+				LastTransitionTime: minutesAgo[2],
+				Reason:             "FinishedInstallation",
+				Message:            "Cluster is now at 4.17.0-ec.2",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: *historyItemInstallation.CompletionTime,
+				Reason:             "ClusterVersionNotProgressing",
+				Message:            "Cluster is now at 4.17.0-ec.2",
+			},
+			expectedVersions: &versions{
+				target:          "4.17.0-ec.2",
+				isTargetInstall: true,
+			},
+		},
+		{
+			name: "Update in progress",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				LastTransitionTime: minutesAgo[40],
+				Reason:             "SomeReason",
+				Message:            "Applying 4.17.3",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCurrentUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: historyItemCurrentUpdate.StartedTime, // history StartedTime wins
+				Reason:             "ClusterVersionProgressing",
+				Message:            "Applying 4.17.3",
+			},
+			expectedVersions: &versions{
+				target:   historyItemCurrentUpdate.Version,
+				previous: historyItemInstallation.Version,
+			},
+		},
+		{
+			name: "Update from partial in progress",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionTrue,
+				LastTransitionTime: minutesAgo[40],
+				Reason:             "SomeReason",
+				Message:            "Applying 4.17.3",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCurrentUpdate,
+				historyItemPartialUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionTrue,
+				LastTransitionTime: historyItemCurrentUpdate.StartedTime, // history StartedTime wins
+				Reason:             "ClusterVersionProgressing",
+				Message:            "Applying 4.17.3",
+			},
+			expectedVersions: &versions{
+				target:            historyItemCurrentUpdate.Version,
+				previous:          historyItemPartialUpdate.Version,
+				isPreviousPartial: true,
+			},
+			expectedInsights: []configv1alpha.UpdateInsight{
+				{
+					StartedAt: historyItemCurrentUpdate.StartedTime,
+					Scope: configv1alpha.UpdateInsightScope{
+						Type: configv1alpha.ScopeTypeControlPlane,
+						Resources: []configv1alpha.ResourceRef{
+							{APIGroup: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version"},
+						},
+					},
+					Impact: configv1alpha.UpdateInsightImpact{
+						Level:       configv1alpha.WarningImpactLevel,
+						Type:        configv1alpha.NoneImpactType,
+						Summary:     "Previous update to 4.17.1 never completed, last complete update was 4.17.0-ec.2",
+						Description: "Current update to 4.17.3 was initiated while the previous update to version 4.17.1 was still in progress",
+					},
+					Remediation: configv1alpha.UpdateInsightRemediation{
+						Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
+					},
+				},
+			},
+		},
+		{
+			name: "Update completed",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionFalse,
+				LastTransitionTime: minutesAgo[2],
+				Reason:             "FinishedUpdate",
+				Message:            "Cluster is now at 4.17.3",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCompletedUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: *historyItemCompletedUpdate.CompletionTime,
+				Reason:             "ClusterVersionNotProgressing",
+				Message:            "Cluster is now at 4.17.3",
+			},
+			expectedVersions: &versions{target: historyItemCompletedUpdate.Version, previous: historyItemInstallation.Version},
+		},
+		{
+			name: "Update from partial completed",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionFalse,
+				LastTransitionTime: minutesAgo[2],
+				Reason:             "FinishedUpdate",
+				Message:            "Cluster is now at 4.17.3",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCompletedUpdate,
+				historyItemPartialUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionFalse,
+				LastTransitionTime: *historyItemCompletedUpdate.CompletionTime,
+				Reason:             "ClusterVersionNotProgressing",
+				Message:            "Cluster is now at 4.17.3",
+			},
+			expectedVersions: &versions{
+				target:            historyItemCompletedUpdate.Version,
+				previous:          historyItemPartialUpdate.Version,
+				isPreviousPartial: true,
+			},
+		},
+		{
+			name: "Progressing unknown",
+			cvProgressing: &configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorProgressing,
+				Status:             configv1.ConditionUnknown,
+				LastTransitionTime: minutesAgo[2],
+				Reason:             "Unknown",
+				Message:            "Cluster Version Operator set this to Unknown",
+			},
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCompletedUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionUnknown,
+				LastTransitionTime: minutesAgo[2],
+				Reason:             "ClusterVersionProgressingUnknown",
+				Message:            "Cluster Version Operator set this to Unknown",
+			},
+			expectedVersions: &versions{target: historyItemCompletedUpdate.Version, previous: historyItemInstallation.Version},
+		},
+		{
+			name:          "Progressing missing",
+			cvProgressing: nil,
+			cvHistory: []configv1.UpdateHistory{
+				historyItemCompletedUpdate,
+				historyItemInstallation,
+			},
+			expectedUpdateProgressing: &metav1.Condition{
+				Type:               string(configv1alpha.UpdateProgressing),
+				Status:             metav1.ConditionUnknown,
+				LastTransitionTime: minutesAgo[0],
+				Reason:             "ClusterVersionProgressingMissing",
+				Message:            "ClusterVersion resource does not have a Progressing condition",
+			},
+			expectedVersions: &versions{target: historyItemCompletedUpdate.Version, previous: historyItemInstallation.Version},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			state := controlPlaneUpdateStatus{
+				now: func() metav1.Time { return minutesAgo[0] },
+			}
+
+			cv := &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{Name: "version"},
+				Status: configv1.ClusterVersionStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{},
+					History:    tc.cvHistory,
+				},
+			}
+			if tc.cvProgressing != nil {
+				cv.Status.Conditions = append(cv.Status.Conditions, *tc.cvProgressing)
+			}
+
+			insights, err := state.updateForClusterVersion(cv)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.expectedUpdateProgressing != nil {
+				if diff := cmp.Diff(tc.expectedUpdateProgressing, state.updating); diff != "" {
+					t.Errorf("unexpected updating condition (-expected +got):\n%s", diff)
+				}
+			}
+
+			if tc.expectedVersions != nil {
+				if diff := cmp.Diff(tc.expectedVersions, &state.versions, allowUnexported); diff != "" {
+					t.Errorf("unexpected versions (-expected +got):\n%s", diff)
+				}
+			}
+
+			// TODO: Handle expect / dont expect
+			if diff := cmp.Diff(tc.expectedInsights, insights); diff != "" {
+				t.Errorf("unexpected insights (-expected +got):\n%s", diff)
+			}
+		})
 	}
 }
