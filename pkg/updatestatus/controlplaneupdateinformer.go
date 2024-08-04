@@ -20,6 +20,19 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	updateProgressingReasonCVProgressingMissing = "ClusterVersionProgressingMissing"
+	updateProgressingReasonCVProgressing        = "ClusterVersionProgressing"
+	updateProgressingReasonNotProgressing       = "ClusterVersionNotProgressing"
+	updateProgressingReasonCVProgressingUnknown = "ClusterVersionProgressingUnknown"
+
+	coUpdatingReasonVersionMissing = "ClusterOperatorVersionMissing"
+	coUpdatingReasonCVUnknown      = "ClusterVersionUnknown"
+	coUpdatingReasonPending        = "Pending"
+	coUpdatingReasonUpdated        = "Updated"
+	coUpdatingReasonUpdating       = "Updating"
+)
+
 type versions struct {
 	target            string
 	previous          string
@@ -37,6 +50,7 @@ type controlPlaneUpdateStatus struct {
 }
 
 func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterVersion) ([]configv1alpha.UpdateInsight, error) {
+
 	if c.updating == nil {
 		c.updating = &metav1.Condition{
 			Type: string(configv1alpha.UpdateProgressing),
@@ -46,7 +60,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterV
 	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
 
 	versions, insights := versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
-		APIGroup: "config.openshift.io/v1",
+		APIGroup: configv1.GroupVersion.String(),
 		Kind:     "ClusterVersion",
 		Name:     cv.Name,
 	})
@@ -55,7 +69,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterV
 
 	if cvProgressing == nil {
 		c.updating.Status = metav1.ConditionUnknown
-		c.updating.Reason = "ClusterVersionProgressingMissing"
+		c.updating.Reason = updateProgressingReasonCVProgressingMissing
 		c.updating.Message = "ClusterVersion resource does not have a Progressing condition"
 		c.updating.LastTransitionTime = c.now()
 		return insights, nil
@@ -66,19 +80,19 @@ func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterV
 	switch cvProgressing.Status {
 	case configv1.ConditionTrue:
 		c.updating.Status = metav1.ConditionTrue
-		c.updating.Reason = "ClusterVersionProgressing"
+		c.updating.Reason = updateProgressingReasonCVProgressing
 		if len(cv.Status.History) > 0 {
 			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
 		}
 	case configv1.ConditionFalse:
 		c.updating.Status = metav1.ConditionFalse
-		c.updating.Reason = "ClusterVersionNotProgressing"
+		c.updating.Reason = updateProgressingReasonNotProgressing
 		if len(cv.Status.History) > 0 {
 			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].CompletionTime.Time)
 		}
 	case configv1.ConditionUnknown:
 		c.updating.Status = metav1.ConditionUnknown
-		c.updating.Reason = "ClusterVersionProgressingUnknown"
+		c.updating.Reason = updateProgressingReasonCVProgressingUnknown
 	}
 
 	return insights, nil
@@ -95,7 +109,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 			Type:               string(configv1alpha.UpdateProgressing),
 			Status:             metav1.ConditionUnknown,
 			LastTransitionTime: c.now(),
-			Reason:             "ClusterOperatorVersionMissing",
+			Reason:             coUpdatingReasonVersionMissing,
 			Message:            "ClusterOperator status is missing an operator version",
 		}
 		return nil, nil
@@ -106,7 +120,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 			Type:               string(configv1alpha.UpdateProgressing),
 			Status:             metav1.ConditionUnknown,
 			LastTransitionTime: c.now(),
-			Reason:             "ClusterVersionUnknown",
+			Reason:             coUpdatingReasonCVUnknown,
 			Message:            "Unable to determine current cluster version",
 		}
 		return nil, nil
@@ -118,18 +132,19 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 			Status: metav1.ConditionFalse,
 			// TODO: Do not overwrite times when a condition is already false
 			LastTransitionTime: c.now(),
-			Reason:             "Updated",
+			Reason:             coUpdatingReasonUpdated,
 			Message:            fmt.Sprintf("Operator finished updating to %s", c.versions.target),
 		}
 		return nil, nil
 	} else {
 		progressing := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorProgressing)
 		if progressing == nil || progressing.Status != configv1.ConditionTrue {
+
 			c.operators[co.Name] = metav1.Condition{
 				Type:               string(configv1alpha.UpdateProgressing),
 				Status:             metav1.ConditionFalse,
 				LastTransitionTime: c.updating.LastTransitionTime,
-				Reason:             "Pending",
+				Reason:             coUpdatingReasonPending,
 				Message:            fmt.Sprintf("Operator is pending an update to %s", c.versions.target),
 			}
 		} else {
@@ -137,7 +152,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 				Type:               string(configv1alpha.UpdateProgressing),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: progressing.LastTransitionTime,
-				Reason:             "Updating",
+				Reason:             coUpdatingReasonUpdating,
 				Message:            fmt.Sprintf("Operator is updating to %s", c.versions.target),
 			}
 		}
