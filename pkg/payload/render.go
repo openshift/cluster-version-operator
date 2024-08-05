@@ -8,8 +8,10 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/openshift/api/config"
+	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/pkg/errors"
-
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -17,10 +19,11 @@ import (
 // Render renders critical manifests from /manifests to outputDir.
 func Render(outputDir, releaseImage, clusterProfile string) error {
 	var (
-		manifestsDir  = filepath.Join(DefaultPayloadDir, CVOManifestDir)
-		oManifestsDir = filepath.Join(outputDir, "manifests")
-		bootstrapDir  = "/bootstrap"
-		oBootstrapDir = filepath.Join(outputDir, "bootstrap")
+		manifestsDir        = filepath.Join(DefaultPayloadDir, CVOManifestDir)
+		releaseManifestsDir = filepath.Join(DefaultPayloadDir, ReleaseManifestDir)
+		oManifestsDir       = filepath.Join(outputDir, "manifests")
+		bootstrapDir        = "/bootstrap"
+		oBootstrapDir       = filepath.Join(outputDir, "bootstrap")
 
 		renderConfig = manifestRenderConfig{
 			ReleaseImage:   releaseImage,
@@ -29,26 +32,36 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	)
 
 	tasks := []struct {
-		idir      string
-		odir      string
-		skipFiles sets.Set[string]
+		idir            string
+		odir            string
+		processTemplate bool
+		skipFiles       sets.Set[string]
+		filterGroupKind sets.Set[schema.GroupKind]
 	}{{
-		idir: manifestsDir,
-		odir: oManifestsDir,
+		idir:            manifestsDir,
+		odir:            oManifestsDir,
+		processTemplate: true,
 		skipFiles: sets.New[string](
-			"image-references",
 			"0000_90_cluster-version-operator_00_prometheusrole.yaml",
 			"0000_90_cluster-version-operator_01_prometheusrolebinding.yaml",
 			"0000_90_cluster-version-operator_02_servicemonitor.yaml",
 		),
 	}, {
-		idir:      bootstrapDir,
-		odir:      oBootstrapDir,
-		skipFiles: sets.Set[string]{},
+		idir: releaseManifestsDir,
+		odir: oManifestsDir,
+		filterGroupKind: sets.New[schema.GroupKind](
+			schema.GroupKind{Group: config.GroupName, Kind: "ClusterImagePolicy"},
+			schema.GroupKind{Group: config.GroupName, Kind: "ImagePolicy"},
+		),
+	}, {
+		idir:            bootstrapDir,
+		odir:            oBootstrapDir,
+		processTemplate: true,
+		skipFiles:       sets.Set[string]{},
 	}}
 	var errs []error
 	for _, task := range tasks {
-		if err := renderDir(renderConfig, task.idir, task.odir, task.skipFiles); err != nil {
+		if err := renderDir(renderConfig, task.idir, task.odir, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -60,7 +73,7 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles sets.Set[string]) error {
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
 	}
@@ -73,6 +86,10 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 		if file.IsDir() {
 			continue
 		}
+		if !hasManifestExtension(file.Name()) {
+			continue
+		}
+
 		if skipFiles.Has(file.Name()) {
 			continue
 		}
@@ -90,10 +107,40 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, skipFiles s
 			continue
 		}
 
-		rraw, err := renderManifest(renderConfig, iraw)
-		if err != nil {
-			errs = append(errs, err)
-			continue
+		var rraw []byte
+		if processTemplate {
+			rraw, err = renderManifest(renderConfig, iraw)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("render template %s from %s: %w", file.Name(), idir, err))
+				continue
+			}
+		} else {
+			rraw = iraw
+		}
+
+		if len(filterGroupKind) > 0 {
+			manifests, err := manifest.ParseManifests(bytes.NewReader(rraw))
+			if err != nil {
+				errs = append(errs, fmt.Errorf("parse manifest %s from %s: %w", file.Name(), idir, err))
+				continue
+			}
+
+			filteredManifests := make([]string, 0, len(manifests))
+			for _, manifest := range manifests {
+				if filterGroupKind.Has(manifest.GVK.GroupKind()) {
+					filteredManifests = append(filteredManifests, string(manifest.Raw))
+				}
+			}
+
+			if len(filteredManifests) == 0 {
+				continue
+			}
+
+			if len(filteredManifests) == 1 {
+				rraw = []byte(filteredManifests[0])
+			} else {
+				rraw = []byte(strings.Join(filteredManifests, "\n---\n"))
+			}
 		}
 
 		opath := filepath.Join(odir, file.Name())
