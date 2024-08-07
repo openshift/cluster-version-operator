@@ -274,4 +274,161 @@ func (InsightsDataGatherSpec) SwaggerDoc() map[string]string {
 	return map_InsightsDataGatherSpec
 }
 
+var map_ControlPlaneUpdateStatus = map[string]string{
+	"":           "ControlPlaneUpdateStatus contains a summary and insights related to the control plane update",
+	"informers":  "Informers is a list of insight producers, each carries a list of insights",
+	"conditions": "Conditions provides details about the control plane update",
+}
+
+func (ControlPlaneUpdateStatus) SwaggerDoc() map[string]string {
+	return map_ControlPlaneUpdateStatus
+}
+
+var map_ControlPlaneUpdateStatusSummary = map[string]string{
+	"":                     "ControlPlaneUpdateStatusSummary contains a summary of the control plane update",
+	"assessment":           "Assessment summarizes a high-level status of the update",
+	"versions":             "Versions contains the original and target versions of the upgrade",
+	"completion":           "Completion is a percentage of the update completion (0-100)",
+	"startedAt":            "StartedAt is the time when the update started",
+	"completedAt":          "CompletedAt is the time when the update completed",
+	"estimatedCompletedAt": "EstimatedCompletedAt is the estimated time when the update will complete",
+}
+
+func (ControlPlaneUpdateStatusSummary) SwaggerDoc() map[string]string {
+	return map_ControlPlaneUpdateStatusSummary
+}
+
+var map_ControlPlaneUpdateVersions = map[string]string{
+	"":                "ControlPlaneUpdateVersions contains the original and target versions of the upgrade",
+	"previous":        "Previous is the version of the control plane before the update",
+	"previousPartial": "IsPreviousPartial is true if the update was initiated in a state where the previous upgrade (to the original version) was not fully completed",
+	"target":          "Target is the version of the control plane after the update",
+	"targetInstall":   "IsTargetInstall is true if the current (or last completed) work is an installation, not an upgrade",
+}
+
+func (ControlPlaneUpdateVersions) SwaggerDoc() map[string]string {
+	return map_ControlPlaneUpdateVersions
+}
+
+var map_PoolResourceRef = map[string]string{
+	"": "PoolResourceRef is a reference to a kubernetes resource that represents a worker pool",
+}
+
+func (PoolResourceRef) SwaggerDoc() map[string]string {
+	return map_PoolResourceRef
+}
+
+var map_PoolUpdateStatus = map[string]string{
+	"":           "PoolUpdateStatus contains a summary and insights related to a worker pool update Worker pool is represented by a resource",
+	"informers":  "Informers is a list of insight producers, each carries a list of insights",
+	"conditions": "Conditions provides details about the control plane update",
+}
+
+func (PoolUpdateStatus) SwaggerDoc() map[string]string {
+	return map_PoolUpdateStatus
+}
+
+var map_ResourceRef = map[string]string{
+	"":          "ResourceRef is a reference to a kubernetes resource, typically involved in an insight",
+	"kind":      "Kind of object being referenced",
+	"apiGroup":  "APIGroup of the object being referenced",
+	"name":      "Name of the object being referenced",
+	"namespace": "Namespace of the object being referenced, if any",
+}
+
+func (ResourceRef) SwaggerDoc() map[string]string {
+	return map_ResourceRef
+}
+
+var map_UpdateInformer = map[string]string{
+	"":         "UpdateInformer is an insight producer identified by a name, carrying a list of insights it produced",
+	"name":     "Name is the name of the insight producer",
+	"insights": "Insights is a list of insights produced by this producer",
+}
+
+func (UpdateInformer) SwaggerDoc() map[string]string {
+	return map_UpdateInformer
+}
+
+var map_UpdateInsight = map[string]string{
+	"":                "UpdateInsight is a piece of information produced by an insight producer",
+	"uid":             "UID identifies an insight over time",
+	"acquisitionTime": "AcquiredAt is the time when the data was acquired by the producer",
+	"startedAt":       "StartedAt is the time when the condition reported by the insight started",
+	"scope":           "Scope is list of objects involved in the insight",
+	"impact":          "Impact describes the impact the reported condition has on the cluster or update",
+	"remediation":     "Remediation contains ... TODO",
+}
+
+func (UpdateInsight) SwaggerDoc() map[string]string {
+	return map_UpdateInsight
+}
+
+var map_UpdateInsightImpact = map[string]string{
+	"":            "UpdateInsightImpact describes the impact the reported condition has on the cluster or update",
+	"level":       "Level is the severity of the impact",
+	"type":        "Type is the type of the impact",
+	"summary":     "Summary is a short summary of the impact",
+	"description": "Description is a human-oriented description of the condition reported by the insight",
+}
+
+func (UpdateInsightImpact) SwaggerDoc() map[string]string {
+	return map_UpdateInsightImpact
+}
+
+var map_UpdateInsightRemediation = map[string]string{
+	"":                "UpdateInsightRemediation contains ... TODO",
+	"reference":       "Reference is a URL where administrators can find information to resolve or prevent the reported condition",
+	"estimatedFinish": "EstimatedFinish is the estimated time when the informer expects the condition to be resolved, if applicable. This should normally only be provided by system level insights (impact level=status)",
+}
+
+func (UpdateInsightRemediation) SwaggerDoc() map[string]string {
+	return map_UpdateInsightRemediation
+}
+
+var map_UpdateInsightScope = map[string]string{
+	"":          "UpdateInsightScope is a list of objects involved in the insight",
+	"type":      "Type is either ControlPlane or WorkerPool",
+	"resources": "Resources is a list of resources involved in the insight",
+}
+
+func (UpdateInsightScope) SwaggerDoc() map[string]string {
+	return map_UpdateInsightScope
+}
+
+var map_UpdateStatus = map[string]string{
+	"": "UpdateStatus is the API about in-progress updates, kept populated by Update Status Controller by aggregating and summarizing UpdateInformers\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+}
+
+func (UpdateStatus) SwaggerDoc() map[string]string {
+	return map_UpdateStatus
+}
+
+var map_UpdateStatusList = map[string]string{
+	"": "UpdateStatusList is a list of UpdateStatus resources\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+}
+
+func (UpdateStatusList) SwaggerDoc() map[string]string {
+	return map_UpdateStatusList
+}
+
+var map_UpdateStatusSpec = map[string]string{
+	"": "UpdateStatusSpec is empty for now, can possibly hold configuration for Update Status Controller in the future",
+}
+
+func (UpdateStatusSpec) SwaggerDoc() map[string]string {
+	return map_UpdateStatusSpec
+}
+
+var map_UpdateStatusStatus = map[string]string{
+	"":             "UpdateStatusStatus is the API about in-progress updates, kept populated by Update Status Controller by aggregating and summarizing UpdateInformers",
+	"controlPlane": "ControlPlaneUpdateStatus contains a summary and insights related to the control plane update",
+	"workerPools":  "WorkerPoolsUpdateStatus contains summaries and insights related to the worker pools update",
+	"conditions":   "Conditions provide details about Update Status Controller operational matters",
+}
+
+func (UpdateStatusStatus) SwaggerDoc() map[string]string {
+	return map_UpdateStatusStatus
+}
+
 // AUTO-GENERATED FUNCTIONS END HERE

@@ -16,6 +16,8 @@ type Interface interface {
 	ImagePolicies() ImagePolicyInformer
 	// InsightsDataGathers returns a InsightsDataGatherInformer.
 	InsightsDataGathers() InsightsDataGatherInformer
+	// UpdateStatuses returns a UpdateStatusInformer.
+	UpdateStatuses() UpdateStatusInformer
 }
 
 type version struct {
@@ -47,4 +49,9 @@ func (v *version) ImagePolicies() ImagePolicyInformer {
 // InsightsDataGathers returns a InsightsDataGatherInformer.
 func (v *version) InsightsDataGathers() InsightsDataGatherInformer {
 	return &insightsDataGatherInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// UpdateStatuses returns a UpdateStatusInformer.
+func (v *version) UpdateStatuses() UpdateStatusInformer {
+	return &updateStatusInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
