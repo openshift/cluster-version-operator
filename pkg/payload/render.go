@@ -9,15 +9,19 @@ import (
 	"text/template"
 
 	"github.com/openshift/api/config"
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 )
 
 // Render renders critical manifests from /manifests to outputDir.
-func Render(outputDir, releaseImage, clusterProfile string) error {
+func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile string) error {
 	var (
 		manifestsDir        = filepath.Join(DefaultPayloadDir, CVOManifestDir)
 		releaseManifestsDir = filepath.Join(DefaultPayloadDir, ReleaseManifestDir)
@@ -30,6 +34,35 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 			ClusterProfile: clusterProfile,
 		}
 	)
+
+	var requiredFeatureSet *string
+	if featureGateManifestPath != "" {
+		manifests, err := manifest.ManifestsFromFiles([]string{featureGateManifestPath})
+		if err != nil {
+			return fmt.Errorf("loading FeatureGate manifest: %w", err)
+		}
+		if len(manifests) != 1 {
+			return fmt.Errorf("FeatureGate manifest %s contains %d manifests, but expected only one", featureGateManifestPath, len(manifests))
+		}
+		featureGateManifest := manifests[0]
+		expectedGVK := schema.GroupVersionKind{Kind: "FeatureGate", Version: configv1.GroupVersion.Version, Group: config.GroupName}
+		if featureGateManifest.GVK != expectedGVK {
+			return fmt.Errorf("FeatureGate manifest %s GroupVersionKind %v, but expected %v", featureGateManifest.OriginalFilename, featureGateManifest.GVK, expectedGVK)
+		}
+		featureSet, found, err := unstructured.NestedString(featureGateManifest.Obj.Object, "spec", "featureSet")
+		if err != nil {
+			return fmt.Errorf("%s spec.featureSet lookup was not a string: %w", featureGateManifest.String(), err)
+		} else if found {
+			requiredFeatureSet = &featureSet
+			klog.Infof("--feature-gate-manifest-path=%s results in feature set %q", featureGateManifest.OriginalFilename, featureSet)
+		} else {
+			requiredFeatureSet = ptr.To[string]("")
+			klog.Infof("--feature-gate-manifest-path=%s does not set spec.featureSet, using the default feature set", featureGateManifest.OriginalFilename)
+		}
+	} else {
+		requiredFeatureSet = ptr.To[string]("")
+		klog.Info("--feature-gate-manifest-path is unset, using the default feature set")
+	}
 
 	tasks := []struct {
 		idir            string
@@ -61,7 +94,7 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	}}
 	var errs []error
 	for _, task := range tasks {
-		if err := renderDir(renderConfig, task.idir, task.odir, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
+		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -73,7 +106,7 @@ func Render(outputDir, releaseImage, clusterProfile string) error {
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
 	}
@@ -97,6 +130,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, processTemp
 			// CustomNoUpgrade, TechPreviewNoUpgrade and DevPreviewNoUpgrade may add features to manifests like the ClusterVersion CRD,
 			// but we do not need those features during bootstrap-render time.  In those clusters, the production
 			// CVO will be along shortly to update the manifests and deliver the gated features.
+			// fixme: now that we have requiredFeatureSet, use it to do Manifest.Include() filtering here instead of making filename assumptions
 			continue
 		}
 
@@ -127,8 +161,13 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, processTemp
 
 			filteredManifests := make([]string, 0, len(manifests))
 			for _, manifest := range manifests {
-				if filterGroupKind.Has(manifest.GVK.GroupKind()) {
+				if !filterGroupKind.Has(manifest.GVK.GroupKind()) {
+					klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
+				} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil); err != nil {
+					klog.Infof("excluding %s: %v", manifest.String(), err)
+				} else {
 					filteredManifests = append(filteredManifests, string(manifest.Raw))
+					klog.Infof("including %s filtered by feature set %v and cluster profile %v", manifest.String(), requiredFeatureSet, clusterProfile)
 				}
 			}
 
