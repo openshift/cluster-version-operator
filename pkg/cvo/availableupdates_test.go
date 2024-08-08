@@ -55,9 +55,13 @@ func (n notFoundConfigMapLister) Get(name string) (*corev1.ConfigMap, error) {
 func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condition, []configv1.ConditionalUpdate, string) {
 	from := "4.5.5"
 	to := "4.5.6"
+	channel := "channel"
 	osus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{
-  "nodes": [{"version": "%s", "payload": "payload/%s"}, {"version": "%s", "payload": "payload/%s"}],
+  "nodes": [
+    {"version": "%s", "payload": "payload/%s", "metadata": {"io.openshift.upgrades.graph.release.channels": "%s"}},
+    {"version": "%s", "payload": "payload/%s", "metadata": {"io.openshift.upgrades.graph.release.channels": "%s"}}
+  ],
   "conditionalEdges": [
     {
       "edges": [{"from": "%s", "to": "%s"}],
@@ -72,12 +76,12 @@ func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condit
     }
   ]
 }
-`, from, from, to, to, from, to, to)
+`, from, from, channel, to, to, channel, from, to, to)
 	}))
 
 	updates := []configv1.ConditionalUpdate{
 		{
-			Release: configv1.Release{Version: to, Image: "payload/" + to},
+			Release: configv1.Release{Version: to, Image: "payload/" + to, Channels: []string{channel}},
 			Risks: []configv1.ConditionalUpdateRisk{
 				{
 					URL:     "https://example.com/" + to,
@@ -111,7 +115,8 @@ func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condit
 }
 
 func newOperator(url, version string, promqlMock clusterconditions.Condition) (*availableUpdates, *Operator) {
-	currentRelease := configv1.Release{Version: version, Image: "payload/" + version}
+	channel := "channel"
+	currentRelease := configv1.Release{Version: version, Image: "payload/" + version, Channels: []string{channel}}
 	registry := clusterconditions.NewConditionRegistry()
 	registry.Register("Always", &always.Always{})
 	registry.Register("PromQL", promqlMock)
@@ -126,7 +131,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 	}
 	availableUpdates := &availableUpdates{
 		Architecture: "amd64",
-		Current:      configv1.Release{Version: version, Image: "payload/" + version},
+		Current:      configv1.Release{Version: version, Image: "payload/" + version, Channels: []string{channel}},
 	}
 	return availableUpdates, operator
 }
