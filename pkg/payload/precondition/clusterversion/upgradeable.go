@@ -2,6 +2,7 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -63,6 +64,20 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		}
 	}
 
+	currentVersion := GetCurrentVersion(cv.Status.History)
+	currentMinor := GetEffectiveMinor(currentVersion)
+	desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
+	klog.V(2).Infof("currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s", currentMinor, releaseContext.DesiredVersion, desiredMinor)
+
+	// there is already a minor upgrade in progress
+	if minor := GetEffectiveMinor(cv.Status.Desired.Version); minorVersionUpgrade(currentMinor, minor) && minorVersionUpgrade(minor, desiredMinor) {
+		return &precondition.Error{
+			Reason:  "MinorVersionClusterUpgradeInProgress",
+			Message: fmt.Sprintf("The minor level upgrade to %s is not recommended while there is already a minor level upgrade from %s to %s in progress. It is recommended to wait until the existing minor level upgrade completes.", releaseContext.DesiredVersion, currentVersion, cv.Status.Desired.Version),
+			Name:    pf.Name(),
+		}
+	}
+
 	// if we are upgradeable==true we can always upgrade
 	up := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorUpgradeable)
 	if up == nil {
@@ -79,11 +94,6 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		klog.V(2).Infof("Precondition %s passed: no release history.", pf.Name())
 		return nil
 	}
-
-	currentVersion := GetCurrentVersion(cv.Status.History)
-	currentMinor := GetEffectiveMinor(currentVersion)
-	desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
-	klog.V(2).Infof("currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s", currentMinor, releaseContext.DesiredVersion, desiredMinor)
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	// if no cluster overrides have been set
@@ -141,7 +151,7 @@ func GetEffectiveMinor(version string) string {
 	return splits[1]
 }
 
-// minorVersionUpgrade returns true if the the desired update minor version number is greater
+// minorVersionUpgrade returns true if the desired update minor version number is greater
 // than the current version minor version number. Errors resulting from either version
 // number being unset or NaN are ignored simply resulting in false returned.
 func minorVersionUpgrade(currentMinor string, desiredMinor string) bool {

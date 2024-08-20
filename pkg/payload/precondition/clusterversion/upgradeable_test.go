@@ -60,11 +60,12 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		upgradeable    *configv1.ConditionStatus
-		currVersion    string
-		desiredVersion string
-		expected       string
+		name               string
+		upgradeable        *configv1.ConditionStatus
+		currVersion        string
+		desiredVersion     string
+		desiredVersionInCV string
+		expected           string
 	}{
 		{
 			name:           "first",
@@ -76,6 +77,19 @@ func TestUpgradeableRun(t *testing.T) {
 			currVersion:    "4.1",
 			desiredVersion: "4.2",
 			expected:       "",
+		},
+		{
+			name:               "move-(y+1) while move-y is in progress",
+			currVersion:        "4.6.3",
+			desiredVersionInCV: "4.7.2",
+			desiredVersion:     "4.8.1",
+			expected:           "The minor level upgrade to 4.8.1 is not recommended while there is already a minor level upgrade from 4.6.3 to 4.7.2 in progress. It is recommended to wait until the existing minor level upgrade completes.",
+		},
+		{
+			name:               "move-y with z while move-y is in progress",
+			currVersion:        "4.6.3",
+			desiredVersionInCV: "4.7.2",
+			desiredVersion:     "4.7.3",
 		},
 		{
 			name:           "move-y, with true condition",
@@ -114,6 +128,7 @@ func TestUpgradeableRun(t *testing.T) {
 				Spec:       configv1.ClusterVersionSpec{},
 				Status: configv1.ClusterVersionStatus{
 					History: []configv1.UpdateHistory{},
+					Desired: configv1.Release{Version: tc.desiredVersionInCV},
 				},
 			}
 			if len(tc.currVersion) > 0 {
