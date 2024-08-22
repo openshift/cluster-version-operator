@@ -3,6 +3,7 @@ package updatestatus
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -174,10 +175,11 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 	case nodeKey:
 	}
 
-	if newCpStatus != nil && cmp.Diff(cpStatus, newCpStatus) != "" {
+	if diff := cmp.Diff(cpStatus, newCpStatus); newCpStatus != nil && diff != "" {
+		klog.Info(diff)
 		us := original.DeepCopy()
 		us.Status.ControlPlane = *newCpStatus
-		_, err = c.updateStatuses.UpdateStatus(ctx, original, metav1.UpdateOptions{})
+		_, err = c.updateStatuses.UpdateStatus(ctx, us, metav1.UpdateOptions{})
 		if err != nil {
 			klog.Fatalf("USC :: SYNC :: Failed to update UpdateStatus: %v", err)
 		}
@@ -276,7 +278,11 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 	if len(cv.Status.History) > 0 {
 		cvInsight.StartedAt = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
-		cvInsight.CompletedAt = metav1.NewTime(cv.Status.History[0].CompletionTime.Time)
+		if cv.Status.History[0].CompletionTime != nil {
+			cvInsight.CompletedAt = metav1.NewTime(cv.Status.History[0].CompletionTime.Time)
+		} else {
+			cvInsight.CompletedAt = metav1.NewTime(time.Time{})
+		}
 	}
 
 	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
@@ -312,6 +318,9 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 			cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentProgressing
 
+			cpUpdatingCondition.LastTransitionTime = cvInsight.StartedAt
+			cvInsightUpdating.LastTransitionTime = cvInsight.StartedAt
+
 		case configv1.ConditionFalse:
 			cpUpdatingCondition.Status = metav1.ConditionFalse
 			cpUpdatingCondition.Reason = string(configv1alpha1.ControlPlaneConditionUpdatingReasonClusterVersionNotProgressing)
@@ -319,7 +328,10 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 			cvInsightUpdating.Status = metav1.ConditionFalse
 			cvInsightUpdating.Reason = cvProgressing.Reason
 
-			cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentProgressing
+			cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentCompleted
+
+			cpUpdatingCondition.LastTransitionTime = cvInsight.CompletedAt
+			cvInsightUpdating.LastTransitionTime = cvInsight.CompletedAt
 
 		case configv1.ConditionUnknown:
 			cpUpdatingCondition.Status = metav1.ConditionUnknown
@@ -331,12 +343,20 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 			cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentDegraded
 		}
 
-		if cvInsight.StartedAt.IsZero() {
+		if cpUpdatingCondition.LastTransitionTime.IsZero() {
 			cpUpdatingCondition.LastTransitionTime = cvProgressing.LastTransitionTime
+		}
+
+		if cvInsightUpdating.LastTransitionTime.IsZero() {
 			cvInsightUpdating.LastTransitionTime = cvProgressing.LastTransitionTime
-		} else {
-			cpUpdatingCondition.LastTransitionTime = cvInsight.StartedAt
-			cvInsightUpdating.LastTransitionTime = cvInsight.StartedAt
+		}
+
+		if cpUpdatingCondition.Reason == "" {
+			cpUpdatingCondition.Reason = "UnknownReason"
+		}
+
+		if cvInsightUpdating.Reason == "" {
+			cvInsightUpdating.Reason = "UnknownReason"
 		}
 	}
 
