@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -16,16 +15,10 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/v1helpers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 )
 
 const (
-	updateProgressingReasonCVProgressingMissing = "ClusterVersionProgressingMissing"
-	updateProgressingReasonCVProgressing        = "ClusterVersionProgressing"
-	updateProgressingReasonNotProgressing       = "ClusterVersionNotProgressing"
-	updateProgressingReasonCVProgressingUnknown = "ClusterVersionProgressingUnknown"
-
 	coUpdatingReasonVersionMissing = "ClusterOperatorVersionMissing"
 	coUpdatingReasonCVUnknown      = "ClusterVersionUnknown"
 	coUpdatingReasonPending        = "Pending"
@@ -33,69 +26,14 @@ const (
 	coUpdatingReasonUpdating       = "Updating"
 )
 
-type versions struct {
-	target            string
-	previous          string
-	isTargetInstall   bool
-	isPreviousPartial bool
-}
-
 type controlPlaneUpdateStatus struct {
 	updating *metav1.Condition
-	versions versions
+
+	versions configv1alpha.ControlPlaneUpdateVersions
 
 	operators map[string]metav1.Condition
 
 	now func() metav1.Time
-}
-
-func (c *controlPlaneUpdateStatus) updateForClusterVersion(cv *configv1.ClusterVersion) ([]configv1alpha.UpdateInsight, error) {
-
-	if c.updating == nil {
-		c.updating = &metav1.Condition{
-			Type: string(configv1alpha.UpdateProgressing),
-		}
-	}
-
-	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
-
-	versions, insights := versionsFromHistory(cv.Status.History, configv1alpha.ResourceRef{
-		APIGroup: configv1.GroupVersion.String(),
-		Kind:     "ClusterVersion",
-		Name:     cv.Name,
-	})
-
-	c.versions = versions
-
-	if cvProgressing == nil {
-		c.updating.Status = metav1.ConditionUnknown
-		c.updating.Reason = updateProgressingReasonCVProgressingMissing
-		c.updating.Message = "ClusterVersion resource does not have a Progressing condition"
-		c.updating.LastTransitionTime = c.now()
-		return insights, nil
-	}
-
-	c.updating.Message = cvProgressing.Message
-	c.updating.LastTransitionTime = cvProgressing.LastTransitionTime
-	switch cvProgressing.Status {
-	case configv1.ConditionTrue:
-		c.updating.Status = metav1.ConditionTrue
-		c.updating.Reason = updateProgressingReasonCVProgressing
-		if len(cv.Status.History) > 0 {
-			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
-		}
-	case configv1.ConditionFalse:
-		c.updating.Status = metav1.ConditionFalse
-		c.updating.Reason = updateProgressingReasonNotProgressing
-		if len(cv.Status.History) > 0 {
-			c.updating.LastTransitionTime = metav1.NewTime(cv.Status.History[0].CompletionTime.Time)
-		}
-	case configv1.ConditionUnknown:
-		c.updating.Status = metav1.ConditionUnknown
-		c.updating.Reason = updateProgressingReasonCVProgressingUnknown
-	}
-
-	return insights, nil
 }
 
 func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.ClusterOperator) ([]configv1alpha.UpdateInsight, error) {
@@ -106,7 +44,7 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 	version := v1helpers.FindOperandVersion(co.Status.Versions, "operator")
 	if version == nil {
 		c.operators[co.Name] = metav1.Condition{
-			Type:               string(configv1alpha.UpdateProgressing),
+			Type:               string(configv1alpha.ControlPlaneConditionTypeUpdating),
 			Status:             metav1.ConditionUnknown,
 			LastTransitionTime: c.now(),
 			Reason:             coUpdatingReasonVersionMissing,
@@ -115,9 +53,9 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 		return nil, nil
 	}
 
-	if c.versions.target == "unknown" || c.versions.target == "" {
+	if c.versions.Target == "unknown" || c.versions.Target == "" {
 		c.operators[co.Name] = metav1.Condition{
-			Type:               string(configv1alpha.UpdateProgressing),
+			Type:               string(configv1alpha.ControlPlaneConditionTypeUpdating),
 			Status:             metav1.ConditionUnknown,
 			LastTransitionTime: c.now(),
 			Reason:             coUpdatingReasonCVUnknown,
@@ -126,14 +64,14 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 		return nil, nil
 	}
 
-	if version.Version == c.versions.target {
+	if version.Version == c.versions.Target {
 		c.operators[co.Name] = metav1.Condition{
-			Type:   string(configv1alpha.UpdateProgressing),
+			Type:   string(configv1alpha.ControlPlaneConditionTypeUpdating),
 			Status: metav1.ConditionFalse,
 			// TODO: Do not overwrite times when a condition is already false
 			LastTransitionTime: c.now(),
 			Reason:             coUpdatingReasonUpdated,
-			Message:            fmt.Sprintf("Operator finished updating to %s", c.versions.target),
+			Message:            fmt.Sprintf("Operator finished updating to %s", c.versions.Target),
 		}
 		return nil, nil
 	} else {
@@ -141,19 +79,19 @@ func (c *controlPlaneUpdateStatus) updateForClusterOperator(co *configv1.Cluster
 		if progressing == nil || progressing.Status != configv1.ConditionTrue {
 
 			c.operators[co.Name] = metav1.Condition{
-				Type:               string(configv1alpha.UpdateProgressing),
+				Type:               string(configv1alpha.ControlPlaneConditionTypeUpdating),
 				Status:             metav1.ConditionFalse,
 				LastTransitionTime: c.updating.LastTransitionTime,
 				Reason:             coUpdatingReasonPending,
-				Message:            fmt.Sprintf("Operator is pending an update to %s", c.versions.target),
+				Message:            fmt.Sprintf("Operator is pending an update to %s", c.versions.Target),
 			}
 		} else {
 			c.operators[co.Name] = metav1.Condition{
-				Type:               string(configv1alpha.UpdateProgressing),
+				Type:               string(configv1alpha.ControlPlaneConditionTypeUpdating),
 				Status:             metav1.ConditionTrue,
 				LastTransitionTime: progressing.LastTransitionTime,
 				Reason:             coUpdatingReasonUpdating,
-				Message:            fmt.Sprintf("Operator is updating to %s", c.versions.target),
+				Message:            fmt.Sprintf("Operator is updating to %s", c.versions.Target),
 			}
 		}
 	}
@@ -167,25 +105,9 @@ type controlPlaneUpdateInformer struct {
 
 	status controlPlaneUpdateStatus
 
-	insightsLock sync.Mutex
-	insights     []configv1alpha.UpdateInsight
+	insights []configv1alpha.UpdateInsight
 
 	recorder events.Recorder
-}
-
-func queueKeys(obj runtime.Object) []string {
-	if obj == nil {
-		return nil
-	}
-
-	switch controlPlaneObj := obj.(type) {
-	case *configv1.ClusterVersion:
-		return []string{"cv/" + controlPlaneObj.Name}
-	case *configv1.ClusterOperator:
-		return []string{"co/" + controlPlaneObj.Name}
-	}
-
-	return nil
 }
 
 func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInformerFactory, eventsRecorder events.Recorder) (factory.Controller, *controlPlaneUpdateInformer) {
@@ -209,63 +131,6 @@ func newControlPlaneUpdateInformer(configInformers configv1informers.SharedInfor
 		ToController("ControlPlaneUpdateInformer", eventsRecorder.WithComponentSuffix("control-plane-update-informer")), &c
 }
 
-func versionsFromHistory(history []configv1.UpdateHistory, cvScope configv1alpha.ResourceRef) (versions, []configv1alpha.UpdateInsight) {
-	versionData := versions{
-		target:   "unknown",
-		previous: "unknown",
-	}
-
-	if len(history) > 0 {
-		versionData.target = history[0].Version
-	} else {
-		return versionData, nil
-	}
-
-	if len(history) == 1 {
-		versionData.isTargetInstall = true
-		versionData.previous = ""
-		return versionData, nil
-	}
-	if len(history) > 1 {
-		versionData.previous = history[1].Version
-		versionData.isPreviousPartial = history[1].State == configv1.PartialUpdate
-	}
-
-	var insights []configv1alpha.UpdateInsight
-	controlPlaneCompleted := history[0].State == configv1.CompletedUpdate
-	if !controlPlaneCompleted && versionData.isPreviousPartial {
-		lastComplete := "unknown"
-		if len(history) > 2 {
-			for _, item := range history[2:] {
-				if item.State == configv1.CompletedUpdate {
-					lastComplete = item.Version
-					break
-				}
-			}
-		}
-		insights = []configv1alpha.UpdateInsight{
-			{
-				StartedAt: metav1.NewTime(history[0].StartedTime.Time),
-				Scope: configv1alpha.UpdateInsightScope{
-					Type:      configv1alpha.ScopeTypeControlPlane,
-					Resources: []configv1alpha.ResourceRef{cvScope},
-				},
-				Impact: configv1alpha.UpdateInsightImpact{
-					Level:       configv1alpha.WarningImpactLevel,
-					Type:        configv1alpha.NoneImpactType,
-					Summary:     fmt.Sprintf("Previous update to %s never completed, last complete update was %s", versionData.previous, lastComplete),
-					Description: fmt.Sprintf("Current update to %s was initiated while the previous update to version %s was still in progress", versionData.target, versionData.previous),
-				},
-				Remediation: configv1alpha.UpdateInsightRemediation{
-					Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
-				},
-			},
-		}
-	}
-
-	return versionData, insights
-}
-
 func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	klog.Infof("Control Plane Update Informer :: SYNC :: %s", syncCtx.QueueKey())
 
@@ -286,25 +151,6 @@ func (c *controlPlaneUpdateInformer) sync(ctx context.Context, syncCtx factory.S
 	name := kindName[1]
 
 	switch kind {
-	case "cv":
-		klog.Infof("Control Plane Update Informer :: SYNC :: ClusterVersion :: %s", name)
-		cv, err := c.clusterVersionLister.Get(name)
-		if err != nil {
-			klog.Errorf("Control Plane Update Informer :: SYNC :: ClusterVersion :: %s :: %v", name, err)
-			return nil
-		}
-
-		insights, err := c.status.updateForClusterVersion(cv)
-		if err != nil {
-			return err
-		}
-
-		// TODO: Merge instead of replace
-		c.insightsLock.Lock()
-		c.insights = nil
-		c.insights = append(c.insights, insights...)
-		c.insightsLock.Unlock()
-
 	case "co":
 		klog.Infof("Control Plane Update Informer :: SYNC :: ClusterOperator :: %s", name)
 		_, err := c.clusterOperatorLister.Get(name)
@@ -329,8 +175,6 @@ func (c *controlPlaneUpdateInformer) getControlPlaneUpdateStatus() controlPlaneU
 }
 
 func (c *controlPlaneUpdateInformer) getInsights() []configv1alpha.UpdateInsight {
-	c.insightsLock.Lock()
-	defer c.insightsLock.Unlock()
 
 	var insights []configv1alpha.UpdateInsight
 	for _, insight := range c.insights {
