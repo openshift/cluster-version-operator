@@ -2,6 +2,7 @@ package updatestatus
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -170,6 +171,12 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 		newCpStatus = cpStatus.DeepCopy()
 		updateStatusForClusterVersion(newCpStatus, cv)
 	case clusterOperatorKey:
+		co, err := c.clusterOperators.Get(name)
+		if err != nil {
+			klog.Fatalf("USC :: SYNC :: Failed to get ClusterOperator %s: %v", name, err)
+		}
+		newCpStatus = cpStatus.DeepCopy()
+		updateStatusForClusterOperator(newCpStatus, co)
 	case machineConfigPoolKey:
 	case machineConfigKey:
 	case nodeKey:
@@ -186,6 +193,128 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 	}
 
 	return nil
+}
+
+func updateStatusForClusterOperator(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, co *configv1.ClusterOperator) {
+	prototypeInformer := findUpdateInformer(cpStatus.Informers, prototypeInformerName)
+	if prototypeInformer == nil {
+		cpStatus.Informers = append(cpStatus.Informers, configv1alpha1.UpdateInformer{Name: prototypeInformerName})
+		prototypeInformer = &cpStatus.Informers[len(cpStatus.Informers)-1]
+	}
+
+	coInsight := findClusterOperatorInsight(prototypeInformer.Insights, co)
+	if coInsight == nil {
+		coInsight = &configv1alpha1.ClusterOperatorStatusInsight{
+			Resource: configv1alpha1.ResourceRef{
+				Name:     co.Name,
+				Kind:     "ClusterOperator",
+				APIGroup: "config.openshift.io",
+			},
+		}
+		prototypeInformer.Insights = append(prototypeInformer.Insights, configv1alpha1.UpdateInsight{
+			Type:                         configv1alpha1.UpdateInsightTypeClusterOperatorStatusInsight,
+			ClusterOperatorStatusInsight: coInsight,
+		})
+		coInsight = prototypeInformer.Insights[len(prototypeInformer.Insights)-1].ClusterOperatorStatusInsight
+	}
+
+	coInsightHealthyType := string(configv1alpha1.ClusterOperatorStatusInsightConditionTypeHealthy)
+	coAvailable := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorAvailable)
+	coDegraded := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorDegraded)
+
+	coInsightHealthy := metav1.Condition{Type: coInsightHealthyType}
+
+	switch {
+	case coAvailable != nil && coAvailable.Status == configv1.ConditionFalse:
+		coInsightHealthy.Status = metav1.ConditionFalse
+		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonUnavailable)
+		coInsightHealthy.Message = coAvailable.Message
+		coInsightHealthy.LastTransitionTime = coAvailable.LastTransitionTime
+	case coDegraded != nil && coDegraded.Status == configv1.ConditionTrue:
+		coInsightHealthy.Status = metav1.ConditionFalse
+		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonDegraded)
+		coInsightHealthy.Message = coDegraded.Message
+		coInsightHealthy.LastTransitionTime = coDegraded.LastTransitionTime
+	case coAvailable == nil:
+		coInsightHealthy.Status = metav1.ConditionUnknown
+		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonMissingAvailable)
+		coInsightHealthy.Message = "ClusterOperator does not have an Available condition"
+	case coDegraded == nil:
+		coInsightHealthy.Status = metav1.ConditionUnknown
+		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonMissingDegraded)
+		coInsightHealthy.Message = "ClusterOperator does not have a Degraded condition"
+	case coAvailable.Status == configv1.ConditionUnknown:
+		coInsightHealthy.Status = metav1.ConditionUnknown
+		coInsightHealthy.Reason = coAvailable.Reason
+		coInsightHealthy.Message = coAvailable.Message
+		coInsightHealthy.LastTransitionTime = coAvailable.LastTransitionTime
+	case coDegraded.Status == configv1.ConditionUnknown:
+		coInsightHealthy.Status = metav1.ConditionUnknown
+		coInsightHealthy.Reason = coDegraded.Reason
+		coInsightHealthy.Message = coDegraded.Message
+		coInsightHealthy.LastTransitionTime = coDegraded.LastTransitionTime
+	case coAvailable.Status == configv1.ConditionTrue && coDegraded.Status == configv1.ConditionFalse:
+		coInsightHealthy.Status = metav1.ConditionTrue
+		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonAllIsWell)
+		coInsightHealthy.Message = "ClusterOperator is available and is not degraded"
+		coInsightHealthy.LastTransitionTime = coAvailable.LastTransitionTime
+	}
+
+	meta.SetStatusCondition(&coInsight.Conditions, coInsightHealthy)
+
+	coInsightUpdatingType := string(configv1alpha1.ClusterOperatorStatusInsightConditionTypeUpdating)
+	coProgressing := resourcemerge.FindOperatorStatusCondition(co.Status.Conditions, configv1.OperatorProgressing)
+	coInsightUpdating := metav1.Condition{Type: coInsightUpdatingType}
+
+	cvInsight := findClusterVersionInsight(prototypeInformer.Insights)
+
+	if cvInsight == nil {
+		coInsightUpdating.Status = metav1.ConditionUnknown
+		coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUnknownUpdate)
+		coInsightUpdating.Message = "No ClusterVersion status insight found => unknown cluster version"
+	} else {
+		cvInsightUpdating := meta.FindStatusCondition(cvInsight.Conditions, string(configv1alpha1.ClusterVersionStatusInsightConditionTypeUpdating))
+		switch {
+		case cvInsightUpdating == nil:
+			coInsightUpdating.Status = metav1.ConditionUnknown
+			coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUnknownUpdate)
+			coInsightUpdating.Message = "ClusterVersion status insight does not have an updating condition"
+		case cvInsightUpdating.Status == metav1.ConditionUnknown:
+			coInsightUpdating.Status = metav1.ConditionUnknown
+			coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUnknownUpdate)
+			coInsightUpdating.Message = fmt.Sprintf("ClusterVersion insight Updating=Unknown: %s", cvInsightUpdating.Message)
+		case cvInsightUpdating.Status == metav1.ConditionFalse:
+			coInsightUpdating.Status = metav1.ConditionFalse
+			coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUpdated)
+			coInsightUpdating.Message = fmt.Sprintf("Control plane is not updating: %s", cvInsightUpdating.Message)
+		case cvInsightUpdating.Status == metav1.ConditionTrue:
+			clusterTargetVersion := cvInsight.Versions.Target
+			currentOperatorVersion := findOperatorVersion(co.Status.Versions)
+			if currentOperatorVersion == nil || currentOperatorVersion.Version == "" {
+				coInsightUpdating.Status = metav1.ConditionUnknown
+				coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUnknownVersion)
+				coInsightUpdating.Message = "Current operator version is unknown"
+			} else {
+				if currentOperatorVersion.Version == clusterTargetVersion {
+					coInsightUpdating.Status = metav1.ConditionFalse
+					coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonUpdated)
+					coInsightUpdating.Message = fmt.Sprintf("Operator finished updating to %s", clusterTargetVersion)
+				} else {
+					if coProgressing != nil && coProgressing.Status == configv1.ConditionTrue {
+						coInsightUpdating.Status = metav1.ConditionTrue
+						coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonProgressing)
+						coInsightUpdating.Message = coProgressing.Message
+					} else {
+						coInsightUpdating.Status = metav1.ConditionFalse
+						coInsightUpdating.Reason = string(configv1alpha1.ClusterOperatorStatusInsightUpdatingReasonPending)
+						coInsightUpdating.Message = fmt.Sprintf("Operator is pending an update to %s", clusterTargetVersion)
+					}
+				}
+			}
+		}
+	}
+
+	meta.SetStatusCondition(&coInsight.Conditions, coInsightUpdating)
 }
 
 const prototypeInformerName = "ota-1268-prototype"
@@ -256,7 +385,7 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 		prototypeInformer = &cpStatus.Informers[len(cpStatus.Informers)-1]
 	}
 
-	cvInsight := findClusterVersionInsight(prototypeInformer.Insights, cv)
+	cvInsight := findClusterVersionInsight(prototypeInformer.Insights)
 	if cvInsight == nil {
 		cvInsight = &configv1alpha1.ClusterVersionStatusInsight{
 			Resource: configv1alpha1.ResourceRef{
@@ -364,14 +493,20 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 	meta.SetStatusCondition(&cvInsight.Conditions, cvInsightUpdating)
 }
 
-func findClusterVersionInsight(insights []configv1alpha1.UpdateInsight, version *configv1.ClusterVersion) *configv1alpha1.ClusterVersionStatusInsight {
+func findClusterVersionInsight(insights []configv1alpha1.UpdateInsight) *configv1alpha1.ClusterVersionStatusInsight {
 	for i := range insights {
 		if insights[i].Type == configv1alpha1.UpdateInsightTypeClusterVersionStatusInsight {
-			cvInsight := insights[i].ClusterVersionStatusInsight
-			if cvInsight.Resource.Name != version.Name {
-				klog.Fatalf("USC :: SYNC :: ClusterVersionStatusInsight for a wrong ClusterVersion: %s", cvInsight.Resource.Name)
-			}
-			return cvInsight
+			return insights[i].ClusterVersionStatusInsight
+		}
+	}
+
+	return nil
+}
+
+func findClusterOperatorInsight(insights []configv1alpha1.UpdateInsight, co *configv1.ClusterOperator) *configv1alpha1.ClusterOperatorStatusInsight {
+	for _, insight := range insights {
+		if insight.Type == configv1alpha1.UpdateInsightTypeClusterOperatorStatusInsight && insight.ClusterOperatorStatusInsight.Resource.Name == co.Name {
+			return insight.ClusterOperatorStatusInsight
 		}
 	}
 
@@ -382,6 +517,18 @@ func findUpdateInformer(informers []configv1alpha1.UpdateInformer, name string) 
 	for i := range informers {
 		if informers[i].Name == name {
 			return &informers[i]
+		}
+	}
+	return nil
+}
+
+func findOperatorVersion(versions []configv1.OperandVersion) *configv1.OperandVersion {
+	if versions == nil {
+		return nil
+	}
+	for i := range versions {
+		if versions[i].Name == "operator" {
+			return &versions[i]
 		}
 	}
 	return nil
