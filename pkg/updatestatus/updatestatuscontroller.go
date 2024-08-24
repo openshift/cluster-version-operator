@@ -117,7 +117,8 @@ func newUpdateStatusController(
 	c := updateStatusController{
 		updateStatuses: updateStatusClient,
 
-		clusterVersions: configInformers.Config().V1().ClusterVersions().Lister(),
+		clusterVersions:  configInformers.Config().V1().ClusterVersions().Lister(),
+		clusterOperators: configInformers.Config().V1().ClusterOperators().Lister(),
 
 		recorder: eventsRecorder,
 	}
