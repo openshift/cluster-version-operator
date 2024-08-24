@@ -228,21 +228,21 @@ func updateStatusForClusterOperator(cpStatus *configv1alpha1.ControlPlaneUpdateS
 	switch {
 	case coAvailable != nil && coAvailable.Status == configv1.ConditionFalse:
 		coInsightHealthy.Status = metav1.ConditionFalse
-		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonUnavailable)
+		coInsightHealthy.Reason = string(configv1alpha1.ClusterOperatorUpdateStatusInsightHealthyReasonUnavailable)
 		coInsightHealthy.Message = coAvailable.Message
 		coInsightHealthy.LastTransitionTime = coAvailable.LastTransitionTime
 	case coDegraded != nil && coDegraded.Status == configv1.ConditionTrue:
 		coInsightHealthy.Status = metav1.ConditionFalse
-		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonDegraded)
+		coInsightHealthy.Reason = string(configv1alpha1.ClusterOperatorUpdateStatusInsightHealthyReasonDegraded)
 		coInsightHealthy.Message = coDegraded.Message
 		coInsightHealthy.LastTransitionTime = coDegraded.LastTransitionTime
 	case coAvailable == nil:
 		coInsightHealthy.Status = metav1.ConditionUnknown
-		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonMissingAvailable)
+		coInsightHealthy.Reason = string(configv1alpha1.ClusterOperatorUpdateStatusInsightHealthyReasonMissingAvailable)
 		coInsightHealthy.Message = "ClusterOperator does not have an Available condition"
 	case coDegraded == nil:
 		coInsightHealthy.Status = metav1.ConditionUnknown
-		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonMissingDegraded)
+		coInsightHealthy.Reason = string(configv1alpha1.ClusterOperatorUpdateStatusInsightHealthyReasonMissingDegraded)
 		coInsightHealthy.Message = "ClusterOperator does not have a Degraded condition"
 	case coAvailable.Status == configv1.ConditionUnknown:
 		coInsightHealthy.Status = metav1.ConditionUnknown
@@ -256,7 +256,7 @@ func updateStatusForClusterOperator(cpStatus *configv1alpha1.ControlPlaneUpdateS
 		coInsightHealthy.LastTransitionTime = coDegraded.LastTransitionTime
 	case coAvailable.Status == configv1.ConditionTrue && coDegraded.Status == configv1.ConditionFalse:
 		coInsightHealthy.Status = metav1.ConditionTrue
-		coInsightHealthy.Reason = string(configv1alpha1.OperatorUpdateStatusInsightHealthyReasonAllIsWell)
+		coInsightHealthy.Reason = string(configv1alpha1.ClusterOperatorUpdateStatusInsightHealthyReasonAllIsWell)
 		coInsightHealthy.Message = "ClusterOperator is available and is not degraded"
 		coInsightHealthy.LastTransitionTime = coAvailable.LastTransitionTime
 	}
