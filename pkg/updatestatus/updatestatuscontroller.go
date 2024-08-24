@@ -30,6 +30,8 @@ import (
 	configv1alpha1 "github.com/openshift/api/config/v1alpha1"
 	mcfgv1 "github.com/openshift/api/machineconfiguration/v1"
 
+	mco "github.com/openshift/machine-config-operator/pkg/controller/common"
+
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 )
@@ -120,6 +122,8 @@ func newUpdateStatusController(
 		clusterVersions:  configInformers.Config().V1().ClusterVersions().Lister(),
 		clusterOperators: configInformers.Config().V1().ClusterOperators().Lister(),
 
+		machineConfigPools: mcfgInformers.Machineconfiguration().V1().MachineConfigPools().Lister(),
+
 		recorder: eventsRecorder,
 	}
 	controller := factory.New().WithInformersQueueKeysFunc(
@@ -127,8 +131,8 @@ func newUpdateStatusController(
 		configInformers.Config().V1().ClusterVersions().Informer(),
 		configInformers.Config().V1().ClusterOperators().Informer(),
 		mcfgInformers.Machineconfiguration().V1().MachineConfigPools().Informer(),
-		mcfgInformers.Machineconfiguration().V1().MachineConfigs().Informer(),
-		coreInformers.Core().V1().Nodes().Informer(),
+		// mcfgInformers.Machineconfiguration().V1().MachineConfigs().Informer(),
+		// coreInformers.Core().V1().Nodes().Informer(),
 	).
 		WithSync(c.sync).ToController("UpdateStatusController", eventsRecorder.WithComponentSuffix("update-status-controller"))
 	return controller
@@ -161,6 +165,8 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 
 	cpStatus := &original.Status.ControlPlane
 	var newCpStatus *configv1alpha1.ControlPlaneUpdateStatus
+	_ = &original.Status.WorkerPools
+	var newWpStatuses *[]configv1alpha1.PoolUpdateStatus
 
 	switch kind {
 	case clusterVersionKey:
@@ -179,7 +185,12 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 		newCpStatus = cpStatus.DeepCopy()
 		updateStatusForClusterOperator(newCpStatus, co)
 	case machineConfigPoolKey:
-	case machineConfigKey:
+		mcp, err := c.machineConfigPools.Get(name)
+		if err != nil {
+			klog.Fatalf("USC :: SYNC :: Failed to get MachineConfigPool %s: %v", name, err)
+		}
+		newCpStatus = cpStatus.DeepCopy()
+		updateStatusForMachineConfigPool(newCpStatus, newWpStatuses, mcp)
 	case nodeKey:
 	}
 
@@ -194,6 +205,126 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 	}
 
 	return nil
+}
+
+func updateStatusForMachineConfigPool(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
+	if mcp.Name == mco.MachineConfigPoolMaster {
+		updateStatusForControlPlaneMachineConfigPool(cpStatus, mcp)
+	} else {
+		updateStatusForWorkerMachineConfigPool(wpStatuses, mcp)
+	}
+}
+
+func updateStatusForWorkerMachineConfigPool(wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
+	// TODO: Reuse most of the logic from updateStatusForControlPlaneMachineConfigPool
+}
+
+func updateStatusForControlPlaneMachineConfigPool(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
+	prototypeInformer := ensurePrototypeInformer(&cpStatus.Informers)
+	mcpInsight := ensureMachineConfigPoolInsight(&prototypeInformer.Insights, mcp)
+
+	mcpInsight.Scope = configv1alpha1.ScopeTypeControlPlane
+
+	var total int32
+	var pendingCount int32
+	var updatedCount int32
+	var availableCount int32
+	var degradedCount int32
+	var excludedCount int32
+	var outdatedCount int32
+	var drainingCount int32
+	var progressingCount int32
+
+	for _, informer := range cpStatus.Informers {
+		for _, insight := range informer.Insights {
+			if insight.Type != configv1alpha1.UpdateInsightTypeNodeStatusInsight {
+				continue
+			}
+
+			nodeInsight := insight.NodeStatusInsight
+
+			if nodeInsight.PoolResource.APIGroup != "machineconfiguration.openshift.io" ||
+				nodeInsight.PoolResource.Kind != "MachineConfigPool" ||
+				nodeInsight.PoolResource.Name != mcp.Name {
+				continue
+			}
+
+			total++
+			available := meta.FindStatusCondition(nodeInsight.Conditions, string(configv1alpha1.NodeStatusInsightConditionTypeAvailable))
+			degraded := meta.FindStatusCondition(nodeInsight.Conditions, string(configv1alpha1.NodeStatusInsightConditionTypeDegraded))
+			updating := meta.FindStatusCondition(nodeInsight.Conditions, string(configv1alpha1.NodeStatusInsightConditionTypeUpdating))
+
+			if available != nil && available.Status == metav1.ConditionTrue {
+				availableCount++
+			}
+			if degraded != nil && degraded.Status == metav1.ConditionTrue {
+				degradedCount++
+			}
+			if updating != nil && updating.Status == metav1.ConditionFalse && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonPaused) {
+				excludedCount++
+				outdatedCount++
+			}
+			if updating != nil && updating.Status == metav1.ConditionFalse && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonPending) {
+				pendingCount++
+				outdatedCount++
+			}
+			if updating != nil && updating.Status == metav1.ConditionTrue && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonDraining) {
+				drainingCount++
+				outdatedCount++
+				if degraded == nil || degraded.Status != metav1.ConditionTrue {
+					progressingCount++
+				}
+			}
+			if updating != nil && updating.Status == metav1.ConditionTrue && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonUpdating) {
+				outdatedCount++
+				if degraded == nil || degraded.Status != metav1.ConditionTrue {
+					progressingCount++
+				}
+			}
+			if updating != nil && updating.Status == metav1.ConditionTrue && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonRebooting) {
+				outdatedCount++
+				if degraded == nil || degraded.Status != metav1.ConditionTrue {
+					progressingCount++
+				}
+			}
+			if updating != nil && updating.Status == metav1.ConditionFalse && updating.Reason == string(configv1alpha1.NodeStatusInsightUpdatingReasonCompleted) {
+				updatedCount++
+			}
+		}
+	}
+
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeTotal, total)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeAvailable, availableCount)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeProgressing, progressingCount)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeOutdated, outdatedCount)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeDraining, drainingCount)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeExcluded, excludedCount)
+	setMachineConfigPoolSummary(&mcpInsight.Summaries, configv1alpha1.PoolNodesSummaryTypeDegraded, degradedCount)
+
+	switch {
+	case updatedCount == total:
+		mcpInsight.Assessment = configv1alpha1.PoolUpdateAssessmentCompleted
+	case pendingCount == total:
+		mcpInsight.Assessment = configv1alpha1.PoolUpdateAssessmentPending
+	case degradedCount > 0:
+		mcpInsight.Assessment = configv1alpha1.PoolUpdateAssessmentDegraded
+	case excludedCount > 0:
+		mcpInsight.Assessment = configv1alpha1.PoolUpdateAssessmentExcluded
+	default:
+		mcpInsight.Assessment = configv1alpha1.PoolUpdateAssessmentProgressing
+	}
+
+	mcpInsight.Completion = int32(float64(updatedCount) / float64(total) * 100.0)
+}
+
+func setMachineConfigPoolSummary(summaries *[]configv1alpha1.PoolNodesUpdateSummary, summaryType configv1alpha1.PoolNodesSummaryType, count int32) {
+	for i := range *summaries {
+		if (*summaries)[i].Type == summaryType {
+			(*summaries)[i].Count = count
+			return
+		}
+	}
+	*summaries = append(*summaries, configv1alpha1.PoolNodesUpdateSummary{Type: summaryType, Count: count})
 }
 
 func updateStatusForClusterOperator(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, co *configv1.ClusterOperator) {
@@ -474,6 +605,26 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 	meta.SetStatusCondition(&cvInsight.Conditions, cvInsightUpdating)
 }
 
+func ensureMachineConfigPoolInsight(insights *[]configv1alpha1.UpdateInsight, mcp *mcfgv1.MachineConfigPool) *configv1alpha1.MachineConfigPoolStatusInsight {
+	mcpInsight := findMachineConfigPoolInsight(*insights, mcp.Name)
+	if mcpInsight == nil {
+		mcpInsight = &configv1alpha1.MachineConfigPoolStatusInsight{
+			Name: mcp.Name,
+			Resource: configv1alpha1.ResourceRef{
+				Name:     mcp.Name,
+				Kind:     "MachineConfigPool",
+				APIGroup: "machineconfiguration.openshift.io",
+			},
+		}
+		*insights = append(*insights, configv1alpha1.UpdateInsight{
+			Type:                           configv1alpha1.UpdateInsightTypeMachineConfigPoolStatusInsight,
+			MachineConfigPoolStatusInsight: mcpInsight,
+		})
+		mcpInsight = (*insights)[len(*insights)-1].MachineConfigPoolStatusInsight
+	}
+	return mcpInsight
+}
+
 func ensureClusterVersionInsight(insights *[]configv1alpha1.UpdateInsight, cvName string) *configv1alpha1.ClusterVersionStatusInsight {
 	cvInsight := findClusterVersionInsight(*insights)
 	if cvInsight == nil {
@@ -501,6 +652,15 @@ func ensurePrototypeInformer(informers *[]configv1alpha1.UpdateInformer) *config
 		prototypeInformer = &(*informers)[last]
 	}
 	return prototypeInformer
+}
+
+func findMachineConfigPoolInsight(insights []configv1alpha1.UpdateInsight, name string) *configv1alpha1.MachineConfigPoolStatusInsight {
+	for i := range insights {
+		if insights[i].Type == configv1alpha1.UpdateInsightTypeMachineConfigPoolStatusInsight && insights[i].MachineConfigPoolStatusInsight.Resource.Name == name {
+			return insights[i].MachineConfigPoolStatusInsight
+		}
+	}
+	return nil
 }
 
 func findClusterVersionInsight(insights []configv1alpha1.UpdateInsight) *configv1alpha1.ClusterVersionStatusInsight {
