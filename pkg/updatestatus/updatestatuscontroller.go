@@ -377,31 +377,8 @@ func versionsFromHistory(history []configv1.UpdateHistory) configv1alpha1.Contro
 }
 
 func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, cv *configv1.ClusterVersion) {
-	cpUpdatingType := string(configv1alpha1.ControlPlaneConditionTypeUpdating)
-
-	prototypeInformer := findUpdateInformer(cpStatus.Informers, prototypeInformerName)
-	if prototypeInformer == nil {
-		cpStatus.Informers = append(cpStatus.Informers, configv1alpha1.UpdateInformer{Name: prototypeInformerName})
-		prototypeInformer = &cpStatus.Informers[len(cpStatus.Informers)-1]
-	}
-
-	cvInsight := findClusterVersionInsight(prototypeInformer.Insights)
-	if cvInsight == nil {
-		cvInsight = &configv1alpha1.ClusterVersionStatusInsight{
-			Resource: configv1alpha1.ResourceRef{
-				Name:     cv.Name,
-				Kind:     "ClusterVersion",
-				APIGroup: "config.openshift.io",
-			},
-		}
-		prototypeInformer.Insights = append(prototypeInformer.Insights, configv1alpha1.UpdateInsight{
-			Type:                        configv1alpha1.UpdateInsightTypeClusterVersionStatusInsight,
-			ClusterVersionStatusInsight: cvInsight,
-		})
-		cvInsight = prototypeInformer.Insights[len(prototypeInformer.Insights)-1].ClusterVersionStatusInsight
-	}
-
-	cvInsightUpdatingType := string(configv1alpha1.ClusterVersionStatusInsightConditionTypeUpdating)
+	prototypeInformer := ensurePrototypeInformer(&cpStatus.Informers)
+	cvInsight := ensureClusterVersionInsight(&prototypeInformer.Insights, cv.Name)
 
 	cvInsight.Versions = versionsFromHistory(cv.Status.History)
 
@@ -414,11 +391,14 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 		}
 	}
 
-	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
+	cpUpdatingType := string(configv1alpha1.ControlPlaneConditionTypeUpdating)
+	cvInsightUpdatingType := string(configv1alpha1.ClusterVersionStatusInsightConditionTypeUpdating)
 
 	// Create one from the other (CP insight from CV insight)
 	cpUpdatingCondition := metav1.Condition{Type: cpUpdatingType}
 	cvInsightUpdating := metav1.Condition{Type: cvInsightUpdatingType}
+
+	cvProgressing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing)
 
 	if cvProgressing == nil {
 		cpUpdatingCondition.Status = metav1.ConditionUnknown
@@ -491,6 +471,35 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 	meta.SetStatusCondition(&cpStatus.Conditions, cpUpdatingCondition)
 	meta.SetStatusCondition(&cvInsight.Conditions, cvInsightUpdating)
+}
+
+func ensureClusterVersionInsight(insights *[]configv1alpha1.UpdateInsight, cvName string) *configv1alpha1.ClusterVersionStatusInsight {
+	cvInsight := findClusterVersionInsight(*insights)
+	if cvInsight == nil {
+		cvInsight = &configv1alpha1.ClusterVersionStatusInsight{
+			Resource: configv1alpha1.ResourceRef{
+				Name:     cvName,
+				Kind:     "ClusterVersion",
+				APIGroup: "config.openshift.io",
+			},
+		}
+		*insights = append(*insights, configv1alpha1.UpdateInsight{
+			Type:                        configv1alpha1.UpdateInsightTypeClusterVersionStatusInsight,
+			ClusterVersionStatusInsight: cvInsight,
+		})
+		cvInsight = (*insights)[len(*insights)-1].ClusterVersionStatusInsight
+	}
+	return cvInsight
+}
+
+func ensurePrototypeInformer(informers *[]configv1alpha1.UpdateInformer) *configv1alpha1.UpdateInformer {
+	prototypeInformer := findUpdateInformer(*informers, prototypeInformerName)
+	if prototypeInformer == nil {
+		*informers = append(*informers, configv1alpha1.UpdateInformer{Name: prototypeInformerName})
+		last := len(*informers) - 1
+		prototypeInformer = &(*informers)[last]
+	}
+	return prototypeInformer
 }
 
 func findClusterVersionInsight(insights []configv1alpha1.UpdateInsight) *configv1alpha1.ClusterVersionStatusInsight {
