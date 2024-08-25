@@ -139,3 +139,36 @@ func Test_ensureClusterVersionInsight(t *testing.T) {
 		})
 	}
 }
+
+func Test_findOperatorVersion(t *testing.T) {
+	testCases := []struct {
+		name     string
+		versions []configv1.OperandVersion
+		expected *configv1.OperandVersion
+	}{
+		{
+			name: "no versions",
+		},
+		{
+			name:     "empty versions",
+			versions: []configv1.OperandVersion{},
+		},
+		{
+			name:     "has version but not operator",
+			versions: []configv1.OperandVersion{{Name: "operand", Version: "1.2.3"}},
+		},
+		{
+			name:     "has operator version",
+			versions: []configv1.OperandVersion{{Name: "operator", Version: "4.5.6"}},
+			expected: &configv1.OperandVersion{Name: "operator", Version: "4.5.6"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := findOperatorVersion(tc.versions)
+			if diff := cmp.Diff(tc.expected, v); diff != "" {
+				t.Fatalf("findOperatorVersion() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

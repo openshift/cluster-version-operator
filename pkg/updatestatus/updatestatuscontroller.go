@@ -452,7 +452,13 @@ func updateStatusForMachineConfigPool(cpStatus *configv1alpha1.ControlPlaneUpdat
 }
 
 func updateStatusForWorkerMachineConfigPool(wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
-	// TODO: Reuse most of the logic from updateStatusForControlPlaneMachineConfigPool
+	wpStatus := ensureWorkerPoolStatus(wpStatuses, mcp)
+	prototypeInformer := ensurePrototypeInformer(&wpStatus.Informers)
+	mcpInsight := ensureMachineConfigPoolInsight(&prototypeInformer.Insights, mcp)
+
+	mcpInsight.Scope = configv1alpha1.ScopeTypeWorkerPool
+
+	updateMachineConfigPoolStatusInsight(&wpStatus.Informers, mcp, mcpInsight)
 }
 
 func updateStatusForControlPlaneMachineConfigPool(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
@@ -461,6 +467,10 @@ func updateStatusForControlPlaneMachineConfigPool(cpStatus *configv1alpha1.Contr
 
 	mcpInsight.Scope = configv1alpha1.ScopeTypeControlPlane
 
+	updateMachineConfigPoolStatusInsight(&cpStatus.Informers, mcp, mcpInsight)
+}
+
+func updateMachineConfigPoolStatusInsight(informers *[]configv1alpha1.UpdateInformer, mcp *mcfgv1.MachineConfigPool, mcpInsight *configv1alpha1.MachineConfigPoolStatusInsight) {
 	var total int32
 	var pendingCount int32
 	var updatedCount int32
@@ -471,7 +481,7 @@ func updateStatusForControlPlaneMachineConfigPool(cpStatus *configv1alpha1.Contr
 	var drainingCount int32
 	var progressingCount int32
 
-	for _, informer := range cpStatus.Informers {
+	for _, informer := range *informers {
 		for _, insight := range informer.Insights {
 			if insight.Type != configv1alpha1.UpdateInsightTypeNodeStatusInsight {
 				continue
@@ -841,6 +851,24 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 	meta.SetStatusCondition(&cvInsight.Conditions, cvInsightUpdating)
 }
 
+func ensureWorkerPoolStatus(wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) *configv1alpha1.PoolUpdateStatus {
+	wpStatus := findWorkerPoolStatus(*wpStatuses, mcp.Name)
+	if wpStatus == nil {
+		*wpStatuses = append(*wpStatuses, configv1alpha1.PoolUpdateStatus{
+			Name: mcp.Name,
+			Resource: configv1alpha1.PoolResourceRef{
+				ResourceRef: configv1alpha1.ResourceRef{
+					APIGroup: "machineconfiguration.openshift.io",
+					Kind:     "MachineConfigPool",
+					Name:     mcp.Name,
+				},
+			},
+		})
+		wpStatus = &(*wpStatuses)[len(*wpStatuses)-1]
+	}
+	return wpStatus
+}
+
 func ensureNodeStatusInsight(insights *[]configv1alpha1.UpdateInsight, node *corev1.Node) *configv1alpha1.NodeStatusInsight {
 	nodeInsight := findNodeStatusInsight(*insights, node.Name)
 	if nodeInsight == nil {
@@ -908,6 +936,15 @@ func ensurePrototypeInformer(informers *[]configv1alpha1.UpdateInformer) *config
 		prototypeInformer = &(*informers)[last]
 	}
 	return prototypeInformer
+}
+
+func findWorkerPoolStatus(statuses []configv1alpha1.PoolUpdateStatus, name string) *configv1alpha1.PoolUpdateStatus {
+	for i := range statuses {
+		if statuses[i].Name == name {
+			return &statuses[i]
+		}
+	}
+	return nil
 }
 
 func findNodeStatusInsight(insights []configv1alpha1.UpdateInsight, name string) *configv1alpha1.NodeStatusInsight {
