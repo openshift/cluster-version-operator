@@ -90,6 +90,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().ImagePolicies().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("insightsdatagathers"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().InsightsDataGathers().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("updatestatuses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Config().V1alpha1().UpdateStatuses().Informer()}, nil
 
 	}
 

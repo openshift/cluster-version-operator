@@ -28,6 +28,10 @@ func (c *FakeConfigV1alpha1) InsightsDataGathers() v1alpha1.InsightsDataGatherIn
 	return &FakeInsightsDataGathers{c}
 }
 
+func (c *FakeConfigV1alpha1) UpdateStatuses() v1alpha1.UpdateStatusInterface {
+	return &FakeUpdateStatuses{c}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeConfigV1alpha1) RESTClient() rest.Interface {

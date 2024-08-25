@@ -138,8 +138,6 @@ github.com/onsi/ginkgo/v2 v2.15.0 h1:79HwNRBAZHOEwrczrgSOPy+eFTTlIGELKy5as+ClttY
 github.com/onsi/ginkgo/v2 v2.15.0/go.mod h1:HlxMHtYF57y6Dpf+mc5529KKmSq9h2FpCF+/ZkwUxKM=
 github.com/onsi/gomega v1.31.0 h1:54UJxxj6cPInHS3a35wm6BK/F9nHYueZ1NVujHDrnXE=
 github.com/onsi/gomega v1.31.0/go.mod h1:DW9aCi7U6Yi40wNVAvT6kzFnEVEI5n3DloYBiKiT6zk=
-github.com/openshift/client-go v0.0.0-20240821135114-75c118605d5f h1:iYIcy36QilP/1KeiVYeqXP9oLsP2gCytGIG5+doS7x8=
-github.com/openshift/client-go v0.0.0-20240821135114-75c118605d5f/go.mod h1:3IPD4U0qyovZS4EFady2kqY32m8lGcbs/Wx+yprg9z8=
 github.com/openshift/library-go v0.0.0-20240709182732-b94141242b0c h1:J79MQ2jYap7l9ugCosp73mIcb6PNcXeczINlyfGC7XA=
 github.com/openshift/library-go v0.0.0-20240709182732-b94141242b0c/go.mod h1:PdASVamWinll2BPxiUpXajTwZxV8A1pQbWEsCN1od7I=
 github.com/operator-framework/api v0.17.1 h1:J/6+Xj4IEV8C7hcirqUFwOiZAU3PbnJhWvB0/bB51c4=
@@ -148,6 +146,8 @@ github.com/operator-framework/operator-lifecycle-manager v0.22.0 h1:7DEWOq24HQ0l
 github.com/operator-framework/operator-lifecycle-manager v0.22.0/go.mod h1:4zssIIl23ohxS1nXRU9xTkBmwt+qleuHMO02BaWOHLA=
 github.com/petr-muller/api v0.0.0-20240825134317-d07794135bff h1:O0LRn7a4Zf0EvINEcQM0YOek+82/NT7YJ3m771QifeI=
 github.com/petr-muller/api v0.0.0-20240825134317-d07794135bff/go.mod h1:OOh6Qopf21pSzqNVCB5gomomBXb8o5sGKZxG2KNpaXM=
+github.com/petr-muller/openshift-client-go v0.0.0-20240825134747-583f23d043ba h1:NR0K545Waf3x7DThMS2vo2HLxRKWIRBhJkIfp566N+k=
+github.com/petr-muller/openshift-client-go v0.0.0-20240825134747-583f23d043ba/go.mod h1:scfjzxZEifUmaLiPwKhmB7kS31hCOo7fxUYwnW1nFpI=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/profile v1.3.0 h1:OQIvuDgm00gWVWGTf4m4mCt6W1/0YqU7Ntg0mySWgaI=

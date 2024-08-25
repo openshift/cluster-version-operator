@@ -21,3 +21,7 @@ type ImagePolicyNamespaceListerExpansion interface{}
 // InsightsDataGatherListerExpansion allows custom methods to be added to
 // InsightsDataGatherLister.
 type InsightsDataGatherListerExpansion interface{}
+
+// UpdateStatusListerExpansion allows custom methods to be added to
+// UpdateStatusLister.
+type UpdateStatusListerExpansion interface{}

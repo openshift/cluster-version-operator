@@ -185,7 +185,7 @@ github.com/openshift/api/machineconfiguration/v1alpha1
 github.com/openshift/api/operator/v1
 github.com/openshift/api/operator/v1alpha1
 github.com/openshift/api/security/v1
-# github.com/openshift/client-go v0.0.0-20240821135114-75c118605d5f
+# github.com/openshift/client-go v0.0.0-20240821135114-75c118605d5f => github.com/petr-muller/openshift-client-go v0.0.0-20240825134747-583f23d043ba
 ## explicit; go 1.22.0
 github.com/openshift/client-go/config/applyconfigurations/config/v1
 github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1
@@ -1310,3 +1310,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # github.com/openshift/api => github.com/petr-muller/api v0.0.0-20240825134317-d07794135bff
+# github.com/openshift/client-go => github.com/petr-muller/openshift-client-go v0.0.0-20240825134747-583f23d043ba
