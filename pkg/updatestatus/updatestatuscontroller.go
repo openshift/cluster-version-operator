@@ -726,7 +726,23 @@ func updateStatusForClusterOperator(cpStatus *configv1alpha1.ControlPlaneUpdateS
 
 const prototypeInformerName = "ota-1268-prototype"
 
-func versionsFromHistory(history []configv1.UpdateHistory) configv1alpha1.ControlPlaneUpdateVersions {
+func scopeToUid(prefix string, scope configv1alpha1.UpdateInsightScope) string {
+	var resources []string
+	for _, ref := range scope.Resources {
+		name := ref.Name
+		if ref.Namespace != "" {
+			name = fmt.Sprintf("%s/%s", ref.Namespace, ref.Name)
+		}
+		gk := strings.ToLower(ref.Kind)
+		if ref.APIGroup != "" {
+			gk = fmt.Sprintf("%s.%s", ref.APIGroup, gk)
+		}
+		resources = append(resources, fmt.Sprintf("%s=%s", gk, name))
+	}
+	return fmt.Sprintf("%s(%s): %s", prefix, scope.Type, strings.Join(resources, "|"))
+}
+
+func versionsFromHistory(history []configv1.UpdateHistory, cvRef configv1alpha1.ResourceRef) (configv1alpha1.ControlPlaneUpdateVersions, []configv1alpha1.UpdateInsight) {
 	versionData := configv1alpha1.ControlPlaneUpdateVersions{
 		Target:   "unknown",
 		Previous: "unknown",
@@ -735,59 +751,68 @@ func versionsFromHistory(history []configv1.UpdateHistory) configv1alpha1.Contro
 	if len(history) > 0 {
 		versionData.Target = history[0].Version
 	} else {
-		return versionData
+		return versionData, nil
 	}
 
 	if len(history) == 1 {
 		versionData.IsTargetInstall = true
 		versionData.Previous = ""
-		return versionData
+		return versionData, nil
 	}
 	if len(history) > 1 {
 		versionData.Previous = history[1].Version
 		versionData.IsPreviousPartial = history[1].State == configv1.PartialUpdate
 	}
 
-	// var insights []configv1alpha.UpdateInsight
-	// controlPlaneCompleted := history[0].State == configv1.CompletedUpdate
-	// if !controlPlaneCompleted && versionData.isPreviousPartial {
-	// 	lastComplete := "unknown"
-	// 	if len(history) > 2 {
-	// 		for _, item := range history[2:] {
-	// 			if item.State == configv1.CompletedUpdate {
-	// 				lastComplete = item.Version
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// 	insights = []configv1alpha.UpdateInsight{
-	// 		{
-	// 			StartedAt: metav1.NewTime(history[0].StartedTime.Time),
-	// 			Scope: configv1alpha.UpdateInsightScope{
-	// 				Type:      configv1alpha.ScopeTypeControlPlane,
-	// 				Resources: []configv1alpha.ResourceRef{cvScope},
-	// 			},
-	// 			Impact: configv1alpha.UpdateInsightImpact{
-	// 				Level:       configv1alpha.WarningImpactLevel,
-	// 				Type:        configv1alpha.NoneImpactType,
-	// 				Summary:     fmt.Sprintf("Previous update to %s never completed, last complete update was %s", versionData.previous, lastComplete),
-	// 				Description: fmt.Sprintf("Current update to %s was initiated while the previous update to version %s was still in progress", versionData.target, versionData.previous),
-	// 			},
-	// 			Remediation: configv1alpha.UpdateInsightRemediation{
-	// 				Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
-	// 			},
-	// 		},
-	// 	}
-	// }
+	var insights []configv1alpha1.UpdateInsight
+	controlPlaneCompleted := history[0].State == configv1.CompletedUpdate
+	if !controlPlaneCompleted && versionData.IsPreviousPartial {
+		lastComplete := "unknown"
+		if len(history) > 2 {
+			for _, item := range history[2:] {
+				if item.State == configv1.CompletedUpdate {
+					lastComplete = item.Version
+					break
+				}
+			}
+		}
+		scope := configv1alpha1.UpdateInsightScope{
+			Type:      configv1alpha1.ScopeTypeControlPlane,
+			Resources: []configv1alpha1.ResourceRef{cvRef},
+		}
 
-	return versionData
+		insights = []configv1alpha1.UpdateInsight{
+			{
+				Type: configv1alpha1.UpdateInsightTypeUpdateHealthInsight,
+				UID:  scopeToUid("CV-Partial", scope),
+				UpdateHealthInsight: &configv1alpha1.UpdateHealthInsight{
+					StartedAt: metav1.NewTime(history[0].StartedTime.Time),
+					Scope:     scope,
+					Impact: configv1alpha1.UpdateInsightImpact{
+						Level:       configv1alpha1.WarningImpactLevel,
+						Type:        configv1alpha1.NoneImpactType,
+						Summary:     fmt.Sprintf("Previous update to %s never completed, last complete update was %s", versionData.Previous, lastComplete),
+						Description: fmt.Sprintf("Current update to %s was initiated while the previous update to version %s was still in progress", versionData.Target, versionData.Previous),
+					},
+					Remediation: configv1alpha1.UpdateInsightRemediation{
+						Reference: "https://docs.openshift.com/container-platform/latest/updating/troubleshooting_updates/gathering-data-cluster-update.html#gathering-clusterversion-history-cli_troubleshooting_updates",
+					},
+				},
+			},
+		}
+	}
+
+	return versionData, insights
 }
 
 func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, cv *configv1.ClusterVersion) {
 	prototypeInformer := ensurePrototypeInformer(&cpStatus.Informers)
 	cvInsight := ensureClusterVersionInsight(&prototypeInformer.Insights, cv.Name)
 
-	cvInsight.Versions = versionsFromHistory(cv.Status.History)
+	versions, insights := versionsFromHistory(cv.Status.History, cvInsight.Resource)
+	cvInsight.Versions = versions
+
+	updateHealthInsights(&prototypeInformer.Insights, insights)
 
 	if len(cv.Status.History) > 0 {
 		cvInsight.StartedAt = metav1.NewTime(cv.Status.History[0].StartedTime.Time)
@@ -878,6 +903,24 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 	meta.SetStatusCondition(&cpStatus.Conditions, cpUpdatingCondition)
 	meta.SetStatusCondition(&cvInsight.Conditions, cvInsightUpdating)
+}
+
+func updateHealthInsights(destination *[]configv1alpha1.UpdateInsight, source []configv1alpha1.UpdateInsight) {
+	index := make(map[string]*configv1alpha1.UpdateInsight, len(source))
+	for i := range source {
+		if source[i].UpdateHealthInsight != nil {
+			index[source[i].UID] = &source[i]
+		}
+	}
+
+	updated := make([]configv1alpha1.UpdateInsight, 0, len(source))
+	for i := range *destination {
+		if source, ok := index[(*destination)[i].UID]; ok {
+			updated = append(updated, *source)
+		}
+	}
+
+	*destination = updated
 }
 
 func ensureWorkerPoolStatus(wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) *configv1alpha1.PoolUpdateStatus {
