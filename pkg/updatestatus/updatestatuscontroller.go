@@ -167,7 +167,7 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 
 	cpStatus := &original.Status.ControlPlane
 	var newCpStatus *configv1alpha1.ControlPlaneUpdateStatus
-	_ = &original.Status.WorkerPools
+	wpStatuses := &original.Status.WorkerPools
 	var newWpStatuses *[]configv1alpha1.PoolUpdateStatus
 
 	switch kind {
@@ -192,6 +192,10 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 			klog.Fatalf("USC :: SYNC :: Failed to get MachineConfigPool %s: %v", name, err)
 		}
 		newCpStatus = cpStatus.DeepCopy()
+		newWpStatuses = &[]configv1alpha1.PoolUpdateStatus{}
+		for i := range *wpStatuses {
+			*newWpStatuses = append(*newWpStatuses, *(*wpStatuses)[i].DeepCopy())
+		}
 		updateStatusForMachineConfigPool(newCpStatus, newWpStatuses, mcp)
 	case nodeKey:
 		node, err := c.nodes.Get(name)
@@ -199,13 +203,31 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 			klog.Fatalf("USC :: SYNC :: Failed to get Node %s: %v", name, err)
 		}
 		newCpStatus = cpStatus.DeepCopy()
+		newWpStatuses = &[]configv1alpha1.PoolUpdateStatus{}
+		for i := range *wpStatuses {
+			*newWpStatuses = append(*newWpStatuses, *(*wpStatuses)[i].DeepCopy())
+		}
 		updateStatusForNode(newCpStatus, newWpStatuses, node, c.machineConfigs, c.machineConfigPools)
 	}
 
-	if diff := cmp.Diff(cpStatus, newCpStatus); newCpStatus != nil && diff != "" {
-		klog.Info(diff)
+	cpDiff := cmp.Diff(cpStatus, newCpStatus)
+	wpDiff := cmp.Diff(wpStatuses, newWpStatuses)
+
+	if (newCpStatus != nil && cpDiff != "") || (newWpStatuses != nil && wpDiff != "") {
 		us := original.DeepCopy()
-		us.Status.ControlPlane = *newCpStatus
+		if newCpStatus != nil {
+			if cpDiff != "" {
+				klog.Infof("USC :: SYNC :: ControlPlaneUpdateStatus diff: %s", cpDiff)
+			}
+			us.Status.ControlPlane = *newCpStatus
+		}
+		if newWpStatuses != nil {
+			if wpDiff != "" {
+				klog.Infof("USC :: SYNC :: WorkerPoolStatuses diff: %s", wpDiff)
+			}
+			us.Status.WorkerPools = *newWpStatuses
+		}
+
 		_, err = c.updateStatuses.UpdateStatus(ctx, us, metav1.UpdateOptions{})
 		if err != nil {
 			klog.Fatalf("USC :: SYNC :: Failed to update UpdateStatus: %v", err)
@@ -262,10 +284,18 @@ func updateStatusForNode(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, wpSt
 		klog.Fatalf("USC :: SYNC :: Failed to get MachineConfigPool %s: %v", poolName, err)
 	}
 
+	var targetVersion string
+	if cv := findUpdateInformer(cpStatus.Informers, prototypeInformerName); cv != nil {
+		if cvi := findClusterVersionInsight(cv.Insights); cvi != nil {
+			targetVersion = cvi.Versions.Target
+		}
+	}
+
 	if poolName == mco.MachineConfigPoolMaster {
-		updateStatusForControlPlaneNode(cpStatus, node, pool, mcLister)
+		updateInformersForNode(&cpStatus.Informers, node, pool, targetVersion, mcLister)
 	} else {
-		updateStatusForWorkerNode(wpStatuses, node, pool, mcLister)
+		wpStatus := ensureWorkerPoolStatus(wpStatuses, pool)
+		updateInformersForNode(&wpStatus.Informers, node, pool, targetVersion, mcLister)
 	}
 }
 
@@ -326,8 +356,8 @@ func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
 	return isUpdating && mcdState == mco.MachineConfigDaemonStateDone
 }
 
-func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, node *corev1.Node, pool *mcfgv1.MachineConfigPool, mcLister mcfgv1listers.MachineConfigLister) {
-	prototypeInformer := ensurePrototypeInformer(&cpStatus.Informers)
+func updateInformersForNode(informers *[]configv1alpha1.UpdateInformer, node *corev1.Node, pool *mcfgv1.MachineConfigPool, cpTargetVersion string, mcLister mcfgv1listers.MachineConfigLister) {
+	prototypeInformer := ensurePrototypeInformer(informers)
 	nodeInsight := ensureNodeStatusInsight(&prototypeInformer.Insights, node)
 
 	nodeInsight.PoolResource = configv1alpha1.PoolResourceRef{
@@ -338,8 +368,6 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 		},
 	}
 
-	cvInsight := findClusterVersionInsight(prototypeInformer.Insights)
-
 	machineConfigs, err := mcLister.List(labels.Everything())
 	if err != nil {
 		klog.Fatalf("USC :: SYNC :: Failed to list MachineConfigs")
@@ -349,12 +377,12 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 
 	isUnavailable, reasonOfUnavailability := isNodeUnavailable(node, pool)
 	isDegraded := isNodeDegraded(node)
-	isUpdated := foundCurrent && cvInsight.Versions.Target == currentVersion
+	isUpdated := foundCurrent && cpTargetVersion == currentVersion
 
 	// foundCurrent makes sure we don't blip phase "updating" for nodes that we are not sure
 	// of their actual phase, even though the conservative assumption is that the node is
 	// at least updating or is updated.
-	isUpdating := !isUpdated && foundCurrent && foundDesired && cvInsight.Versions.Target == desiredVersion
+	isUpdating := !isUpdated && foundCurrent && foundDesired && cpTargetVersion == desiredVersion
 
 	updatingCondition := metav1.Condition{Type: string(configv1alpha1.NodeStatusInsightConditionTypeUpdating)}
 	availableCondition := metav1.Condition{Type: string(configv1alpha1.NodeStatusInsightConditionTypeAvailable)}
@@ -382,6 +410,7 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 			updatingCondition.Status = metav1.ConditionFalse
 			updatingCondition.Reason = string(configv1alpha1.NodeStatusInsightUpdatingReasonCompleted)
 			updatingCondition.Message = "Node is updated"
+			nodeInsight.EstToComplete = metav1.Duration{}
 		case "":
 			updatingCondition.Status = metav1.ConditionTrue
 			updatingCondition.Reason = string(configv1alpha1.NodeStatusInsightUpdatingReasonUpdating)
@@ -397,14 +426,17 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 		updatingCondition.Status = metav1.ConditionFalse
 		updatingCondition.Reason = string(configv1alpha1.NodeStatusInsightUpdatingReasonCompleted)
 		updatingCondition.Message = "Node is updated"
+		nodeInsight.EstToComplete = metav1.Duration{}
 	case pool.Spec.Paused:
 		updatingCondition.Status = metav1.ConditionFalse
 		updatingCondition.Reason = string(configv1alpha1.NodeStatusInsightUpdatingReasonPaused)
 		updatingCondition.Message = "Node's parent MCP is paused"
+		nodeInsight.EstToComplete = metav1.Duration{}
 	default:
 		updatingCondition.Status = metav1.ConditionFalse
 		updatingCondition.Reason = string(configv1alpha1.NodeStatusInsightUpdatingReasonPending)
 		updatingCondition.Message = "Node is pending an update"
+		nodeInsight.EstToComplete = metav1.Duration{}
 	}
 
 	if isUnavailable && !isUpdating {
@@ -424,6 +456,7 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 		degradedCondition.Reason = "SomeDegradationReason"
 		degradedCondition.Message = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
 		nodeInsight.Message = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
+		nodeInsight.EstToComplete = metav1.Duration{}
 	} else {
 		degradedCondition.Status = metav1.ConditionFalse
 		degradedCondition.Reason = "AllIsWell"
@@ -437,10 +470,6 @@ func updateStatusForControlPlaneNode(cpStatus *configv1alpha1.ControlPlaneUpdate
 	meta.SetStatusCondition(&nodeInsight.Conditions, updatingCondition)
 
 	// Recompute MCP summaries and assessments
-}
-
-func updateStatusForWorkerNode(wpStatuses *[]configv1alpha1.PoolUpdateStatus, node *corev1.Node, pool *mcfgv1.MachineConfigPool, mcLister mcfgv1listers.MachineConfigLister) {
-
 }
 
 func updateStatusForMachineConfigPool(cpStatus *configv1alpha1.ControlPlaneUpdateStatus, wpStatuses *[]configv1alpha1.PoolUpdateStatus, mcp *mcfgv1.MachineConfigPool) {
