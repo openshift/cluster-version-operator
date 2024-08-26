@@ -842,12 +842,14 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 		cvInsightUpdating.Message = "ClusterVersion does not have a Progressing condition"
 
 		cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentDegraded
+		cvInsight.EstimatedCompletedAt = metav1.Time{}
 	} else {
 		cpUpdatingCondition.Message = cvProgressing.Message
 		cpUpdatingCondition.LastTransitionTime = cvProgressing.LastTransitionTime
 
 		cvInsightUpdating.Message = cvProgressing.Message
 		cvInsightUpdating.LastTransitionTime = cvProgressing.LastTransitionTime
+		cvInsight.EstimatedCompletedAt = metav1.Time{}
 
 		switch cvProgressing.Status {
 		case configv1.ConditionTrue:
@@ -861,6 +863,7 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 			cpUpdatingCondition.LastTransitionTime = cvInsight.StartedAt
 			cvInsightUpdating.LastTransitionTime = cvInsight.StartedAt
+			cvInsight.EstimatedCompletedAt = metav1.NewTime(cvInsight.StartedAt.Add(72 * time.Minute))
 
 		case configv1.ConditionFalse:
 			cpUpdatingCondition.Status = metav1.ConditionFalse
@@ -873,6 +876,7 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 
 			cpUpdatingCondition.LastTransitionTime = cvInsight.CompletedAt
 			cvInsightUpdating.LastTransitionTime = cvInsight.CompletedAt
+			cvInsight.EstimatedCompletedAt = metav1.Time{}
 
 		case configv1.ConditionUnknown:
 			cpUpdatingCondition.Status = metav1.ConditionUnknown
@@ -882,6 +886,7 @@ func updateStatusForClusterVersion(cpStatus *configv1alpha1.ControlPlaneUpdateSt
 			cvInsightUpdating.Reason = cvProgressing.Reason
 
 			cvInsight.Assessment = configv1alpha1.ControlPlaneUpdateAssessmentDegraded
+			cvInsight.EstimatedCompletedAt = metav1.Time{}
 		}
 
 		if cpUpdatingCondition.LastTransitionTime.IsZero() {
