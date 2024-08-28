@@ -62,8 +62,8 @@ func defaultUpgradeableCheckIntervals() upgradeableCheckIntervals {
 
 // syncUpgradeable synchronizes the upgradeable status only if the sufficient time passed since its last update. This
 // throttling period is dynamic and is driven by upgradeableCheckIntervals.
-func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion) error {
-	if u := optr.getUpgradeable(); u != nil {
+func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion, ignoreThrottlePeriod bool) error {
+	if u := optr.getUpgradeable(); u != nil && !ignoreThrottlePeriod {
 		throttleFor := optr.upgradeableCheckIntervals.throttlePeriod(cv)
 		if earliestNext := u.At.Add(throttleFor); time.Now().Before(earliestNext) {
 			klog.V(2).Infof("Upgradeability last checked %s ago, will not re-check until %s", time.Since(u.At), earliestNext.Format(time.RFC3339))
@@ -80,16 +80,24 @@ func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion) error {
 func (optr *Operator) setUpgradeableConditions() {
 	now := metav1.Now()
 	var conds []configv1.ClusterOperatorStatusCondition
+	var minorVersionClusterUpgradeInProgressCondition *configv1.ClusterOperatorStatusCondition
 	var reasons []string
 	var msgs []string
 	klog.V(4).Infof("Checking upgradeability conditions")
 	for _, check := range optr.upgradeableChecks {
 		if cond := check.Check(); cond != nil {
-			reasons = append(reasons, cond.Reason)
-			msgs = append(msgs, cond.Message)
-			cond.LastTransitionTime = now
-			conds = append(conds, *cond)
-			klog.V(2).Infof("Upgradeability condition failed (type='%s' reason='%s' message='%s')", cond.Type, cond.Reason, cond.Message)
+			if cond.Type != clusterversion.MinorVersionClusterUpgradeInProgress {
+				reasons = append(reasons, cond.Reason)
+				msgs = append(msgs, cond.Message)
+				cond.LastTransitionTime = now
+				conds = append(conds, *cond)
+				klog.V(2).Infof("Upgradeability condition failed (type='%s' reason='%s' message='%s')", cond.Type, cond.Reason, cond.Message)
+			} else {
+				// MinorVersionClusterUpgradeInProgress inhibit only the 2nd minor upgrade. For example, it still allows for patch upgrades on top the ongoing minor upgrade.
+				cond.LastTransitionTime = now
+				minorVersionClusterUpgradeInProgressCondition = cond
+				klog.V(2).Infof("MinorVersionClusterUpgradeInProgress condition found (type='%s' status='%s' reason='%s' message='%s')", cond.Type, cond.Status, cond.Reason, cond.Message)
+			}
 		}
 	}
 	if len(conds) == 1 {
@@ -110,6 +118,9 @@ func (optr *Operator) setUpgradeableConditions() {
 		})
 	} else {
 		klog.V(2).Infof("All upgradeability conditions are passing")
+	}
+	if minorVersionClusterUpgradeInProgressCondition != nil {
+		conds = append(conds, *minorVersionClusterUpgradeInProgressCondition)
 	}
 	sort.Slice(conds, func(i, j int) bool { return conds[i].Type < conds[j].Type })
 	optr.setUpgradeable(&upgradeable{
@@ -260,6 +271,44 @@ func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperat
 
 	cond.Reason = "ClusterVersionOverridesSet"
 	cond.Message = "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing."
+	return cond
+}
+
+type minorVersionClusterUpgradeInProgressUpgradeable struct {
+	name     string
+	cvLister configlistersv1.ClusterVersionLister
+}
+
+func (check *minorVersionClusterUpgradeInProgressUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
+	cond := &configv1.ClusterOperatorStatusCondition{
+		Type:   clusterversion.MinorVersionClusterUpgradeInProgress,
+		Status: configv1.ConditionTrue,
+	}
+
+	cv, err := check.cvLister.Get(check.name)
+	if meta.IsNoMatchError(err) || apierrors.IsNotFound(err) {
+		return nil
+	}
+
+	currentVersion := clusterversion.GetCurrentVersion(cv.Status.History)
+	// This can occur in early start up when the configmap is first added and version history
+	// has not yet been populated.
+	if currentVersion == "" {
+		klog.V(2).Infof("current version is empty")
+		return nil
+	}
+
+	currentMinor := clusterversion.GetEffectiveMinor(currentVersion)
+	desiredMinor := clusterversion.GetEffectiveMinor(cv.Status.Desired.Version)
+	klog.V(2).Infof("The current minor version is %s and the desired minor version is %s", currentMinor, desiredMinor)
+	if !clusterversion.MinorVersionUpgrade(currentMinor, desiredMinor) {
+		return nil
+	}
+
+	message := fmt.Sprintf("There is a minor level upgrade from %s to %s in progress.", currentVersion, cv.Status.Desired.Version)
+	klog.V(2).Info(cond.Message)
+	cond.Reason = "MinorVersionClusterUpgradeInProgress"
+	cond.Message = message
 	return cond
 }
 
@@ -421,6 +470,7 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterManifestDeleteInProgressUpgradeable{},
+		&minorVersionClusterUpgradeInProgressUpgradeable{name: optr.name, cvLister: optr.cvLister},
 	}
 }
 

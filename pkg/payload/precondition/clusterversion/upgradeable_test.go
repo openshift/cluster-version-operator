@@ -60,11 +60,13 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		upgradeable    *configv1.ConditionStatus
-		currVersion    string
-		desiredVersion string
-		expected       string
+		name                                 string
+		upgradeable                          *configv1.ConditionStatus
+		currVersion                          string
+		desiredVersion                       string
+		desiredVersionInCV                   string
+		minorVersionClusterUpgradeInProgress bool
+		expected                             string
 	}{
 		{
 			name:           "first",
@@ -105,6 +107,21 @@ func TestUpgradeableRun(t *testing.T) {
 			desiredVersion: "4.1.4",
 			expected:       "",
 		},
+		{
+			name:                                 "move-(y+1) while move-y is in progress",
+			currVersion:                          "4.6.3",
+			desiredVersionInCV:                   "4.7.2",
+			desiredVersion:                       "4.8.1",
+			minorVersionClusterUpgradeInProgress: true,
+			expected:                             "The minor level upgrade to 4.8.1 is not recommended: MinorVersionClusterUpgradeInProgress y to y+1. It is recommended to wait until the existing minor level upgrade completes.",
+		},
+		{
+			name:                                 "move-y with z while move-y is in progress",
+			currVersion:                          "4.6.3",
+			desiredVersionInCV:                   "4.7.2",
+			minorVersionClusterUpgradeInProgress: true,
+			desiredVersion:                       "4.7.3",
+		},
 	}
 
 	for _, tc := range tests {
@@ -114,6 +131,7 @@ func TestUpgradeableRun(t *testing.T) {
 				Spec:       configv1.ClusterVersionSpec{},
 				Status: configv1.ClusterVersionStatus{
 					History: []configv1.UpdateHistory{},
+					Desired: configv1.Release{Version: tc.desiredVersionInCV},
 				},
 			}
 			if len(tc.currVersion) > 0 {
@@ -124,6 +142,13 @@ func TestUpgradeableRun(t *testing.T) {
 					Type:    configv1.OperatorUpgradeable,
 					Status:  *tc.upgradeable,
 					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
+				})
+			}
+			if tc.minorVersionClusterUpgradeInProgress {
+				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+					Type:    MinorVersionClusterUpgradeInProgress,
+					Status:  configv1.ConditionTrue,
+					Message: "MinorVersionClusterUpgradeInProgress y to y+1.",
 				})
 			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
