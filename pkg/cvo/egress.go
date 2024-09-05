@@ -71,22 +71,24 @@ func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
 }
 
 func (optr *Operator) getTLSConfig() (*tls.Config, error) {
-	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
-	if apierrors.IsNotFound(err) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
 	certPool := x509.NewCertPool()
-
-	if cm.Data["ca-bundle.crt"] != "" {
-		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
-			return nil, fmt.Errorf("unable to add ca-bundle.crt certificates")
+	cmNames := []string{"trusted-ca-bundle", "default-ingress-cert"}
+	for _, cmName := range cmNames {
+		cm, err := optr.cmConfigManagedLister.Get(cmName)
+		if apierrors.IsNotFound(err) {
+			return nil, nil
 		}
-	} else {
-		return nil, nil
+		if err != nil {
+			return nil, err
+		}
+
+		if cm.Data["ca-bundle.crt"] != "" {
+			if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
+				return nil, fmt.Errorf("unable to add ca-bundle.crt certificates of the ConfigMap %s", cmName)
+			}
+		} else {
+			return nil, nil
+		}
 	}
 
 	config := &tls.Config{
