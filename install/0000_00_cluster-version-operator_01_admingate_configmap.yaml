@@ -1,5 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
+data:
+  ack-4.16-kube-1.30-api-removals-in-4.17: |-
+      Kubernetes 1.30 and therefore OpenShift 4.17 remove several APIs which require admin consideration. Please see the knowledge article https://access.redhat.com/articles/7031404 for details and instructions.
 metadata:
   name: admin-gates
   namespace: openshift-config-managed
