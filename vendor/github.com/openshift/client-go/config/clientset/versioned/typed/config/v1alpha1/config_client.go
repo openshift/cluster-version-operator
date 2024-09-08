@@ -16,6 +16,7 @@ type ConfigV1alpha1Interface interface {
 	ClusterImagePoliciesGetter
 	ImagePoliciesGetter
 	InsightsDataGathersGetter
+	UpdateStatusesGetter
 }
 
 // ConfigV1alpha1Client is used to interact with features provided by the config.openshift.io group.
@@ -37,6 +38,10 @@ func (c *ConfigV1alpha1Client) ImagePolicies(namespace string) ImagePolicyInterf
 
 func (c *ConfigV1alpha1Client) InsightsDataGathers() InsightsDataGatherInterface {
 	return newInsightsDataGathers(c)
+}
+
+func (c *ConfigV1alpha1Client) UpdateStatuses() UpdateStatusInterface {
+	return newUpdateStatuses(c)
 }
 
 // NewForConfig creates a new ConfigV1alpha1Client for the given config.

@@ -1621,6 +1621,10 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+    - name: imageStreamImportMode
+      type:
+        scalar: string
+      default: ""
     - name: registrySources
       type:
         namedType: com.github.openshift.api.config.v1.RegistrySources
@@ -1634,6 +1638,9 @@ var schemaYAML = typed.YAMLObject(`types:
           elementType:
             scalar: string
           elementRelationship: atomic
+    - name: imageStreamImportMode
+      type:
+        scalar: string
     - name: internalRegistryHostname
       type:
         scalar: string
@@ -3652,6 +3659,99 @@ var schemaYAML = typed.YAMLObject(`types:
           elementRelationship: associative
           keys:
           - type
+- name: com.github.openshift.api.config.v1alpha1.ClusterOperatorStatusInsight
+  map:
+    fields:
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: resource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ResourceRef
+      default: {}
+- name: com.github.openshift.api.config.v1alpha1.ClusterVersionStatusInsight
+  map:
+    fields:
+    - name: assessment
+      type:
+        scalar: string
+      default: ""
+    - name: completedAt
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+    - name: completion
+      type:
+        scalar: numeric
+      default: 0
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: estimatedCompletedAt
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+    - name: resource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ResourceRef
+      default: {}
+    - name: startedAt
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+    - name: versions
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ControlPlaneUpdateVersions
+      default: {}
+- name: com.github.openshift.api.config.v1alpha1.ControlPlaneUpdateStatus
+  map:
+    fields:
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: informers
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.UpdateInformer
+          elementRelationship: associative
+          keys:
+          - name
+- name: com.github.openshift.api.config.v1alpha1.ControlPlaneUpdateVersions
+  map:
+    fields:
+    - name: previous
+      type:
+        scalar: string
+    - name: previousPartial
+      type:
+        scalar: boolean
+    - name: target
+      type:
+        scalar: string
+      default: ""
+    - name: targetInstall
+      type:
+        scalar: boolean
 - name: com.github.openshift.api.config.v1alpha1.EtcdBackupSpec
   map:
     fields:
@@ -3781,6 +3881,77 @@ var schemaYAML = typed.YAMLObject(`types:
         elementType:
           namedType: __untyped_deduced_
         elementRelationship: separable
+- name: com.github.openshift.api.config.v1alpha1.MachineConfigPoolStatusInsight
+  map:
+    fields:
+    - name: assessment
+      type:
+        scalar: string
+      default: ""
+    - name: completion
+      type:
+        scalar: numeric
+      default: 0
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: resource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ResourceRef
+      default: {}
+    - name: scopeType
+      type:
+        scalar: string
+      default: ""
+    - name: summaries
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.PoolNodesUpdateSummary
+          elementRelationship: associative
+          keys:
+          - type
+- name: com.github.openshift.api.config.v1alpha1.NodeStatusInsight
+  map:
+    fields:
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: estToComplete
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Duration
+    - name: message
+      type:
+        scalar: string
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: poolResource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.PoolResourceRef
+      default: {}
+    - name: resource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ResourceRef
+      default: {}
+    - name: version
+      type:
+        scalar: string
 - name: com.github.openshift.api.config.v1alpha1.Policy
   map:
     fields:
@@ -3861,6 +4032,53 @@ var schemaYAML = typed.YAMLObject(`types:
         discriminatorValue: FulcioCAWithRekor
       - fieldName: publicKey
         discriminatorValue: PublicKey
+- name: com.github.openshift.api.config.v1alpha1.PoolNodesUpdateSummary
+  map:
+    fields:
+    - name: count
+      type:
+        scalar: numeric
+      default: 0
+    - name: type
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.PoolResourceRef
+  map:
+    fields:
+    - name: apiGroup
+      type:
+        scalar: string
+    - name: kind
+      type:
+        scalar: string
+      default: ""
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: namespace
+      type:
+        scalar: string
+- name: com.github.openshift.api.config.v1alpha1.PoolUpdateStatus
+  map:
+    fields:
+    - name: informers
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.UpdateInformer
+          elementRelationship: associative
+          keys:
+          - name
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: resource
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.PoolResourceRef
+      default: {}
 - name: com.github.openshift.api.config.v1alpha1.PublicKey
   map:
     fields:
@@ -3868,6 +4086,23 @@ var schemaYAML = typed.YAMLObject(`types:
       type:
         scalar: string
     - name: rekorKeyData
+      type:
+        scalar: string
+- name: com.github.openshift.api.config.v1alpha1.ResourceRef
+  map:
+    fields:
+    - name: apiGroup
+      type:
+        scalar: string
+    - name: kind
+      type:
+        scalar: string
+      default: ""
+    - name: name
+      type:
+        scalar: string
+      default: ""
+    - name: namespace
       type:
         scalar: string
 - name: com.github.openshift.api.config.v1alpha1.RetentionNumberConfig
@@ -3902,6 +4137,165 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: maxSizeOfBackupsGb
       type:
         scalar: numeric
+- name: com.github.openshift.api.config.v1alpha1.UpdateHealthInsight
+  map:
+    fields:
+    - name: impact
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateInsightImpact
+      default: {}
+    - name: remediation
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateInsightRemediation
+      default: {}
+    - name: scope
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateInsightScope
+      default: {}
+    - name: startedAt
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+- name: com.github.openshift.api.config.v1alpha1.UpdateInformer
+  map:
+    fields:
+    - name: insights
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.UpdateInsight
+          elementRelationship: atomic
+    - name: name
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.UpdateInsight
+  map:
+    fields:
+    - name: acquisitionTime
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+    - name: co
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ClusterOperatorStatusInsight
+    - name: cv
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ClusterVersionStatusInsight
+    - name: health
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateHealthInsight
+    - name: mcp
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.MachineConfigPoolStatusInsight
+    - name: node
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.NodeStatusInsight
+    - name: type
+      type:
+        scalar: string
+      default: ""
+    - name: uid
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.UpdateInsightImpact
+  map:
+    fields:
+    - name: description
+      type:
+        scalar: string
+      default: ""
+    - name: level
+      type:
+        scalar: string
+      default: ""
+    - name: summary
+      type:
+        scalar: string
+      default: ""
+    - name: type
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.UpdateInsightRemediation
+  map:
+    fields:
+    - name: estimatedFinish
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Time
+      default: {}
+    - name: reference
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.UpdateInsightScope
+  map:
+    fields:
+    - name: resources
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.ResourceRef
+          elementRelationship: atomic
+    - name: type
+      type:
+        scalar: string
+      default: ""
+- name: com.github.openshift.api.config.v1alpha1.UpdateStatus
+  map:
+    fields:
+    - name: apiVersion
+      type:
+        scalar: string
+    - name: kind
+      type:
+        scalar: string
+    - name: metadata
+      type:
+        namedType: io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta
+      default: {}
+    - name: spec
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateStatusSpec
+      default: {}
+    - name: status
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.UpdateStatusStatus
+      default: {}
+- name: com.github.openshift.api.config.v1alpha1.UpdateStatusSpec
+  map:
+    elementType:
+      scalar: untyped
+      list:
+        elementType:
+          namedType: __untyped_atomic_
+        elementRelationship: atomic
+      map:
+        elementType:
+          namedType: __untyped_deduced_
+        elementRelationship: separable
+- name: com.github.openshift.api.config.v1alpha1.UpdateStatusStatus
+  map:
+    fields:
+    - name: conditions
+      type:
+        list:
+          elementType:
+            namedType: io.k8s.apimachinery.pkg.apis.meta.v1.Condition
+          elementRelationship: associative
+          keys:
+          - type
+    - name: controlPlane
+      type:
+        namedType: com.github.openshift.api.config.v1alpha1.ControlPlaneUpdateStatus
+      default: {}
+    - name: workerPools
+      type:
+        list:
+          elementType:
+            namedType: com.github.openshift.api.config.v1alpha1.PoolUpdateStatus
+          elementRelationship: atomic
 - name: io.k8s.api.core.v1.ConfigMapKeySelector
   map:
     fields:
