@@ -36,6 +36,8 @@ type ConfigSyncWorker interface {
 
 	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
 	NotifyAboutManagedResourceActivity(msg string)
+	// StillInitializing returns true if ConfigSyncWorker has no work to do yet
+	StillInitializing() bool
 }
 
 // PayloadInfo returns details about the payload when it was retrieved.
@@ -228,6 +230,10 @@ func NewSyncWorkerWithPreconditions(retriever PayloadRetriever, builder payload.
 // can be lost, so this is best used as a trigger to read the latest status.
 func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
+}
+
+func (w *SyncWorker) StillInitializing() bool {
+	return w.work == nil
 }
 
 // NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
