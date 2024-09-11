@@ -2858,6 +2858,114 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 	})
 }
 
+func TestCVO_UpgradeVerifiedPayloadStillInitializing(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
+
+	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	//
+	o.release.Image = "image/image:0"
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+			Generation:      1,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID:     clusterUID,
+			Channel:       "fast",
+			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
+		},
+		Status: configv1.ClusterVersionStatus{
+			// Prefers the image version over the operator's version (although in general they will remain in sync)
+			Desired:     desired,
+			VersionHash: "DL-FFQ2Uem8=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+			},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+
+	// make the image report unverified
+	payloadErr := &payload.UpdateError{
+		Reason:  "ImageVerificationFailed",
+		Message: "The update cannot be verified: some random error",
+		Nested:  fmt.Errorf("some random error"),
+	}
+	if !isImageVerificationError(payloadErr) {
+		t.Fatal("not the correct error type")
+	}
+	worker := o.configSync.(*SyncWorker)
+	retriever := worker.retriever.(*fakeDirectoryRetriever)
+	retriever.Set(PayloadInfo{}, payloadErr)
+	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest", Verified: true}, nil)
+
+	go worker.Start(ctx, 1)
+
+	// Step 1: Simulate a verified payload being retrieved and ensure the operator sets verified
+	//
+	client.ClearActions()
+	err := o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	actions := client.Actions()
+	if len(actions) != 2 {
+		t.Fatalf("%s", spew.Sdump(actions))
+	}
+	expectGet(t, actions[0], "clusterversions", "", "version")
+	expectUpdateStatus(t, actions[1], "clusterversions", "", &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "version",
+			ResourceVersion: "1",
+			Generation:      1,
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID:     clusterUID,
+			Channel:       "fast",
+			DesiredUpdate: &configv1.Update{Version: desired.Version, Image: desired.Image},
+		},
+		Status: configv1.ClusterVersionStatus{
+			ObservedGeneration: 1,
+			// Prefers the operator's version
+			Desired:     configv1.Release{Version: o.release.Version, Image: o.release.Image},
+			VersionHash: "DL-FFQ2Uem8=",
+			History: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Image: "image/image:0", Version: "1.0.0-abc", Verified: true, StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
+				EnabledCapabilities: sortedCaps,
+				KnownCapabilities:   sortedKnownCaps,
+			},
+			Conditions: []configv1.ClusterOperatorStatusCondition{
+				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
+				// cleared failing status and set progressing
+				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
+				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
+					Message: `Payload loaded version="1.0.0-abc" image="image/image:0" architecture="` + architecture + `"`},
+			},
+		},
+	})
+}
+
 func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest-2")
 
