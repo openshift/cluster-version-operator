@@ -678,7 +678,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// identify the desired next version
 	desired, ok := findUpdateFromConfig(config, optr.getArchitecture())
-	stillInitializing := optr.configSync.StillInitializing()
+	stillInitializing := optr.configSync.StillInitializingFunc()()
 	if ok && !stillInitializing {
 		klog.V(2).Infof("Desired version from spec is %#v after initialization", desired)
 	} else {

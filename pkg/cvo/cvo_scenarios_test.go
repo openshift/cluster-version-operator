@@ -1398,6 +1398,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 		t.Fatal("not the correct error type")
 	}
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
@@ -1653,7 +1654,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 		t.Fatal("not the correct error type")
 	}
 	worker := o.configSync.(*SyncWorker)
-
+	worker.stillInitializingFunc = func() bool { return false }
 	// checked by SyncWorker.syncPayload
 	worker.payload = &payload.Update{Release: o.release}
 
@@ -1904,6 +1905,7 @@ func TestCVO_UpgradeFailedPayloadLoadWithCapsChanges(t *testing.T) {
 		t.Fatal("not the correct error type")
 	}
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
@@ -2022,6 +2024,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 
 	defer shutdownFn()
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 
 	go worker.Start(ctx, 1)
 
@@ -2188,6 +2191,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 		t.Fatal("not the correct error type")
 	}
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 
@@ -2476,6 +2480,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 	defer shutdownFn()
 
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	worker.preconditions = []precondition.Precondition{&testPrecondition{SuccessAfter: 3}}
 
 	go worker.Start(ctx, 1)
@@ -2750,6 +2755,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 	defer shutdownFn()
 
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	worker.preconditions = []precondition.Precondition{&testPreconditionAlwaysFail{PreConditionName: "PreCondition1"}, &testPreconditionAlwaysFail{PreConditionName: "PreCondition2"}}
 
 	go worker.Start(ctx, 1)
@@ -2905,6 +2911,7 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 		t.Fatal("not the correct error type")
 	}
 	worker := o.configSync.(*SyncWorker)
+	worker.stillInitializingFunc = func() bool { return false }
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
 	retriever.Set(PayloadInfo{}, payloadErr)
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
