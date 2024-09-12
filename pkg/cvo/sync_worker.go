@@ -35,8 +35,8 @@ type ConfigSyncWorker interface {
 
 	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
 	NotifyAboutManagedResourceActivity(msg string)
-	// StillInitializingFunc a function that returns true if ConfigSyncWorker has no work to do yet
-	StillInitializingFunc() func() bool
+	// Initialized returns true if ConfigSyncWorker has work to do already
+	Initialized() bool
 }
 
 // PayloadInfo returns details about the payload when it was retrieved.
@@ -189,7 +189,8 @@ type SyncWorker struct {
 	// This contributes to whether or not some manifests are included for reconciliation.
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 
-	stillInitializingFunc func() bool
+	// initializedFunc is only for the unit-test purpose
+	initializedFunc func() bool
 }
 
 // NewSyncWorker initializes a ConfigSyncWorker that will retrieve payloads to disk, apply them via builder
@@ -231,13 +232,11 @@ func (w *SyncWorker) StatusCh() <-chan SyncWorkerStatus {
 	return w.report
 }
 
-func (w *SyncWorker) StillInitializingFunc() func() bool {
-	if w.stillInitializingFunc != nil {
-		return w.stillInitializingFunc
+func (w *SyncWorker) Initialized() bool {
+	if w.initializedFunc != nil {
+		return w.initializedFunc()
 	}
-	return func() bool {
-		return w.work == nil
-	}
+	return w.work != nil
 }
 
 // NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
