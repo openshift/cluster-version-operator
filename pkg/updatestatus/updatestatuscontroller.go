@@ -920,9 +920,13 @@ func updateHealthInsights(destination *[]configv1alpha1.UpdateInsight, source []
 
 	updated := make([]configv1alpha1.UpdateInsight, 0, len(source))
 	for i := range *destination {
+
 		if source, ok := index[(*destination)[i].UID]; ok {
 			updated = append(updated, *source)
+		} else if (*destination)[i].Type != configv1alpha1.UpdateInsightTypeUpdateHealthInsight {
+			updated = append(updated, (*destination)[i])
 		}
+
 	}
 
 	*destination = updated
