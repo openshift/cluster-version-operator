@@ -662,21 +662,20 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, ok := findUpdateFromConfig(config, optr.getArchitecture())
-	stillInitializing := optr.configSync.StillInitializingFunc()()
-	if ok && !stillInitializing {
+	desired, found := findUpdateFromConfig(config, optr.getArchitecture())
+	initialized := optr.configSync.Initialized()
+	if found && initialized {
 		klog.V(2).Infof("Desired version from spec is %#v after initialization", desired)
 	} else {
-		userDesired := desired
+		pendingDesired := desired
 		currentVersion := optr.currentVersion()
 		desired = configv1.Update{
 			Version: currentVersion.Version,
 			Image:   currentVersion.Image,
 		}
-		if ok {
-			// It implies stillInitializing == true
+		if !initialized {
 			klog.V(2).Infof("Desired version from operator is %#v with user's request to go to %#v. "+
-				"We are currently initializing the work for the request and will evaluate the version later", desired, userDesired)
+				"We are currently initializing the work for the request and will evaluate the version later", desired, pendingDesired)
 			// enqueue to trigger a reconciliation on ClusterVersion
 			optr.queue.Add(optr.queueKey())
 		} else {
