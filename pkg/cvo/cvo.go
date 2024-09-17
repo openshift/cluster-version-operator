@@ -656,7 +656,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 		}
 		if !initialized {
 			klog.V(2).Infof("Desired version from operator is %#v with user's request to go to %#v. "+
-				"We are currently initializing the work for the request and will evaluate the version later", desired, pendingDesired)
+				"We are currently initializing the worker and will evaluate the request later", desired, pendingDesired)
 			// enqueue to trigger a reconciliation on ClusterVersion
 			optr.queue.Add(optr.queueKey())
 		} else {
