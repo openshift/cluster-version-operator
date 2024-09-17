@@ -36,7 +36,7 @@ type ConfigSyncWorker interface {
 
 	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
 	NotifyAboutManagedResourceActivity(msg string)
-	// Initialized returns true if ConfigSyncWorker has work to do already
+	// Initialized returns true if the worker has work to do already
 	Initialized() bool
 }
 
