@@ -2858,10 +2858,10 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 	})
 }
 
-func TestCVO_UpgradeVerifiedPayloadStillInitializing(t *testing.T) {
+func TestCVO_UpgradePayloadStillInitializing(t *testing.T) {
 	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/payloadtest")
 
-	// Setup: a successful sync from a previous run, and the operator at the same image as before
+	// Setup: an upgrade request from user to a new image and the operator at the same image as before
 	//
 	o.release.Image = "image/image:0"
 	o.release.Version = "1.0.0-abc"
@@ -2901,24 +2901,14 @@ func TestCVO_UpgradeVerifiedPayloadStillInitializing(t *testing.T) {
 
 	defer shutdownFn()
 
-	// make the image report unverified
-	payloadErr := &payload.UpdateError{
-		Reason:  "ImageVerificationFailed",
-		Message: "The update cannot be verified: some random error",
-		Nested:  fmt.Errorf("some random error"),
-	}
-	if !isImageVerificationError(payloadErr) {
-		t.Fatal("not the correct error type")
-	}
 	worker := o.configSync.(*SyncWorker)
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
-	retriever.Set(PayloadInfo{}, payloadErr)
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest", Verified: true}, nil)
 
 	go worker.Start(ctx, 1)
 
-	// Step 1: Simulate a verified payload being retrieved and ensure the operator sets verified
-	//
+	// Step 1: Simulate a payload being retrieved while the sync worker is not initialized
+	// and ensure the desired version from the operator is taken from the operator and a reconciliation is enqueued
 	client.ClearActions()
 	err := o.sync(ctx, o.queueKey())
 	if err != nil {
@@ -2955,7 +2945,6 @@ func TestCVO_UpgradeVerifiedPayloadStillInitializing(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 1.0.0-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
@@ -2964,6 +2953,10 @@ func TestCVO_UpgradeVerifiedPayloadStillInitializing(t *testing.T) {
 			},
 		},
 	})
+	if l := o.queue.Len(); l != 1 {
+		t.Errorf("expecting queue length is 1 but got %d", l)
+	}
+
 }
 
 func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
