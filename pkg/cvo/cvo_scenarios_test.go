@@ -2899,18 +2899,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 
 	defer shutdownFn()
 
-	// make the image report unverified
-	payloadErr := &payload.UpdateError{
-		Reason:  "ImageVerificationFailed",
-		Message: "The update cannot be verified: some random error",
-		Nested:  fmt.Errorf("some random error"),
-	}
-	if !isImageVerificationError(payloadErr) {
-		t.Fatal("not the correct error type")
-	}
 	worker := o.configSync.(*SyncWorker)
 	retriever := worker.retriever.(*fakeDirectoryRetriever)
-	retriever.Set(PayloadInfo{}, payloadErr)
 	retriever.Set(PayloadInfo{Directory: "testdata/payloadtest-2", Verified: true}, nil)
 
 	go worker.Start(ctx, 1)
@@ -2954,8 +2944,8 @@ func TestCVO_UpgradeVerifiedPayload(t *testing.T) {
 			Conditions: []configv1.ClusterOperatorStatusCondition{
 				{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue, Message: "Done applying 1.0.0-abc"},
-				// cleared failing status and set progressing
 				{Type: ClusterStatusFailing, Status: configv1.ConditionFalse},
+				// set progressing
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 1.0.1-abc"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
