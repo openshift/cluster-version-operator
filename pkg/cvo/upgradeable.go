@@ -302,6 +302,14 @@ func (check *upgradeInProgressUpgradeable) Check() *configv1.ClusterOperatorStat
 	klog.V(2).Info(cond.Message)
 	cond.Reason = "UpgradeInProgress"
 	cond.Message = message
+
+	currentMinor := clusterversion.GetEffectiveMinor(currentVersion)
+	desiredMinor := clusterversion.GetEffectiveMinor(cv.Status.Desired.Version)
+	klog.V(2).Infof("The current minor version is %s and the desired minor version is %s", currentMinor, desiredMinor)
+	if clusterversion.MinorVersionUpgrade(currentMinor, desiredMinor) {
+		cond.Reason = clusterversion.ConditionReasonMinorVersionClusterUpgradeInProgress
+	}
+
 	return cond
 }
 

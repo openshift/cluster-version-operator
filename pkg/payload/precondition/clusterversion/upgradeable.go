@@ -68,11 +68,25 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 	if upgradeableUpgradeInProgress := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, UpgradeInProgress); upgradeableUpgradeInProgress != nil && upgradeableUpgradeInProgress.Status == configv1.ConditionTrue {
 		desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
-		if minorInProgress := GetEffectiveMinor(cv.Status.Desired.Version); minorVersionUpgrade(minorInProgress, desiredMinor) {
+		if minorInProgress := GetEffectiveMinor(cv.Status.Desired.Version); MinorVersionUpgrade(minorInProgress, desiredMinor) {
 			return &precondition.Error{
 				Reason:  "UpgradeInProgress",
 				Message: fmt.Sprintf("The minor level upgrade to %s is not recommended: %s It is recommended to wait until the existing upgrade completes.", releaseContext.DesiredVersion, upgradeableUpgradeInProgress.Message),
 				Name:    pf.Name(),
+			}
+		} else {
+			if cv.Status.Desired.Version != "" &&
+				releaseContext.DesiredVersion != "" &&
+				cv.Status.Desired.Version != releaseContext.DesiredVersion &&
+				upgradeableUpgradeInProgress.Reason == ConditionReasonMinorVersionClusterUpgradeInProgress {
+				return &precondition.Error{
+					Reason:  ConditionReasonMinorVersionClusterUpgradeInProgress,
+					Message: fmt.Sprintf("The upgrade is retargeted to %s from the existing minor level upgrade: %s", releaseContext.DesiredVersion, upgradeableUpgradeInProgress.Message),
+					Name:    pf.Name(),
+					// This is to generate a message in the accepted risks
+					// for the unblocking case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
+					NonBlockingWarning: true,
+				}
 			}
 		}
 	}
@@ -101,7 +115,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 
 	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
 	// if no cluster overrides have been set
-	if !minorVersionUpgrade(currentMinor, desiredMinor) {
+	if !MinorVersionUpgrade(currentMinor, desiredMinor) {
 		klog.V(2).Infof("Precondition %q passed: minor from the target %s is not a minor version update from the current %s.%s.", pf.Name(), releaseContext.DesiredVersion, currentVersion, currentMinor)
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
 			klog.V(2).Infof("Update from %s to %s blocked by %s: %s", currentVersion, releaseContext.DesiredVersion, condition.Reason, condition.Message)
@@ -155,10 +169,10 @@ func GetEffectiveMinor(version string) string {
 	return splits[1]
 }
 
-// minorVersionUpgrade returns true if the the desired update minor version number is greater
+// MinorVersionUpgrade returns true if the the desired update minor version number is greater
 // than the current version minor version number. Errors resulting from either version
 // number being unset or NaN are ignored simply resulting in false returned.
-func minorVersionUpgrade(currentMinor string, desiredMinor string) bool {
+func MinorVersionUpgrade(currentMinor string, desiredMinor string) bool {
 	if currentMinorNum, err := strconv.Atoi(currentMinor); err == nil {
 		if desiredMinorNum, err := strconv.Atoi(desiredMinor); err == nil {
 			if desiredMinorNum > currentMinorNum {
@@ -168,3 +182,5 @@ func minorVersionUpgrade(currentMinor string, desiredMinor string) bool {
 	}
 	return false
 }
+
+const ConditionReasonMinorVersionClusterUpgradeInProgress = "MinorVersionClusterUpgradeInProgress"

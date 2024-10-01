@@ -65,7 +65,7 @@ func TestUpgradeableRun(t *testing.T) {
 		currVersion        string
 		desiredVersion     string
 		desiredVersionInCV string
-		upgradeInProgress  bool
+		NonBlockingWarning bool
 		expected           string
 	}{
 		{
@@ -112,7 +112,6 @@ func TestUpgradeableRun(t *testing.T) {
 			currVersion:        "4.6.3",
 			desiredVersionInCV: "4.7.2",
 			desiredVersion:     "4.8.1",
-			upgradeInProgress:  true,
 			expected:           "The minor level upgrade to 4.8.1 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
 		},
 		{
@@ -120,15 +119,15 @@ func TestUpgradeableRun(t *testing.T) {
 			currVersion:        "4.14.15",
 			desiredVersionInCV: "4.14.35",
 			desiredVersion:     "4.15.29",
-			upgradeInProgress:  true,
 			expected:           "The minor level upgrade to 4.15.29 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
 		},
 		{
 			name:               "move-y with z while move-y is in progress",
 			currVersion:        "4.6.3",
 			desiredVersionInCV: "4.7.2",
-			upgradeInProgress:  true,
 			desiredVersion:     "4.7.3",
+			NonBlockingWarning: true,
+			expected:           "The upgrade is retargeted to 4.7.3 from the existing minor level upgrade: UpgradeInProgress y to y+1.",
 		},
 	}
 
@@ -152,11 +151,17 @@ func TestUpgradeableRun(t *testing.T) {
 					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
 				})
 			}
-			if tc.upgradeInProgress {
+
+			if tc.desiredVersionInCV != "" {
+				reason := "some-reason"
+				if MinorVersionUpgrade(GetEffectiveMinor(tc.currVersion), GetEffectiveMinor(tc.desiredVersionInCV)) {
+					reason = ConditionReasonMinorVersionClusterUpgradeInProgress
+				}
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 					Type:    UpgradeInProgress,
 					Status:  configv1.ConditionTrue,
 					Message: "UpgradeInProgress y to y+1.",
+					Reason:  reason,
 				})
 			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
@@ -165,6 +170,15 @@ func TestUpgradeableRun(t *testing.T) {
 			err := instance.Run(ctx, precondition.ReleaseContext{
 				DesiredVersion: tc.desiredVersion,
 			})
+			if tc.NonBlockingWarning {
+				pError, ok := err.(*precondition.Error)
+				if !ok {
+					t.Errorf("Failed to convert to err: %v", err)
+				}
+				if pError.NonBlockingWarning != true {
+					t.Error("NonBlockingWarning should be true")
+				}
+			}
 			switch {
 			case err != nil && len(tc.expected) == 0:
 				t.Error(err)
