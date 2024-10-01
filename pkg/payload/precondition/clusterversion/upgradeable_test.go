@@ -60,13 +60,13 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                                 string
-		upgradeable                          *configv1.ConditionStatus
-		currVersion                          string
-		desiredVersion                       string
-		desiredVersionInCV                   string
-		minorVersionClusterUpgradeInProgress bool
-		expected                             string
+		name               string
+		upgradeable        *configv1.ConditionStatus
+		currVersion        string
+		desiredVersion     string
+		desiredVersionInCV string
+		upgradeInProgress  bool
+		expected           string
 	}{
 		{
 			name:           "first",
@@ -108,19 +108,27 @@ func TestUpgradeableRun(t *testing.T) {
 			expected:       "",
 		},
 		{
-			name:                                 "move-(y+1) while move-y is in progress",
-			currVersion:                          "4.6.3",
-			desiredVersionInCV:                   "4.7.2",
-			desiredVersion:                       "4.8.1",
-			minorVersionClusterUpgradeInProgress: true,
-			expected:                             "The minor level upgrade to 4.8.1 is not recommended: MinorVersionClusterUpgradeInProgress y to y+1. It is recommended to wait until the existing minor level upgrade completes.",
+			name:               "move-(y+1) while move-y is in progress",
+			currVersion:        "4.6.3",
+			desiredVersionInCV: "4.7.2",
+			desiredVersion:     "4.8.1",
+			upgradeInProgress:  true,
+			expected:           "The minor level upgrade to 4.8.1 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
 		},
 		{
-			name:                                 "move-y with z while move-y is in progress",
-			currVersion:                          "4.6.3",
-			desiredVersionInCV:                   "4.7.2",
-			minorVersionClusterUpgradeInProgress: true,
-			desiredVersion:                       "4.7.3",
+			name:               "move-(y+1) while move-z is in progress",
+			currVersion:        "4.14.15",
+			desiredVersionInCV: "4.14.35",
+			desiredVersion:     "4.15.29",
+			upgradeInProgress:  true,
+			expected:           "The minor level upgrade to 4.15.29 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
+		},
+		{
+			name:               "move-y with z while move-y is in progress",
+			currVersion:        "4.6.3",
+			desiredVersionInCV: "4.7.2",
+			upgradeInProgress:  true,
+			desiredVersion:     "4.7.3",
 		},
 	}
 
@@ -144,11 +152,11 @@ func TestUpgradeableRun(t *testing.T) {
 					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
 				})
 			}
-			if tc.minorVersionClusterUpgradeInProgress {
+			if tc.upgradeInProgress {
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-					Type:    MinorVersionClusterUpgradeInProgress,
+					Type:    UpgradeInProgress,
 					Status:  configv1.ConditionTrue,
-					Message: "MinorVersionClusterUpgradeInProgress y to y+1.",
+					Message: "UpgradeInProgress y to y+1.",
 				})
 			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
