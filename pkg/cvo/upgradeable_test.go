@@ -4,8 +4,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 )
 
 func TestUpgradeableCheckIntervalsThrottlePeriod(t *testing.T) {
@@ -53,6 +57,92 @@ func TestUpgradeableCheckIntervalsThrottlePeriod(t *testing.T) {
 			}
 			if actual := intervals.throttlePeriod(cv); actual != tc.expected {
 				t.Errorf("throttlePeriod() = %v, want %v", actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestUpgradeInProgressUpgradeable(t *testing.T) {
+	testCases := []struct {
+		name     string
+		cv       *configv1.ClusterVersion
+		expected *configv1.ClusterOperatorStatusCondition
+	}{
+		{
+			name: "empty conditions",
+			cv: &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unit-test",
+				},
+			},
+		},
+		{
+			name: "progressing is true",
+			cv: &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unit-test",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:    configv1.OperatorProgressing,
+							Status:  configv1.ConditionTrue,
+							Reason:  "a",
+							Message: "b",
+						},
+					},
+				},
+			},
+			expected: &configv1.ClusterOperatorStatusCondition{
+				Type:    clusterversion.UpgradeInProgress,
+				Status:  configv1.ConditionTrue,
+				Reason:  "a",
+				Message: "b",
+			},
+		},
+		{
+			name: "progressing is false",
+			cv: &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unit-test",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:    configv1.OperatorProgressing,
+							Status:  configv1.ConditionFalse,
+							Reason:  "a",
+							Message: "b",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "progressing is missing",
+			cv: &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unit-test",
+				},
+				Status: configv1.ClusterVersionStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:    configv1.OperatorProgressing,
+							Reason:  "a",
+							Message: "b",
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset(tc.cv)
+			unit := upgradeInProgressUpgradeable{name: "unit-test", cvLister: &clientCVLister{client: client}}
+			actual := unit.Check()
+			if diff := cmp.Diff(tc.expected, actual); diff != "" {
+				t.Errorf("%s differs from expected:\n%s", tc.name, diff)
 			}
 		})
 	}

@@ -60,13 +60,13 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name               string
-		upgradeable        *configv1.ConditionStatus
-		currVersion        string
-		desiredVersion     string
-		desiredVersionInCV string
-		NonBlockingWarning bool
-		expected           string
+		name                     string
+		upgradeable              *configv1.ConditionStatus
+		currVersion              string
+		desiredVersion           string
+		versionPartiallyUpgraded string
+		NonBlockingWarning       bool
+		expected                 string
 	}{
 		{
 			name:           "first",
@@ -108,26 +108,26 @@ func TestUpgradeableRun(t *testing.T) {
 			expected:       "",
 		},
 		{
-			name:               "move-(y+1) while move-y is in progress",
-			currVersion:        "4.6.3",
-			desiredVersionInCV: "4.7.2",
-			desiredVersion:     "4.8.1",
-			expected:           "The minor level upgrade to 4.8.1 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
+			name:                     "move-(y+1) while move-y is in progress",
+			currVersion:              "4.6.3",
+			versionPartiallyUpgraded: "4.7.2",
+			desiredVersion:           "4.8.1",
+			expected:                 "The minor level upgrade to 4.8.1 is not recommended until the existing upgrade from 4.6.3 to 4.7.2 completes.",
 		},
 		{
-			name:               "move-(y+1) while move-z is in progress",
-			currVersion:        "4.14.15",
-			desiredVersionInCV: "4.14.35",
-			desiredVersion:     "4.15.29",
-			expected:           "The minor level upgrade to 4.15.29 is not recommended: UpgradeInProgress y to y+1. It is recommended to wait until the existing upgrade completes.",
+			name:                     "move-(y+1) while move-z is in progress",
+			currVersion:              "4.14.15",
+			versionPartiallyUpgraded: "4.14.35",
+			desiredVersion:           "4.15.29",
+			expected:                 "The minor level upgrade to 4.15.29 is not recommended until the existing upgrade from 4.14.15 to 4.14.35 completes.",
 		},
 		{
-			name:               "move-y with z while move-y is in progress",
-			currVersion:        "4.6.3",
-			desiredVersionInCV: "4.7.2",
-			desiredVersion:     "4.7.3",
-			NonBlockingWarning: true,
-			expected:           "The upgrade is retargeted to 4.7.3 from the existing minor level upgrade: UpgradeInProgress y to y+1.",
+			name:                     "move-y with z while move-y is in progress",
+			currVersion:              "4.6.3",
+			versionPartiallyUpgraded: "4.7.2",
+			desiredVersion:           "4.7.3",
+			NonBlockingWarning:       true,
+			expected:                 "The upgrade is retargeted to 4.7.3 from the existing minor level upgrade from 4.6.3 to 4.7.2.",
 		},
 	}
 
@@ -138,11 +138,14 @@ func TestUpgradeableRun(t *testing.T) {
 				Spec:       configv1.ClusterVersionSpec{},
 				Status: configv1.ClusterVersionStatus{
 					History: []configv1.UpdateHistory{},
-					Desired: configv1.Release{Version: tc.desiredVersionInCV},
+					Desired: configv1.Release{Version: tc.versionPartiallyUpgraded},
 				},
 			}
 			if len(tc.currVersion) > 0 {
 				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.currVersion, State: configv1.CompletedUpdate})
+			}
+			if tc.versionPartiallyUpgraded != "" {
+				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.versionPartiallyUpgraded, State: configv1.PartialUpdate})
 			}
 			if tc.upgradeable != nil {
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -152,16 +155,19 @@ func TestUpgradeableRun(t *testing.T) {
 				})
 			}
 
-			if tc.desiredVersionInCV != "" {
-				reason := "some-reason"
-				if MinorVersionUpgrade(GetEffectiveMinor(tc.currVersion), GetEffectiveMinor(tc.desiredVersionInCV)) {
-					reason = ConditionReasonMinorVersionClusterUpgradeInProgress
-				}
+			if tc.versionPartiallyUpgraded != "" {
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
 					Type:    UpgradeInProgress,
 					Status:  configv1.ConditionTrue,
-					Message: "UpgradeInProgress y to y+1.",
-					Reason:  reason,
+					Message: "some-message",
+					Reason:  "some-reason",
+				})
+			} else {
+				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+					Type:    UpgradeInProgress,
+					Status:  configv1.ConditionFalse,
+					Message: "message-bar",
+					Reason:  "reason-bar",
 				})
 			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
@@ -174,8 +180,7 @@ func TestUpgradeableRun(t *testing.T) {
 				pError, ok := err.(*precondition.Error)
 				if !ok {
 					t.Errorf("Failed to convert to err: %v", err)
-				}
-				if pError.NonBlockingWarning != true {
+				} else if pError.NonBlockingWarning != true {
 					t.Error("NonBlockingWarning should be true")
 				}
 			}
