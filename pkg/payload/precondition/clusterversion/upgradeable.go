@@ -2,7 +2,6 @@ package clusterversion
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -63,32 +62,6 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 			Reason:  "UnknownError",
 			Message: err.Error(),
 			Name:    pf.Name(),
-		}
-	}
-
-	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, UpgradeInProgress); cond != nil && cond.Status == configv1.ConditionTrue {
-		desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
-		currentVersion := GetCurrentVersion(cv.Status.History)
-		if minorInProgress := GetEffectiveMinor(cv.Status.Desired.Version); minorVersionUpgrade(minorInProgress, desiredMinor) {
-			return &precondition.Error{
-				Reason:  "UpgradeInProgress",
-				Message: fmt.Sprintf("The minor level upgrade to %s is not recommended until the existing upgrade from %s to %s completes.", releaseContext.DesiredVersion, currentVersion, cv.Status.Desired.Version),
-				Name:    pf.Name(),
-			}
-		} else {
-			currentMinor := GetEffectiveMinor(currentVersion)
-			desiredMinor := GetEffectiveMinor(cv.Status.Desired.Version)
-			if releaseContext.DesiredVersion != "" && minorVersionUpgrade(currentMinor, desiredMinor) {
-				return &precondition.Error{
-					Reason:  "MinorVersionClusterUpgradeInProgress",
-					Message: fmt.Sprintf("The upgrade is retargeted to %s from the existing minor level upgrade from %s to %s.", releaseContext.DesiredVersion, currentVersion, cv.Status.Desired.Version),
-					Name:    pf.Name(),
-					// This is to generate a message in the accepted risks
-					// for the unblocking case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
-					NonBlockingWarning: true,
-				}
-
-			}
 		}
 	}
 
