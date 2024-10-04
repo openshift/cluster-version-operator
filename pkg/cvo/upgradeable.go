@@ -270,7 +270,7 @@ type upgradeInProgressUpgradeable struct {
 
 func (check *upgradeInProgressUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
 	cond := &configv1.ClusterOperatorStatusCondition{
-		Type:   clusterversion.UpgradeInProgress,
+		Type:   "UpgradeableUpgradeInProgress",
 		Status: configv1.ConditionTrue,
 	}
 

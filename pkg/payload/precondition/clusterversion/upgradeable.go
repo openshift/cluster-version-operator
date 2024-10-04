@@ -46,8 +46,6 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 	return nil
 }
 
-const UpgradeInProgress = configv1.ClusterStatusConditionType("UpgradeableUpgradeInProgress")
-
 // Run runs the Upgradeable precondition.
 // If the feature gate `key` is not found, or the api for clusterversion doesn't exist, this check is inert and always returns nil error.
 // Otherwise, if Upgradeable condition is set to false in the object, it returns an PreconditionError when possible.
