@@ -7,31 +7,9 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/klog/v2"
 )
-
-// WaitForJobCompletion waits for job to complete.
-func WaitForJobCompletion(ctx context.Context, client batchclientv1.JobsGetter, job *batchv1.Job) error {
-	return wait.PollUntilContextCancel(ctx, defaultObjectPollInterval, true, func(localCtx context.Context) (bool, error) {
-		j, err := client.Jobs(job.Namespace).Get(localCtx, job.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, fmt.Errorf("error getting Job %s: %v", job.Name, err)
-		}
-
-		if done, err := checkJobHealth(localCtx, j); err != nil && done {
-			return false, err
-		} else if err != nil {
-			klog.Error(err)
-			return false, nil
-		} else if !done {
-			klog.V(2).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
-			return false, nil
-		}
-		return true, nil
-	})
-}
 
 func (b *builder) checkJobHealth(ctx context.Context, job *batchv1.Job) error {
 	if b.mode == InitializingMode {
