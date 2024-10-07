@@ -60,11 +60,13 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		upgradeable    *configv1.ConditionStatus
-		currVersion    string
-		desiredVersion string
-		expected       string
+		name                     string
+		upgradeable              *configv1.ConditionStatus
+		currVersion              string
+		desiredVersion           string
+		versionPartiallyUpgraded string
+		NonBlockingWarning       bool
+		expected                 string
 	}{
 		{
 			name:           "first",
@@ -105,6 +107,38 @@ func TestUpgradeableRun(t *testing.T) {
 			desiredVersion: "4.1.4",
 			expected:       "",
 		},
+		{
+			name:                     "move to 4.y.z' while 4.y.z is in progress",
+			currVersion:              "4.6.3",
+			versionPartiallyUpgraded: "4.6.6",
+			desiredVersion:           "4.6.7",
+			upgradeable:              ptr(configv1.ConditionFalse),
+		},
+		{
+			name:                     "move to 4.y+1.z' while 4.y+1.z is in progress",
+			currVersion:              "4.6.3",
+			versionPartiallyUpgraded: "4.7.2",
+			desiredVersion:           "4.7.3",
+			upgradeable:              ptr(configv1.ConditionFalse),
+			NonBlockingWarning:       true,
+			expected:                 "The upgrade is retargeted to 4.7.3 from the existing minor level upgrade from 4.6.3 to 4.7.2.",
+		},
+		{
+			name:                     "block 4.y+2.z' while 4.y+1.z is in progress",
+			currVersion:              "4.6.3",
+			versionPartiallyUpgraded: "4.7.2",
+			desiredVersion:           "4.8.1",
+			upgradeable:              ptr(configv1.ConditionFalse),
+			expected:                 "set to False",
+		},
+		{
+			name:                     "block 4.y+1.z' while 4.y.z is in progress",
+			currVersion:              "4.14.15",
+			versionPartiallyUpgraded: "4.14.35",
+			desiredVersion:           "4.15.29",
+			upgradeable:              ptr(configv1.ConditionFalse),
+			expected:                 "set to False",
+		},
 	}
 
 	for _, tc := range tests {
@@ -114,6 +148,7 @@ func TestUpgradeableRun(t *testing.T) {
 				Spec:       configv1.ClusterVersionSpec{},
 				Status: configv1.ClusterVersionStatus{
 					History: []configv1.UpdateHistory{},
+					Desired: configv1.Release{Version: tc.versionPartiallyUpgraded},
 				},
 			}
 			if len(tc.currVersion) > 0 {
@@ -126,12 +161,37 @@ func TestUpgradeableRun(t *testing.T) {
 					Message: fmt.Sprintf("set to %v", *tc.upgradeable),
 				})
 			}
+
+			if tc.versionPartiallyUpgraded != "" {
+				clusterVersion.Status.History = append(clusterVersion.Status.History, configv1.UpdateHistory{Version: tc.versionPartiallyUpgraded, State: configv1.PartialUpdate})
+				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+					Type:    configv1.OperatorProgressing,
+					Status:  configv1.ConditionTrue,
+					Message: "some-message",
+					Reason:  "some-reason",
+				})
+			} else {
+				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+					Type:    "UpgradeableUpgradeInProgress",
+					Status:  configv1.ConditionFalse,
+					Message: "message-bar",
+					Reason:  "reason-bar",
+				})
+			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)
 			instance := NewUpgradeable(cvLister)
 
 			err := instance.Run(ctx, precondition.ReleaseContext{
 				DesiredVersion: tc.desiredVersion,
 			})
+			if tc.NonBlockingWarning {
+				pError, ok := err.(*precondition.Error)
+				if !ok {
+					t.Errorf("Failed to convert to err: %v", err)
+				} else if !pError.NonBlockingWarning {
+					t.Error("NonBlockingWarning should be true")
+				}
+			}
 			switch {
 			case err != nil && len(tc.expected) == 0:
 				t.Error(err)

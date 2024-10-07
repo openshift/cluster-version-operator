@@ -2,6 +2,7 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -99,6 +100,24 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 			}
 		} else {
 			return nil
+		}
+	} else if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); cond != nil && cond.Status == configv1.ConditionTrue {
+		desiredMinorInProgress := GetEffectiveMinor(cv.Status.Desired.Version)
+		message := fmt.Sprintf("The upgrade is retargeted to %s from the existing minor level upgrade from %s to %s.", releaseContext.DesiredVersion, currentVersion, cv.Status.Desired.Version)
+		klog.V(2).Infof(message)
+		// We have to be strict on the condition here to avoid accepting a payload unexpectedly
+		// because "NonBlockingWarning=true" overrides "Upgradeable=False"
+		// This is to generate a message in the accepted risks
+		// for the unblocking case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
+		if releaseContext.DesiredVersion > cv.Status.Desired.Version &&
+			desiredMinorInProgress == desiredMinor &&
+			minorVersionUpgrade(currentMinor, desiredMinorInProgress) {
+			return &precondition.Error{
+				Reason:             "MinorVersionClusterUpgradeInProgress",
+				Message:            message,
+				Name:               pf.Name(),
+				NonBlockingWarning: true,
+			}
 		}
 	}
 
