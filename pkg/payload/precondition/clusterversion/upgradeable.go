@@ -2,6 +2,7 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -106,6 +107,17 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 				Name:    pf.Name(),
 			}
 		} else {
+			if completedVersion := minorUpdateIsInProgress(cv.Status, currentVersion); completedVersion != "" &&
+				targetVersion.Major == currentVersion.Major &&
+				targetVersion.Minor == currentVersion.Minor {
+				// This is to generate an accepted risk for the accepting case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
+				return &precondition.Error{
+					Reason:             "MinorVersionClusterUpgradeInProgress",
+					Message:            fmt.Sprintf("Retarget to %s while a minor level upgrade from %s to %s is in progress", targetVersion, completedVersion, targetVersion),
+					Name:               pf.Name(),
+					NonBlockingWarning: true,
+				}
+			}
 			klog.V(2).Infof("Precondition %q passed on update to %s", pf.Name(), targetVersion.String())
 			return nil
 		}
@@ -119,5 +131,43 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 }
 
+// minorUpdateIsInProgress returns the version that was installed completed if a minor level upgrade is in progress
+// and the empty string otherwise
+func minorUpdateIsInProgress(status configv1.ClusterVersionStatus, currentVersion semver.Version) string {
+	completedVersionStr := GetCurrentVersion(status.History)
+	if completedVersionStr == "" {
+		return ""
+	}
+	v, err := semver.Parse(completedVersionStr)
+	if err != nil {
+		return ""
+	}
+	if cond := resourcemerge.FindOperatorStatusCondition(status.Conditions, configv1.OperatorProgressing); cond != nil &&
+		cond.Status == configv1.ConditionTrue &&
+		v.Major == currentVersion.Major &&
+		v.Minor < currentVersion.Minor {
+		return completedVersionStr
+	}
+	return ""
+}
+
 // Name returns Name for the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }
+
+// GetCurrentVersion determines and returns the cluster's current version by iterating through the
+// provided update history until it finds the first version with update State of Completed. If a
+// Completed version is not found the version of the oldest history entry, which is the originally
+// installed version, is returned. If history is empty the empty string is returned.
+func GetCurrentVersion(history []configv1.UpdateHistory) string {
+	for _, h := range history {
+		if h.State == configv1.CompletedUpdate {
+			klog.V(2).Infof("Cluster current version=%s", h.Version)
+			return h.Version
+		}
+	}
+	// Empty history should only occur if method is called early in startup before history is populated.
+	if len(history) != 0 {
+		return history[len(history)-1].Version
+	}
+	return ""
+}

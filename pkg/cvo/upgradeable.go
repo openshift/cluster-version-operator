@@ -23,6 +23,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 )
 
 const (
@@ -337,7 +338,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 			Message: message,
 		}
 	}
-	currentVersion := getCurrentVersion(cv.Status.History)
+	currentVersion := clusterversion.GetCurrentVersion(cv.Status.History)
 
 	// This can occur in early start up when the configmap is first added and version history
 	// has not yet been populated.
