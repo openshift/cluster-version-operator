@@ -95,7 +95,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 
 	klog.V(4).Infof("The current version is %s parsed from %s and the target version is %s parsed from %s", currentVersion.String(), cv.Status.Desired.Version, targetVersion.String(), releaseContext.DesiredVersion)
-	if targetVersion.LTE(currentVersion) || targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor {
+	if targetVersion.LTE(currentVersion) || (targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor) {
 		// When Upgradeable==False, a patch level update with the same minor level is allowed unless overrides are set
 		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
