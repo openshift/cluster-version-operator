@@ -288,8 +288,8 @@ func gateApplicableToCurrentVersion(gateName string, currentVersion string) (boo
 			internal.AdminGatesConfigMap, gateName, adminAckGateFmt)
 	} else {
 		parts := strings.Split(ackVersion, "-")
-		ackMinor := clusterversion.GetEffectiveMinor(parts[1])
-		cvMinor := clusterversion.GetEffectiveMinor(currentVersion)
+		ackMinor := getEffectiveMinor(parts[1])
+		cvMinor := getEffectiveMinor(currentVersion)
 		if ackMinor == cvMinor {
 			applicable = true
 		}

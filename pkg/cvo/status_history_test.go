@@ -775,3 +775,41 @@ func Test_sameZStreamVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestGetEffectiveMinor(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "invalid",
+			input:    "something@very-differe",
+			expected: "",
+		},
+		{
+			name:     "multidot",
+			input:    "v4.7.12.3+foo",
+			expected: "7",
+		},
+		{
+			name:     "single",
+			input:    "v4.7",
+			expected: "7",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := getEffectiveMinor(tc.input)
+			if tc.expected != actual {
+				t.Error(actual)
+			}
+		})
+	}
+}

@@ -2,10 +2,10 @@ package clusterversion
 
 import (
 	"context"
-	"strconv"
-	"strings"
+	"fmt"
 	"time"
 
+	"github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -13,7 +13,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"
+	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
 // Upgradeable checks if clusterversion is upgradeable currently.
@@ -74,30 +74,51 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		return nil
 	}
 
-	// we can always allow the upgrade if there isn't a version already installed
-	if len(cv.Status.History) == 0 {
-		klog.V(2).Infof("Precondition %s passed: no release history.", pf.Name())
-		return nil
+	currentVersion, err := semver.Parse(cv.Status.Desired.Version)
+	if err != nil {
+		return &precondition.Error{
+			Nested:             err,
+			Reason:             "InvalidCurrentVersion",
+			Message:            err.Error(),
+			Name:               pf.Name(),
+			NonBlockingWarning: true, // do not block on issues that require an update to fix
+		}
 	}
 
-	currentVersion := GetCurrentVersion(cv.Status.History)
-	currentMinor := GetEffectiveMinor(currentVersion)
-	desiredMinor := GetEffectiveMinor(releaseContext.DesiredVersion)
-	klog.V(2).Infof("currentMinor %s releaseContext.DesiredVersion %s desiredMinor %s", currentMinor, releaseContext.DesiredVersion, desiredMinor)
+	targetVersion, err := semver.Parse(releaseContext.DesiredVersion)
+	if err != nil {
+		return &precondition.Error{
+			Nested:  err,
+			Reason:  "InvalidDesiredVersion",
+			Message: err.Error(),
+			Name:    pf.Name(),
+		}
+	}
 
-	// if there is no difference in the minor version (4.y.z where 4.y is the same for current and desired), then we can still upgrade
-	// if no cluster overrides have been set
-	if !minorVersionUpgrade(currentMinor, desiredMinor) {
-		klog.V(2).Infof("Precondition %q passed: minor from the target %s is not a minor version update from the current %s.%s.", pf.Name(), releaseContext.DesiredVersion, currentVersion, currentMinor)
+	klog.V(4).Infof("The current version is %s parsed from %s and the target version is %s parsed from %s", currentVersion.String(), cv.Status.Desired.Version, targetVersion.String(), releaseContext.DesiredVersion)
+	if targetVersion.LTE(currentVersion) || (targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor) {
+		// When Upgradeable==False, a patch level update with the same minor level is allowed unless overrides are set
+		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
-			klog.V(2).Infof("Update from %s to %s blocked by %s: %s", currentVersion, releaseContext.DesiredVersion, condition.Reason, condition.Message)
-
+			klog.V(2).Infof("Retarget from %s to %s is blocked by %s: %s", currentVersion.String(), targetVersion.String(), condition.Reason, condition.Message)
 			return &precondition.Error{
 				Reason:  condition.Reason,
 				Message: condition.Message,
 				Name:    pf.Name(),
 			}
 		} else {
+			if completedVersion := minorUpdateIsInProgress(cv.Status, currentVersion); completedVersion != "" &&
+				targetVersion.Major == currentVersion.Major &&
+				targetVersion.Minor == currentVersion.Minor {
+				// This is to generate an accepted risk for the accepting case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
+				return &precondition.Error{
+					Reason:             "MinorVersionClusterUpgradeInProgress",
+					Message:            fmt.Sprintf("Retarget to %s while a minor level upgrade from %s to %s is in progress", targetVersion, completedVersion, targetVersion),
+					Name:               pf.Name(),
+					NonBlockingWarning: true,
+				}
+			}
+			klog.V(2).Infof("Precondition %q passed on update to %s", pf.Name(), targetVersion.String())
 			return nil
 		}
 	}
@@ -108,6 +129,26 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 		Message: up.Message,
 		Name:    pf.Name(),
 	}
+}
+
+// minorUpdateIsInProgress returns the version that was installed completed if a minor level upgrade is in progress
+// and the empty string otherwise
+func minorUpdateIsInProgress(status configv1.ClusterVersionStatus, currentVersion semver.Version) string {
+	completedVersionStr := GetCurrentVersion(status.History)
+	if completedVersionStr == "" {
+		return ""
+	}
+	v, err := semver.Parse(completedVersionStr)
+	if err != nil {
+		return ""
+	}
+	if cond := resourcemerge.FindOperatorStatusCondition(status.Conditions, configv1.OperatorProgressing); cond != nil &&
+		cond.Status == configv1.ConditionTrue &&
+		v.Major == currentVersion.Major &&
+		v.Minor < currentVersion.Minor {
+		return completedVersionStr
+	}
+	return ""
 }
 
 // Name returns Name for the precondition.
@@ -129,28 +170,4 @@ func GetCurrentVersion(history []configv1.UpdateHistory) string {
 		return history[len(history)-1].Version
 	}
 	return ""
-}
-
-// GetEffectiveMinor attempts to do a simple parse of the version provided.  If it does not parse, the value is considered
-// empty string, which works for the comparison done here for equivalence.
-func GetEffectiveMinor(version string) string {
-	splits := strings.Split(version, ".")
-	if len(splits) < 2 {
-		return ""
-	}
-	return splits[1]
-}
-
-// minorVersionUpgrade returns true if the the desired update minor version number is greater
-// than the current version minor version number. Errors resulting from either version
-// number being unset or NaN are ignored simply resulting in false returned.
-func minorVersionUpgrade(currentMinor string, desiredMinor string) bool {
-	if currentMinorNum, err := strconv.Atoi(currentMinor); err == nil {
-		if desiredMinorNum, err := strconv.Atoi(desiredMinor); err == nil {
-			if desiredMinorNum > currentMinorNum {
-				return true
-			}
-		}
-	}
-	return false
 }
