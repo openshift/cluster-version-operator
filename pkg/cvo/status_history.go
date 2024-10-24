@@ -215,21 +215,3 @@ func getEffectiveMicro(version string) string {
 	}
 	return splits[2]
 }
-
-// getCurrentVersion determines and returns the cluster's current version by iterating through the
-// provided update history until it finds the first version with update State of Completed. If a
-// Completed version is not found the version of the oldest history entry, which is the originally
-// installed version, is returned. If history is empty the empty string is returned.
-func getCurrentVersion(history []configv1.UpdateHistory) string {
-	for _, h := range history {
-		if h.State == configv1.CompletedUpdate {
-			klog.V(2).Infof("Cluster current version=%s", h.Version)
-			return h.Version
-		}
-	}
-	// Empty history should only occur if method is called early in startup before history is populated.
-	if len(history) != 0 {
-		return history[len(history)-1].Version
-	}
-	return ""
-}
