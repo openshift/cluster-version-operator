@@ -57,6 +57,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	optrAvailableUpdates := optr.getAvailableUpdates()
 	needFreshFetch := true
+	preserveCacheOnFailure := false
+	maximumCacheInterval := 24 * time.Hour
 	if optrAvailableUpdates == nil {
 		klog.V(2).Info("First attempt to retrieve available updates")
 		optrAvailableUpdates = &availableUpdates{}
@@ -66,14 +68,18 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		for i := range config.Status.ConditionalUpdates {
 			optrAvailableUpdates.ConditionalUpdates = append(optrAvailableUpdates.ConditionalUpdates, *config.Status.ConditionalUpdates[i].DeepCopy())
 		}
-	} else if !optrAvailableUpdates.RecentlyChanged(optr.minimumUpdateCheckInterval) {
-		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 	} else if channel != optrAvailableUpdates.Channel {
 		klog.V(2).Infof("Retrieving available updates again, because the channel has changed from %q to %q", optrAvailableUpdates.Channel, channel)
 	} else if desiredArch != optrAvailableUpdates.Architecture {
 		klog.V(2).Infof("Retrieving available updates again, because the architecture has changed from %q to %q", optrAvailableUpdates.Architecture, desiredArch)
+	} else if !optrAvailableUpdates.RecentlyChanged(maximumCacheInterval) {
+		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since last change at %s.  Will clear the cache if this fails.", maximumCacheInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
+	} else if !optrAvailableUpdates.RecentlyAttempted(optr.minimumUpdateCheckInterval) {
+		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since last attempt at %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
+		preserveCacheOnFailure = true
 	} else if updateService == optrAvailableUpdates.UpdateService || (updateService == defaultUpdateService && optrAvailableUpdates.UpdateService == "") {
 		needsConditionalUpdateEval := false
+		preserveCacheOnFailure = true
 		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
 			if recommended := findRecommendedCondition(conditionalUpdate.Conditions); recommended == nil {
 				needsConditionalUpdateEval = true
@@ -126,11 +132,19 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		optrAvailableUpdates.UpdateService = updateService
 		optrAvailableUpdates.Channel = channel
 		optrAvailableUpdates.Architecture = desiredArch
-		optrAvailableUpdates.Current = current
-		optrAvailableUpdates.Updates = updates
-		optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
 		optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
 		optrAvailableUpdates.Condition = condition
+
+		responseFailed := (condition.Type == configv1.RetrievedUpdates &&
+			condition.Status == configv1.ConditionFalse &&
+			(condition.Reason == "RemoteFailed" ||
+				condition.Reason == "ResponseFailed" ||
+				condition.Reason == "ResponseInvalid"))
+		if !responseFailed || (responseFailed && !preserveCacheOnFailure) {
+			optrAvailableUpdates.Current = current
+			optrAvailableUpdates.Updates = updates
+			optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
+		}
 	}
 
 	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
@@ -183,8 +197,12 @@ type availableUpdates struct {
 	Condition configv1.ClusterOperatorStatusCondition
 }
 
-func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
+func (u *availableUpdates) RecentlyAttempted(interval time.Duration) bool {
 	return u.LastAttempt.After(time.Now().Add(-interval))
+}
+
+func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
+	return u.LastSyncOrConfigChange.After(time.Now().Add(-interval))
 }
 
 func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
