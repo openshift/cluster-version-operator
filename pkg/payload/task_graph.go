@@ -478,6 +478,17 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			for {
+				// First, make sure the worker was not signalled to cancel. This may seem redundant with the <-ctx.Done() below,
+				// but it is necessary to properly handle the case where cancellation occurs while the worker is processing a
+				// task. Go `select` is nondeterministic when multiple cases are ready, so when the worker finishes a task,
+				// starts another loop and both the ctx.Done() and workCh cases are ready, Go could choose either of them,
+				// potentially starting a new task even though the worker was supposed to stop. Checking cancellation here makes
+				// the race window much smaller (cancellation would need to happen between this check and the select).
+				if ctx.Err() != nil {
+					klog.V(2).Infof("Worker %d: Received cancel signal", worker)
+					return
+				}
+
 				select {
 				case <-ctx.Done():
 					klog.V(2).Infof("Worker %d: Received cancel signal while waiting for work", worker)
