@@ -514,9 +514,8 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 				inflight--
 			case <-ctx.Done():
 				select {
-				case runTask := <-workCh: // workers canceled, so remove any work from the queue ourselves
+				case <-workCh: // workers canceled, so remove any work from the queue ourselves
 					inflight--
-					submitted[runTask.index] = false
 				default:
 				}
 			}
