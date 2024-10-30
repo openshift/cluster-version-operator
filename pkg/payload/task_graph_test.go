@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -699,6 +700,77 @@ func (s *safeSlice) Add(item string) {
 	s.items = append(s.items, item)
 }
 
+type invariant func(t *testing.T, tasks []string)
+
+// before checks that task a was performed before task b in the list of tasks, given both are present
+// if one of them is missing, the invariant is ignored
+func before(a, b string) invariant {
+	return func(t *testing.T, tasks []string) {
+		for _, task := range tasks {
+			switch task {
+			case a:
+				return
+			case b:
+				t.Errorf("expected %s before %s in %s", a, b, tasks)
+			}
+		}
+	}
+}
+
+// atIndex checks that the task at index i is equal to the given task.
+func atIndex(i int, task string) invariant {
+	return func(t *testing.T, tasks []string) {
+		if i >= len(tasks) {
+			t.Fatalf("index %d out of range", i)
+		}
+		if tasks[i] != task {
+			t.Errorf("expected %s at index %d of %s", task, i, tasks)
+		}
+	}
+}
+
+// subseq checks that the given sequence of tasks is an exact subsequence of the tasks (not interleaved by other tasks).
+func subseq(seq ...string) invariant {
+	return func(t *testing.T, tasks []string) {
+		for i := 0; i < len(tasks)-len(seq)+1; i++ {
+			if diff := cmp.Diff(tasks[i:i+len(seq)], seq); diff == "" {
+				return
+			}
+		}
+		t.Errorf("missing subsequence %v in %v", seq, tasks)
+	}
+}
+
+// exactly checks that the list of tasks is exactly the given list of tasks
+func exactly(tasks ...string) invariant {
+	return func(t *testing.T, got []string) {
+		if diff := cmp.Diff(tasks, got); diff != "" {
+			t.Errorf("exact sequence of tasks differs from expected (-want +got):\n%s", diff)
+		}
+	}
+}
+
+// permutation checks that the list of tasks is a permutation of the given list of tasks
+func permutation(tasks ...string) invariant {
+	return func(t *testing.T, got []string) {
+		g := slices.Clone(got)
+		sort.Strings(g)
+		sort.Strings(tasks)
+
+		if diff := cmp.Diff(tasks, g); diff != "" {
+			t.Errorf("tasks differs from expected (-want +got):\n%s", diff)
+		}
+	}
+}
+
+type callbackFn func(t *testing.T, name string, ctx context.Context, cancelFn func()) error
+
+func errorOut(err error) callbackFn {
+	return func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
+		return err
+	}
+}
+
 func TestRunGraph(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
@@ -711,27 +783,35 @@ func TestRunGraph(t *testing.T) {
 		}
 		return arr
 	}
-	tests := []struct {
-		name     string
-		nodes    []*TaskNode
-		parallel int
-		sleep    time.Duration
-		errorOn  func(t *testing.T, name string, ctx context.Context, cancelFn func()) error
 
-		order      []string
-		want       []string
-		invariants func(t *testing.T, got []string)
-		wantErrs   []string
+	tests := []struct {
+		name  string
+		nodes []*TaskNode
+		// maxParallelism is a RunGraph parameter affecting how many nodes are processed in parallel
+		maxParallelism int
+		// sleep is a duration to sleep in each task to simulate work
+		sleep time.Duration
+		// callbacks allows providing a method to be called for a specific task, to simulate work, return error or trigger
+		// cancellations. The key is the task name. Special key "*" can be used to provide a callback for any task that does
+		// not have a specific one.
+		callbacks map[string]callbackFn
+
+		// list of functions to be called to check invariants on the list of tasks executed
+		wantInvariants []invariant
+		// errors is the list of error strings we expect to be returned by RunGraph
+		wantErrors []string
 	}{
 		{
-			name: "tasks executed in order",
+			name: "tasks executed in order in a single node",
 			nodes: []*TaskNode{
-				{Tasks: tasks("a", "b")},
+				{Tasks: tasks("b", "a")},
 			},
-			order: []string{"a", "b"},
+			wantInvariants: []invariant{
+				exactly("b", "a"),
+			},
 		},
 		{
-			name: "nodes executed after dependencies",
+			name: "nodes executed after dependencies when processed in parallel",
 			nodes: []*TaskNode{
 				// In: prerequisites (by index)
 				// Out: dependents (by index)
@@ -741,25 +821,17 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("a", "b"), Out: []int{0, 1, 2}},
 				{Tasks: tasks("g"), In: []int{2}},
 			},
-			want:     []string{"a", "b", "c", "d", "e", "f", "g"},
-			sleep:    time.Millisecond,
-			parallel: 2,
-			invariants: func(t *testing.T, got []string) {
-				for i := 0; i < len(got)-1; i++ {
-					for j := i + 1; j < len(got); j++ {
-						a, b := got[i], got[j]
-						switch {
-						case a == "b" && b == "a":
-							t.Fatalf("%d and %d in: %v", i, j, got)
-						case a == "e" && b == "d":
-							t.Fatalf("%d and %d in: %v", i, j, got)
-						case a != "a" && b == "b":
-							t.Fatalf("%d and %d in: %v", i, j, got)
-						case a == "g" && (b == "f" || b == "a" || b == "b"):
-							t.Fatalf("%d and %d in: %v", i, j, got)
-						}
-					}
-				}
+			sleep:          time.Millisecond,
+			maxParallelism: 2,
+			wantInvariants: []invariant{
+				permutation("a", "b", "c", "d", "e", "f", "g"),
+				atIndex(0, "a"),
+				subseq("a", "b"),
+				before("b", "c"),
+				before("b", "d"),
+				before("b", "f"),
+				before("d", "e"),
+				before("f", "g"),
 			},
 		},
 		{
@@ -772,23 +844,15 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("a", "b"), Out: []int{0, 1}},
 				{Tasks: tasks("e"), In: []int{1}},
 			},
-			sleep:    time.Millisecond,
-			parallel: 2,
-			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
-				if name == "d" {
-					return fmt.Errorf("error A")
-				}
-				return nil
+			sleep:          time.Millisecond,
+			maxParallelism: 2,
+			callbacks: map[string]callbackFn{
+				"d": errorOut(fmt.Errorf("error A")),
 			},
-			want:     []string{"a", "b", "c"},
-			wantErrs: []string{"error A"},
-			invariants: func(t *testing.T, got []string) {
-				for _, s := range got {
-					if s == "e" {
-						t.Fatalf("shouldn't have reached e")
-					}
-				}
+			wantInvariants: []invariant{
+				exactly("a", "b", "c"),
 			},
+			wantErrors: []string{"error A"},
 		},
 		{
 			name: "mid-task cancellation error interrupts node processing",
@@ -800,31 +864,25 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("a", "b"), Out: []int{0, 1}},
 				{Tasks: tasks("e"), In: []int{1}},
 			},
-			sleep:    time.Millisecond,
-			parallel: 2,
-			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
-				if name == "d" {
+			sleep:          time.Millisecond,
+			maxParallelism: 2,
+			callbacks: map[string]callbackFn{
+				"d": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
 					cancelFn()
 					select {
 					case <-time.After(time.Second):
-						t.Fatalf("expected context")
+						t.Fatalf("timed out waiting for context to be canceled as expected")
 					case <-ctx.Done():
-						t.Logf("got canceled context")
+						t.Logf("context was canceled as expected")
 						return ctx.Err()
 					}
-					return fmt.Errorf("error A")
-				}
-				return nil
+					return nil
+				},
 			},
-			want:     []string{"a", "b", "c"},
-			wantErrs: []string{"context canceled"},
-			invariants: func(t *testing.T, got []string) {
-				for _, s := range got {
-					if s == "e" {
-						t.Fatalf("shouldn't have reached e")
-					}
-				}
+			wantInvariants: []invariant{
+				exactly("a", "b", "c"),
 			},
+			wantErrors: []string{"context canceled"},
 		},
 		{
 			name: "mid-task cancellation with work in queue does not deadlock",
@@ -832,19 +890,25 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("a1", "a2", "a3")},
 				{Tasks: tasks("b")},
 			},
-			sleep:    time.Millisecond,
-			parallel: 1,
-			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
-				if err := ctx.Err(); err != nil {
-					return err
-				}
-				if name == "a2" {
+			sleep:          time.Millisecond,
+			maxParallelism: 1,
+			callbacks: map[string]callbackFn{
+				"a2": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
+					if err := ctx.Err(); err != nil {
+						return err
+					}
 					cancelFn()
-				}
-				return nil
+					// time.Sleep(time.Second)
+					return nil
+				},
+				"*": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
+					return ctx.Err()
+				},
 			},
-			want:     []string{"a1", "a2"},
-			wantErrs: []string{"context canceled"},
+			wantInvariants: []invariant{
+				exactly("a1", "a2"),
+			},
+			wantErrors: []string{"context canceled"},
 		},
 		{
 			name: "task errors in parallel nodes both reported",
@@ -861,19 +925,16 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("e"), In: []int{3, 6}},
 				{Tasks: tasks("f"), In: []int{1}},
 			},
-			sleep:    time.Millisecond,
-			parallel: 2,
-			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
-				if name == "c1" {
-					return fmt.Errorf("error - c1")
-				}
-				if name == "f" {
-					return fmt.Errorf("error - f")
-				}
-				return nil
+			sleep:          time.Millisecond,
+			maxParallelism: 2,
+			callbacks: map[string]callbackFn{
+				"c1": errorOut(fmt.Errorf("error - c1")),
+				"f":  errorOut(fmt.Errorf("error - f")),
 			},
-			want:     []string{"a", "b", "d1", "d2", "d3"},
-			wantErrs: []string{"error - c1", "error - f"},
+			wantInvariants: []invariant{
+				exactly("a", "b", "d1", "d2", "d3"),
+			},
+			wantErrors: []string{"error - c1", "error - f"},
 		},
 		{
 			name: "cancellation without task errors is reported",
@@ -883,66 +944,61 @@ func TestRunGraph(t *testing.T) {
 				{Tasks: tasks("a"), Out: []int{1}},
 				{Tasks: tasks("b"), In: []int{0}},
 			},
-			sleep:    time.Millisecond,
-			parallel: 1,
-			errorOn: func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
-				if name == "a" {
+			sleep:          time.Millisecond,
+			maxParallelism: 1,
+			callbacks: map[string]callbackFn{
+				"a": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
 					cancelFn()
 					time.Sleep(time.Second)
 					return nil
-				}
-				t.Fatalf("task b should never run")
-				return nil
+				},
+				"*": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
+					t.Fatalf("task %s should never run", name)
+					return nil
+				},
 			},
-			want:     []string{"a"},
-			wantErrs: []string{`1 incomplete task nodes, beginning with configmap "default/b" (0 of 0)`, "context canceled"},
+			wantInvariants: []invariant{
+				exactly("a"),
+			},
+			wantErrors: []string{`1 incomplete task nodes, beginning with configmap "default/b" (0 of 0)`, "context canceled"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			g := &TaskGraph{
-				Nodes: tt.nodes,
-			}
+			g := &TaskGraph{Nodes: tt.nodes}
 			ctx, cancelFn := context.WithCancel(context.Background())
 			defer cancelFn()
-			var order safeSlice
-			errs := RunGraph(ctx, g, tt.parallel, func(ctx context.Context, tasks []*Task) error {
+			var executed safeSlice
+			errs := RunGraph(ctx, g, tt.maxParallelism, func(ctx context.Context, tasks []*Task) error {
 				for _, task := range tasks {
 					time.Sleep(tt.sleep * time.Duration(rand.Intn(4)))
-					if tt.errorOn != nil {
-						if err := tt.errorOn(t, task.Manifest.OriginalFilename, ctx, cancelFn); err != nil {
-							return err
+					for _, callbackKey := range []string{task.Manifest.OriginalFilename, "*"} {
+						if callback, ok := tt.callbacks[callbackKey]; ok {
+							if err := callback(t, task.Manifest.OriginalFilename, ctx, cancelFn); err != nil {
+								return err
+							}
+							break
 						}
 					}
-					order.Add(task.Manifest.OriginalFilename)
+					executed.Add(task.Manifest.OriginalFilename)
 				}
 				return nil
 			})
-			if tt.order != nil {
-				if !reflect.DeepEqual(tt.order, order.items) {
-					t.Fatal(cmp.Diff(tt.order, order.items))
-				}
-			}
-			if tt.invariants != nil {
-				tt.invariants(t, order.items)
-			}
-			if tt.want != nil {
-				sort.Strings(tt.want)
-				sort.Strings(order.items)
-				if !reflect.DeepEqual(tt.want, order.items) {
-					t.Fatal(cmp.Diff(tt.want, order.items))
-				}
+
+			for _, invariant := range tt.wantInvariants {
+				invariant(t, executed.items)
 			}
 
 			var messages []string
 			for _, err := range errs {
 				messages = append(messages, err.Error())
 			}
-			sort.Strings(messages)
-			if len(messages) != len(tt.wantErrs) {
+			if len(messages) != len(tt.wantErrors) {
 				t.Fatalf("unexpected error: %v", messages)
 			}
-			for i, want := range tt.wantErrs {
+			sort.Strings(messages)
+			for i, want := range tt.wantErrors {
 				if !strings.Contains(messages[i], want) {
 					t.Errorf("error %d %q doesn't contain %q", i, messages[i], want)
 				}
