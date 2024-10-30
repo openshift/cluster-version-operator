@@ -128,10 +128,15 @@ func FlattenByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 	return [][]*TaskNode{groups}
 }
 
+// TaskNode represents a node in a TaskGraph. The node assumes the graph is indexable and nodes are retrievable by index,
+// and In/Out are indices of other nodes connected to this one by incoming/outgoing edges, respectively.
 type TaskNode struct {
-	In    []int
+	// In is a list of node indices from which there is an edge to this node (=prerequisites)
+	In []int
+	// Tasks to be executed when this node is visited
 	Tasks []*Task
-	Out   []int
+	// Out is a list of node indices to which there is an edge from this node (=dependents).
+	Out []int
 }
 
 func (n TaskNode) String() string {
@@ -262,7 +267,7 @@ func (g *TaskGraph) Split(onFn func(task *Task) bool) {
 }
 
 // BreakFunc returns the input tasks in order of dependencies with
-// explicit parallelizm allowed per task in an array of task nodes.
+// explicit parallelism allowed per task in an array of task nodes.
 type BreakFunc func([]*Task) [][]*TaskNode
 
 // ShiftOrder rotates each TaskNode by step*len/stride when stride > len,
@@ -424,8 +429,8 @@ type taskStatus struct {
 }
 
 // RunGraph executes the provided graph in order and in parallel up to maxParallelism. It will not start
-// a new TaskNode until all of the prerequisites have completed. If fn returns an error, no dependencies
-// of that node will be executed, but other indepedent edges will continue executing.
+// a new TaskNode until all its prerequisites have completed. If fn returns an error, no dependencies
+// of that node will be executed, but other independent edges will continue executing.
 func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) []error {
 	submitted := make([]bool, len(graph.Nodes))
 	results := make([]*taskStatus, len(graph.Nodes))
@@ -452,7 +457,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		return -1
 	}
 
-	// Tasks go out to the workers via workCh, and results come brack
+	// Tasks go out to the workers via workCh, and results come back
 	// from the workers via resultCh.
 	workCh := make(chan runTasks, maxParallelism)
 	defer close(workCh)
