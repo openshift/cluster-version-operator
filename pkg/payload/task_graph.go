@@ -128,13 +128,18 @@ func FlattenByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 	return [][]*TaskNode{groups}
 }
 
+// TaskNode represents a node in a TaskGraph. The node assumes the graph is indexable and nodes are retrievable by index,
+// and In/Out are indices of other nodes connected to this one by incoming/outgoing edges, respectively.
 type TaskNode struct {
-	In    []int
+	// In is a list of node indices from which there is an edge to this node (=prerequisites)
+	In []int
+	// Tasks to be executed when this node is visited
 	Tasks []*Task
-	Out   []int
+	// Out is a list of node indices to which there is an edge from this node (=dependents).
+	Out []int
 }
 
-func (n TaskNode) String() string {
+func (n *TaskNode) String() string {
 	var arr []string
 	for _, t := range n.Tasks {
 		if len(t.Manifest.OriginalFilename) > 0 {
@@ -262,7 +267,7 @@ func (g *TaskGraph) Split(onFn func(task *Task) bool) {
 }
 
 // BreakFunc returns the input tasks in order of dependencies with
-// explicit parallelizm allowed per task in an array of task nodes.
+// explicit parallelism allowed per task in an array of task nodes.
 type BreakFunc func([]*Task) [][]*TaskNode
 
 // ShiftOrder rotates each TaskNode by step*len/stride when stride > len,
@@ -424,8 +429,8 @@ type taskStatus struct {
 }
 
 // RunGraph executes the provided graph in order and in parallel up to maxParallelism. It will not start
-// a new TaskNode until all of the prerequisites have completed. If fn returns an error, no dependencies
-// of that node will be executed, but other indepedent edges will continue executing.
+// a new TaskNode until all its prerequisites have completed. If fn returns an error, no dependencies
+// of that node will be executed, but other independent edges will continue executing.
 func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func(ctx context.Context, tasks []*Task) error) []error {
 	submitted := make([]bool, len(graph.Nodes))
 	results := make([]*taskStatus, len(graph.Nodes))
@@ -452,7 +457,7 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		return -1
 	}
 
-	// Tasks go out to the workers via workCh, and results come brack
+	// Tasks go out to the workers via workCh, and results come back
 	// from the workers via resultCh.
 	workCh := make(chan runTasks, maxParallelism)
 	defer close(workCh)
@@ -469,16 +474,16 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 	for i := 0; i < maxParallelism; i++ {
 		wg.Add(1)
-		go func(ctx context.Context, job int) {
+		go func(ctx context.Context, worker int) {
 			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
-					klog.V(2).Infof("Canceled worker %d while waiting for work", job)
+					klog.V(2).Infof("Worker %d: Received cancel signal while waiting for work", worker)
 					return
 				case runTask := <-workCh:
-					klog.V(2).Infof("Running %d on worker %d", runTask.index, job)
+					klog.V(2).Infof("Worker %d: Running job %d (with %d tasks)", worker, runTask.index, len(runTask.tasks))
 					err := fn(ctx, runTask.tasks)
 					resultCh <- taskStatus{index: runTask.index, error: err}
 				}
@@ -487,9 +492,10 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 
 	var inflight int
-	nextNode := getNextNode()
-	done := false
+	var done bool
+
 	for !done {
+		nextNode := getNextNode()
 		switch {
 		case ctx.Err() == nil && nextNode >= 0: // push a task or collect a result
 			select {
@@ -517,18 +523,16 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		default: // no work to push and nothing in flight.  We're done
 			done = true
 		}
-		if !done {
-			nextNode = getNextNode()
-		}
 	}
 
 	cancelFn()
 	wg.Wait()
-	klog.V(2).Infof("Workers finished")
+	klog.V(2).Info("Workers finished")
 
 	var errs []error
 	var firstIncompleteNode *TaskNode
-	incompleteCount := 0
+	var incompleteCount int
+
 	for i, result := range results {
 		if result == nil {
 			if firstIncompleteNode == nil && len(graph.Nodes[i].Tasks) > 0 {
@@ -547,9 +551,6 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		}
 	}
 
-	klog.V(2).Infof("Result of work: %v", errs)
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	klog.V(2).Infof("Result of work: errs=%v", errs)
+	return errs
 }

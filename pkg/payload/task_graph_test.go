@@ -703,21 +703,11 @@ func TestRunGraph(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			manifest := &manifest.Manifest{OriginalFilename: name}
-			err := manifest.UnmarshalJSON([]byte(fmt.Sprintf(`
-{
-  "apiVersion": "v1",
-  "kind": "ConfigMap",
-  "metadata": {
-    "name": "%s",
-    "namespace": "default"
-  }
-}
-`, name)))
-			if err != nil {
+			m := &manifest.Manifest{OriginalFilename: name}
+			if err := m.UnmarshalJSON(configMapJSON(name)); err != nil {
 				t.Fatalf("load %s: %v", name, err)
 			}
-			arr = append(arr, &Task{Manifest: manifest})
+			arr = append(arr, &Task{Manifest: m})
 		}
 		return arr
 	}
@@ -743,6 +733,8 @@ func TestRunGraph(t *testing.T) {
 		{
 			name: "nodes executed after dependencies",
 			nodes: []*TaskNode{
+				// In: prerequisites (by index)
+				// Out: dependents (by index)
 				{Tasks: tasks("c"), In: []int{3}},
 				{Tasks: tasks("d", "e"), In: []int{3}},
 				{Tasks: tasks("f"), In: []int{3}, Out: []int{4}},
@@ -773,6 +765,8 @@ func TestRunGraph(t *testing.T) {
 		{
 			name: "task error interrupts node processing",
 			nodes: []*TaskNode{
+				// In: prerequisites (by index)
+				// Out: dependents (by index)
 				{Tasks: tasks("c"), In: []int{2}},
 				{Tasks: tasks("d"), In: []int{2}, Out: []int{3}},
 				{Tasks: tasks("a", "b"), Out: []int{0, 1}},
@@ -799,6 +793,8 @@ func TestRunGraph(t *testing.T) {
 		{
 			name: "mid-task cancellation error interrupts node processing",
 			nodes: []*TaskNode{
+				// In: prerequisites (by index)
+				// Out: dependents (by index)
 				{Tasks: tasks("c"), In: []int{2}},
 				{Tasks: tasks("d"), In: []int{2}, Out: []int{3}},
 				{Tasks: tasks("a", "b"), Out: []int{0, 1}},
@@ -853,6 +849,8 @@ func TestRunGraph(t *testing.T) {
 		{
 			name: "task errors in parallel nodes both reported",
 			nodes: []*TaskNode{
+				// In: prerequisites (by index)
+				// Out: dependents (by index)
 				{Tasks: tasks("a"), Out: []int{1}},
 				{Tasks: tasks("b"), In: []int{0}, Out: []int{2, 4, 8}},
 				{Tasks: tasks("c1"), In: []int{1}, Out: []int{3}},
@@ -878,8 +876,10 @@ func TestRunGraph(t *testing.T) {
 			wantErrs: []string{"error - c1", "error - f"},
 		},
 		{
-			name: "cancelation without task errors is reported",
+			name: "cancellation without task errors is reported",
 			nodes: []*TaskNode{
+				// In: prerequisites (by index)
+				// Out: dependents (by index)
 				{Tasks: tasks("a"), Out: []int{1}},
 				{Tasks: tasks("b"), In: []int{0}},
 			},
@@ -949,4 +949,18 @@ func TestRunGraph(t *testing.T) {
 			}
 		})
 	}
+}
+
+func configMapJSON(name string) []byte {
+	const cmTemplate = `
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "%s",
+    "namespace": "default"
+  }
+}
+`
+	return []byte(fmt.Sprintf(cmTemplate, name))
 }
