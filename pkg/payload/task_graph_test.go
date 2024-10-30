@@ -703,21 +703,11 @@ func TestRunGraph(t *testing.T) {
 	tasks := func(names ...string) []*Task {
 		var arr []*Task
 		for _, name := range names {
-			manifest := &manifest.Manifest{OriginalFilename: name}
-			err := manifest.UnmarshalJSON([]byte(fmt.Sprintf(`
-{
-  "apiVersion": "v1",
-  "kind": "ConfigMap",
-  "metadata": {
-    "name": "%s",
-    "namespace": "default"
-  }
-}
-`, name)))
-			if err != nil {
+			m := &manifest.Manifest{OriginalFilename: name}
+			if err := m.UnmarshalJSON(configMapJSON(name)); err != nil {
 				t.Fatalf("load %s: %v", name, err)
 			}
-			arr = append(arr, &Task{Manifest: manifest})
+			arr = append(arr, &Task{Manifest: m})
 		}
 		return arr
 	}
@@ -959,4 +949,18 @@ func TestRunGraph(t *testing.T) {
 			}
 		})
 	}
+}
+
+func configMapJSON(name string) []byte {
+	const cmTemplate = `
+{
+  "apiVersion": "v1",
+  "kind": "ConfigMap",
+  "metadata": {
+    "name": "%s",
+    "namespace": "default"
+  }
+}
+`
+	return []byte(fmt.Sprintf(cmTemplate, name))
 }

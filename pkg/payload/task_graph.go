@@ -139,7 +139,7 @@ type TaskNode struct {
 	Out []int
 }
 
-func (n TaskNode) String() string {
+func (n *TaskNode) String() string {
 	var arr []string
 	for _, t := range n.Tasks {
 		if len(t.Manifest.OriginalFilename) > 0 {
@@ -474,16 +474,16 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 	for i := 0; i < maxParallelism; i++ {
 		wg.Add(1)
-		go func(ctx context.Context, job int) {
+		go func(ctx context.Context, worker int) {
 			defer utilruntime.HandleCrash()
 			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
-					klog.V(2).Infof("Canceled worker %d while waiting for work", job)
+					klog.V(2).Infof("Worker %d: Received cancel signal while waiting for work", worker)
 					return
 				case runTask := <-workCh:
-					klog.V(2).Infof("Running %d on worker %d", runTask.index, job)
+					klog.V(2).Infof("Worker %d: Running job %d (with %d tasks)", worker, runTask.index, len(runTask.tasks))
 					err := fn(ctx, runTask.tasks)
 					resultCh <- taskStatus{index: runTask.index, error: err}
 				}
@@ -492,9 +492,10 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 	}
 
 	var inflight int
-	nextNode := getNextNode()
-	done := false
+	var done bool
+
 	for !done {
+		nextNode := getNextNode()
 		switch {
 		case ctx.Err() == nil && nextNode >= 0: // push a task or collect a result
 			select {
@@ -522,18 +523,16 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		default: // no work to push and nothing in flight.  We're done
 			done = true
 		}
-		if !done {
-			nextNode = getNextNode()
-		}
 	}
 
 	cancelFn()
 	wg.Wait()
-	klog.V(2).Infof("Workers finished")
+	klog.V(2).Info("Workers finished")
 
 	var errs []error
 	var firstIncompleteNode *TaskNode
-	incompleteCount := 0
+	var incompleteCount int
+
 	for i, result := range results {
 		if result == nil {
 			if firstIncompleteNode == nil && len(graph.Nodes[i].Tasks) > 0 {
@@ -552,9 +551,6 @@ func RunGraph(ctx context.Context, graph *TaskGraph, maxParallelism int, fn func
 		}
 	}
 
-	klog.V(2).Infof("Result of work: %v", errs)
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	klog.V(2).Infof("Result of work: errs=%v", errs)
+	return errs
 }
