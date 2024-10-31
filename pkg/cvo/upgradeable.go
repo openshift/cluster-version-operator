@@ -23,7 +23,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
-	"github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 )
 
 const (
@@ -288,8 +287,8 @@ func gateApplicableToCurrentVersion(gateName string, currentVersion string) (boo
 			internal.AdminGatesConfigMap, gateName, adminAckGateFmt)
 	} else {
 		parts := strings.Split(ackVersion, "-")
-		ackMinor := clusterversion.GetEffectiveMinor(parts[1])
-		cvMinor := clusterversion.GetEffectiveMinor(currentVersion)
+		ackMinor := getEffectiveMinor(parts[1])
+		cvMinor := getEffectiveMinor(currentVersion)
 		if ackMinor == cvMinor {
 			applicable = true
 		}
@@ -338,7 +337,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 			Message: message,
 		}
 	}
-	currentVersion := clusterversion.GetCurrentVersion(cv.Status.History)
+	currentVersion := getCurrentVersion(cv.Status.History)
 
 	// This can occur in early start up when the configmap is first added and version history
 	// has not yet been populated.
