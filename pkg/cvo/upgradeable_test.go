@@ -85,8 +85,8 @@ func TestUpgradeInProgressUpgradeable(t *testing.T) {
 						{
 							Type:    configv1.OperatorProgressing,
 							Status:  configv1.ConditionTrue,
-							Reason:  "a",
-							Message: "b",
+							Reason:  "UpdateInProgress",
+							Message: "An update is already in progress and the details are in the Progressing condition",
 						},
 					},
 				},
@@ -94,8 +94,8 @@ func TestUpgradeInProgressUpgradeable(t *testing.T) {
 			expected: &configv1.ClusterOperatorStatusCondition{
 				Type:    "UpgradeableUpgradeInProgress",
 				Status:  configv1.ConditionTrue,
-				Reason:  "a",
-				Message: "b",
+				Reason:  "UpdateInProgress",
+				Message: "An update is already in progress and the details are in the Progressing condition",
 			},
 		},
 		{
@@ -117,7 +117,7 @@ func TestUpgradeInProgressUpgradeable(t *testing.T) {
 			},
 		},
 		{
-			name: "progressing is missing",
+			name: "progressing has no status",
 			cv: &configv1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "unit-test",

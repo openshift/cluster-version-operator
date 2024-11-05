@@ -284,8 +284,8 @@ func (check *upgradeInProgressUpgradeable) Check() *configv1.ClusterOperatorStat
 
 	if progressingCondition := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); progressingCondition != nil &&
 		progressingCondition.Status == configv1.ConditionTrue {
-		cond.Reason = progressingCondition.Reason
-		cond.Message = progressingCondition.Message
+		cond.Reason = "UpdateInProgress"
+		cond.Message = fmt.Sprintf("An update is already in progress and the details are in the %s condition", configv1.OperatorProgressing)
 		return cond
 	}
 	return nil
