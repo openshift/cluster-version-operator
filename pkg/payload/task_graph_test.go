@@ -949,7 +949,6 @@ func TestRunGraph(t *testing.T) {
 			callbacks: map[string]callbackFn{
 				"a": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
 					cancelFn()
-					time.Sleep(time.Second)
 					return nil
 				},
 				"*": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
