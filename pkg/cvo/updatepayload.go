@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -16,15 +15,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	toolswatch "k8s.io/client-go/tools/watch"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/verify"
 )
@@ -162,9 +164,10 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	payloadHash := base64.RawURLEncoding.EncodeToString(hash.Sum(nil))
 	tdir := filepath.Join(r.workingDir, payloadHash)
 
-	// Prune older pods and directories while gracefully handling errors.
+	// Prune older pods and directories.
 	if err := r.prunePods(ctx); err != nil {
-		klog.Warningf("failed to prune pods: %v", err)
+		klog.Errorf("failed to prune pods: %v", err)
+		return "", fmt.Errorf("failed to prune pods: %w", err)
 	}
 
 	if err := payload.ValidateDirectory(tdir); os.IsNotExist(err) {
@@ -217,7 +220,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		return container
 	}
 
-	pod := &v1.Pod{
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -278,30 +281,103 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			}},
 			RestartPolicy: corev1.RestartPolicyOnFailure,
 		},
-	},
+	}
 
-	if _, err := r.kubeClient.V1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
+	klog.Infof("Spawning Pod %s ...", name)
+	if _, err := r.kubeClient.CoreV1().Pods(pod.Namespace).Create(ctx, pod, metav1.CreateOptions{}); err != nil {
 		return err
 	}
 
-	return wait.PollUntilContextCancel(ctx, 3 * time.Second, true, func(localCtx context.Context) (bool, error) {
-		p, err := r.kubeClient.V1().Pods(pod.Namespace).Get(localCtx, pod.Name, metav1.GetOptions{})
-		if err != nil {
-			klog.Warningf("unable to get OpenShift release retrieval pod: %v", err)
-			return false, nil
+	return waitForPodCompletion(ctx, r.kubeClient.CoreV1().Pods(pod.Namespace), pod.Name)
+}
+
+type PodListerWatcher interface {
+	List(ctx context.Context, opts metav1.ListOptions) (*corev1.PodList, error)
+	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
+}
+
+func collectStatuses(status corev1.PodStatus, waitingConditionFunc func(reason, message string) bool) []string {
+	var statuses []string
+	for _, cs := range status.ContainerStatuses {
+		if cs.State.Waiting != nil && waitingConditionFunc(cs.State.Waiting.Reason, cs.State.Waiting.Message) {
+			statuses = append(statuses, fmt.Sprintf("container %s is waiting with reason %q and message %q", cs.Name, cs.State.Waiting.Reason, cs.State.Waiting.Message))
 		}
- 
-		if p.Status.Phase != "", {
-			return false, err
-		} else if err != nil {
-			klog.Error(err)
-			return false, nil
-		} else if !done {
-			klog.V(2).Infof("Job %s in namespace %s is not ready, continuing to wait.", job.ObjectMeta.Name, job.ObjectMeta.Namespace)
-			return false, nil
+		if cs.State.Terminated != nil && cs.State.Terminated.Message != "" {
+			statuses = append(statuses, fmt.Sprintf("container %s is terminated with reason %q and message %q", cs.Name, cs.State.Terminated.Reason, cs.State.Terminated.Message))
 		}
-		return true, nil
-	})
+	}
+	for _, ics := range status.InitContainerStatuses {
+		if ics.State.Waiting != nil && waitingConditionFunc(ics.State.Waiting.Reason, ics.State.Waiting.Message) {
+			statuses = append(statuses, fmt.Sprintf("initcontainer %s is waiting with reason %q and message %q", ics.Name, ics.State.Waiting.Reason, ics.State.Waiting.Message))
+		}
+		if ics.State.Terminated != nil && ics.State.Terminated.Message != "" {
+			statuses = append(statuses, fmt.Sprintf("initcontainer %s is terminated with reason %q and message %q", ics.Name, ics.State.Terminated.Reason, ics.State.Terminated.Message))
+		}
+	}
+	return statuses
+}
+
+func podCompletionCheckFn(name string) toolswatch.ConditionFunc {
+	return func(event watch.Event) (bool, error) {
+		p, ok := event.Object.(*corev1.Pod)
+		if !ok {
+			klog.Errorf("expecting Pod but received event with kind: %s", event.Object.GetObjectKind())
+			return false, fmt.Errorf("expecting Pod but received event with kind: %s", event.Object.GetObjectKind())
+		}
+		switch phase := p.Status.Phase; phase {
+		case corev1.PodPending:
+			klog.V(4).Infof("Pod %s is pending", name)
+			// There are two cases at the moment we want to bottle up the waiting message where
+			// the details would be lost if we waited until the pod failed.
+			// Case 1: "reason: SignatureValidationFailed".
+			// The message looks like 'image pull failed for quay.io/openshift-release-dev/ocp-release@sha256:digest because the signature validation failed: Source image rejected: A signature was required, but no signature exists'
+			// We do not need Case 1 if https://github.com/kubernetes/kubernetes/pull/127918 lands into OCP.
+			// Case 2: "reason: ErrImagePull".
+			// The message looks like '...: reading manifest sha256:... in quay.io/openshift-release-dev/ocp-release: manifest unknown'
+			// In case those keywords are changed in the future Kubernetes implementation, we will have to follow up accordingly.
+			// Otherwise, we will lose these details in the waiting message. It brings no other harms.
+			if statuses := collectStatuses(p.Status, func(reason, message string) bool {
+				return reason == "SignatureValidationFailed" ||
+					(reason == "ErrImagePull" && strings.Contains(message, "manifest unknown"))
+			}); len(statuses) > 0 {
+				klog.Errorf("Pod %s failed at pending with reason %q and message %q and status %s", name, p.Status.Reason, p.Status.Message, strings.Join(statuses, ","))
+				return false, fmt.Errorf("pod %s failed at pending with reason %q and message %q and status %s", name, p.Status.Reason, p.Status.Message, strings.Join(statuses, ","))
+			}
+			return false, nil
+		case corev1.PodRunning:
+			klog.V(4).Infof("Pod %s is running, waiting for its completion ...", name)
+			return false, nil
+		case corev1.PodSucceeded:
+			klog.Infof("Pod %s succeeded", name)
+			return true, nil
+		case corev1.PodFailed:
+			statuses := collectStatuses(p.Status, func(reason, message string) bool { return message != "" })
+			klog.Errorf("Pod %s failed with reason %q and message %q and status %s", name, p.Status.Reason, p.Status.Message, strings.Join(statuses, ","))
+			return false, fmt.Errorf("pod %s failed with reason %q and message %q and status %s", name, p.Status.Reason, p.Status.Message, strings.Join(statuses, ","))
+		default:
+			klog.Errorf("Pod %s is with unexpected phase %s", name, phase)
+			return false, fmt.Errorf("pod %s is with unexpected phase %s", name, phase)
+		}
+	}
+}
+
+func waitForPodCompletion(ctx context.Context, podListerWatcher PodListerWatcher, name string) error {
+	fieldSelector := fields.OneTermEqualSelector("metadata.name", name).String()
+	_, err := toolswatch.UntilWithSync(
+		ctx,
+		&cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (object runtime.Object, e error) {
+				return podListerWatcher.List(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
+			},
+			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+				return podListerWatcher.Watch(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
+			},
+		},
+		&corev1.Pod{},
+		nil,
+		podCompletionCheckFn(name),
+	)
+	return err
 }
 
 // prunePods deletes the older, finished pods in the namespace.
@@ -326,15 +402,15 @@ func (r *payloadRetriever) prunePods(ctx context.Context) error {
 	}
 	// end transitional job pruning
 
-	pods, err := r.kubeClient.BatchV1().Pods(r.namespace).List(ctx, metav1.ListOptions{
+	pods, err := r.kubeClient.CoreV1().Pods(r.namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: "k8s-app=retrieve-openshift-release",
 	})
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	for _, pod := pods.Items {
-		err := r.kubeClient.V1().Pods(r.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
+	for _, pod := range pods.Items {
+		err := r.kubeClient.CoreV1().Pods(r.namespace).Delete(ctx, pod.Name, metav1.DeleteOptions{})
 		if err != nil {
 			errs = append(errs, errors.Wrapf(err, "failed to delete pod %v", pod.Name))
 		}
