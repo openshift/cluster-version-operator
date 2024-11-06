@@ -898,7 +898,6 @@ func TestRunGraph(t *testing.T) {
 						return err
 					}
 					cancelFn()
-					// time.Sleep(time.Second)
 					return nil
 				},
 				"*": func(t *testing.T, name string, ctx context.Context, cancelFn func()) error {
