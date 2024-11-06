@@ -191,11 +191,6 @@ type SyncWorker struct {
 
 	clusterProfile string
 
-	// alwaysEnableCapabilities is a list of cluster capabilities which should
-	// always be implicitly enabled.
-	// This contributes to whether or not some manifests are included for reconciliation.
-	alwaysEnableCapabilities []configv1.ClusterVersionCapability
-
 	// initializedFunc is only for the unit-test purpose
 	initializedFunc func() bool
 }
