@@ -33,9 +33,18 @@ import (
 )
 
 var architecture string
+var sortedCaps = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
+var sortedKnownCaps = configv1.KnownClusterVersionCapabilities
 
 func init() {
 	architecture = runtime.GOARCH
+
+	sort.Slice(sortedCaps, func(i, j int) bool {
+		return sortedCaps[i] < sortedCaps[j]
+	})
+	sort.Slice(sortedKnownCaps, func(i, j int) bool {
+		return sortedKnownCaps[i] < sortedKnownCaps[j]
+	})
 }
 
 func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
