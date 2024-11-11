@@ -2018,7 +2018,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 			// Emulates capabilities status set by a previous pod
 			Capabilities: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: sortedCaps,
-				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				KnownCapabilities:   []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBaremetal, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples, configv1.ClusterVersionCapabilityOperatorLifecycleManager, configv1.ClusterVersionCapabilityOperatorLifecycleManagerV1},
 			},
 		},
 	}
@@ -2086,7 +2086,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 					EnabledCapabilities: sortedCaps,
 					KnownCapabilities:   sortedKnownCaps,
 				},
-				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBuild, configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityCloudControllerManager, configv1.ClusterVersionCapabilityCloudCredential, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityDeploymentConfig, configv1.ClusterVersionCapabilityImageRegistry, configv1.ClusterVersionCapabilityIngress, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityMachineAPI, configv1.ClusterVersionCapabilityNodeTuning, configv1.ClusterVersionCapabilityOperatorLifecycleManager, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
+				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityBuild, configv1.ClusterVersionCapabilityCSISnapshot, configv1.ClusterVersionCapabilityCloudControllerManager, configv1.ClusterVersionCapabilityCloudCredential, configv1.ClusterVersionCapabilityConsole, configv1.ClusterVersionCapabilityDeploymentConfig, configv1.ClusterVersionCapabilityImageRegistry, configv1.ClusterVersionCapabilityIngress, configv1.ClusterVersionCapabilityInsights, configv1.ClusterVersionCapabilityMachineAPI, configv1.ClusterVersionCapabilityNodeTuning, configv1.ClusterVersionCapabilityOperatorLifecycleManager, configv1.ClusterVersionCapabilityOperatorLifecycleManagerV1, configv1.ClusterVersionCapabilityStorage, configv1.ClusterVersionCapabilityMarketplace, configv1.ClusterVersionCapabilityOpenShiftSamples},
 			},
 			loadPayloadStatus: LoadPayloadStatus{
 				Step:               "PayloadLoaded",
@@ -2130,7 +2130,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 				KnownCapabilities:   sortedKnownCaps,
 			},
 			Conditions: []configv1.ClusterOperatorStatusCondition{
-				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: Build, CSISnapshot, CloudControllerManager, CloudCredential, Console, DeploymentConfig, ImageRegistry, Ingress, Insights, MachineAPI, NodeTuning, OperatorLifecycleManager, Storage, marketplace, openshift-samples"},
+				{Type: ImplicitlyEnabledCapabilities, Status: configv1.ConditionTrue, Reason: "CapabilitiesImplicitlyEnabled", Message: "The following capabilities could not be disabled: Build, CSISnapshot, CloudControllerManager, CloudCredential, Console, DeploymentConfig, ImageRegistry, Ingress, Insights, MachineAPI, NodeTuning, OperatorLifecycleManager, OperatorLifecycleManagerV1, Storage, marketplace, openshift-samples"},
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
 					Message: "Payload loaded version=\"1.0.1-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: "Available", Status: "False"},
