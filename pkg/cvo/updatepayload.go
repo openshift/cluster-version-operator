@@ -227,6 +227,9 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			Labels: map[string]string{
 				"k8s-app": "retrieve-openshift-release",
 			},
+			Annotations: map[string]string{
+				"openshift.io/required-scc": "privileged",
+			},
 		},
 		Spec: corev1.PodSpec{
 			ActiveDeadlineSeconds: deadline,
