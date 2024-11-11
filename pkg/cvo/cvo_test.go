@@ -2675,7 +2675,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			},
 		},
 		{
-			name: "if last check time was too recent, do nothing",
+			name: "if last successful check time was too recent, do nothing",
 			handler: func(w http.ResponseWriter, req *http.Request) {
 				http.Error(w, "bad things", http.StatusInternalServerError)
 			},
@@ -2683,9 +2683,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				updateService:              "http://localhost:8080/graph",
 				minimumUpdateCheckInterval: 1 * time.Minute,
 				availableUpdates: &availableUpdates{
-					UpdateService: "http://localhost:8080/graph",
-					Channel:       "fast",
-					LastAttempt:   time.Now(),
+					UpdateService:          "http://localhost:8080/graph",
+					Channel:                "fast",
+					LastAttempt:            time.Now(),
+					LastSyncOrConfigChange: time.Now(),
 				},
 				release: configv1.Release{
 					Version: "4.0.1",
