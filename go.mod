@@ -33,6 +33,8 @@ require (
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 )
 
+replace github.com/openshift/api => github.com/ingvagabund/api v0.0.0-20241014123500-a36180d24dec
+
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
