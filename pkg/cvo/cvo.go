@@ -120,11 +120,11 @@ type Operator struct {
 	cacheSynced           []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
-	queue workqueue.RateLimitingInterface
+	queue workqueue.TypedRateLimitingInterface[any]
 	// availableUpdatesQueue tracks checking for updates from the update server.
-	availableUpdatesQueue workqueue.RateLimitingInterface
+	availableUpdatesQueue workqueue.TypedRateLimitingInterface[any]
 	// upgradeableQueue tracks checking for upgradeable.
-	upgradeableQueue workqueue.RateLimitingInterface
+	upgradeableQueue workqueue.TypedRateLimitingInterface[any]
 
 	// statusLock guards access to modifying available updates
 	statusLock       sync.Mutex
@@ -217,13 +217,12 @@ func New(
 		payloadDir:                 overridePayloadDir,
 		updateService:              updateService,
 
-		client:        client,
-		kubeClient:    kubeClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
-
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterversion"),
-		availableUpdatesQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "availableupdates"),
-		upgradeableQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "upgradeable"),
+		client:                client,
+		kubeClient:            kubeClient,
+		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
+		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
+		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
+		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
@@ -607,14 +606,14 @@ func clusterOperatorConditionStatus(co *configv1.ClusterOperator, condType confi
 	return configv1.ConditionUnknown
 }
 
-func (optr *Operator) worker(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error) {
+func (optr *Operator) worker(ctx context.Context, queue workqueue.TypedRateLimitingInterface[any], syncHandler func(context.Context, string) error) {
 	for processNextWorkItem(ctx, queue, syncHandler, optr.syncFailingStatus) {
 	}
 }
 
 type syncFailingStatusFunc func(ctx context.Context, config *configv1.ClusterVersion, err error) error
 
-func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterface, syncHandler func(context.Context, string) error, syncFailingStatus syncFailingStatusFunc) bool {
+func processNextWorkItem(ctx context.Context, queue workqueue.TypedRateLimitingInterface[any], syncHandler func(context.Context, string) error, syncFailingStatus syncFailingStatusFunc) bool {
 	key, quit := queue.Get()
 	if quit {
 		return false
@@ -626,7 +625,7 @@ func processNextWorkItem(ctx context.Context, queue workqueue.RateLimitingInterf
 	return true
 }
 
-func handleErr(ctx context.Context, queue workqueue.RateLimitingInterface, err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
+func handleErr(ctx context.Context, queue workqueue.TypedRateLimitingInterface[any], err error, key interface{}, syncFailingStatus syncFailingStatusFunc) {
 	if err == nil {
 		queue.Forget(key)
 		return

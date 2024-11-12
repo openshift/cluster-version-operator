@@ -254,10 +254,10 @@ func makeTestClusterVersion(progressing *configv1.ClusterOperatorStatusCondition
 type testSyncContext struct {
 	queueKey      string
 	eventRecorder events.Recorder
-	queue         workqueue.RateLimitingInterface
+	queue         workqueue.TypedRateLimitingInterface[any]
 }
 
-func (c testSyncContext) Queue() workqueue.RateLimitingInterface {
+func (c testSyncContext) Queue() workqueue.RateLimitingInterface { //nolint:staticcheck
 	return c.queue
 }
 

@@ -154,6 +154,6 @@ func Test_updateStatusController(t *testing.T) {
 func newTestSyncContextWithQueue() factory.SyncContext {
 	return testSyncContext{
 		eventRecorder: events.NewInMemoryRecorder("test"),
-		queue:         workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		queue:         workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any]()),
 	}
 }

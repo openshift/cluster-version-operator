@@ -48,7 +48,7 @@ type Controller struct {
 	cacheSynced []cache.InformerSynced
 
 	// queue tracks keeping the list of available updates on a cluster version
-	queue workqueue.RateLimitingInterface
+	queue workqueue.TypedRateLimitingInterface[any]
 }
 
 // New returns a new autoupdate controller.
@@ -68,7 +68,7 @@ func New(
 		name:          name,
 		client:        client,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "autoupdater"}),
-		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoupdater"),
+		queue:         workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "autoupdater"}),
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(ctrl.eventHandler()); err != nil {

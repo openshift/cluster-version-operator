@@ -2775,7 +2775,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			optr := tt.optr
-			optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+			optr.queue = workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]())
 			optr.proxyLister = &clientProxyLister{client: optr.client}
 			optr.coLister = &clientCOLister{client: optr.client}
 			optr.cvLister = &clientCVLister{client: optr.client}
@@ -3868,7 +3868,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		{
 			t.Run(tt.name, func(t *testing.T) {
 				optr := tt.optr
-				optr.queue = workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+				optr.queue = workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]())
 				optr.proxyLister = &clientProxyLister{client: optr.client}
 				optr.coLister = &clientCOLister{client: optr.client}
 				optr.cvLister = &clientCVLister{client: optr.client}

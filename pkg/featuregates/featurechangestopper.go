@@ -25,7 +25,7 @@ type ChangeStopper struct {
 	featureGateLister configlistersv1.FeatureGateLister
 	cacheSynced       []cache.InformerSynced
 
-	queue      workqueue.RateLimitingInterface
+	queue      workqueue.TypedRateLimitingInterface[any]
 	shutdownFn context.CancelFunc
 }
 
@@ -34,7 +34,7 @@ func NewChangeStopper(featureGateInformer configinformersv1.FeatureGateInformer)
 	c := &ChangeStopper{
 		featureGateLister: featureGateInformer.Lister(),
 		cacheSynced:       []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
-		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "feature-gate-stopper"),
+		queue:             workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "feature-gate-stopper"}),
 	}
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
 	if _, err := featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

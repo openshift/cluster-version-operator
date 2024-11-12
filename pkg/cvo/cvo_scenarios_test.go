@@ -115,7 +115,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 	o := &Operator{
 		namespace:           "test",
 		name:                "version",
-		queue:               workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "cvo-loop-test"),
+		queue:               workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "cvo-loop-test"}),
 		client:              client,
 		enabledFeatureGates: featuregates.DefaultCvoGates("version"),
 		cvLister:            &clientCVLister{client: client},
