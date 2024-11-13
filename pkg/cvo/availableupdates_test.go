@@ -121,7 +121,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 		proxyLister:           notFoundProxyLister{},
 		cmConfigManagedLister: notFoundConfigMapLister{},
 		conditionRegistry:     registry,
-		queue:                 workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
+		queue:                 workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]()),
 		release:               currentRelease,
 	}
 	availableUpdates := &availableUpdates{
