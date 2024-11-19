@@ -25,6 +25,10 @@ type CvoGateChecker interface {
 	// should never be relied upon by any production code. We may want to eventually turn this into
 	// some kind of "real" API.
 	ReconciliationIssuesCondition() bool
+
+	// StatusReleaseArchitecture controls whether CVO populates
+	// Release.Architecture in status properties like status.desired and status.history[].
+	StatusReleaseArchitecture() bool
 }
 
 type panicOnUsageBeforeInitializationFunc func()
@@ -38,6 +42,11 @@ func panicOnUsageBeforeInitialization() {
 var PanicOnUsageBeforeInitialization = panicOnUsageBeforeInitializationFunc(panicOnUsageBeforeInitialization)
 
 func (p panicOnUsageBeforeInitializationFunc) ReconciliationIssuesCondition() bool {
+	p()
+	return false
+}
+
+func (p panicOnUsageBeforeInitializationFunc) StatusReleaseArchitecture() bool {
 	p()
 	return false
 }
@@ -58,10 +67,15 @@ type CvoGates struct {
 	// individual flags mirror the CvoGateChecker interface
 	unknownVersion                bool
 	reconciliationIssuesCondition bool
+	statusReleaseArchitecture     bool
 }
 
 func (c CvoGates) ReconciliationIssuesCondition() bool {
 	return c.reconciliationIssuesCondition
+}
+
+func (c CvoGates) StatusReleaseArchitecture() bool {
+	return c.statusReleaseArchitecture
 }
 
 func (c CvoGates) UnknownVersion() bool {
@@ -74,6 +88,7 @@ func DefaultCvoGates(version string) CvoGates {
 		desiredVersion:                version,
 		unknownVersion:                true,
 		reconciliationIssuesCondition: false,
+		statusReleaseArchitecture:     false,
 	}
 }
 
@@ -90,13 +105,19 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		// We found the matching version, so we do not need to run in the unknown version mode
 		enabledGates.unknownVersion = false
 		for _, enabled := range g.Enabled {
-			if enabled.Name == features.FeatureGateUpgradeStatus {
+			switch enabled.Name {
+			case features.FeatureGateUpgradeStatus:
 				enabledGates.reconciliationIssuesCondition = true
+			case features.FeatureGateImageStreamImportMode:
+				enabledGates.statusReleaseArchitecture = false
 			}
 		}
 		for _, disabled := range g.Disabled {
-			if disabled.Name == features.FeatureGateUpgradeStatus {
+			switch disabled.Name {
+			case features.FeatureGateUpgradeStatus:
 				enabledGates.reconciliationIssuesCondition = false
+			case features.FeatureGateImageStreamImportMode:
+				enabledGates.statusReleaseArchitecture = false
 			}
 		}
 	}

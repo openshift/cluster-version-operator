@@ -160,10 +160,11 @@ func TestLoadUpdateArchitecture(t *testing.T) {
 			},
 			want: &Update{
 				Release: configv1.Release{
-					Version:  "1.0.0-abc",
-					Image:    "image:1",
-					URL:      configv1.URL("https://example.com/v1.0.0-abc"),
-					Channels: []string{"channel-a", "channel-b", "channel-c"},
+					Version:      "1.0.0-abc",
+					Image:        "image:1",
+					Architecture: configv1.ClusterVersionArchitectureMulti,
+					URL:          configv1.URL("https://example.com/v1.0.0-abc"),
+					Channels:     []string{"channel-a", "channel-b", "channel-c"},
 				},
 				ImageRef: &imagev1.ImageStream{
 					TypeMeta: metav1.TypeMeta{

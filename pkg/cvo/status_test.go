@@ -201,6 +201,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 type fakeRiFlags struct {
 	unknownVersion                bool
 	reconciliationIssuesCondition bool
+	statusReleaseArchitecture     bool
 }
 
 func (f fakeRiFlags) UnknownVersion() bool {
@@ -209,6 +210,10 @@ func (f fakeRiFlags) UnknownVersion() bool {
 
 func (f fakeRiFlags) ReconciliationIssuesCondition() bool {
 	return f.reconciliationIssuesCondition
+}
+
+func (f fakeRiFlags) StatusReleaseArchitecture() bool {
+	return f.statusReleaseArchitecture
 }
 
 func TestUpdateClusterVersionStatus_UnknownVersionAndReconciliationIssues(t *testing.T) {

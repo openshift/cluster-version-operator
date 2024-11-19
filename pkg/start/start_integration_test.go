@@ -525,9 +525,6 @@ metadata:
 	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, alwaysEnableCapabilities)
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
-	arch := runtime.GOARCH
-	controllers.CVO.SetArchitecture(arch)
-
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
 	if err != nil {
 		t.Fatal(err)
@@ -552,7 +549,7 @@ metadata:
 		t.Logf("latest version:\n%s", printCV(lastCV))
 		t.Fatal("no request received at upstream URL")
 	}
-	expectedQuery := fmt.Sprintf("arch=%s&channel=test-channel&id=%s&version=0.0.1", arch, id.String())
+	expectedQuery := fmt.Sprintf("arch=%s&channel=test-channel&id=%s&version=0.0.1", runtime.GOARCH, id.String())
 	expectedQueryValues, err := url.ParseQuery(expectedQuery)
 	if err != nil {
 		t.Fatalf("could not parse expected query: %v", err)

@@ -186,7 +186,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	cvUpdated := false
 	// update the config with the latest available updates
-	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
+	if updated := optr.getAvailableUpdates().NeedsUpdate(config, optr.enabledFeatureGates.StatusReleaseArchitecture()); updated != nil {
 		cvUpdated = true
 		config = updated
 	}
@@ -229,11 +229,17 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		if len(status.Actual.URL) == 0 {
 			status.Actual.URL = release.URL
 		}
+		if len(status.Actual.Architecture) == 0 {
+			status.Actual.Architecture = release.Architecture
+		}
 		if status.Actual.Channels == nil {
 			status.Actual.Channels = append(release.Channels[:0:0], release.Channels...) // copy
 		}
 	}
 	desired := mergeReleaseMetadata(status.Actual, getAvailableUpdates)
+	if !enabledGates.StatusReleaseArchitecture() {
+		desired.Architecture = configv1.ClusterVersionArchitecture("")
+	}
 
 	risksMsg := ""
 	if desired.Image == status.loadPayloadStatus.Update.Image {
