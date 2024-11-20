@@ -386,7 +386,8 @@ func loadReleaseFromMetadata(releaseDir string) (configv1.Release, string, error
 	if archInterface, ok := metadata.Metadata["release.openshift.io/architecture"]; ok {
 		if archString, ok := archInterface.(string); ok {
 			if archString == releaseMultiArchID {
-				arch = string(configv1.ClusterVersionArchitectureMulti)
+				release.Architecture = configv1.ClusterVersionArchitectureMulti
+				arch = string(release.Architecture)
 			} else {
 				return release, "", fmt.Errorf("Architecture from %s (%s) contains invalid value: %q. Valid value is %q.",
 					cincinnatiJSONFile, release.Version, archString, releaseMultiArchID)

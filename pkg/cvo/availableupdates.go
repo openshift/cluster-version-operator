@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -48,7 +49,11 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	channel := config.Spec.Channel
 	desiredArch := optr.getDesiredArchitecture(config.Spec.DesiredUpdate)
-	currentArch := optr.getArchitecture()
+	currentArch := runtime.GOARCH
+
+	if optr.release.Architecture == configv1.ClusterVersionArchitectureMulti {
+		currentArch = "multi"
+	}
 
 	if desiredArch == "" {
 		desiredArch = currentArch
@@ -205,7 +210,7 @@ func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
 	return u.LastSyncOrConfigChange.After(time.Now().Add(-interval))
 }
 
-func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
+func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion, statusReleaseArchitecture bool) *configv1.ClusterVersion {
 	if u == nil {
 		return nil
 	}
@@ -213,16 +218,36 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *confi
 	if u.UpdateService != string(original.Spec.Upstream) || u.Channel != original.Spec.Channel {
 		return nil
 	}
-	if equality.Semantic.DeepEqual(u.Updates, original.Status.AvailableUpdates) &&
-		equality.Semantic.DeepEqual(u.ConditionalUpdates, original.Status.ConditionalUpdates) &&
+
+	var updates []configv1.Release
+	var conditionalUpdates []configv1.ConditionalUpdate
+
+	if statusReleaseArchitecture {
+		updates = u.Updates
+		conditionalUpdates = u.ConditionalUpdates
+	} else {
+		for _, update := range u.Updates {
+			c := update.DeepCopy()
+			c.Architecture = configv1.ClusterVersionArchitecture("")
+			updates = append(updates, *c)
+		}
+		for _, conditionalUpdate := range u.ConditionalUpdates {
+			c := conditionalUpdate.DeepCopy()
+			c.Release.Architecture = configv1.ClusterVersionArchitecture("")
+			conditionalUpdates = append(conditionalUpdates, *c)
+		}
+	}
+
+	if equality.Semantic.DeepEqual(updates, original.Status.AvailableUpdates) &&
+		equality.Semantic.DeepEqual(conditionalUpdates, original.Status.ConditionalUpdates) &&
 		equality.Semantic.DeepEqual(u.Condition, resourcemerge.FindOperatorStatusCondition(original.Status.Conditions, u.Condition.Type)) {
 		return nil
 	}
 
 	config := original.DeepCopy()
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, u.Condition)
-	config.Status.AvailableUpdates = u.Updates
-	config.Status.ConditionalUpdates = u.ConditionalUpdates
+	config.Status.AvailableUpdates = updates
+	config.Status.ConditionalUpdates = conditionalUpdates
 	return config
 }
 
@@ -299,20 +324,6 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	}
 
 	return u
-}
-
-// getArchitecture returns the currently determined cluster architecture.
-func (optr *Operator) getArchitecture() string {
-	optr.statusLock.Lock()
-	defer optr.statusLock.Unlock()
-	return optr.architecture
-}
-
-// SetArchitecture sets the cluster architecture.
-func (optr *Operator) SetArchitecture(architecture string) {
-	optr.statusLock.Lock()
-	defer optr.statusLock.Unlock()
-	optr.architecture = architecture
 }
 
 func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {

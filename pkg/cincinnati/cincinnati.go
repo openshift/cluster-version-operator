@@ -340,6 +340,14 @@ func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
 		}
 		cvoUpdate.URL = configv1.URL(urlString)
 	}
+	if arch, ok := update.Metadata["release.openshift.io/architecture"]; ok {
+		switch arch {
+		case "multi":
+			cvoUpdate.Architecture = configv1.ClusterVersionArchitectureMulti
+		default:
+			klog.Warningf("Unrecognized release.openshift.io/architecture value %q", arch)
+		}
+	}
 	if channels, ok := update.Metadata["io.openshift.upgrades.graph.release.channels"]; ok {
 		cvoUpdate.Channels = strings.Split(channels, ",")
 		sort.Strings(cvoUpdate.Channels)

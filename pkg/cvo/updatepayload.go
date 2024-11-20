@@ -343,7 +343,7 @@ func (r *payloadRetriever) pruneJobs(ctx context.Context, retain int) error {
 // the desired architecture is changed to multi it resolves the payload using the current
 // version since that's the only valid available update. Otherwise it attempts to resolve
 // the payload using the specified desired version.
-func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch string) (configv1.Update, bool) {
+func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch configv1.ClusterVersionArchitecture) (configv1.Update, bool) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
 		return configv1.Update{}, false
@@ -353,7 +353,7 @@ func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch string) (
 
 		// Architecture changed to multi so only valid update is the multi arch version of current version
 		if update.Architecture == configv1.ClusterVersionArchitectureMulti &&
-			currentArch != string(configv1.ClusterVersionArchitectureMulti) {
+			currentArch != configv1.ClusterVersionArchitectureMulti {
 			version = config.Status.Desired.Version
 		}
 		return findUpdateFromConfigVersion(config, version, update.Force)

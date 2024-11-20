@@ -327,7 +327,6 @@ func (optr *Operator) InitializeFromPayload(update *payload.Update, requiredFeat
 	optr.enabledFeatureGates = cvoFlags
 	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
-	optr.SetArchitecture(update.Architecture)
 
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
@@ -676,7 +675,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, found := findUpdateFromConfig(config, optr.getArchitecture())
+	desired, found := findUpdateFromConfig(config, optr.release.Architecture)
 	initialized := optr.configSync.Initialized()
 	if found && initialized {
 		klog.V(2).Infof("Desired version from spec is %#v after initialization", desired)
@@ -720,8 +719,6 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// inform the config sync loop about our desired state
 	status := optr.configSync.Update(ctx, config.Generation, desired, config, state)
-
-	optr.SetArchitecture(status.Architecture)
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)
@@ -843,7 +840,7 @@ func (optr *Operator) currentVersion() configv1.Release {
 func mergeReleaseMetadata(release configv1.Release, getAvailableUpdates func() *availableUpdates) configv1.Release {
 	merged := *release.DeepCopy()
 
-	if merged.Version == "" || len(merged.URL) == 0 || merged.Channels == nil {
+	if merged.Version == "" || len(merged.URL) == 0 || len(merged.Architecture) == 0 || merged.Channels == nil {
 		// only fill in missing values from availableUpdates, to avoid clobbering data from payload.LoadUpdate.
 		availableUpdates := getAvailableUpdates()
 		if availableUpdates != nil {
@@ -864,6 +861,9 @@ func mergeReleaseMetadata(release configv1.Release, getAvailableUpdates func() *
 				}
 				if len(merged.URL) == 0 {
 					merged.URL = update.URL
+				}
+				if len(merged.Architecture) == 0 {
+					merged.Architecture = update.Architecture
 				}
 				if merged.Channels == nil {
 					merged.Channels = append(update.Channels[:0:0], update.Channels...) // copy
