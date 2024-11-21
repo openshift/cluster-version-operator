@@ -109,7 +109,7 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 			case features.FeatureGateUpgradeStatus:
 				enabledGates.reconciliationIssuesCondition = true
 			case features.FeatureGateImageStreamImportMode:
-				enabledGates.statusReleaseArchitecture = false
+				enabledGates.statusReleaseArchitecture = true
 			}
 		}
 		for _, disabled := range g.Disabled {
