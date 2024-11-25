@@ -61,8 +61,8 @@ func defaultUpgradeableCheckIntervals() upgradeableCheckIntervals {
 
 // syncUpgradeable synchronizes the upgradeable status only if the sufficient time passed since its last update. This
 // throttling period is dynamic and is driven by upgradeableCheckIntervals.
-func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion) error {
-	if u := optr.getUpgradeable(); u != nil {
+func (optr *Operator) syncUpgradeable(cv *configv1.ClusterVersion, ignoreThrottlePeriod bool) error {
+	if u := optr.getUpgradeable(); u != nil && !ignoreThrottlePeriod {
 		throttleFor := optr.upgradeableCheckIntervals.throttlePeriod(cv)
 		if earliestNext := u.At.Add(throttleFor); time.Now().Before(earliestNext) {
 			klog.V(2).Infof("Upgradeability last checked %s ago, will not re-check until %s", time.Since(u.At), earliestNext.Format(time.RFC3339))
@@ -176,7 +176,7 @@ func (optr *Operator) getUpgradeable() *upgradeable {
 }
 
 type upgradeableCheck interface {
-	// returns a not-nil condition when the check fails.
+	// Check returns a not-nil condition that should be addressed before a minor level upgrade when the check fails.
 	Check() *configv1.ClusterOperatorStatusCondition
 }
 
@@ -260,6 +260,34 @@ func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperat
 	cond.Reason = "ClusterVersionOverridesSet"
 	cond.Message = "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing."
 	return cond
+}
+
+type upgradeInProgressUpgradeable struct {
+	name     string
+	cvLister configlistersv1.ClusterVersionLister
+}
+
+func (check *upgradeInProgressUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
+	cond := &configv1.ClusterOperatorStatusCondition{
+		Type:   "UpgradeableUpgradeInProgress",
+		Status: configv1.ConditionTrue,
+	}
+
+	cv, err := check.cvLister.Get(check.name)
+	if meta.IsNoMatchError(err) || apierrors.IsNotFound(err) {
+		return nil
+	} else if err != nil {
+		klog.Error(err)
+		return nil
+	}
+
+	if progressingCondition := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, configv1.OperatorProgressing); progressingCondition != nil &&
+		progressingCondition.Status == configv1.ConditionTrue {
+		cond.Reason = "UpdateInProgress"
+		cond.Message = fmt.Sprintf("An update is already in progress and the details are in the %s condition", configv1.OperatorProgressing)
+		return cond
+	}
+	return nil
 }
 
 type clusterManifestDeleteInProgressUpgradeable struct {
@@ -420,6 +448,7 @@ func (optr *Operator) defaultUpgradeableChecks() []upgradeableCheck {
 		},
 		&clusterOperatorsUpgradeable{coLister: optr.coLister},
 		&clusterManifestDeleteInProgressUpgradeable{},
+		&upgradeInProgressUpgradeable{name: optr.name, cvLister: optr.cvLister},
 	}
 }
 

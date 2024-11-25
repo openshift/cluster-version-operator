@@ -449,7 +449,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
-		wait.UntilWithContext(runContext, func(runContext context.Context) { optr.worker(runContext, optr.upgradeableQueue, optr.upgradeableSync) }, time.Second)
+		wait.UntilWithContext(runContext, func(runContext context.Context) {
+			optr.worker(runContext, optr.upgradeableQueue, optr.upgradeableSyncFunc(false))
+		}, time.Second)
 		resultChannel <- asyncResult{name: "upgradeable"}
 	}()
 
@@ -459,6 +461,10 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		wait.UntilWithContext(runContext, func(runContext context.Context) {
 			// run the worker, then when the queue is closed sync one final time to flush any pending status
 			optr.worker(runContext, optr.queue, func(runContext context.Context, key string) error { return optr.sync(runContext, key) })
+			// This is to ensure upgradeableCondition to be synced and thus to avoid the race caused by the throttle
+			if err := optr.upgradeableSyncFunc(true)(shutdownContext, optr.queueKey()); err != nil {
+				utilruntime.HandleError(fmt.Errorf("unable to perform final upgradeable sync: %v", err))
+			}
 			if err := optr.sync(shutdownContext, optr.queueKey()); err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 			}
@@ -743,27 +749,29 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 	return optr.syncAvailableUpdates(ctx, config)
 }
 
-// upgradeableSync is triggered on cluster version change (and periodic requeues) to
+// upgradeableSyncFunc returns a function that is triggered on cluster version change (and periodic requeues) to
 // sync upgradeableCondition. It only modifies cluster version.
-func (optr *Operator) upgradeableSync(_ context.Context, key string) error {
-	startTime := time.Now()
-	klog.V(2).Infof("Started syncing upgradeable %q", key)
-	defer func() {
-		klog.V(2).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
-	}()
+func (optr *Operator) upgradeableSyncFunc(ignoreThrottlePeriod bool) func(_ context.Context, key string) error {
+	return func(_ context.Context, key string) error {
+		startTime := time.Now()
+		klog.V(2).Infof("Started syncing upgradeable %q", key)
+		defer func() {
+			klog.V(2).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
+		}()
 
-	config, err := optr.cvLister.Get(optr.name)
-	if apierrors.IsNotFound(err) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
-		return nil
-	}
+		config, err := optr.cvLister.Get(optr.name)
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+			return nil
+		}
 
-	return optr.syncUpgradeable(config)
+		return optr.syncUpgradeable(config, ignoreThrottlePeriod)
+	}
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than

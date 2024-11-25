@@ -3868,7 +3868,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 					waitForCm(t, cms)
 				}
 
-				err = optr.upgradeableSync(ctx, optr.queueKey())
+				err = optr.upgradeableSyncFunc(false)(ctx, optr.queueKey())
 				if err != nil && tt.wantErr == nil {
 					t.Fatalf("Operator.sync() unexpected error: %v", err)
 				}
