@@ -643,16 +643,25 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, ok := findUpdateFromConfig(config, optr.getArchitecture())
-	if ok {
-		klog.V(2).Infof("Desired version from spec is %#v", desired)
+	desired, found := findUpdateFromConfig(config, optr.getArchitecture())
+	initialized := optr.configSync.Initialized()
+	if found && initialized {
+		klog.V(2).Infof("Desired version from spec is %#v after initialization", desired)
 	} else {
+		pendingDesired := desired
 		currentVersion := optr.currentVersion()
 		desired = configv1.Update{
 			Version: currentVersion.Version,
 			Image:   currentVersion.Image,
 		}
-		klog.V(2).Infof("Desired version from operator is %#v", desired)
+		if !initialized {
+			klog.V(2).Infof("Desired version from operator is %#v with user's request to go to %#v. "+
+				"We are currently initializing the worker and will evaluate the request later", desired, pendingDesired)
+			// enqueue to trigger a reconciliation on ClusterVersion
+			optr.queue.Add(optr.queueKey())
+		} else {
+			klog.V(2).Infof("Desired version from operator is %#v", desired)
+		}
 	}
 
 	// handle the case of a misconfigured CVO by doing nothing
