@@ -241,14 +241,6 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
-					if o.ListenAddr != "" {
-						resultChannelCount++
-						go func() {
-							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
-							resultChannel <- asyncResult{name: "metrics server", error: err}
-						}()
-					}
 					if err := controllerCtx.InitializeFromPayload(runContext, restConfig, burstRestConfig); err != nil {
 						if firstError == nil {
 							firstError = err
