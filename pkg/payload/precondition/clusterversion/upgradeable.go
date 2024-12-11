@@ -17,14 +17,12 @@ import (
 
 // Upgradeable checks if clusterversion is upgradeable currently.
 type Upgradeable struct {
-	key    string
 	lister configv1listers.ClusterVersionLister
 }
 
 // NewUpgradeable returns a new Upgradeable precondition check.
 func NewUpgradeable(lister configv1listers.ClusterVersionLister) *Upgradeable {
 	return &Upgradeable{
-		key:    "version",
 		lister: lister,
 	}
 }
@@ -49,7 +47,7 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 // If the feature gate `key` is not found, or the api for clusterversion doesn't exist, this check is inert and always returns nil error.
 // Otherwise, if Upgradeable condition is set to false in the object, it returns an PreconditionError when possible.
 func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.ReleaseContext) error {
-	cv, err := pf.lister.Get(pf.key)
+	cv, err := pf.lister.Get("version")
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
 	}
@@ -119,5 +117,5 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 }
 
-// Name returns Name for the precondition.
+// Name returns the name of the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }

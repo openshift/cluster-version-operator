@@ -44,7 +44,7 @@ type Precondition interface {
 	// Run executes the precondition checks ands returns an error when the precondition fails.
 	Run(ctx context.Context, releaseContext ReleaseContext) error
 
-	// Name returns a human friendly name for the precondition.
+	// Name returns a human friendly name of the precondition.
 	Name() string
 }
 

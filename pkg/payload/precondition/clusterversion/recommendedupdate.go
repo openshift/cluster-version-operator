@@ -16,14 +16,12 @@ import (
 
 // RecommendedUpdate checks if clusterversion is upgradeable currently.
 type RecommendedUpdate struct {
-	key    string
 	lister configv1listers.ClusterVersionLister
 }
 
 // NewRecommendedUpdate returns a new RecommendedUpdate precondition check.
 func NewRecommendedUpdate(lister configv1listers.ClusterVersionLister) *RecommendedUpdate {
 	return &RecommendedUpdate{
-		key:    "version",
 		lister: lister,
 	}
 }
@@ -31,7 +29,7 @@ func NewRecommendedUpdate(lister configv1listers.ClusterVersionLister) *Recommen
 // Run runs the RecommendedUpdate precondition.
 // Returns PreconditionError when possible, if the requested target release is Recommended=False.
 func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext precondition.ReleaseContext) error {
-	clusterVersion, err := ru.lister.Get(ru.key)
+	clusterVersion, err := ru.lister.Get("version")
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
 	}
@@ -121,5 +119,5 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	return nil
 }
 
-// Name returns Name for the precondition.
+// Name returns the name of the precondition.
 func (ru *RecommendedUpdate) Name() string { return "ClusterVersionRecommendedUpdate" }

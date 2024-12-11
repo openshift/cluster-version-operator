@@ -14,26 +14,24 @@ import (
 
 // GiantHop blocks giant hops from the version that is currently being reconciled.
 type GiantHop struct {
-	key    string
 	lister configv1listers.ClusterVersionLister
 }
 
 // NewGiantHop returns a new GiantHop precondition check.
 func NewGiantHop(lister configv1listers.ClusterVersionLister) *GiantHop {
 	return &GiantHop{
-		key:    "version",
 		lister: lister,
 	}
 }
 
-// Name returns Name for the precondition.
+// Name returns the name of the precondition.
 func (p *GiantHop) Name() string { return "ClusterVersionGiantHop" }
 
 // Run runs the GiantHop precondition, blocking giant hops from the
 // version that is currently being reconciled.  It returns a
 // PreconditionError when possible.
 func (p *GiantHop) Run(ctx context.Context, releaseContext precondition.ReleaseContext) error {
-	cv, err := p.lister.Get(p.key)
+	cv, err := p.lister.Get("version")
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
 	}
