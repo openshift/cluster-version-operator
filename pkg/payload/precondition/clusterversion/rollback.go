@@ -15,26 +15,24 @@ import (
 
 // Rollback blocks rollbacks from the version that is currently being reconciled.
 type Rollback struct {
-	key    string
 	lister configv1listers.ClusterVersionLister
 }
 
 // NewRollback returns a new Rollback precondition check.
 func NewRollback(lister configv1listers.ClusterVersionLister) *Rollback {
 	return &Rollback{
-		key:    "version",
 		lister: lister,
 	}
 }
 
-// Name returns Name for the precondition.
+// Name returns the name of the precondition.
 func (p *Rollback) Name() string { return "ClusterVersionRollback" }
 
 // Run runs the Rollback precondition, blocking rollbacks from the
 // version that is currently being reconciled.  It returns a
 // PreconditionError when possible.
 func (p *Rollback) Run(ctx context.Context, releaseContext precondition.ReleaseContext) error {
-	cv, err := p.lister.Get(p.key)
+	cv, err := p.lister.Get("version")
 	if apierrors.IsNotFound(err) || meta.IsNoMatchError(err) {
 		return nil
 	}
