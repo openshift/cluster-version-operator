@@ -3676,7 +3676,7 @@ func TestCVO_ParallelError(t *testing.T) {
 		},
 		"0000_20_a_file.yaml": nil,
 		"0000_20_b_file.yaml": &payload.UpdateError{
-			UpdateEffect: payload.UpdateEffectNone,
+			UpdateEffect: payload.UpdateEffectFail,
 			Message:      "Failed to reconcile 20-b-file resource",
 		},
 	}}
@@ -3861,7 +3861,7 @@ func TestCVO_ParallelError(t *testing.T) {
 				{Type: DesiredReleaseAccepted, Status: configv1.ConditionTrue, Reason: "PayloadLoaded",
 					Message: "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\""},
 				{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "MultipleErrors", Message: "Multiple errors are preventing progress:\n* Failed to reconcile 10-a-file resource\n* Failed to reconcile 20-b-file resource"},
+				{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Message: "Failed to reconcile 20-b-file resource"},
 				{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "MultipleErrors", Message: "Unable to apply 1.0.0-abc: an unknown error has occurred: MultipleErrors"},
 				{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 			},
