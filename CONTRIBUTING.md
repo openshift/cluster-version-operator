@@ -19,7 +19,7 @@ Details [here][security].
 Anyone may [file issues][new-issue].
 For contributors who want to work up pull requests, the workflow is roughly:
 
-1. Create a topic branch from where you want to base your work (usually master).
+1. Create a topic branch from where you want to base your work (usually `main`).
 2. Make commits of logical units.
 3. Make sure your commit messages are in the proper format (see [below](#commit-message-format)).
 4. Make sure your [code builds][build-cvo] and follows the [coding style](#coding-style)
