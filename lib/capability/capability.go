@@ -85,20 +85,6 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	return status
 }
 
-// GetImplicitlyEnabledCapabilities, given an enabled resource's current capabilities, compares them against
-// the resource's capabilities from an update release. Any of the updated resource's capabilities that do not
-// exist in the current resource, are not enabled, and do not already exist in the implicitly enabled capabilities
-// are returned. The returned capabilities must be implicitly enabled.
-func GetImplicitlyEnabledCapabilities(enabledManifestCaps sets.Set[configv1.ClusterVersionCapability],
-	updatedManifestCaps sets.Set[configv1.ClusterVersionCapability],
-	capabilities ClusterCapabilities) sets.Set[configv1.ClusterVersionCapability] {
-	caps := updatedManifestCaps.Difference(enabledManifestCaps).Difference(capabilities.Enabled).Difference(capabilities.ImplicitlyEnabled)
-	if caps.Len() == 0 {
-		return nil
-	}
-	return caps
-}
-
 // categorizeEnabledCapabilities categorizes enabled capabilities by implicitness from cluster version's
 // capabilities specification and a collection of capabilities that are enabled including implicitly enabled.
 func categorizeEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitiesSpec,
