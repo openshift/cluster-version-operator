@@ -6,6 +6,7 @@ metadata:
   labels:
     k8s-app: cluster-version-operator
 spec:
+  automountServiceAccountToken: false
   containers:
   - name: cluster-version-operator
     image: {{.ReleaseImage}}
