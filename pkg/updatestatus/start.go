@@ -6,6 +6,7 @@ import (
 
 	"k8s.io/client-go/informers"
 	kubeclient "k8s.io/client-go/kubernetes"
+	appsv1client "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/klog/v2"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
@@ -30,11 +31,16 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 		return err
 	}
 
+	appsClient, err := appsv1client.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+
 	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
 	uscNamespaceCoreInformers := informers.NewSharedInformerFactoryWithOptions(coreClient, 10*time.Minute, informers.WithNamespace(uscNamespace))
 
 	updateStatusController, sendInsight := newUpdateStatusController(coreClient, uscNamespaceCoreInformers, cc.EventRecorder)
-	controlPlaneInformerController := newControlPlaneInformerController(configInformers, cc.EventRecorder, sendInsight)
+	controlPlaneInformerController := newControlPlaneInformerController(appsClient, configInformers, cc.EventRecorder, sendInsight)
 
 	// start the informers, but we do not need to wait for them to sync because each controller waits
 	// for synced informers it uses in its Run() method
