@@ -99,11 +99,18 @@ rules:
 - apiGroups:
   - config.openshift.io
   resources:
+  - clusteroperators
   - clusterversions
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
