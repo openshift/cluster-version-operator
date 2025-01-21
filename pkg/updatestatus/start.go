@@ -11,6 +11,7 @@ import (
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	machineconfigv1client "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 )
@@ -36,19 +37,28 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 		return err
 	}
 
+	machineConfigClient, err := machineconfigv1client.NewForConfig(cc.KubeConfig)
+	if err != nil {
+		return err
+	}
+
 	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
 	uscNamespaceCoreInformers := informers.NewSharedInformerFactoryWithOptions(coreClient, 10*time.Minute, informers.WithNamespace(uscNamespace))
+	coreInformers := informers.NewSharedInformerFactoryWithOptions(coreClient, 10*time.Minute)
 
 	updateStatusController, sendInsight := newUpdateStatusController(coreClient, uscNamespaceCoreInformers, cc.EventRecorder)
 	controlPlaneInformerController := newControlPlaneInformerController(appsClient, configInformers, cc.EventRecorder, sendInsight)
+	nodeInformerController := newNodeInformerController(configClient, machineConfigClient, coreInformers, cc.EventRecorder, sendInsight)
 
 	// start the informers, but we do not need to wait for them to sync because each controller waits
 	// for synced informers it uses in its Run() method
 	configInformers.Start(ctx.Done())
 	uscNamespaceCoreInformers.Start(ctx.Done())
+	coreInformers.Start(ctx.Done())
 
 	go updateStatusController.Run(ctx, 1)
 	go controlPlaneInformerController.Run(ctx, 1)
+	go nodeInformerController.Run(ctx, 1)
 
 	klog.Info("USC :: Controllers started")
 

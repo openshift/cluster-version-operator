@@ -113,6 +113,44 @@ rules:
   - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: update-status-controller-node-informer
+  annotations:
+    kubernetes.io/description: Role that allows the update status controller to watch and read node resources
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: DevPreviewNoUpgrade
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - machineconfiguration.openshift.io
+  resources:
+  - machineconfigpools
+  verbs:
+  - list
+- apiGroups:
+  - machineconfiguration.openshift.io
+  resources:
+  - machineconfigs
+  verbs:
+  - get
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - clusterversions
+  resourceNames:
+  - version
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: update-status-controller-library
@@ -180,4 +218,21 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: update-status-controller-control-plane-informer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: update-status-controller-node-informer
+  annotations:
+    kubernetes.io/description: Grant the update status controller permission to read cluster resources (temporary, until we have UpdateInformer producers)
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: DevPreviewNoUpgrade
+subjects:
+- kind: ServiceAccount
+  name: update-status-controller
+  namespace: openshift-update-status-controller
+roleRef:
+  kind: ClusterRole
+  name: update-status-controller-node-informer
   apiGroup: rbac.authorization.k8s.io
