@@ -31,6 +31,7 @@ import (
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/openshift/library-go/pkg/verify"
 	"github.com/openshift/library-go/pkg/verify/store"
@@ -43,6 +44,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/configuration"
 	cvointernal "github.com/openshift/cluster-version-operator/pkg/cvo/internal"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
@@ -93,9 +95,10 @@ type Operator struct {
 	// releaseCreated, if set, is the timestamp of the current update.
 	releaseCreated time.Time
 
-	client        clientset.Interface
-	kubeClient    kubernetes.Interface
-	eventRecorder record.EventRecorder
+	client         clientset.Interface
+	kubeClient     kubernetes.Interface
+	operatorClient operatorclientset.Interface
+	eventRecorder  record.EventRecorder
 
 	// minimumUpdateCheckInterval is the minimum duration to check for updates from
 	// the update service.
@@ -192,6 +195,7 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
+	operatorClient operatorclientset.Interface,
 	exclude string,
 	clusterProfile string,
 	promqlTarget clusterconditions.PromQLTarget,
@@ -219,6 +223,7 @@ func New(
 
 		client:                client,
 		kubeClient:            kubeClient,
+		operatorClient:        operatorClient,
 		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
@@ -445,6 +450,25 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		}, time.Second)
 		resultChannel <- asyncResult{name: "available updates"}
 	}()
+
+	if optr.enabledFeatureGates.CVOConfiguration() {
+		resultChannelCount++
+		go func() {
+			defer utilruntime.HandleCrash()
+			wait.UntilWithContext(runContext, func(runContext context.Context) {
+				config, err := configuration.NewClusterVersionOperatorConfiguration(runContext, optr.operatorClient)
+				if err != nil {
+					utilruntime.HandleError(fmt.Errorf("unable to initialize CVO configuration sync: %v", err))
+					return
+				}
+				defer config.ShutDown()
+				optr.worker(runContext, config.Queue(), config.Sync)
+			}, time.Second)
+			resultChannel <- asyncResult{name: "cvo configuration"}
+		}()
+	} else {
+		klog.V(internal.Normal).Infof("The ClusterVersionOperatorConfiguration feature gate is disabled; skipping initialization of configuration sync routine")
+	}
 
 	resultChannelCount++
 	go func() {
