@@ -2,7 +2,6 @@ package updatestatus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,19 +19,22 @@ import (
 
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
-	machineconfigv1client "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
-	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
+	machineconfiginformers "github.com/openshift/client-go/machineconfiguration/informers/externalversions"
+	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+
+	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
 // nodeInformerController is the controller that monitors health of the node resources
 // and produces insights for node update.
 type nodeInformerController struct {
-	configClient        configv1client.Interface
-	machineConfigClient machineconfigv1client.Interface
-	nodes               corelistersv1.NodeLister
-	recorder            events.Recorder
+	configClient       configv1client.Interface
+	machineConfigs     machineconfigv1listers.MachineConfigLister
+	machineConfigPools machineconfigv1listers.MachineConfigPoolLister
+	nodes              corelistersv1.NodeLister
+	recorder           events.Recorder
 
 	// sendInsight should be called to send produced insights to the update status controller
 	sendInsight sendInsightFn
@@ -43,19 +45,20 @@ type nodeInformerController struct {
 
 func newNodeInformerController(
 	configClient configv1client.Interface,
-	machineConfigClient machineconfigv1client.Interface,
 	coreInformers kubeinformers.SharedInformerFactory,
+	machineConfigInformers machineconfiginformers.SharedInformerFactory,
 	recorder events.Recorder,
 	sendInsight sendInsightFn,
 ) factory.Controller {
 	cpiRecorder := recorder.WithComponentSuffix("node-informer")
 
 	c := &nodeInformerController{
-		configClient:        configClient,
-		machineConfigClient: machineConfigClient,
-		nodes:               coreInformers.Core().V1().Nodes().Lister(),
-		recorder:            cpiRecorder,
-		sendInsight:         sendInsight,
+		configClient:       configClient,
+		machineConfigs:     machineConfigInformers.Machineconfiguration().V1().MachineConfigs().Lister(),
+		machineConfigPools: machineConfigInformers.Machineconfiguration().V1().MachineConfigPools().Lister(),
+		nodes:              coreInformers.Core().V1().Nodes().Lister(),
+		recorder:           cpiRecorder,
+		sendInsight:        sendInsight,
 
 		now: metav1.Now,
 	}
@@ -91,27 +94,24 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 			return err
 		}
 
-		mcpList, err := c.machineConfigClient.MachineconfigurationV1().MachineConfigPools().List(ctx, metav1.ListOptions{})
+		pools, err := c.machineConfigPools.List(labels.Everything())
 		if err != nil {
 			return err
 		}
-		mcp, err := whichMCP(node, mcpList.Items)
+		mcp, err := whichMCP(node, pools)
 		if err != nil {
 			return fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", err)
 		}
 
-		machineConfigs := map[string]*machineconfigv1.MachineConfig{}
-		for _, key := range []string{mco.CurrentMachineConfigAnnotationKey, mco.DesiredMachineConfigAnnotationKey} {
-			machineConfigName, ok := node.Annotations[key]
-			if !ok || machineConfigName == "" {
-				continue
-			}
-			if _, ok := machineConfigs[machineConfigName]; !ok {
-				machineConfig, err := c.machineConfigClient.MachineconfigurationV1().MachineConfigs().Get(ctx, machineConfigName, metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-				machineConfigs[machineConfigName] = machineConfig
+		machineConfigs, err := c.machineConfigs.List(labels.Everything())
+		if err != nil {
+			return err
+		}
+
+		machineConfigVersions := map[string]string{}
+		for _, mc := range machineConfigs {
+			if openshiftVersion, ok := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; ok && openshiftVersion != "" {
+				machineConfigVersions[mc.Name] = openshiftVersion
 			}
 		}
 
@@ -125,7 +125,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 		}
 
 		now := c.now()
-		if insight := assessNode(node, mcp, machineConfigs, mostRecentVersionInCVHistory, now); insight != nil {
+		if insight := assessNode(node, mcp, machineConfigVersions, mostRecentVersionInCVHistory, now); insight != nil {
 			msg = makeInsightMsgForNode(insight, now)
 		}
 	default:
@@ -158,13 +158,13 @@ func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Tim
 	}
 }
 
-func whichMCP(node *corev1.Node, pools []machineconfigv1.MachineConfigPool) (*machineconfigv1.MachineConfigPool, error) {
+func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*machineconfigv1.MachineConfigPool, error) {
 	var masterSelector labels.Selector
 	var workerSelector labels.Selector
 	customSelectors := map[string]labels.Selector{}
 	poolsMap := make(map[string]*machineconfigv1.MachineConfigPool, len(pools))
 	for _, pool := range pools {
-		poolsMap[pool.Name] = &pool
+		poolsMap[pool.Name] = pool
 		s, err := metav1.LabelSelectorAsSelector(pool.Spec.NodeSelector)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get label selector from the pool %s: %w", pool.Name, err)
@@ -190,17 +190,7 @@ func whichMCP(node *corev1.Node, pools []machineconfigv1.MachineConfigPool) (*ma
 	if workerSelector != nil && workerSelector.Matches(labels.Set(node.Labels)) {
 		return poolsMap[mco.MachineConfigPoolWorker], nil
 	}
-	return nil, errors.New("failed to find a matching node selector")
-}
-
-func getOpenShiftVersionOfMachineConfig(machineConfigs map[string]*machineconfigv1.MachineConfig, name string) (string, bool) {
-	for _, mc := range machineConfigs {
-		if mc.Name == name {
-			openshiftVersion := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]
-			return openshiftVersion, openshiftVersion != ""
-		}
-	}
-	return "", false
+	return nil, fmt.Errorf("failed to find a matching node selector from %d machine config pools", len(pools))
 }
 
 func isNodeDegraded(node *corev1.Node) bool {
@@ -332,14 +322,14 @@ func toPointer(d time.Duration) *metav1.Duration {
 	return &v
 }
 
-func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigs map[string]*machineconfigv1.MachineConfig, mostRecentVersionInCVHistory string, now metav1.Time) *NodeStatusInsight {
+func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigVersions map[string]string, mostRecentVersionInCVHistory string, now metav1.Time) *NodeStatusInsight {
 	if node == nil || mcp == nil {
 		return nil
 	}
 
 	desiredConfig, ok := node.Annotations[mco.DesiredMachineConfigAnnotationKey]
-	currentVersion, foundCurrent := getOpenShiftVersionOfMachineConfig(machineConfigs, node.Annotations[mco.CurrentMachineConfigAnnotationKey])
-	desiredVersion, foundDesired := getOpenShiftVersionOfMachineConfig(machineConfigs, desiredConfig)
+	currentVersion, foundCurrent := machineConfigVersions[node.Annotations[mco.CurrentMachineConfigAnnotationKey]]
+	desiredVersion, foundDesired := machineConfigVersions[desiredConfig]
 
 	lns := mco.NewLayeredNodeState(node)
 	isUnavailable := lns.IsUnavailable(mcp)

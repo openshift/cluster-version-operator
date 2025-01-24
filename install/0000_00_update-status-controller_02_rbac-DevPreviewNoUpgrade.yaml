@@ -132,15 +132,12 @@ rules:
 - apiGroups:
   - machineconfiguration.openshift.io
   resources:
+  - machineconfigs
   - machineconfigpools
   verbs:
-  - list
-- apiGroups:
-  - machineconfiguration.openshift.io
-  resources:
-  - machineconfigs
-  verbs:
   - get
+  - list
+  - watch
 - apiGroups:
   - config.openshift.io
   resources:

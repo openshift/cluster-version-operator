@@ -2,7 +2,6 @@ package updatestatus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -20,7 +19,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
-	fakemcv1client "github.com/openshift/client-go/machineconfiguration/clientset/versioned/fake"
+	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
@@ -88,22 +87,18 @@ func Test_nodeInformerControllerQueueKeys(t *testing.T) {
 	}
 }
 
-func getMCPs(names ...string) []machineconfigv1.MachineConfigPool {
-	var mcps []machineconfigv1.MachineConfigPool
+func getMCPs(names ...string) []*machineconfigv1.MachineConfigPool {
+	var mcps []*machineconfigv1.MachineConfigPool
 	for _, name := range names {
 		mcps = append(mcps, getMCP(name))
 	}
 	return mcps
 }
 
-func mcpToPointer(mcp machineconfigv1.MachineConfigPool) *machineconfigv1.MachineConfigPool {
-	return &mcp
-}
-
-func getMCP(name string) machineconfigv1.MachineConfigPool {
+func getMCP(name string) *machineconfigv1.MachineConfigPool {
 	switch name {
 	case mco.MachineConfigPoolMaster:
-		return machineconfigv1.MachineConfigPool{
+		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   mco.MachineConfigPoolMaster,
 				Labels: map[string]string{"pools.operator.machineconfiguration.openshift.io/master": ""},
@@ -113,7 +108,7 @@ func getMCP(name string) machineconfigv1.MachineConfigPool {
 			},
 		}
 	case mco.MachineConfigPoolWorker:
-		return machineconfigv1.MachineConfigPool{
+		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   mco.MachineConfigPoolWorker,
 				Labels: map[string]string{"pools.operator.machineconfiguration.openshift.io/worker": ""},
@@ -123,7 +118,7 @@ func getMCP(name string) machineconfigv1.MachineConfigPool {
 			},
 		}
 	case "abnormal":
-		return machineconfigv1.MachineConfigPool{
+		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "abnormal",
 			},
@@ -140,7 +135,7 @@ func getMCP(name string) machineconfigv1.MachineConfigPool {
 			},
 		}
 	default:
-		return machineconfigv1.MachineConfigPool{
+		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:   name,
 				Labels: map[string]string{"pools.operator.machineconfiguration.openshift.io/worker": ""},
@@ -157,7 +152,7 @@ func Test_whichMCP(t *testing.T) {
 		name string
 
 		node  *corev1.Node
-		pools []machineconfigv1.MachineConfigPool
+		pools []*machineconfigv1.MachineConfigPool
 
 		expected    *machineconfigv1.MachineConfigPool
 		expectedErr error
@@ -171,7 +166,7 @@ func Test_whichMCP(t *testing.T) {
 				},
 			},
 			pools:    getMCPs("master", "worker", "infra"),
-			expected: mcpToPointer(getMCP("master")),
+			expected: getMCP("master"),
 		},
 		{
 			name: "worker",
@@ -182,7 +177,7 @@ func Test_whichMCP(t *testing.T) {
 				},
 			},
 			pools:    getMCPs("master", "worker", "infra"),
-			expected: mcpToPointer(getMCP("worker")),
+			expected: getMCP("worker"),
 		},
 		{
 			name: "infra",
@@ -193,7 +188,7 @@ func Test_whichMCP(t *testing.T) {
 				},
 			},
 			pools:    getMCPs("master", "worker", "infra"),
-			expected: mcpToPointer(getMCP("infra")),
+			expected: getMCP("infra"),
 		},
 		{
 			name: "abnormal mcp",
@@ -240,7 +235,7 @@ func Test_assessNode(t *testing.T) {
 
 		node                         *corev1.Node
 		mcp                          *machineconfigv1.MachineConfigPool
-		machineConfigs               map[string]*machineconfigv1.MachineConfig
+		machineConfigVersions        map[string]string
 		mostRecentVersionInCVHistory string
 
 		expected *NodeStatusInsight
@@ -395,13 +390,7 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/state":         "Done",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-			},
+			machineConfigVersions: map[string]string{"aaa": "4.1.23"},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
@@ -449,17 +438,9 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/desiredImage":  "4.1.26",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-				"ccc": {
-					ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.26",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
+				"ccc": "4.1.26",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -508,17 +489,9 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/desiredImage":  "4.1.26",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-				"ccc": {
-					ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.26",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
+				"ccc": "4.1.26",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "master"},
@@ -567,17 +540,9 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/desiredImage":  "4.1.23",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-				"ccc": {
-					ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
+				"ccc": "4.1.23",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -627,12 +592,8 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/state":         "Done",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -682,17 +643,9 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/lastAppliedDrain": "some",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-				"ccc": {
-					ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.26",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
+				"ccc": "4.1.26",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -742,17 +695,9 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/state":         "Rebooting",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
-				"ccc": {
-					ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.26",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
+				"ccc": "4.1.26",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -856,12 +801,8 @@ func Test_assessNode(t *testing.T) {
 					"machineconfiguration.openshift.io/reason":        "bla",
 				}},
 			},
-			machineConfigs: map[string]*machineconfigv1.MachineConfig{
-				"aaa": {
-					ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-						"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-					}},
-				},
+			machineConfigVersions: map[string]string{
+				"aaa": "4.1.23",
 			},
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
@@ -907,7 +848,7 @@ func Test_assessNode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			actual := assessNode(tc.node, tc.mcp, tc.machineConfigs, tc.mostRecentVersionInCVHistory, now)
+			actual := assessNode(tc.node, tc.mcp, tc.machineConfigVersions, tc.mostRecentVersionInCVHistory, now)
 
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("%s: node status insight differs from expected:\n%s", tc.name, diff)
@@ -925,6 +866,30 @@ func Test_sync_with_node(t *testing.T) {
 			{Version: "4.1.26"},
 		}},
 	}
+
+	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{&machineconfigv1.MachineConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
+			"machineconfiguration.openshift.io/release-image-version": "4.1.23",
+		}},
+	}, &machineconfigv1.MachineConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
+			"machineconfiguration.openshift.io/release-image-version": "4.1.26",
+		}},
+	}} {
+		if err := mcIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add o to indexer: %v", err)
+		}
+	}
+	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
+
+	mcpIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{getMCP("master"), getMCP("worker")} {
+		if err := mcpIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add o to indexer: %v", err)
+		}
+	}
+	mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
 
 	testCases := []struct {
 		name string
@@ -1028,7 +993,7 @@ func Test_sync_with_node(t *testing.T) {
 					Labels: map[string]string{"node-role.kubernetes.io/some": ""},
 				},
 			},
-			expectedErr: fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", errors.New("failed to find a matching node selector")),
+			expectedErr: fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", fmt.Errorf("failed to find a matching node selector from 2 machine config pools")),
 		},
 	}
 
@@ -1047,20 +1012,12 @@ func Test_sync_with_node(t *testing.T) {
 			}
 
 			controller := nodeInformerController{
-				nodes:        nodeLister,
-				configClient: fakeconfigv1client.NewClientset(cv),
-				machineConfigClient: fakemcv1client.NewClientset(mcpToPointer(getMCP("master")), mcpToPointer(getMCP("worker")),
-					&machineconfigv1.MachineConfig{
-						ObjectMeta: metav1.ObjectMeta{Name: "aaa", Annotations: map[string]string{
-							"machineconfiguration.openshift.io/release-image-version": "4.1.23",
-						}},
-					}, &machineconfigv1.MachineConfig{
-						ObjectMeta: metav1.ObjectMeta{Name: "ccc", Annotations: map[string]string{
-							"machineconfiguration.openshift.io/release-image-version": "4.1.26",
-						}},
-					}),
-				sendInsight: sendInsight,
-				now:         func() metav1.Time { return now },
+				nodes:              nodeLister,
+				configClient:       fakeconfigv1client.NewClientset(cv),
+				machineConfigs:     mcLister,
+				machineConfigPools: mcpLister,
+				sendInsight:        sendInsight,
+				now:                func() metav1.Time { return now },
 			}
 
 			queueKey := nodeInformerControllerQueueKeys(tc.node)[0]
