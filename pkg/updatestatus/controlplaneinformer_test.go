@@ -3,10 +3,11 @@ package updatestatus
 import (
 	"context"
 	"errors"
-	"github.com/openshift/library-go/pkg/controller/factory"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"testing"
 	"time"
+
+	"github.com/openshift/library-go/pkg/controller/factory"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -86,17 +87,17 @@ func Test_sync_with_cv(t *testing.T) {
 		cvProgressing *configv1.ClusterOperatorStatusCondition
 		cvHistory     []configv1.UpdateHistory
 
-		expectedMsgs map[string]Insight
+		expectedMsgs map[string]ControlPlaneInsight
 	}{
 		{
 			name:          "Cluster during installation",
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -127,11 +128,11 @@ func Test_sync_with_cv(t *testing.T) {
 			name:          "Cluster after installation",
 			cvProgressing: &progressingFalse,
 			cvHistory:     []configv1.UpdateHistory{completed418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -163,11 +164,11 @@ func Test_sync_with_cv(t *testing.T) {
 			name:          "Cluster during a standard update",
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress419, completed418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -453,15 +454,15 @@ func Test_sync_with_co(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		expectedMsgs map[string]Insight
+		expectedMsgs map[string]ControlPlaneInsight
 	}{
 		{
 			name: "Cluster during installation",
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-co-some-co": {
 					UID:        "usc-co-some-co",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterOperatorStatusInsightType,
 						ClusterOperatorStatusInsight: &ClusterOperatorStatusInsight{
 							Name:     "some-co",
