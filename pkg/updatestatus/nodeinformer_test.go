@@ -20,8 +20,7 @@ import (
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
-
-	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
+	mcocontrollercommon "github.com/openshift/machine-config-operator/pkg/controller/common"
 )
 
 func Test_nodeInformerControllerQueueKeys(t *testing.T) {
@@ -97,20 +96,20 @@ func getMCPs(names ...string) []*machineconfigv1.MachineConfigPool {
 
 func getMCP(name string) *machineconfigv1.MachineConfigPool {
 	switch name {
-	case mco.MachineConfigPoolMaster:
+	case mcocontrollercommon.MachineConfigPoolMaster:
 		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   mco.MachineConfigPoolMaster,
+				Name:   mcocontrollercommon.MachineConfigPoolMaster,
 				Labels: map[string]string{"pools.operator.machineconfiguration.openshift.io/master": ""},
 			},
 			Spec: machineconfigv1.MachineConfigPoolSpec{
 				NodeSelector: metav1.SetAsLabelSelector(labels.Set{"node-role.kubernetes.io/master": ""}),
 			},
 		}
-	case mco.MachineConfigPoolWorker:
+	case mcocontrollercommon.MachineConfigPoolWorker:
 		return &machineconfigv1.MachineConfigPool{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   mco.MachineConfigPoolWorker,
+				Name:   mcocontrollercommon.MachineConfigPoolWorker,
 				Labels: map[string]string{"pools.operator.machineconfiguration.openshift.io/worker": ""},
 			},
 			Spec: machineconfigv1.MachineConfigPoolSpec{

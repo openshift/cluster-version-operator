@@ -23,8 +23,10 @@ import (
 	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+	mcocontrollercommon "github.com/openshift/machine-config-operator/pkg/controller/common"
+	mcodeamonconstants "github.com/openshift/machine-config-operator/pkg/daemon/constants"
 
-	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
+	localmco "github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
 // nodeInformerController is the controller that monitors health of the node resources
@@ -110,7 +112,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 		machineConfigVersions := map[string]string{}
 		for _, mc := range machineConfigs {
-			if openshiftVersion, ok := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; ok && openshiftVersion != "" {
+			if openshiftVersion, ok := mc.Annotations[mcocontrollercommon.ReleaseImageVersionAnnotationKey]; ok && openshiftVersion != "" {
 				machineConfigVersions[mc.Name] = openshiftVersion
 			}
 		}
@@ -170,9 +172,9 @@ func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*m
 			return nil, fmt.Errorf("failed to get label selector from the pool %s: %w", pool.Name, err)
 		}
 		switch pool.Name {
-		case mco.MachineConfigPoolMaster:
+		case mcocontrollercommon.MachineConfigPoolMaster:
 			masterSelector = s
-		case mco.MachineConfigPoolWorker:
+		case mcocontrollercommon.MachineConfigPoolWorker:
 			workerSelector = s
 		default:
 			customSelectors[pool.Name] = s
@@ -180,7 +182,7 @@ func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*m
 	}
 
 	if masterSelector != nil && masterSelector.Matches(labels.Set(node.Labels)) {
-		return poolsMap[mco.MachineConfigPoolMaster], nil
+		return poolsMap[mcocontrollercommon.MachineConfigPoolMaster], nil
 	}
 	for name, selector := range customSelectors {
 		if selector.Matches(labels.Set(node.Labels)) {
@@ -188,7 +190,7 @@ func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*m
 		}
 	}
 	if workerSelector != nil && workerSelector.Matches(labels.Set(node.Labels)) {
-		return poolsMap[mco.MachineConfigPoolWorker], nil
+		return poolsMap[mcocontrollercommon.MachineConfigPoolWorker], nil
 	}
 	return nil, fmt.Errorf("failed to find a matching node selector from %d machine config pools", len(pools))
 }
@@ -198,24 +200,24 @@ func isNodeDegraded(node *corev1.Node) bool {
 	if node.Annotations == nil {
 		return false
 	}
-	dconfig, ok := node.Annotations[mco.DesiredMachineConfigAnnotationKey]
+	dconfig, ok := node.Annotations[mcodeamonconstants.DesiredMachineConfigAnnotationKey]
 	if !ok || dconfig == "" {
 		return false
 	}
-	dstate, ok := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
+	dstate, ok := node.Annotations[mcodeamonconstants.MachineConfigDaemonStateAnnotationKey]
 	if !ok || dstate == "" {
 		return false
 	}
 
-	if dstate == mco.MachineConfigDaemonStateDegraded || dstate == mco.MachineConfigDaemonStateUnreconcilable {
+	if dstate == mcodeamonconstants.MachineConfigDaemonStateDegraded || dstate == mcodeamonconstants.MachineConfigDaemonStateUnreconcilable {
 		return true
 	}
 	return false
 }
 
 func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
-	desiredDrain := node.Annotations[mco.DesiredDrainerAnnotationKey]
-	appliedDrain := node.Annotations[mco.LastAppliedDrainerAnnotationKey]
+	desiredDrain := node.Annotations[mcodeamonconstants.DesiredDrainerAnnotationKey]
+	appliedDrain := node.Annotations[mcodeamonconstants.LastAppliedDrainerAnnotationKey]
 
 	if appliedDrain == "" || desiredDrain == "" {
 		return false
@@ -223,7 +225,7 @@ func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
 
 	if desiredDrain != appliedDrain {
 		desiredVerb := strings.Split(desiredDrain, "-")[0]
-		if desiredVerb == mco.DrainerStateDrain {
+		if desiredVerb == mcodeamonconstants.DrainerStateDrain {
 			return true
 		}
 	}
@@ -231,11 +233,11 @@ func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
 	// Node is supposed to be updating but MCD hasn't had the time to update
 	// its state from original `Done` to `Working` and start the drain process.
 	// Default to drain process so that we don't report completed.
-	mcdState := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
-	return isUpdating && mcdState == mco.MachineConfigDaemonStateDone
+	mcdState := node.Annotations[mcodeamonconstants.MachineConfigDaemonStateAnnotationKey]
+	return isUpdating && mcdState == mcodeamonconstants.MachineConfigDaemonStateDone
 }
 
-func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.Node, isUpdating, isUpdated, isUnavailable, isDegraded bool, lns *mco.LayeredNodeState, now metav1.Time) ([]metav1.Condition, string, *metav1.Duration) {
+func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.Node, isUpdating, isUpdated, isUnavailable, isDegraded bool, lns *localmco.LayeredNodeState, now metav1.Time) ([]metav1.Condition, string, *metav1.Duration) {
 	var estimate *metav1.Duration
 	var message string
 
@@ -261,13 +263,13 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 		updating.Status = metav1.ConditionTrue
 		updating.Reason = string(NodeDraining)
 	} else if isUpdating {
-		state := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
+		state := node.Annotations[mcodeamonconstants.MachineConfigDaemonStateAnnotationKey]
 		switch state {
-		case mco.MachineConfigDaemonStateRebooting:
+		case mcodeamonconstants.MachineConfigDaemonStateRebooting:
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
 			updating.Reason = string(NodeRebooting)
-		case mco.MachineConfigDaemonStateDone:
+		case mcodeamonconstants.MachineConfigDaemonStateDone:
 			estimate = toPointer(time.Duration(0))
 			updating.Status = metav1.ConditionFalse
 			updating.Reason = string(NodeCompleted)
@@ -309,8 +311,8 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 			estimate = toPointer(time.Duration(0))
 		}
 		degraded.Status = metav1.ConditionTrue
-		degraded.Reason = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
-		degraded.Message = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
+		degraded.Reason = node.Annotations[mcodeamonconstants.MachineConfigDaemonReasonAnnotationKey]
+		degraded.Message = node.Annotations[mcodeamonconstants.MachineConfigDaemonReasonAnnotationKey]
 		message = degraded.Message
 	}
 
@@ -327,17 +329,17 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 		return nil
 	}
 
-	desiredConfig, ok := node.Annotations[mco.DesiredMachineConfigAnnotationKey]
-	currentVersion, foundCurrent := machineConfigVersions[node.Annotations[mco.CurrentMachineConfigAnnotationKey]]
+	desiredConfig, ok := node.Annotations[mcodeamonconstants.DesiredMachineConfigAnnotationKey]
+	currentVersion, foundCurrent := machineConfigVersions[node.Annotations[mcodeamonconstants.CurrentMachineConfigAnnotationKey]]
 	desiredVersion, foundDesired := machineConfigVersions[desiredConfig]
 
-	lns := mco.NewLayeredNodeState(node)
+	lns := localmco.NewLayeredNodeState(node)
 	isUnavailable := lns.IsUnavailable(mcp)
 
 	isDegraded := isNodeDegraded(node)
 	isUpdated := foundCurrent && mostRecentVersionInCVHistory == currentVersion &&
 		// The following condition is to handle the multi-arch migration because the version number stays the same there
-		(!ok || node.Annotations[mco.CurrentMachineConfigAnnotationKey] == desiredConfig)
+		(!ok || node.Annotations[mcodeamonconstants.CurrentMachineConfigAnnotationKey] == desiredConfig)
 
 	// foundCurrent makes sure we don't blip phase "updating" for nodes that we are not sure
 	// of their actual phase, even though the conservative assumption is that the node is
@@ -347,7 +349,7 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 	conditions, message, estimate := determineConditions(mcp, node, isUpdating, isUpdated, isUnavailable, isDegraded, lns, now)
 
 	scope := WorkerPoolScope
-	if mcp.Name == mco.MachineConfigPoolMaster {
+	if mcp.Name == mcocontrollercommon.MachineConfigPoolMaster {
 		scope = ControlPlaneScope
 	}
 
