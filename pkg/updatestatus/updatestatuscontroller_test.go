@@ -41,12 +41,12 @@ func Test_updateStatusController(t *testing.T) {
 			name: "no messages, state -> unchanged state",
 			controllerConfigMap: &corev1.ConfigMap{
 				Data: map[string]string{
-					"usc-cv-version": "value",
+					"usc.cpi.cv-version": "value",
 				},
 			},
 			expected: &corev1.ConfigMap{
 				Data: map[string]string{
-					"usc-cv-version": "value",
+					"usc.cpi.cv-version": "value",
 				},
 			},
 		},
@@ -55,13 +55,14 @@ func Test_updateStatusController(t *testing.T) {
 			controllerConfigMap: nil,
 			informerMsg: []informerMsg{
 				{
-					uid:     "usc-cv-version",
-					insight: []byte("value"),
+					informer: "cpi",
+					uid:      "cv-version",
+					insight:  []byte("value"),
 				},
 			},
 			expected: &corev1.ConfigMap{
 				Data: map[string]string{
-					"usc-cv-version": "value",
+					"usc.cpi.cv-version": "value",
 				},
 			},
 		},
@@ -69,34 +70,59 @@ func Test_updateStatusController(t *testing.T) {
 			name: "messages over time build state over old state",
 			controllerConfigMap: &corev1.ConfigMap{
 				Data: map[string]string{
-					"usc-kept":        "kept",
-					"usc-overwritten": "old",
+					"usc.cpi.kept":        "kept",
+					"usc.cpi.overwritten": "old",
 				},
 			},
 			informerMsg: []informerMsg{
 				{
-					uid:     "usc-new-item",
-					insight: []byte("msg1"),
+					informer: "cpi",
+					uid:      "new-item",
+					insight:  []byte("msg1"),
 				},
 				{
-					uid:     "usc-overwritten",
-					insight: []byte("msg2 (overwritten intermediate)"),
+					informer: "cpi",
+					uid:      "overwritten",
+					insight:  []byte("msg2 (overwritten intermediate)"),
 				},
 				{
-					uid:     "usc-another",
-					insight: []byte("msg3"),
+					informer: "cpi",
+					uid:      "another",
+					insight:  []byte("msg3"),
 				},
 				{
-					uid:     "usc-overwritten",
-					insight: []byte("msg4 (overwritten final)"),
+					informer: "cpi",
+					uid:      "overwritten",
+					insight:  []byte("msg4 (overwritten final)"),
 				},
 			},
 			expected: &corev1.ConfigMap{
 				Data: map[string]string{
-					"usc-kept":        "kept",
-					"usc-new-item":    "msg1",
-					"usc-another":     "msg3",
-					"usc-overwritten": "msg4 (overwritten final)",
+					"usc.cpi.kept":        "kept",
+					"usc.cpi.new-item":    "msg1",
+					"usc.cpi.another":     "msg3",
+					"usc.cpi.overwritten": "msg4 (overwritten final)",
+				},
+			},
+		},
+		{
+			name: "messages can come from different informers",
+			informerMsg: []informerMsg{
+				{
+					informer: "one",
+					uid:      "item",
+					insight:  []byte("msg from informer one"),
+				},
+				{
+					informer: "two",
+					uid:      "item",
+					insight:  []byte("msg from informer two"),
+				},
+			},
+			expected: &corev1.ConfigMap{
+				Data: map[string]string{
+					"usc.one.item": "msg from informer one",
+					"usc.two.item": "msg from informer two",
 				},
 			},
 		},
