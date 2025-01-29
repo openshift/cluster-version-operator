@@ -146,6 +146,9 @@ type Operator struct {
 	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
 	conditionRegistry clusterconditions.ConditionRegistry
 
+	// hypershift signals whether the CVO is running inside a hosted control plane.
+	hypershift bool
+
 	// injectClusterIdIntoPromQL indicates whether the CVO should inject the cluster id
 	// into PromQL queries while evaluating risks from conditional updates. This is needed
 	// in HyperShift to differentiate between metrics from multiple hosted clusters in
@@ -203,6 +206,7 @@ func New(
 	operatorClient operatorclientset.Interface,
 	exclude string,
 	clusterProfile string,
+	hypershift bool,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
 	updateService string,
@@ -234,6 +238,7 @@ func New(
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
 		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
+		hypershift:                hypershift,
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
@@ -459,7 +464,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		resultChannel <- asyncResult{name: "available updates"}
 	}()
 
-	if optr.enabledFeatureGates.CVOConfiguration() {
+	if optr.shouldReconcileCVOConfiguration() {
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
@@ -473,7 +478,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			resultChannel <- asyncResult{name: "cvo configuration"}
 		}()
 	} else {
-		klog.V(internal.Normal).Infof("The ClusterVersionOperatorConfiguration feature gate is disabled; skipping initialization of configuration sync routine")
+		klog.V(internal.Normal).Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or HyperShift is detected; the configuration sync routine will not run.")
 	}
 
 	resultChannelCount++
@@ -1041,4 +1046,12 @@ func (optr *Operator) HTTPClient() (*http.Client, error) {
 	return &http.Client{
 		Transport: transport,
 	}, nil
+}
+
+// shouldReconcileCVOConfiguration returns whether the CVO should reconcile its configuration using the API server.
+//
+// enabledFeatureGates must be initialized before the function is called.
+func (optr *Operator) shouldReconcileCVOConfiguration() bool {
+	// The relevant CRD and CR are not applied in HyperShift, which configures the CVO via a configuration file
+	return optr.enabledFeatureGates.CVOConfiguration() && !optr.hypershift
 }
