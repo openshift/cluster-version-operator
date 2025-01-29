@@ -2,6 +2,7 @@ package updatestatus
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,8 @@ import (
 // the insight and the insight itself, serialized as YAML. Passing serialized avoids shared data access problems. Until
 // we have the Status API we need to serialize ourselves anyway.
 type informerMsg struct {
+	informer string
+
 	uid     string
 	insight []byte
 }
@@ -33,7 +36,7 @@ type informerMsg struct {
 type sendInsightFn func(insight informerMsg)
 
 func isStatusInsightKey(k string) bool {
-	return strings.HasPrefix(k, "usc-")
+	return strings.HasPrefix(k, "usc.")
 }
 
 // updateStatusController is a controller that collects insights from informers and maintains a ConfigMap with the insights
@@ -107,9 +110,9 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 		for {
 			select {
 			// Receive an insight from the informer, update it in the status API ConfigMap and commit it to the cluster
-			case insight := <-fromInformers:
-				klog.Infof("USC :: Collector :: Received insight from informer (uid=%s)", insight.uid)
-				c.updateInsightInStatusApi(insight)
+			case message := <-fromInformers:
+				klog.Infof("USC :: Collector :: Received insight from informer (uid=%s)", message.uid)
+				c.updateInsightInStatusApi(message)
 				syncCtx.Queue().Add(statusApiConfigMap)
 			case <-ctx.Done():
 				klog.Info("USC :: Collector :: Stopping insight collector")
@@ -133,14 +136,18 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 		c.statusApi.cm = &corev1.ConfigMap{Data: map[string]string{}}
 	}
 
+	// Assemble the key because data is flattened in CM compared to UpdateStatus API where we would have a separate
+	// container with insights for each informer
+	cmKey := fmt.Sprintf("usc.%s.%s", msg.informer, msg.uid)
+
 	var oldContent string
 	if klog.V(4).Enabled() {
-		oldContent = c.statusApi.cm.Data[msg.uid]
+		oldContent = c.statusApi.cm.Data[cmKey]
 	}
 
 	updatedContent := string(msg.insight)
 
-	c.statusApi.cm.Data[msg.uid] = updatedContent
+	c.statusApi.cm.Data[cmKey] = updatedContent
 	c.statusApi.processed++
 
 	klog.V(2).Infof("USC :: Collector :: Updated insight in status API (uid=%s)", msg.uid)
