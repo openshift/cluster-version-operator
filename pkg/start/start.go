@@ -84,6 +84,8 @@ type Options struct {
 
 	ClusterProfile string
 
+	HyperShift bool
+
 	// AlwaysEnableCapabilities is a list of cluster version capabilities
 	// which will always be implicitly enabled.
 	AlwaysEnableCapabilities []string
@@ -160,6 +162,9 @@ func (o *Options) Run(ctx context.Context) error {
 	if len(unknownCaps) > 0 {
 		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
 	}
+
+	// Inject the cluster ID into PromQL queries in HyperShift
+	o.InjectClusterIdIntoPromQL = o.HyperShift
 
 	// parse the prometheus url
 	var err error
@@ -502,6 +507,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		operatorClient,
 		o.Exclude,
 		o.ClusterProfile,
+		o.HyperShift,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
 		o.UpdateService,
