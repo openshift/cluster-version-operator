@@ -70,7 +70,7 @@ func Test_nodeInformerControllerQueueKeys(t *testing.T) {
 			}
 
 			if !tc.expectedPanic && len(actual) > 0 {
-				kind, name, err := parseQueueKey(actual[0])
+				kind, name, err := parseNodeInformerControllerQueueKey(actual[0])
 				if err != nil {
 					t.Errorf("%s: unexpected error raised:\n%v", tc.name, err)
 				}

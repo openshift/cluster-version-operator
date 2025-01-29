@@ -77,7 +77,7 @@ func newNodeInformerController(
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	queueKey := syncCtx.QueueKey()
 
-	t, name, err := parseQueueKey(queueKey)
+	t, name, err := parseNodeInformerControllerQueueKey(queueKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse queue key: %w", err)
 	}
@@ -135,7 +135,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	if klog.V(4).Enabled() {
 		msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
 	}
-	klog.V(2).Infof("CPI :: Syncing %s %s%s", t, name, msgForLog)
+	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
 	c.sendInsight(msg)
 	return nil
 }
@@ -328,7 +328,9 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 	}
 
 	desiredConfig, ok := node.Annotations[mco.DesiredMachineConfigAnnotationKey]
-	currentVersion, foundCurrent := machineConfigVersions[node.Annotations[mco.CurrentMachineConfigAnnotationKey]]
+	noDesiredOnNode := !ok
+	currentConfig := node.Annotations[mco.CurrentMachineConfigAnnotationKey]
+	currentVersion, foundCurrent := machineConfigVersions[currentConfig]
 	desiredVersion, foundDesired := machineConfigVersions[desiredConfig]
 
 	lns := mco.NewLayeredNodeState(node)
@@ -337,7 +339,7 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 	isDegraded := isNodeDegraded(node)
 	isUpdated := foundCurrent && mostRecentVersionInCVHistory == currentVersion &&
 		// The following condition is to handle the multi-arch migration because the version number stays the same there
-		(!ok || node.Annotations[mco.CurrentMachineConfigAnnotationKey] == desiredConfig)
+		(noDesiredOnNode || currentConfig == desiredConfig)
 
 	// foundCurrent makes sure we don't blip phase "updating" for nodes that we are not sure
 	// of their actual phase, even though the conservative assumption is that the node is
@@ -376,6 +378,14 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 const (
 	nodeKindName = "Node"
 )
+
+func parseNodeInformerControllerQueueKey(queueKey string) (string, string, error) {
+	splits := strings.Split(queueKey, "/")
+	if len(splits) != 2 {
+		return "", "", fmt.Errorf("invalid queue key: %s", queueKey)
+	}
+	return splits[0], splits[1], nil
+}
 
 func nodeInformerControllerQueueKeys(object runtime.Object) []string {
 	if object == nil {
