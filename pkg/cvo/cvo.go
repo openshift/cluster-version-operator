@@ -145,6 +145,9 @@ type Operator struct {
 	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
 	conditionRegistry clusterconditions.ConditionRegistry
 
+	// hypershift signals whether the CVO is running inside a hosted control plane.
+	hypershift bool
+
 	// injectClusterIdIntoPromQL indicates whether the CVO should inject the cluster id
 	// into PromQL queries while evaluating risks from conditional updates. This is needed
 	// in HyperShift to differentiate between metrics from multiple hosted clusters in
@@ -198,6 +201,7 @@ func New(
 	operatorClient operatorclientset.Interface,
 	exclude string,
 	clusterProfile string,
+	hypershift bool,
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
 	updateService string,
@@ -229,6 +233,7 @@ func New(
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
 		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
+		hypershift:                hypershift,
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
@@ -451,7 +456,8 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		resultChannel <- asyncResult{name: "available updates"}
 	}()
 
-	if optr.enabledFeatureGates.CVOConfiguration() {
+	if optr.enabledFeatureGates.CVOConfiguration() && !optr.hypershift {
+		// The relevant CRD and CR are not applied in HyperShift
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
