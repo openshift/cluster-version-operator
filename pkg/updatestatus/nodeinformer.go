@@ -237,22 +237,27 @@ func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
 
 func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.Node, isUpdating, isUpdated, isUnavailable, isDegraded bool, lns *mco.LayeredNodeState, now metav1.Time) ([]metav1.Condition, string, *metav1.Duration) {
 	var estimate *metav1.Duration
-	var message string
+	var messages []string
 
 	updating := metav1.Condition{
 		Type:               string(NodeStatusInsightUpdating),
 		Status:             metav1.ConditionUnknown,
 		Reason:             string(NodeCannotDetermine),
+		Message:            fmt.Sprintf("The update status of the node %s cannot be determined", node.Name),
 		LastTransitionTime: now,
 	}
 	available := metav1.Condition{
 		Type:               string(NodeStatusInsightAvailable),
 		Status:             metav1.ConditionTrue,
+		Reason:             "AsExpected",
+		Message:            fmt.Sprintf("The node %s is available", node.Name),
 		LastTransitionTime: now,
 	}
 	degraded := metav1.Condition{
 		Type:               string(NodeStatusInsightDegraded),
 		Status:             metav1.ConditionFalse,
+		Reason:             "AsExpected",
+		Message:            fmt.Sprintf("The node %s is not degraded", node.Name),
 		LastTransitionTime: now,
 	}
 
@@ -260,6 +265,7 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 		estimate = toPointer(10 * time.Minute)
 		updating.Status = metav1.ConditionTrue
 		updating.Reason = string(NodeDraining)
+		updating.Message = fmt.Sprintf("The node %s is draining", node.Name)
 	} else if isUpdating {
 		state := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
 		switch state {
@@ -267,29 +273,34 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
 			updating.Reason = string(NodeRebooting)
+			updating.Message = fmt.Sprintf("The node %s is rebooting", node.Name)
 		case mco.MachineConfigDaemonStateDone:
 			estimate = toPointer(time.Duration(0))
 			updating.Status = metav1.ConditionFalse
 			updating.Reason = string(NodeCompleted)
+			updating.Message = fmt.Sprintf("The node %s is updated", node.Name)
 		default:
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
 			updating.Reason = string(NodeUpdating)
+			updating.Message = fmt.Sprintf("The node %s is updating", node.Name)
 		}
 
 	} else if isUpdated {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(NodeCompleted)
+		updating.Message = fmt.Sprintf("The node %s is updated", node.Name)
 	} else if pool.Spec.Paused {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(NodePaused)
+		updating.Message = fmt.Sprintf("The update of the node %s is paused", node.Name)
 	} else {
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(NodeUpdatePending)
+		updating.Message = fmt.Sprintf("The update of the node %s is pending", node.Name)
 	}
-	message = updating.Message
 
 	if isUnavailable && !isUpdating {
 		estimate = nil
@@ -300,7 +311,6 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 		available.Reason = lns.GetUnavailableReason()
 		available.Message = lns.GetUnavailableMessage()
 		available.LastTransitionTime = metav1.Time{Time: lns.GetUnavailableSince()}
-		message = available.Message
 	}
 
 	if isDegraded {
@@ -311,10 +321,28 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 		degraded.Status = metav1.ConditionTrue
 		degraded.Reason = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
 		degraded.Message = node.Annotations[mco.MachineConfigDaemonReasonAnnotationKey]
-		message = degraded.Message
 	}
 
-	return []metav1.Condition{updating, available, degraded}, message, estimate
+	for _, c := range []*metav1.Condition{&updating, &available, &degraded} {
+		c.Message = ellipsizeName(c.Message, node.Name)
+		if (c.Type == string(NodeStatusInsightAvailable) && c.Status != metav1.ConditionTrue) ||
+			(c.Type == string(NodeStatusInsightDegraded) && c.Status != metav1.ConditionFalse) {
+			messages = append(messages, c.Message)
+		}
+	}
+	if len(messages) == 0 {
+		messages = append(messages, updating.Message)
+	}
+
+	return []metav1.Condition{updating, available, degraded}, strings.Join(messages, "; "), estimate
+}
+
+func ellipsizeName(message string, name string) string {
+	if len(name) < 8 {
+		return message
+	}
+
+	return strings.Replace(message, name, "<node>", -1)
 }
 
 func toPointer(d time.Duration) *metav1.Duration {
