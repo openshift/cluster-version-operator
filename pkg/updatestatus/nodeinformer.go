@@ -235,22 +235,26 @@ func isNodeDraining(node *corev1.Node, isUpdating bool) bool {
 
 func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.Node, isUpdating, isUpdated, isUnavailable, isDegraded bool, lns *mco.LayeredNodeState, now metav1.Time) ([]metav1.Condition, string, *metav1.Duration) {
 	var estimate *metav1.Duration
-	var message string
 
 	updating := metav1.Condition{
 		Type:               string(updatestatus.NodeStatusInsightUpdating),
 		Status:             metav1.ConditionUnknown,
 		Reason:             string(updatestatus.NodeCannotDetermine),
+		Message:            "Cannot determine whether the node is updating",
 		LastTransitionTime: now,
 	}
 	available := metav1.Condition{
 		Type:               string(updatestatus.NodeStatusInsightAvailable),
 		Status:             metav1.ConditionTrue,
+		Reason:             "AsExpected",
+		Message:            "The node is available",
 		LastTransitionTime: now,
 	}
 	degraded := metav1.Condition{
 		Type:               string(updatestatus.NodeStatusInsightDegraded),
 		Status:             metav1.ConditionFalse,
+		Reason:             "AsExpected",
+		Message:            "The node is not degraded",
 		LastTransitionTime: now,
 	}
 
@@ -258,6 +262,7 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 		estimate = toPointer(10 * time.Minute)
 		updating.Status = metav1.ConditionTrue
 		updating.Reason = string(updatestatus.NodeDraining)
+		updating.Message = "The node is draining"
 	} else if isUpdating {
 		state := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
 		switch state {
@@ -265,30 +270,41 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
 			updating.Reason = string(updatestatus.NodeRebooting)
+			updating.Message = "The node is rebooting"
 		case mco.MachineConfigDaemonStateDone:
 			estimate = toPointer(time.Duration(0))
 			updating.Status = metav1.ConditionFalse
 			updating.Reason = string(updatestatus.NodeCompleted)
+			updating.Message = "The node is updated"
 		default:
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
 			updating.Reason = string(updatestatus.NodeUpdating)
+			updating.Message = "The node is updating"
 		}
 
 	} else if isUpdated {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(updatestatus.NodeCompleted)
+		updating.Message = "The node is updated"
 	} else if pool.Spec.Paused {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(updatestatus.NodePaused)
+		updating.Message = "The update of the node is paused"
 	} else {
 		updating.Status = metav1.ConditionFalse
 		updating.Reason = string(updatestatus.NodeUpdatePending)
+		updating.Message = "The update of the node is pending"
 	}
-	message = updating.Message
 
+	// ATM, the insight's message is set only for the interesting cases: (isUnavailable && !isUpdating) || isDegraded
+	// Moreover, the degraded message overwrites the unavailable one.
+	// Those cases are inherited from the "oc adm upgrade" command as the baseline for the insight's message.
+	// https://github.com/openshift/oc/blob/0cd37758b5ebb182ea911c157256c1b812c216c5/pkg/cli/admin/upgrade/status/workerpool.go#L194
+	// We may add more cases in the future as needed
+	var message string
 	if isUnavailable && !isUpdating {
 		estimate = nil
 		if isUpdated {
