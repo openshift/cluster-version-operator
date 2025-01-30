@@ -99,6 +99,37 @@ func newUpdateStatusController(
 	return controller, sendInsight
 }
 
+func (m informerMsg) validate() error {
+	switch {
+	case m.informer == "":
+		return fmt.Errorf("empty informer")
+	case m.uid == "":
+		return fmt.Errorf("empty uid")
+	case len(m.insight) == 0:
+		return fmt.Errorf("empty or nil insight")
+	}
+
+	return nil
+}
+
+// processInsightMsg validates the message and if valid, updates the status API with the included
+// insight. Returns true if the message was valid and processed, false otherwise.
+func (c *updateStatusController) processInsightMsg(message informerMsg) bool {
+	c.statusApi.Lock()
+	defer c.statusApi.Unlock()
+
+	c.statusApi.processed++
+
+	if err := message.validate(); err != nil {
+		klog.Warningf("USC :: Collector :: Invalid message: %v", err)
+		return false
+	}
+	klog.Infof("USC :: Collector :: Received insight from informer (uid=%s)", message.uid)
+	c.updateInsightInStatusApi(message)
+
+	return true
+}
+
 // setupInsightReceiver creates a communication channel between informers and the update status controller, and returns
 // two methods: one to start the insight receiver (to be used as a post start hook so it called after the controller is
 // started), and one to be passed to informers to send insights to the controller.
@@ -111,9 +142,9 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 			select {
 			// Receive an insight from the informer, update it in the status API ConfigMap and commit it to the cluster
 			case message := <-fromInformers:
-				klog.Infof("USC :: Collector :: Received insight from informer (uid=%s)", message.uid)
-				c.updateInsightInStatusApi(message)
-				syncCtx.Queue().Add(statusApiConfigMap)
+				if c.processInsightMsg(message) {
+					syncCtx.Queue().Add(statusApiConfigMap)
+				}
 			case <-ctx.Done():
 				klog.Info("USC :: Collector :: Stopping insight collector")
 				return nil
@@ -128,10 +159,9 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 	return startInsightReceiver, sendInsight
 }
 
+// updateInsightInStatusApi updates the status API using the message.
+// Assumes the statusApi field is locked.
 func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
-	c.statusApi.Lock()
-	defer c.statusApi.Unlock()
-
 	if c.statusApi.cm == nil {
 		c.statusApi.cm = &corev1.ConfigMap{Data: map[string]string{}}
 	}
@@ -148,7 +178,6 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 	updatedContent := string(msg.insight)
 
 	c.statusApi.cm.Data[cmKey] = updatedContent
-	c.statusApi.processed++
 
 	klog.V(2).Infof("USC :: Collector :: Updated insight in status API (uid=%s)", msg.uid)
 	if klog.V(4).Enabled() {
