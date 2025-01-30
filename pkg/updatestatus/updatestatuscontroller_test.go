@@ -126,6 +126,54 @@ func Test_updateStatusController(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:                "empty informer -> message gets dropped",
+			controllerConfigMap: nil,
+			informerMsg: []informerMsg{
+				{
+					informer: "",
+					uid:      "item",
+					insight:  []byte("msg from informer one"),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name:                "empty uid -> message gets dropped",
+			controllerConfigMap: nil,
+			informerMsg: []informerMsg{
+				{
+					informer: "one",
+					uid:      "",
+					insight:  []byte("msg from informer one"),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name:                "empty insight payload -> message gets dropped",
+			controllerConfigMap: nil,
+			informerMsg: []informerMsg{
+				{
+					informer: "one",
+					uid:      "item",
+					insight:  []byte{},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name:                "nil insight payload -> message gets dropped",
+			controllerConfigMap: nil,
+			informerMsg: []informerMsg{
+				{
+					informer: "one",
+					uid:      "item",
+					insight:  nil,
+				},
+			},
+			expected: nil,
+		},
 	}
 
 	for _, tc := range testCases {
