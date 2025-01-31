@@ -106,7 +106,7 @@ func Test_updateStatusController(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			kubeClient := fake.NewSimpleClientset()
+			kubeClient := fake.NewClientset()
 
 			controller := updateStatusController{
 				configMaps: kubeClient.CoreV1().ConfigMaps(uscNamespace),

@@ -3,10 +3,11 @@ package updatestatus
 import (
 	"context"
 	"errors"
-	"github.com/openshift/library-go/pkg/controller/factory"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"testing"
 	"time"
+
+	"github.com/openshift/library-go/pkg/controller/factory"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -85,18 +86,19 @@ func Test_sync_with_cv(t *testing.T) {
 		name          string
 		cvProgressing *configv1.ClusterOperatorStatusCondition
 		cvHistory     []configv1.UpdateHistory
+		cvAnnotations map[string]string
 
-		expectedMsgs map[string]Insight
+		expectedMsgs map[string]ControlPlaneInsight
 	}{
 		{
 			name:          "Cluster during installation",
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -127,11 +129,11 @@ func Test_sync_with_cv(t *testing.T) {
 			name:          "Cluster after installation",
 			cvProgressing: &progressingFalse,
 			cvHistory:     []configv1.UpdateHistory{completed418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -163,11 +165,72 @@ func Test_sync_with_cv(t *testing.T) {
 			name:          "Cluster during a standard update",
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress419, completed418},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-cv-version": {
 					UID:        "usc-cv-version",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
+						Type: ClusterVersionStatusInsightType,
+						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
+							Resource:   cvRef,
+							Assessment: ControlPlaneAssessmentProgressing,
+							Versions: ControlPlaneUpdateVersions{
+								Target:   Version{Version: "4.19.0"},
+								Previous: Version{Version: "4.18.0"},
+							},
+							Completion:           0,
+							StartedAt:            minutesAgo[60],
+							EstimatedCompletedAt: &now,
+							Conditions: []metav1.Condition{
+								newClusterVersionStatusInsightUpdating(
+									metav1.ConditionTrue,
+									ClusterVersionProgressing,
+									"ClusterVersion has Progressing=True(Reason=ProgressingTrue) | Message='Cluster is progressing'",
+									now,
+								),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:          "Cluster during a standard update with forced health insight",
+			cvProgressing: &progressingTrue,
+			cvHistory:     []configv1.UpdateHistory{inProgress419, completed418},
+			cvAnnotations: map[string]string{
+				uscForceHealthInsightAnnotation: "true",
+			},
+			expectedMsgs: map[string]ControlPlaneInsight{
+				"usc-0kmuaUQRUJDOAIAF1KWTmg": {
+					UID:        "usc-0kmuaUQRUJDOAIAF1KWTmg",
+					AcquiredAt: now,
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
+						Type: HealthInsightType,
+						HealthInsight: &HealthInsight{
+							StartedAt: now,
+							Scope: InsightScope{
+								Type: ControlPlaneScope,
+								Resources: []ResourceRef{
+									cvRef,
+								},
+							},
+							Impact: InsightImpact{
+								Level:       InfoImpactLevel,
+								Type:        NoneImpactType,
+								Summary:     "Forced health insight for ClusterVersion version",
+								Description: "The resource has a `usc.openshift.io/force-health-insight` annotation which forces USC to generate this health insight for testing purposes.",
+							},
+							Remediation: InsightRemediation{
+								Reference: "https://issues.redhat.com/browse/OTA-1418",
+							},
+						},
+					},
+				},
+				"usc-cv-version": {
+					UID:        "usc-cv-version",
+					AcquiredAt: now,
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -196,7 +259,7 @@ func Test_sync_with_cv(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cv := makeTestClusterVersion(tc.cvProgressing, tc.cvHistory)
+			cv := makeTestClusterVersion(tc.cvProgressing, tc.cvHistory, tc.cvAnnotations)
 
 			cvIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 			if err := cvIndexer.Add(cv); err != nil {
@@ -234,7 +297,10 @@ func Test_sync_with_cv(t *testing.T) {
 				})
 			}
 
-			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+			ignoreOrder := cmpopts.SortSlices(func(a, b informerMsg) bool {
+				return a.uid < b.uid
+			})
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
 			}
 		})
@@ -453,15 +519,15 @@ func Test_sync_with_co(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		expectedMsgs map[string]Insight
+		expectedMsgs map[string]ControlPlaneInsight
 	}{
 		{
 			name: "Cluster during installation",
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]ControlPlaneInsight{
 				"usc-co-some-co": {
 					UID:        "usc-co-some-co",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterOperatorStatusInsightType,
 						ClusterOperatorStatusInsight: &ClusterOperatorStatusInsight{
 							Name:     "some-co",
@@ -530,9 +596,16 @@ func Test_sync_with_co(t *testing.T) {
 	}
 }
 
-func makeTestClusterVersion(progressing *configv1.ClusterOperatorStatusCondition, history []configv1.UpdateHistory) *configv1.ClusterVersion {
+func makeTestClusterVersion(
+	progressing *configv1.ClusterOperatorStatusCondition,
+	history []configv1.UpdateHistory,
+	annotations map[string]string,
+) *configv1.ClusterVersion {
 	cv := &configv1.ClusterVersion{
-		ObjectMeta: metav1.ObjectMeta{Name: "version"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "version",
+			Annotations: annotations,
+		},
 		Status: configv1.ClusterVersionStatus{
 			Conditions: []configv1.ClusterOperatorStatusCondition{},
 			History:    []configv1.UpdateHistory{},
@@ -553,6 +626,7 @@ type testSyncContext struct {
 	queue         workqueue.TypedRateLimitingInterface[any]
 }
 
+//goland:noinspection GoDeprecation
 func (c testSyncContext) Queue() workqueue.RateLimitingInterface { //nolint:staticcheck
 	return c.queue
 }
@@ -932,7 +1006,7 @@ func Test_assessClusterOperator(t *testing.T) {
 	}
 }
 
-func Test_assessClusterVersion(t *testing.T) {
+func Test_assessClusterVersion_cvStatusInsight(t *testing.T) {
 	now := metav1.Now()
 	var minutesAgo [120]metav1.Time
 	for i := range minutesAgo {
@@ -1243,9 +1317,107 @@ func Test_assessClusterVersion(t *testing.T) {
 					Conditions: []configv1.ClusterOperatorStatusCondition{tc.cvProgressing},
 				},
 			}
-			actual := assessClusterVersion(cv, now)
-			if diff := cmp.Diff(tc.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); diff != "" {
+			actualCvStatusInsight, healthInsights := assessClusterVersion(cv, now)
+			if diff := cmp.Diff(tc.expected, actualCvStatusInsight, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); diff != "" {
 				t.Errorf("CV Status Insight differs from expected:\n%s", diff)
+			}
+
+			if diff := cmp.Diff([]*HealthInsight(nil), healthInsights); diff != "" {
+				t.Errorf("Unexpected health insights:\n%s", diff)
+			}
+		})
+	}
+}
+
+func Test_assessClusterVersion_testingHealthInsight(t *testing.T) {
+	now := metav1.Now()
+	var minutesAgo [30]metav1.Time
+	for i := range minutesAgo {
+		minutesAgo[i] = metav1.NewTime(now.Add(-time.Duration(i) * time.Minute))
+	}
+
+	cvReference := ResourceRef{
+		Resource: "clusterversions",
+		Group:    "config.openshift.io",
+		Name:     "version",
+	}
+
+	testCases := []struct {
+		name string
+
+		cvAnnotations map[string]string
+
+		expected []*HealthInsight
+	}{
+		{
+			name:          "no annotations -> no insight",
+			cvAnnotations: nil,
+			expected:      nil,
+		},
+		{
+			name: "unrelated annotations -> no insight",
+			cvAnnotations: map[string]string{
+				"foo": "bar",
+			},
+			expected: nil,
+		},
+		{
+			name: "usc.openshift.io/force-health-insight=true -> health insight",
+			cvAnnotations: map[string]string{
+				"usc.openshift.io/force-health-insight": "true",
+			},
+			expected: []*HealthInsight{
+				{
+					StartedAt: now,
+					Scope: InsightScope{
+						Type:      ControlPlaneScope,
+						Resources: []ResourceRef{cvReference},
+					},
+					Impact: InsightImpact{
+						Level:       InfoImpactLevel,
+						Type:        NoneImpactType,
+						Summary:     "Forced health insight for ClusterVersion version",
+						Description: "The resource has a `usc.openshift.io/force-health-insight` annotation which forces USC to generate this health insight for testing purposes.",
+					},
+					Remediation: InsightRemediation{
+						Reference: "https://issues.redhat.com/browse/OTA-1418",
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cv := &configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "version",
+					Annotations: tc.cvAnnotations,
+				},
+				Status: configv1.ClusterVersionStatus{
+					History: []configv1.UpdateHistory{
+						{
+							State:          configv1.CompletedUpdate,
+							StartedTime:    minutesAgo[29],
+							CompletionTime: &minutesAgo[20],
+							Version:        "1.2.3",
+							Image:          "image://pullspec",
+							Verified:       true,
+						},
+					},
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{
+							Type:               configv1.OperatorProgressing,
+							Status:             configv1.ConditionFalse,
+							LastTransitionTime: minutesAgo[20],
+							Message:            "Cluster version is 1.2.3",
+						},
+					},
+				},
+			}
+			_, healthInsights := assessClusterVersion(cv, now)
+
+			if diff := cmp.Diff(tc.expected, healthInsights, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); diff != "" {
+				t.Errorf("Health insights differ from expected:\n%s", diff)
 			}
 		})
 	}
