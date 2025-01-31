@@ -2,6 +2,7 @@ package clusterversion
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -93,7 +94,8 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 
 	klog.V(4).Infof("The current version is %s parsed from %s and the target version is %s parsed from %s", currentVersion.String(), cv.Status.Desired.Version, targetVersion.String(), releaseContext.DesiredVersion)
-	if targetVersion.LTE(currentVersion) || (targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor) {
+	patchOnly := targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor
+	if targetVersion.LTE(currentVersion) || patchOnly {
 		// When Upgradeable==False, a patch level update with the same minor level is allowed unless overrides are set
 		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
@@ -104,6 +106,15 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 				Name:    pf.Name(),
 			}
 		} else {
+			if completedVersion := minorUpdateFrom(cv.Status, currentVersion); completedVersion != "" && patchOnly {
+				// This is to generate an accepted risk for the accepting case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
+				return &precondition.Error{
+					Reason:             "MinorVersionClusterUpdateInProgress",
+					Message:            fmt.Sprintf("Retarget to %s while a minor level update from %s to %s is in progress", targetVersion, completedVersion, currentVersion),
+					Name:               pf.Name(),
+					NonBlockingWarning: true,
+				}
+			}
 			klog.V(2).Infof("Precondition %q passed on update to %s", pf.Name(), targetVersion.String())
 			return nil
 		}
@@ -117,5 +128,43 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 }
 
+// minorUpdateFrom returns the version that was installed completed if a minor level upgrade is in progress
+// and the empty string otherwise
+func minorUpdateFrom(status configv1.ClusterVersionStatus, currentVersion semver.Version) string {
+	completedVersion := GetCurrentVersion(status.History)
+	if completedVersion == "" {
+		return ""
+	}
+	v, err := semver.Parse(completedVersion)
+	if err != nil {
+		return ""
+	}
+	if cond := resourcemerge.FindOperatorStatusCondition(status.Conditions, configv1.OperatorProgressing); cond != nil &&
+		cond.Status == configv1.ConditionTrue &&
+		v.Major == currentVersion.Major &&
+		v.Minor < currentVersion.Minor {
+		return completedVersion
+	}
+	return ""
+}
+
 // Name returns the name of the precondition.
 func (pf *Upgradeable) Name() string { return "ClusterVersionUpgradeable" }
+
+// GetCurrentVersion determines and returns the cluster's current version by iterating through the
+// provided update history until it finds the first version with update State of Completed. If a
+// Completed version is not found the version of the oldest history entry, which is the originally
+// installed version, is returned. If history is empty the empty string is returned.
+func GetCurrentVersion(history []configv1.UpdateHistory) string {
+	for _, h := range history {
+		if h.State == configv1.CompletedUpdate {
+			klog.V(2).Infof("Cluster current version=%s", h.Version)
+			return h.Version
+		}
+	}
+	// Empty history should only occur if method is called early in startup before history is populated.
+	if len(history) != 0 {
+		return history[len(history)-1].Version
+	}
+	return ""
+}
