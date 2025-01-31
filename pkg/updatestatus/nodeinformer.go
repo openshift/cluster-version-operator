@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
@@ -39,8 +41,21 @@ type nodeInformerController struct {
 	// sendInsight should be called to send produced insights to the update status controller
 	sendInsight sendInsightFn
 
+	// machineConfigPoolCache caches machine config pools
+	machineConfigPoolCache     map[string]machineConfigPoolCacheData
+	machineConfigPoolCacheLock sync.Mutex
+
+	// machineConfigVersionCache caches machine config versions
+	machineConfigVersionCache     map[string]string
+	machineConfigVersionCacheLock sync.Mutex
+
 	// now is a function that returns the current time, used for testing
 	now func() metav1.Time
+}
+
+type machineConfigPoolCacheData struct {
+	pool     *machineconfigv1.MachineConfigPool
+	selector labels.Selector
 }
 
 func newNodeInformerController(
@@ -60,14 +75,23 @@ func newNodeInformerController(
 		recorder:           cpiRecorder,
 		sendInsight:        sendInsight,
 
+		machineConfigPoolCache:    make(map[string]machineConfigPoolCacheData),
+		machineConfigVersionCache: make(map[string]string),
+
 		now: metav1.Now,
 	}
 
 	nodeInformer := coreInformers.Core().V1().Nodes().Informer()
+	mcInformer := machineConfigInformers.Machineconfiguration().V1().MachineConfigs().Informer()
+	mcpInformer := machineConfigInformers.Machineconfiguration().V1().MachineConfigPools().Informer()
 
 	controller := factory.New().
 		// call sync on node changes
 		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, nodeInformer).
+		// call sync on machine config changes
+		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, mcInformer).
+		// call sync on machine config pool changes
+		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, mcpInformer).
 		WithSync(c.sync).
 		ToController("NodeInformer", c.recorder)
 
@@ -76,6 +100,7 @@ func newNodeInformerController(
 
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	queueKey := syncCtx.QueueKey()
+	klog.V(4).Infof("NI :: Syncing with key %s", queueKey)
 
 	t, name, err := parseNodeInformerControllerQueueKey(queueKey)
 	if err != nil {
@@ -94,26 +119,11 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 			return err
 		}
 
-		pools, err := c.machineConfigPools.List(labels.Everything())
-		if err != nil {
-			return err
+		mcp := c.whichMCP(node)
+		if mcp == nil {
+			return fmt.Errorf("failed to determine which machine config pool the node belongs to")
 		}
-		mcp, err := whichMCP(node, pools)
-		if err != nil {
-			return fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", err)
-		}
-
-		machineConfigs, err := c.machineConfigs.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		machineConfigVersions := map[string]string{}
-		for _, mc := range machineConfigs {
-			if openshiftVersion, ok := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; ok && openshiftVersion != "" {
-				machineConfigVersions[mc.Name] = openshiftVersion
-			}
-		}
+		klog.V(4).Infof("Node %s belongs to machine config pool %s", node.Name, mcp.Name)
 
 		var mostRecentVersionInCVHistory string
 		clusterVersion, err := c.configClient.ConfigV1().ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
@@ -125,9 +135,45 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 		}
 
 		now := c.now()
-		if insight := assessNode(node, mcp, machineConfigVersions, mostRecentVersionInCVHistory, now); insight != nil {
+		if insight := assessNode(node, mcp, c.machineConfigVersionCache, mostRecentVersionInCVHistory, now); insight != nil {
 			msg = makeInsightMsgForNode(insight, now)
 		}
+	case machineConfigKindName:
+		machineConfig, err := c.machineConfigs.Get(name)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return err
+		}
+		if kerrors.IsNotFound(err) {
+			// The machine config was deleted
+			if changed := c.deleteMachineConfigIfExist(name); changed {
+				klog.V(2).Infof("Reconciling all nodes as machine config %q is deleted", name)
+				return c.reconcileAllNodes(syncCtx.Queue())
+			}
+			return nil
+		}
+		if refreshed := c.refreshMachineConfig(machineConfig); refreshed {
+			klog.V(2).Infof("Reconciling all nodes as machine config %q is refreshed", name)
+			return c.reconcileAllNodes(syncCtx.Queue())
+		}
+		return nil
+	case machineConfigPoolKindName:
+		machineConfigPool, err := c.machineConfigPools.Get(name)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return err
+		}
+		if kerrors.IsNotFound(err) {
+			// The pool was deleted
+			if changed := c.deleteMachineConfigPoolIfExist(name); changed {
+				klog.V(2).Infof("Reconciling all nodes as machine config pool %q is deleted", name)
+				return c.reconcileAllNodes(syncCtx.Queue())
+			}
+			return nil
+		}
+		if refreshed := c.refreshMachineConfigPool(machineConfigPool); refreshed {
+			klog.V(2).Infof("Reconciling all nodes as machine config pool %q is refreshed", name)
+			return c.reconcileAllNodes(syncCtx.Queue())
+		}
+		return nil
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
@@ -137,6 +183,82 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	}
 	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
 	c.sendInsight(msg)
+	return nil
+}
+
+func (c *nodeInformerController) refreshMachineConfig(mc *machineconfigv1.MachineConfig) bool {
+	c.machineConfigVersionCacheLock.Lock()
+	defer c.machineConfigVersionCacheLock.Unlock()
+
+	v, ok := c.machineConfigVersionCache[mc.Name]
+	if openshiftVersion, exist := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; exist && openshiftVersion != "" {
+		if !ok || v != openshiftVersion {
+			c.machineConfigVersionCache[mc.Name] = openshiftVersion
+			klog.V(4).Infof("Cached MachineConfig %s with version %s", mc.Name, openshiftVersion)
+			return true
+		}
+	} else if ok {
+		delete(c.machineConfigVersionCache, mc.Name)
+		klog.V(4).Infof("Removed MachineConfig %s from the cache", mc.Name)
+		return true
+	}
+
+	return false
+}
+
+func (c *nodeInformerController) deleteMachineConfigIfExist(name string) bool {
+	c.machineConfigVersionCacheLock.Lock()
+	defer c.machineConfigVersionCacheLock.Unlock()
+	if _, ok := c.machineConfigVersionCache[name]; ok {
+		delete(c.machineConfigVersionCache, name)
+		klog.V(4).Infof("Deleted MachineConfig %s from the cache", name)
+		return true
+	}
+	return false
+}
+
+func (c *nodeInformerController) refreshMachineConfigPool(pool *machineconfigv1.MachineConfigPool) bool {
+	c.machineConfigPoolCacheLock.Lock()
+	defer c.machineConfigPoolCacheLock.Unlock()
+
+	v, ok := c.machineConfigPoolCache[pool.Name]
+	s, err := metav1.LabelSelectorAsSelector(pool.Spec.NodeSelector)
+	if err != nil {
+		klog.Errorf("Failed to convert to a label selector from the node selector of MachineConfigPool %s : %v", pool.Name, err)
+		if ok {
+			delete(c.machineConfigPoolCache, pool.Name)
+			klog.V(4).Infof("Removed MachineConfigPool %s from the cache", pool.Name)
+			return true
+		} else {
+			return false
+		}
+	}
+	if !ok || v.selector.String() != s.String() {
+		c.machineConfigPoolCache[pool.Name] = machineConfigPoolCacheData{pool: pool, selector: s}
+		klog.V(4).Infof("Cached MachineConfigPool %s with selector %s", pool.Name, s.String())
+		return true
+	}
+	return false
+}
+
+func (c *nodeInformerController) deleteMachineConfigPoolIfExist(mcpName string) bool {
+	c.machineConfigPoolCacheLock.Lock()
+	defer c.machineConfigPoolCacheLock.Unlock()
+	if _, ok := c.machineConfigPoolCache[mcpName]; ok {
+		delete(c.machineConfigPoolCache, mcpName)
+		klog.V(4).Infof("Deleted MachineConfigPool %s from the cache", mcpName)
+		return true
+	}
+	return false
+}
+func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
+	nodes, err := c.nodes.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		queue.Add(kindAndNameToQueueKey(nodeKindName, node.Name))
+	}
 	return nil
 }
 
@@ -158,39 +280,28 @@ func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Tim
 	}
 }
 
-func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*machineconfigv1.MachineConfigPool, error) {
-	var masterSelector labels.Selector
-	var workerSelector labels.Selector
-	customSelectors := map[string]labels.Selector{}
-	poolsMap := make(map[string]*machineconfigv1.MachineConfigPool, len(pools))
-	for _, pool := range pools {
-		poolsMap[pool.Name] = pool
-		s, err := metav1.LabelSelectorAsSelector(pool.Spec.NodeSelector)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get label selector from the pool %s: %w", pool.Name, err)
+func (c *nodeInformerController) whichMCP(node *corev1.Node) *machineconfigv1.MachineConfigPool {
+	c.machineConfigPoolCacheLock.Lock()
+	defer c.machineConfigPoolCacheLock.Unlock()
+
+	if v, ok := c.machineConfigPoolCache[mco.MachineConfigPoolMaster]; ok && v.selector.Matches(labels.Set(node.Labels)) {
+		return v.pool
+	}
+
+	for k, v := range c.machineConfigPoolCache {
+		if k == mco.MachineConfigPoolMaster || k == mco.MachineConfigPoolWorker {
+			continue
 		}
-		switch pool.Name {
-		case mco.MachineConfigPoolMaster:
-			masterSelector = s
-		case mco.MachineConfigPoolWorker:
-			workerSelector = s
-		default:
-			customSelectors[pool.Name] = s
+		if v.selector.Matches(labels.Set(node.Labels)) {
+			return v.pool
 		}
 	}
 
-	if masterSelector != nil && masterSelector.Matches(labels.Set(node.Labels)) {
-		return poolsMap[mco.MachineConfigPoolMaster], nil
+	if v, ok := c.machineConfigPoolCache[mco.MachineConfigPoolWorker]; ok && v.selector.Matches(labels.Set(node.Labels)) {
+		return v.pool
 	}
-	for name, selector := range customSelectors {
-		if selector.Matches(labels.Set(node.Labels)) {
-			return poolsMap[name], nil
-		}
-	}
-	if workerSelector != nil && workerSelector.Matches(labels.Set(node.Labels)) {
-		return poolsMap[mco.MachineConfigPoolWorker], nil
-	}
-	return nil, fmt.Errorf("failed to find a matching node selector from %d machine config pools", len(pools))
+
+	return nil
 }
 
 func isNodeDegraded(node *corev1.Node) bool {
@@ -376,7 +487,9 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 }
 
 const (
-	nodeKindName = "Node"
+	nodeKindName              = "Node"
+	machineConfigKindName     = "MachineConfig"
+	machineConfigPoolKindName = "MachineConfigPool"
 )
 
 func parseNodeInformerControllerQueueKey(queueKey string) (string, string, error) {
@@ -393,8 +506,16 @@ func nodeInformerControllerQueueKeys(object runtime.Object) []string {
 	}
 	switch o := object.(type) {
 	case *corev1.Node:
-		return []string{fmt.Sprintf("%s/%s", nodeKindName, o.Name)}
+		return []string{kindAndNameToQueueKey(nodeKindName, o.Name)}
+	case *machineconfigv1.MachineConfig:
+		return []string{kindAndNameToQueueKey(machineConfigKindName, o.Name)}
+	case *machineconfigv1.MachineConfigPool:
+		return []string{kindAndNameToQueueKey(machineConfigPoolKindName, o.Name)}
 	default:
 		panic(fmt.Sprintf("USC :: Unknown object type: %T", object))
 	}
+}
+
+func kindAndNameToQueueKey(kind, name string) string {
+	return fmt.Sprintf("%s/%s", kind, name)
 }
