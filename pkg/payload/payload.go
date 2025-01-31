@@ -22,10 +22,11 @@ import (
 	"github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	"github.com/openshift/library-go/pkg/manifest"
 
 	"github.com/openshift/cluster-version-operator/lib/capability"
+	localmanifest "github.com/openshift/cluster-version-operator/lib/manifest"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // State describes the state of the payload and alters
@@ -239,41 +240,12 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 	capabilities capability.ClusterCapabilities) []configv1.ClusterVersionCapability {
 
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
-
-	// Initialize so it contains existing implicitly enabled capabilities
-	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
-
-	for _, updateManifest := range updatePayloadManifests {
-		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true)
-
-		// update manifest is enabled, no need to check
-		if updateManErr == nil {
-			continue
-		}
-		for _, currentManifest := range currentPayloadManifests {
-			if !updateManifest.SameResourceID(currentManifest) {
-				continue
-			}
-
-			// current manifest is disabled, no need to check
-			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true); err != nil {
-				continue
-			}
-			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
-				updateManifest.GetManifestCapabilities(), capabilities)
-
-			capStrings := make([]string, len(caps))
-			for i, c := range caps {
-				capStrings[i] = string(c)
-				if !capability.Contains(implicitlyEnabledCaps, c) {
-					implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
-				}
-			}
-			klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",
-				getManifestResourceId(updateManifest), strings.Join(capStrings, ", "))
-		}
-	}
-	return implicitlyEnabledCaps
+	return localmanifest.GetImplicitlyEnabledCapabilities(
+		updatePayloadManifests,
+		currentPayloadManifests,
+		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps},
+		sets.New[configv1.ClusterVersionCapability](capabilities.ImplicitlyEnabledCapabilities...),
+	).UnsortedList()
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
