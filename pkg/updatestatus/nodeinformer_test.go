@@ -1040,13 +1040,20 @@ func Test_sync_with_node(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: nodesInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
 			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}

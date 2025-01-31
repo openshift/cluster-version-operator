@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -87,8 +86,9 @@ func clusterOperatorEventFilterFunc(obj interface{}) bool {
 }
 
 const (
-	clusterVersionKindName  = "ClusterVersion"
-	clusterOperatorKindName = "ClusterOperator"
+	clusterVersionKindName   = "ClusterVersion"
+	clusterOperatorKindName  = "ClusterOperator"
+	controlPlaneInformerName = "cpi"
 )
 
 // sync is called for any controller event. It will assess the state and health of the control plane, indicated by
@@ -118,9 +118,19 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 
 		now := c.now()
 		cvInsight, healthInsights := assessClusterVersion(clusterVersion, now)
-		msgs = append(msgs, makeInsightMsgForClusterVersion(cvInsight, now))
+		msg, err := makeInsightMsgForClusterVersion(cvInsight, now)
+		if err != nil {
+			klog.Errorf("BUG: Could not create insight message: %v", err)
+			return nil
+		}
+		msgs = append(msgs, msg)
 		for item := range healthInsights {
-			msgs = append(msgs, makeInsightMsgForHealthInsight(healthInsights[item], now))
+			msg, err := makeInsightMsgForHealthInsight(healthInsights[item], now)
+			if err != nil {
+				klog.Errorf("BUG: Could not create insight message: %v", err)
+				return nil
+			}
+			msgs = append(msgs, msg)
 		}
 
 	case clusterOperatorKindName:
@@ -144,7 +154,12 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 		if err != nil {
 			return fmt.Errorf("failed to assess cluster operator %s: %w", name, err)
 		}
-		msgs = append(msgs, makeInsightMsgForClusterOperator(insight, now))
+		msg, err := makeInsightMsgForClusterOperator(insight, now)
+		if err != nil {
+			klog.Errorf("BUG: Could not create insight message: %v", err)
+			return nil
+		}
+		msgs = append(msgs, msg)
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
@@ -161,22 +176,16 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 	return nil
 }
 
-func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) informerMsg {
-	uid := fmt.Sprintf("usc-co-%s", coInsight.Name)
+func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := ControlPlaneInsight{
-		UID:        uid,
+		UID:        fmt.Sprintf("usc-co-%s", coInsight.Name),
 		AcquiredAt: acquiredAt,
 		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                         ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: coInsight,
 		},
 	}
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
-	}
+	return makeControlPlaneInsightMsg(insight, controlPlaneInformerName)
 }
 
 func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperator, targetVersion string, appsClient appsv1client.AppsV1Interface, now metav1.Time) (*ClusterOperatorStatusInsight, error) {
@@ -300,22 +309,16 @@ func getImagePullSpec(ctx context.Context, name string, appsClient appsv1client.
 // makeInsightMsgForClusterVersion creates an informerMsg for the given ClusterVersionStatusInsight. It defines an uid
 // name and serializes the insight as YAML. Serialization is convenient because it prevents any data sharing issues
 // between controllers.
-func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) informerMsg {
-	uid := fmt.Sprintf("usc-cv-%s", cvInsight.Resource.Name)
+func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := ControlPlaneInsight{
-		UID:        uid,
+		UID:        fmt.Sprintf("usc-cv-%s", cvInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
 		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                        ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: cvInsight,
 		},
 	}
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
-	}
+	return makeControlPlaneInsightMsg(insight, controlPlaneInformerName)
 }
 
 func uidForHealthInsight(healthInsight *HealthInsight) string {
@@ -335,23 +338,16 @@ func uidForHealthInsight(healthInsight *HealthInsight) string {
 	return fmt.Sprintf("usc-%s", encoded)
 }
 
-func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt metav1.Time) informerMsg {
-	uid := uidForHealthInsight(healthInsight)
+func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := ControlPlaneInsight{
-		UID:        uid,
+		UID:        uidForHealthInsight(healthInsight),
 		AcquiredAt: acquiredAt,
 		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:          HealthInsightType,
 			HealthInsight: healthInsight,
 		},
 	}
-
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
-	}
+	return makeControlPlaneInsightMsg(insight, controlPlaneInformerName)
 }
 
 // assessClusterVersion produces a ClusterVersion status insight from the current state of the ClusterVersion resource.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
@@ -31,6 +32,32 @@ type informerMsg struct {
 
 	uid     string
 	insight []byte
+}
+
+func makeControlPlaneInsightMsg(insight ControlPlaneInsight, informer string) (informerMsg, error) {
+	rawInsight, err := yaml.Marshal(insight)
+	if err != nil {
+		return informerMsg{}, err
+	}
+	msg := informerMsg{
+		informer: informer,
+		uid:      insight.UID,
+		insight:  rawInsight,
+	}
+	return msg, msg.validate()
+}
+
+func makeWorkerPoolsInsightMsg(insight WorkerPoolInsight, informer string) (informerMsg, error) {
+	rawInsight, err := yaml.Marshal(insight)
+	if err != nil {
+		return informerMsg{}, err
+	}
+	msg := informerMsg{
+		informer: informer,
+		uid:      insight.UID,
+		insight:  rawInsight,
+	}
+	return msg, msg.validate()
 }
 
 type sendInsightFn func(insight informerMsg)

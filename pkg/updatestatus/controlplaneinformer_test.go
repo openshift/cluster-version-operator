@@ -292,8 +292,9 @@ func Test_sync_with_cv(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: controlPlaneInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
@@ -302,6 +303,11 @@ func Test_sync_with_cv(t *testing.T) {
 			})
 			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}
@@ -584,13 +590,23 @@ func Test_sync_with_co(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: controlPlaneInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
-			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+			ignoreOrder := cmpopts.SortSlices(func(a, b informerMsg) bool {
+				return a.uid < b.uid
+			})
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}
