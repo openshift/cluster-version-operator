@@ -915,8 +915,8 @@ func Test_sync_with_node(t *testing.T) {
 				},
 			},
 			expectedMsgs: map[string]WorkerPoolInsight{
-				"usc-node-worker-1": {
-					UID:        "usc-node-worker-1",
+				"node-worker-1": {
+					UID:        "node-worker-1",
 					AcquiredAt: now,
 					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
@@ -957,8 +957,8 @@ func Test_sync_with_node(t *testing.T) {
 				},
 			},
 			expectedMsgs: map[string]WorkerPoolInsight{
-				"usc-node-worker-1": {
-					UID:        "usc-node-worker-1",
+				"node-worker-1": {
+					UID:        "node-worker-1",
 					AcquiredAt: now,
 					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
