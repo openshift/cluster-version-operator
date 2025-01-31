@@ -34,6 +34,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/client-go/config/informers/externalversions"
+	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
 
@@ -79,6 +80,8 @@ type Options struct {
 	Exclude string
 
 	ClusterProfile string
+
+	HyperShift bool
 
 	// AlwaysEnableCapabilities is a list of cluster version capabilities
 	// which will always be implicitly enabled.
@@ -156,6 +159,9 @@ func (o *Options) Run(ctx context.Context) error {
 	if len(unknownCaps) > 0 {
 		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
 	}
+
+	// Inject the cluster ID into PromQL queries in HyperShift
+	o.InjectClusterIdIntoPromQL = o.HyperShift
 
 	// parse the prometheus url
 	var err error
@@ -390,6 +396,10 @@ func (cb *ClientBuilder) KubeClientOrDie(name string, configFns ...func(*rest.Co
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
+func (cb *ClientBuilder) OperatorClientOrDie(name string, configFns ...func(*rest.Config)) operatorclientset.Interface {
+	return operatorclientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
+}
+
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	clientCfg := clientcmd.NewDefaultClientConfigLoadingRules()
 	clientCfg.ExplicitPath = kubeconfig
@@ -458,6 +468,7 @@ type Context struct {
 func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabilities []configv1.ClusterVersionCapability) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
+	operatorClient := cb.OperatorClientOrDie("operator-client")
 
 	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
@@ -484,8 +495,10 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		sharedInformers.Config().V1().Proxies(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
+		operatorClient,
 		o.Exclude,
 		o.ClusterProfile,
+		o.HyperShift,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
 		o.UpdateService,
