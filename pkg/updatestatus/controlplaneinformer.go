@@ -62,9 +62,9 @@ func newControlPlaneInformerController(
 
 	controller := factory.New().
 		// call sync on ClusterVersion changes
-		WithInformersQueueKeysFunc(configApiQueueKeys, cvInformer).
+		WithInformersQueueKeysFunc(controlPlaneInformerQueueKeys, cvInformer).
 		// call sync on ClusterOperator changes with a filter
-		WithFilteredEventsInformersQueueKeysFunc(configApiQueueKeys, clusterOperatorEventFilterFunc, coInformer).
+		WithFilteredEventsInformersQueueKeysFunc(controlPlaneInformerQueueKeys, clusterOperatorEventFilterFunc, coInformer).
 		WithSync(c.sync).
 		ToController("ControlPlaneInformer", c.recorder)
 
@@ -97,7 +97,7 @@ const (
 func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	queueKey := syncCtx.QueueKey()
 
-	t, name, err := parseQueueKey(queueKey)
+	t, name, err := parseControlPlaneInformerQueueKey(queueKey)
 	if err != nil {
 		return fmt.Errorf("failed to parse queue key: %w", err)
 	}
@@ -470,7 +470,7 @@ func versionsFromHistory(history []configv1.UpdateHistory) ControlPlaneUpdateVer
 	return versions
 }
 
-func parseQueueKey(queueKey string) (string, string, error) {
+func parseControlPlaneInformerQueueKey(queueKey string) (string, string, error) {
 	splits := strings.Split(queueKey, "/")
 	if len(splits) != 2 {
 		return "", "", fmt.Errorf("invalid queue key: %s", queueKey)
@@ -478,7 +478,7 @@ func parseQueueKey(queueKey string) (string, string, error) {
 	return splits[0], splits[1], nil
 }
 
-func configApiQueueKeys(object runtime.Object) []string {
+func controlPlaneInformerQueueKeys(object runtime.Object) []string {
 	if object == nil {
 		return nil
 	}

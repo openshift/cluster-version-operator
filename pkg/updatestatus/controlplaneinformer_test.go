@@ -215,7 +215,7 @@ func Test_sync_with_cv(t *testing.T) {
 				now:             func() metav1.Time { return now },
 			}
 
-			queueKey := configApiQueueKeys(cv)[0]
+			queueKey := controlPlaneInformerQueueKeys(cv)[0]
 
 			err := controller.sync(context.Background(), newTestSyncContext(queueKey))
 			if err != nil {
@@ -391,14 +391,14 @@ func Test_configApiQueueKeys(t *testing.T) {
 				}
 			}()
 
-			actual := configApiQueueKeys(tc.object)
+			actual := controlPlaneInformerQueueKeys(tc.object)
 
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("%s: key differs from expected:\n%s", tc.name, diff)
 			}
 
 			if !tc.expectedPanic && len(actual) > 0 {
-				kind, name, err := parseQueueKey(actual[0])
+				kind, name, err := parseControlPlaneInformerQueueKey(actual[0])
 				if err != nil {
 					t.Errorf("%s: unexpected error raised:\n%v", tc.name, err)
 				}
@@ -504,7 +504,7 @@ func Test_sync_with_co(t *testing.T) {
 				now:              func() metav1.Time { return now },
 			}
 
-			queueKey := configApiQueueKeys(co)[0]
+			queueKey := controlPlaneInformerQueueKeys(co)[0]
 
 			err := controller.sync(context.Background(), newTestSyncContext(queueKey))
 			if err != nil {
