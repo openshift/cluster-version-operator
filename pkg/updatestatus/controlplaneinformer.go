@@ -2,6 +2,8 @@ package updatestatus
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -85,8 +87,9 @@ func clusterOperatorEventFilterFunc(obj interface{}) bool {
 }
 
 const (
-	clusterVersionKindName  = "ClusterVersion"
-	clusterOperatorKindName = "ClusterOperator"
+	clusterVersionKindName   = "ClusterVersion"
+	clusterOperatorKindName  = "ClusterOperator"
+	controlPlaneInformerName = "cpi"
 )
 
 // sync is called for any controller event. It will assess the state and health of the control plane, indicated by
@@ -102,7 +105,7 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 		return fmt.Errorf("failed to parse queue key: %w", err)
 	}
 
-	var msg informerMsg
+	var msgs []informerMsg
 	switch t {
 	case clusterVersionKindName:
 		clusterVersion, err := c.clusterVersions.Get(name)
@@ -115,8 +118,21 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 		}
 
 		now := c.now()
-		insight := assessClusterVersion(clusterVersion, now)
-		msg = makeInsightMsgForClusterVersion(insight, now)
+		cvInsight, healthInsights := assessClusterVersion(clusterVersion, now)
+		msg, err := makeInsightMsgForClusterVersion(cvInsight, now)
+		if err != nil {
+			klog.Errorf("BUG: Could not create insight message: %v", err)
+			return nil
+		}
+		msgs = append(msgs, msg)
+		for item := range healthInsights {
+			msg, err := makeInsightMsgForHealthInsight(healthInsights[item], now)
+			if err != nil {
+				klog.Errorf("BUG: Could not create insight message: %v", err)
+				return nil
+			}
+			msgs = append(msgs, msg)
+		}
 
 	case clusterOperatorKindName:
 		clusterVersion, err := c.clusterVersions.Get("version")
@@ -139,36 +155,51 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 		if err != nil {
 			return fmt.Errorf("failed to assess cluster operator %s: %w", name, err)
 		}
-		msg = makeInsightMsgForClusterOperator(insight, now)
+		msg, err := makeInsightMsgForClusterOperator(insight, now)
+		if err != nil {
+			klog.Errorf("BUG: Could not create insight message: %v", err)
+			return nil
+		}
+		msgs = append(msgs, msg)
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
-	var msgForLog string
-	if klog.V(4).Enabled() {
-		msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
+
+	for _, msg := range msgs {
+		var msgForLog string
+		if klog.V(4).Enabled() {
+			msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
+		}
+		klog.V(2).Infof("CPI :: Syncing %s %s%s", t, name, msgForLog)
+		c.sendInsight(msg)
 	}
-	klog.V(2).Infof("CPI :: Syncing %s %s%s", t, name, msgForLog)
-	c.sendInsight(msg)
 
 	return nil
 }
 
-func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) informerMsg {
-	uid := fmt.Sprintf("usc-co-%s", coInsight.Name)
-	insight := Insight{
-		UID:        uid,
+func makeInsightMsg(insight ControlPlaneInsight) (informerMsg, error) {
+	rawInsight, err := yaml.Marshal(insight)
+	if err != nil {
+		return informerMsg{}, err
+	}
+	msg := informerMsg{
+		informer: controlPlaneInformerName,
+		uid:      insight.UID,
+		insight:  rawInsight,
+	}
+	return msg, msg.validate()
+}
+
+func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := ControlPlaneInsight{
+		UID:        fmt.Sprintf("co-%s", coInsight.Name),
 		AcquiredAt: acquiredAt,
-		InsightUnion: InsightUnion{
+		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                         ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: coInsight,
 		},
 	}
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
-	}
+	return makeInsightMsg(insight)
 }
 
 func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperator, targetVersion string, appsClient appsv1client.AppsV1Interface, now metav1.Time) (*ClusterOperatorStatusInsight, error) {
@@ -292,29 +323,52 @@ func getImagePullSpec(ctx context.Context, name string, appsClient appsv1client.
 // makeInsightMsgForClusterVersion creates an informerMsg for the given ClusterVersionStatusInsight. It defines an uid
 // name and serializes the insight as YAML. Serialization is convenient because it prevents any data sharing issues
 // between controllers.
-func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) informerMsg {
-	uid := fmt.Sprintf("usc-cv-%s", cvInsight.Resource.Name)
-	insight := Insight{
-		UID:        uid,
+func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := ControlPlaneInsight{
+		UID:        fmt.Sprintf("cv-%s", cvInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
-		InsightUnion: InsightUnion{
+		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                        ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: cvInsight,
 		},
 	}
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
+	return makeInsightMsg(insight)
+}
+
+func uidForHealthInsight(healthInsight *HealthInsight) string {
+	hasher := md5.New()
+	hasher.Write([]byte(healthInsight.Impact.Summary))
+	for i := range healthInsight.Scope.Resources {
+		hasher.Write([]byte(healthInsight.Scope.Resources[i].Group))
+		hasher.Write([]byte(healthInsight.Scope.Resources[i].Resource))
+		hasher.Write([]byte(healthInsight.Scope.Resources[i].Namespace))
+		hasher.Write([]byte(healthInsight.Scope.Resources[i].Name))
 	}
+
+	sum := hasher.Sum(nil)
+	encoded := base64.StdEncoding.EncodeToString(sum)
+	encoded = strings.TrimRight(encoded, "=")
+
+	return encoded
+}
+
+func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := ControlPlaneInsight{
+		UID:        uidForHealthInsight(healthInsight),
+		AcquiredAt: acquiredAt,
+		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
+			Type:          HealthInsightType,
+			HealthInsight: healthInsight,
+		},
+	}
+	return makeInsightMsg(insight)
 }
 
 // assessClusterVersion produces a ClusterVersion status insight from the current state of the ClusterVersion resource.
 // It does not take previous status insight into account. Many fields of the status insights (such as completion) cannot
 // be properly calculated without also watching and processing ClusterOperators, so that functionality will need to be
 // added later.
-func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) *ClusterVersionStatusInsight {
+func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) (*ClusterVersionStatusInsight, []*HealthInsight) {
 
 	var lastHistoryItem *configv1.UpdateHistory
 	if len(cv.Status.History) > 0 {
@@ -364,7 +418,44 @@ func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) *Cluster
 		insight.EstimatedCompletedAt = &metav1.Time{Time: est}
 	}
 
-	return insight
+	var healthInsights []*HealthInsight
+	if forcedHealthInsight := forcedHealthInsight(cv, now); forcedHealthInsight != nil {
+		healthInsights = append(healthInsights, forcedHealthInsight)
+	}
+
+	return insight, healthInsights
+}
+
+const (
+	uscForceHealthInsightAnnotation = "usc.openshift.io/force-health-insight"
+)
+
+func forcedHealthInsight(cv *configv1.ClusterVersion, now metav1.Time) *HealthInsight {
+	if cv.Annotations == nil {
+		return nil
+	}
+
+	if _, ok := cv.Annotations[uscForceHealthInsightAnnotation]; !ok {
+		return nil
+	}
+
+	return &HealthInsight{
+		StartedAt: now,
+		Scope: InsightScope{
+			Type:      ControlPlaneScope,
+			Resources: []ResourceRef{{Resource: "clusterversions", Group: configv1.GroupName, Name: cv.Name}},
+		},
+		Impact: InsightImpact{
+			Level:       InfoImpactLevel,
+			Type:        NoneImpactType,
+			Summary:     fmt.Sprintf("Forced health insight for ClusterVersion %s", cv.Name),
+			Description: fmt.Sprintf("The resource has a `%s` annotation which forces USC to generate this health insight for testing purposes.", uscForceHealthInsightAnnotation),
+		},
+		Remediation: InsightRemediation{
+			Reference:       "https://issues.redhat.com/browse/OTA-1418",
+			EstimatedFinish: nil,
+		},
+	}
 }
 
 // estimateCompletion returns a time.Time that is 60 minutes after the given time. Proper estimation needs to be added
