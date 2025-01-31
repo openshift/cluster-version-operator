@@ -6,33 +6,34 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // of the cluster or an update
 type HealthInsight struct {
 	// startedAt is the time when the condition reported by the insight started
-	// +kubebuilder:validation:Required
+	// +required
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Format=date-time
 	StartedAt metav1.Time `json:"startedAt"`
 
 	// scope is list of objects involved in the insight
-	// +kubebuilder:validation:Required
+	// +required
 	Scope InsightScope `json:"scope"`
 
 	// impact describes the impact the reported condition has on the cluster or update
-	// +kubebuilder:validation:Required
+	// +required
 	Impact InsightImpact `json:"impact"`
 
 	// remediation contains information about how to resolve or prevent the reported condition
+	// +required
 	Remediation InsightRemediation `json:"remediation"`
 }
 
 // InsightScope is a list of resources involved in the insight
 type InsightScope struct {
 	// type is either ControlPlane or WorkerPool
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=ControlPlane;WorkerPool
+	// +required
 	Type ScopeType `json:"type"`
 
 	// resources is a list of resources involved in the insight, of any group/kind
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=16
 	Resources []ResourceRef `json:"resources,omitempty"`
 }
 
@@ -50,23 +51,24 @@ const (
 // InsightImpact describes the impact the reported condition has on the cluster or update
 type InsightImpact struct {
 	// level is the severity of the impact
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=Unknown;Info;Warning;Error;Critical
+	// +required
 	Level InsightImpactLevel `json:"level"`
 
 	// type is the type of the impact
-	// +kubebuilder:validation:Required
-	// +kubebuilder:validation:Enum=None;Unknown;API Availability;Cluster Capacity;Application Availability;Application Outage;Data Loss;Update Speed;Update Stalled
+	// +required
 	Type InsightImpactType `json:"type"`
 
 	// summary is a short summary of the impact
-	// +kubebuilder:validation:Required
+	// +required
 	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MaxLength=256
+	// +kubebuilder:validation:MinLength=1
 	Summary string `json:"summary"`
 
 	// description is a human-oriented, possibly longer-form description of the condition reported by the insight
 	// +optional
 	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MaxLength=4096
 	Description string `json:"description,omitempty"`
 }
 
@@ -113,9 +115,10 @@ const (
 // InsightRemediation contains information about how to resolve or prevent the reported condition
 type InsightRemediation struct {
 	// reference is a URL where administrators can find information to resolve or prevent the reported condition
-	// +kubebuilder:validation:Required
+	// +required
 	// +kubebuilder:validation:Type=string
 	// +kubebuilder:validation:Format=uri
+	// +kubebuilder:validation:MaxLength=512
 	Reference string `json:"reference"`
 
 	// estimatedFinish is the estimated time when the informer expects the condition to be resolved, if applicable.
