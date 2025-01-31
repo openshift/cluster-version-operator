@@ -192,7 +192,7 @@ func makeInsightMsg(insight ControlPlaneInsight) (informerMsg, error) {
 
 func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := ControlPlaneInsight{
-		UID:        fmt.Sprintf("usc-co-%s", coInsight.Name),
+		UID:        fmt.Sprintf("co-%s", coInsight.Name),
 		AcquiredAt: acquiredAt,
 		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                         ClusterOperatorStatusInsightType,
@@ -325,7 +325,7 @@ func getImagePullSpec(ctx context.Context, name string, appsClient appsv1client.
 // between controllers.
 func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := ControlPlaneInsight{
-		UID:        fmt.Sprintf("usc-cv-%s", cvInsight.Resource.Name),
+		UID:        fmt.Sprintf("cv-%s", cvInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
 		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                        ClusterVersionStatusInsightType,
@@ -349,7 +349,7 @@ func uidForHealthInsight(healthInsight *HealthInsight) string {
 	encoded := base64.StdEncoding.EncodeToString(sum)
 	encoded = strings.TrimRight(encoded, "=")
 
-	return fmt.Sprintf("usc-%s", encoded)
+	return encoded
 }
 
 func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt metav1.Time) (informerMsg, error) {
