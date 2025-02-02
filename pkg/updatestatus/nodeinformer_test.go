@@ -2,7 +2,6 @@ package updatestatus
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -13,8 +12,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
@@ -126,7 +127,7 @@ func getMCP(name string) *machineconfigv1.MachineConfigPool {
 				NodeSelector: &metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Operator: metav1.LabelSelectorOperator("non-exists"),
+							Operator: "non-exists",
 							Key:      "k",
 							Values:   []string{"v"},
 						},
@@ -147,6 +148,34 @@ func getMCP(name string) *machineconfigv1.MachineConfigPool {
 	}
 }
 
+func (c *nodeInformerController) initializeCaches() error {
+	var errs []error
+
+	if pools, err := c.machineConfigPools.List(labels.Everything()); err != nil {
+		errs = append(errs, err)
+	} else {
+		c.machineConfigPoolCache = make(map[string]machineConfigPoolCacheData)
+		for _, pool := range pools {
+			c.refreshMachineConfigPool(pool)
+		}
+	}
+	klog.V(2).Infof("Stored %d machineConfigPools in the cache", len(c.machineConfigPoolCache))
+
+	machineConfigs, err := c.machineConfigs.List(labels.Everything())
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		c.machineConfigVersionCache = map[string]string{}
+		for _, mc := range machineConfigs {
+			c.refreshMachineConfig(mc)
+		}
+	}
+
+	klog.V(2).Infof("Stored %d machineConfig versions in the cache", len(c.machineConfigVersionCache))
+
+	return kerrors.NewAggregate(errs)
+}
+
 func Test_whichMCP(t *testing.T) {
 	testCases := []struct {
 		name string
@@ -154,8 +183,7 @@ func Test_whichMCP(t *testing.T) {
 		node  *corev1.Node
 		pools []*machineconfigv1.MachineConfigPool
 
-		expected    *machineconfigv1.MachineConfigPool
-		expectedErr error
+		expected *machineconfigv1.MachineConfigPool
 	}{
 		{
 			name: "master",
@@ -191,6 +219,16 @@ func Test_whichMCP(t *testing.T) {
 			expected: getMCP("infra"),
 		},
 		{
+			name: "no matching pool",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "worker-1",
+					Labels: map[string]string{"machine.openshift.io/interruptible-instance": "", "node-role.kubernetes.io/not-worker": ""},
+				},
+			},
+			pools: getMCPs("master", "worker", "infra"),
+		},
+		{
 			name: "abnormal mcp",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
@@ -198,29 +236,42 @@ func Test_whichMCP(t *testing.T) {
 					Labels: map[string]string{"machine.openshift.io/interruptible-instance": "", "node-role.kubernetes.io/worker": "", "mcp": "abnormal"},
 				},
 			},
-			pools:       getMCPs("master", "worker", "abnormal"),
-			expectedErr: fmt.Errorf("failed to get label selector from the pool abnormal: %w", fmt.Errorf("%q is not a valid label selector operator", "non-exists")),
+			pools:    getMCPs("master", "worker", "abnormal"),
+			expected: getMCP("worker"),
+		},
+		{
+			name: "no matching pool and abnormal mcp",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "worker-1",
+					Labels: map[string]string{"machine.openshift.io/interruptible-instance": "", "node-role.kubernetes.io/not-worker": "", "mcp": "abnormal"},
+				},
+			},
+			pools: getMCPs("master", "worker", "abnormal"),
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
 
-			actual, actualErr := whichMCP(tc.node, tc.pools)
-
-			if diff := cmp.Diff(tc.expectedErr, actualErr, cmp.Comparer(func(x, y error) bool {
-				if x == nil || y == nil {
-					return x == nil && y == nil
+			mcpIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, o := range tc.pools {
+				if err := mcpIndexer.Add(o); err != nil {
+					t.Fatalf("Failed to add o to indexer: %v", err)
 				}
-				return x.Error() == y.Error()
-			})); diff != "" {
-				t.Errorf("%s: error differs from expected:\n%s", tc.name, diff)
+			}
+			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
+
+			c := nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
+
+			if err := c.initializeCaches(); err != nil {
+				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
-			if tc.expectedErr == nil {
-				if diff := cmp.Diff(tc.expected, actual); diff != "" {
-					t.Errorf("%s: machine config pool differs from expected:\n%s", tc.name, diff)
-				}
+			if diff := cmp.Diff(tc.expected, c.whichMCP(tc.node)); diff != "" {
+				t.Errorf("%s: machine config pool differs from expected:\n%s", tc.name, diff)
 			}
 
 		})
@@ -993,7 +1044,6 @@ func Test_sync_with_node(t *testing.T) {
 					Labels: map[string]string{"node-role.kubernetes.io/some": ""},
 				},
 			},
-			expectedErr: fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", fmt.Errorf("failed to find a matching node selector from 2 machine config pools")),
 		},
 	}
 
@@ -1018,6 +1068,10 @@ func Test_sync_with_node(t *testing.T) {
 				machineConfigPools: mcpLister,
 				sendInsight:        sendInsight,
 				now:                func() metav1.Time { return now },
+			}
+
+			if err := controller.initializeCaches(); err != nil {
+				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
 			queueKey := nodeInformerControllerQueueKeys(tc.node)[0]
@@ -1045,6 +1099,143 @@ func Test_sync_with_node(t *testing.T) {
 				})
 			}
 
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+		})
+	}
+}
+
+func Test_sync_with_mcp(t *testing.T) {
+	now := metav1.Now()
+
+	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{} {
+		if err := mcIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add o to indexer: %v", err)
+		}
+	}
+	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
+
+	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "master-1"}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "worker-1"}}} {
+		if err := nodeIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add o to indexer: %v", err)
+		}
+	}
+	nodeLister := corelistersv1.NewNodeLister(nodeIndexer)
+
+	testCases := []struct {
+		name string
+
+		object                runtime.Object
+		pools                 []*machineconfigv1.MachineConfigPool
+		mcpToRemove, mcpToAdd string
+
+		expectedErr      error
+		expectedQueueLen int
+	}{
+		{
+			name: "reconcile for deleted pool",
+			object: &machineconfigv1.MachineConfigPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "non-exist-mcp",
+				},
+			},
+			pools:            []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker"), getMCP("non-exist-mcp")},
+			mcpToRemove:      "non-exist-mcp",
+			expectedQueueLen: 2,
+		},
+		{
+			name: "reconcile for a new pool",
+			object: &machineconfigv1.MachineConfigPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "infra",
+				},
+			},
+			pools:    []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker")},
+			mcpToAdd: "infra",
+		},
+		{
+			name: "no-op if not-found",
+			object: &machineconfigv1.MachineConfigPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "non-exist-mcp",
+				},
+			},
+			pools: []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker")},
+		},
+		{
+			name: "no-op if existing",
+			object: &machineconfigv1.MachineConfigPool{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "worker",
+				},
+			},
+			pools: []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker")},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			var actualMsgs []informerMsg
+			var sendInsight sendInsightFn = func(insight informerMsg) {
+				actualMsgs = append(actualMsgs, insight)
+			}
+
+			mcpIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, o := range tc.pools {
+				if err := mcpIndexer.Add(o); err != nil {
+					t.Fatalf("Failed to add o to indexer: %v", err)
+				}
+			}
+			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
+
+			controller := nodeInformerController{
+				nodes:              nodeLister,
+				machineConfigs:     mcLister,
+				machineConfigPools: mcpLister,
+				sendInsight:        sendInsight,
+				now:                func() metav1.Time { return now },
+			}
+
+			if err := controller.initializeCaches(); err != nil {
+				t.Errorf("Failed to initialize caches: %v", err)
+			}
+
+			if tc.mcpToRemove != "" {
+				if err := mcpIndexer.Delete(getMCP(tc.mcpToRemove)); err != nil {
+					t.Fatalf("Failed to remove mcp: %v", err)
+				}
+			}
+
+			if tc.mcpToAdd != "" {
+				if err := mcpIndexer.Add(getMCP(tc.mcpToRemove)); err != nil {
+					t.Fatalf("Failed to remove mcp: %v", err)
+				}
+			}
+
+			queueKey := nodeInformerControllerQueueKeys(tc.object)[0]
+
+			syncContext := newTestSyncContext(queueKey)
+			actualErr := controller.sync(context.TODO(), syncContext)
+
+			if diff := cmp.Diff(tc.expectedErr, actualErr, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("%s: error differs from expected:\n%s", tc.name, diff)
+			}
+
+			if diff := cmp.Diff(tc.expectedQueueLen, syncContext.Queue().Len()); diff != "" {
+				t.Errorf("queue length after sync differs from expected:\n%s", diff)
+			}
+
+			var expectedMsgs []informerMsg
 			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
 			}
