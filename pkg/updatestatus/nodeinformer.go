@@ -142,10 +142,10 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Time) informerMsg {
 	uid := fmt.Sprintf("usc-node-%s", nodeInsight.Resource.Name)
-	insight := Insight{
+	insight := WorkerPoolInsight{
 		UID:        uid,
 		AcquiredAt: acquiredAt,
-		InsightUnion: InsightUnion{
+		WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 			Type:              NodeStatusInsightType,
 			NodeStatusInsight: nodeInsight,
 		},

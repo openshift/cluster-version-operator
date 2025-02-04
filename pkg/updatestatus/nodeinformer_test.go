@@ -897,7 +897,7 @@ func Test_sync_with_node(t *testing.T) {
 		node *corev1.Node
 
 		expectedErr  error
-		expectedMsgs map[string]Insight
+		expectedMsgs map[string]WorkerPoolInsight
 	}{
 		{
 			name: "Node's update is pending",
@@ -914,11 +914,11 @@ func Test_sync_with_node(t *testing.T) {
 					},
 				},
 			},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]WorkerPoolInsight{
 				"usc-node-worker-1": {
 					UID:        "usc-node-worker-1",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
 						NodeStatusInsight: &NodeStatusInsight{
 							Name: "worker-1",
@@ -956,11 +956,11 @@ func Test_sync_with_node(t *testing.T) {
 					},
 				},
 			},
-			expectedMsgs: map[string]Insight{
+			expectedMsgs: map[string]WorkerPoolInsight{
 				"usc-node-worker-1": {
 					UID:        "usc-node-worker-1",
 					AcquiredAt: now,
-					InsightUnion: InsightUnion{
+					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
 						NodeStatusInsight: &NodeStatusInsight{
 							Name: "worker-1",

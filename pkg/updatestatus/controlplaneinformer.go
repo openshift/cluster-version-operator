@@ -155,10 +155,10 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 
 func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) informerMsg {
 	uid := fmt.Sprintf("usc-co-%s", coInsight.Name)
-	insight := Insight{
+	insight := ControlPlaneInsight{
 		UID:        uid,
 		AcquiredAt: acquiredAt,
-		InsightUnion: InsightUnion{
+		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                         ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: coInsight,
 		},
@@ -294,10 +294,10 @@ func getImagePullSpec(ctx context.Context, name string, appsClient appsv1client.
 // between controllers.
 func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) informerMsg {
 	uid := fmt.Sprintf("usc-cv-%s", cvInsight.Resource.Name)
-	insight := Insight{
+	insight := ControlPlaneInsight{
 		UID:        uid,
 		AcquiredAt: acquiredAt,
-		InsightUnion: InsightUnion{
+		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 			Type:                        ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: cvInsight,
 		},
