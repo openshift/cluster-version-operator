@@ -4,6 +4,7 @@ import (
 	"context"
 
 	k8sversion "k8s.io/apimachinery/pkg/version"
+	"k8s.io/utils/clock"
 
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
 
@@ -19,6 +20,7 @@ func init() {
 		// https://github.com/openshift/cluster-version-operator/pull/1091#discussion_r1810601697
 		k8sversion.Info{GitVersion: cvoversion.Raw},
 		updatestatus.Run,
+		clock.RealClock{},
 	).NewCommandWithContext(context.Background())
 
 	uscCommand.Short = "The Update Status Controller watches cluster state/health during the update process and exposes it through the UpdateStatus API."

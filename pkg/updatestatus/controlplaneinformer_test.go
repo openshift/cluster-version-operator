@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
+	clocktesting "k8s.io/utils/clock/testing"
 	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -642,7 +643,7 @@ func (c testSyncContext) Recorder() events.Recorder {
 func newTestSyncContext(queueKey string) factory.SyncContext {
 	return testSyncContext{
 		queueKey:      queueKey,
-		eventRecorder: events.NewInMemoryRecorder("test"),
+		eventRecorder: events.NewInMemoryRecorder("test", clocktesting.NewFakePassiveClock(time.Now())),
 	}
 }
 
