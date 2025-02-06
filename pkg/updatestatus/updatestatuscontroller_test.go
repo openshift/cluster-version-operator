@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/workqueue"
+	clocktesting "k8s.io/utils/clock/testing"
 )
 
 func Test_updateStatusController(t *testing.T) {
@@ -153,7 +154,7 @@ func Test_updateStatusController(t *testing.T) {
 
 func newTestSyncContextWithQueue() factory.SyncContext {
 	return testSyncContext{
-		eventRecorder: events.NewInMemoryRecorder("test"),
+		eventRecorder: events.NewInMemoryRecorder("test", clocktesting.NewFakePassiveClock(time.Now())),
 		queue:         workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[any]()),
 	}
 }
