@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 
 	corev1 "k8s.io/api/core/v1"
@@ -1046,7 +1047,11 @@ func Test_sync_with_node(t *testing.T) {
 				})
 			}
 
-			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+			ignoreOrder := cmpopts.SortSlices(func(a, b informerMsg) bool {
+				return a.uid < b.uid
+			})
+
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
 			}
 

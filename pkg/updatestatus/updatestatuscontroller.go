@@ -151,7 +151,7 @@ func (c *updateStatusController) processInsightMsg(message informerMsg) bool {
 		klog.Warningf("USC :: Collector :: Invalid message: %v", err)
 		return false
 	}
-	klog.Infof("USC :: Collector :: Received insight from informer (uid=%s)", message.uid)
+	klog.Infof("USC :: Collector :: Received insight from informer %q (uid=%s)", message.informer, message.uid)
 	c.updateInsightInStatusApi(message)
 
 	return true
@@ -167,7 +167,6 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 		klog.V(2).Info("USC :: Collector :: Starting insight collector")
 		for {
 			select {
-			// Receive an insight from the informer, update it in the status API ConfigMap and commit it to the cluster
 			case message := <-fromInformers:
 				if c.processInsightMsg(message) {
 					syncCtx.Queue().Add(statusApiConfigMap)
