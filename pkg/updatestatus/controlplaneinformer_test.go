@@ -6,9 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/library-go/pkg/controller/factory"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
@@ -16,6 +13,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakekubeclient "k8s.io/client-go/kubernetes/fake"
@@ -25,6 +23,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 )
 
@@ -643,6 +642,12 @@ func newTestSyncContext(queueKey string) factory.SyncContext {
 	return testSyncContext{
 		queueKey:      queueKey,
 		eventRecorder: events.NewInMemoryRecorder("test"),
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[any](),
+			workqueue.TypedRateLimitingQueueConfig[any]{
+				Name: "test",
+			},
+		),
 	}
 }
 
