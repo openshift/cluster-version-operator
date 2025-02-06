@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
-
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -126,7 +124,11 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 		now := c.now()
 		if insight := assessNode(node, mcp, machineConfigVersions, mostRecentVersionInCVHistory, now); insight != nil {
-			msg = makeInsightMsgForNode(insight, now)
+			msg, err = makeInsightMsgForNode(insight, now)
+			if err != nil {
+				klog.Errorf("BUG: Could not create insight message: %v", err)
+				return nil
+			}
 		}
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
@@ -140,22 +142,17 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	return nil
 }
 
-func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Time) informerMsg {
-	uid := fmt.Sprintf("usc-node-%s", nodeInsight.Resource.Name)
+func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := WorkerPoolInsight{
-		UID:        uid,
+		UID:        fmt.Sprintf("node-%s", nodeInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
 		WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 			Type:              NodeStatusInsightType,
 			NodeStatusInsight: nodeInsight,
 		},
 	}
-	// Should handle errors, but ultimately we will have a proper API and won’t need to serialize ourselves
-	rawInsight, _ := yaml.Marshal(insight)
-	return informerMsg{
-		uid:     uid,
-		insight: rawInsight,
-	}
+
+	return makeWorkerPoolsInsightMsg(insight, nodesInformerName)
 }
 
 func whichMCP(node *corev1.Node, pools []*machineconfigv1.MachineConfigPool) (*machineconfigv1.MachineConfigPool, error) {
@@ -376,7 +373,8 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 }
 
 const (
-	nodeKindName = "Node"
+	nodeKindName      = "Node"
+	nodesInformerName = "ni"
 )
 
 func parseNodeInformerControllerQueueKey(queueKey string) (string, string, error) {

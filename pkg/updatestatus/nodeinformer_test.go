@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"gopkg.in/yaml.v3"
 
 	corev1 "k8s.io/api/core/v1"
@@ -915,8 +916,8 @@ func Test_sync_with_node(t *testing.T) {
 				},
 			},
 			expectedMsgs: map[string]WorkerPoolInsight{
-				"usc-node-worker-1": {
-					UID:        "usc-node-worker-1",
+				"node-worker-1": {
+					UID:        "node-worker-1",
 					AcquiredAt: now,
 					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
@@ -957,8 +958,8 @@ func Test_sync_with_node(t *testing.T) {
 				},
 			},
 			expectedMsgs: map[string]WorkerPoolInsight{
-				"usc-node-worker-1": {
-					UID:        "usc-node-worker-1",
+				"node-worker-1": {
+					UID:        "node-worker-1",
 					AcquiredAt: now,
 					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
 						Type: NodeStatusInsightType,
@@ -1040,13 +1041,24 @@ func Test_sync_with_node(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: nodesInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
-			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+			ignoreOrder := cmpopts.SortSlices(func(a, b informerMsg) bool {
+				return a.uid < b.uid
+			})
+
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}

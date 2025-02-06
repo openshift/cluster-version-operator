@@ -96,8 +96,8 @@ func Test_sync_with_cv(t *testing.T) {
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress418},
 			expectedMsgs: map[string]ControlPlaneInsight{
-				"usc-cv-version": {
-					UID:        "usc-cv-version",
+				"cv-version": {
+					UID:        "cv-version",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
@@ -131,8 +131,8 @@ func Test_sync_with_cv(t *testing.T) {
 			cvProgressing: &progressingFalse,
 			cvHistory:     []configv1.UpdateHistory{completed418},
 			expectedMsgs: map[string]ControlPlaneInsight{
-				"usc-cv-version": {
-					UID:        "usc-cv-version",
+				"cv-version": {
+					UID:        "cv-version",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
@@ -167,8 +167,8 @@ func Test_sync_with_cv(t *testing.T) {
 			cvProgressing: &progressingTrue,
 			cvHistory:     []configv1.UpdateHistory{inProgress419, completed418},
 			expectedMsgs: map[string]ControlPlaneInsight{
-				"usc-cv-version": {
-					UID:        "usc-cv-version",
+				"cv-version": {
+					UID:        "cv-version",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
@@ -203,8 +203,8 @@ func Test_sync_with_cv(t *testing.T) {
 				uscForceHealthInsightAnnotation: "value-does-not-matter",
 			},
 			expectedMsgs: map[string]ControlPlaneInsight{
-				"usc-0kmuaUQRUJDOAIAF1KWTmg": {
-					UID:        "usc-0kmuaUQRUJDOAIAF1KWTmg",
+				"0kmuaUQRUJDOAIAF1KWTmg": {
+					UID:        "0kmuaUQRUJDOAIAF1KWTmg",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: HealthInsightType,
@@ -228,8 +228,8 @@ func Test_sync_with_cv(t *testing.T) {
 						},
 					},
 				},
-				"usc-cv-version": {
-					UID:        "usc-cv-version",
+				"cv-version": {
+					UID:        "cv-version",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterVersionStatusInsightType,
@@ -293,8 +293,9 @@ func Test_sync_with_cv(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: controlPlaneInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
@@ -303,6 +304,11 @@ func Test_sync_with_cv(t *testing.T) {
 			})
 			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}
@@ -525,8 +531,8 @@ func Test_sync_with_co(t *testing.T) {
 		{
 			name: "Cluster during installation",
 			expectedMsgs: map[string]ControlPlaneInsight{
-				"usc-co-some-co": {
-					UID:        "usc-co-some-co",
+				"co-some-co": {
+					UID:        "co-some-co",
 					AcquiredAt: now,
 					ControlPlaneInsightUnion: ControlPlaneInsightUnion{
 						Type: ClusterOperatorStatusInsightType,
@@ -585,13 +591,23 @@ func Test_sync_with_co(t *testing.T) {
 					t.Fatalf("Failed to marshal expected insight: %v", err)
 				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					uid:     uid,
-					insight: raw,
+					informer: controlPlaneInformerName,
+					uid:      uid,
+					insight:  raw,
 				})
 			}
 
-			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+			ignoreOrder := cmpopts.SortSlices(func(a, b informerMsg) bool {
+				return a.uid < b.uid
+			})
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, ignoreOrder, cmp.AllowUnexported(informerMsg{})); diff != "" {
 				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+
+			for _, msg := range actualMsgs {
+				if err := msg.validate(); err != nil {
+					t.Errorf("Received message is invalid: %v\nMessage content: %v", err, msg)
+				}
 			}
 		})
 	}
