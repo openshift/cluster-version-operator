@@ -414,7 +414,7 @@ func TestEnsureJob_JobSpec_Selector(t *testing.T) {
 				switch r := recover(); r {
 				case nil:
 					if test.expectedPanic {
-						t.Errorf(test.name + " should have panicked!")
+						t.Errorf("%s should have panicked!", test.name)
 					}
 				default:
 					if !test.expectedPanic {
