@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -24,11 +25,19 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 )
 
+const (
+	unknownInsightGracePeriod = 60 * time.Second
+)
+
 // informerMsg is the communication structure between informers and the update status controller. It contains the UID of
 // the insight and the insight itself, serialized as YAML. Passing serialized avoids shared data access problems. Until
 // we have the Status API we need to serialize ourselves anyway.
 type informerMsg struct {
 	informer string
+	// knownInsight contains the UIDs of insights known by the informer, so the controller can remove insights formerly
+	// reported by the informer but no longer known to it (e.g. because the informer was restarted and the culprit
+	// condition ceased to exist in the meantime).
+	knownInsights []string
 
 	uid     string
 	insight []byte
@@ -92,11 +101,18 @@ type updateStatusController struct {
 		sync.Mutex
 		cm *corev1.ConfigMap
 
+		// unknownInsightExpirations is a map of informer -> map of UID -> expiration time. It is used to track insights
+		// that were reported by informers but are no longer known to them. The API keeps unknown insights until they
+		// expire. If an insight is reported as known again before it expires, it is removed from the map.
+		// TODO (muller): Needs to periodically rebuilt to avoid leaking memory
+		unknownInsightExpirations map[string]map[string]time.Time
+
 		// processed is the number of insights processed, used for testing
 		processed int
 	}
 
 	recorder events.Recorder
+	now      func() time.Time
 }
 
 // newUpdateStatusController creates a new update status controller and returns it. The second return value is a function
@@ -111,6 +127,7 @@ func newUpdateStatusController(
 	c := &updateStatusController{
 		configMaps: coreClient.CoreV1().ConfigMaps(uscNamespace),
 		recorder:   uscRecorder,
+		now:        time.Now,
 	}
 
 	startInsightReceiver, sendInsight := c.setupInsightReceiver()
@@ -153,6 +170,7 @@ func (c *updateStatusController) processInsightMsg(message informerMsg) bool {
 	}
 	klog.Infof("USC :: Collector :: Received insight from informer %q (uid=%s)", message.informer, message.uid)
 	c.updateInsightInStatusApi(message)
+	c.removeUnknownInsights(message)
 
 	return true
 }
@@ -213,7 +231,69 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 			klog.Infof("USC :: Collector :: Insight (uid=%s) content did not change (len=%d)", msg.uid, len(updatedContent))
 		}
 	}
+}
 
+// removeUnknownInsights removes insights from the status API that are no longer reported as known to the informer
+// that originally reported them. The insights are kept for a grace period after they are no longer reported as known
+// and eventually dropped if they are not reported as known again within that period.
+// Assumes the statusApi field is locked.
+func (c *updateStatusController) removeUnknownInsights(message informerMsg) {
+	known := sets.New(message.knownInsights...)
+	known.Insert(message.uid)
+	informerPrefix := fmt.Sprintf("usc.%s.", message.informer)
+	for key := range c.statusApi.cm.Data {
+		uid := strings.TrimPrefix(key, informerPrefix)
+		if strings.HasPrefix(key, informerPrefix) {
+			c.handleInsightExpiration(message.informer, known.Has(uid), uid)
+		}
+	}
+
+	if len(c.statusApi.unknownInsightExpirations) > 0 && len(c.statusApi.unknownInsightExpirations[message.informer]) == 0 {
+		delete(c.statusApi.unknownInsightExpirations, message.informer)
+	}
+	if len(c.statusApi.unknownInsightExpirations) == 0 {
+		c.statusApi.unknownInsightExpirations = nil
+	}
+}
+
+// handleInsightExpiration considers potential expiration of an insight present in the API based on whether the informer
+// knows about it.
+// If the informer knows about the insight, it is not dropped from the API and any previous expiration is cancelled.
+// If the informer does not know about the insight then it is either set to expire in the future if not expiration is
+// set yet, or the expiration is checked to see whether the insight should be dropped.
+func (c *updateStatusController) handleInsightExpiration(informer string, knows bool, uid string) {
+	now := c.now()
+
+	if knows {
+		if c.statusApi.unknownInsightExpirations != nil && c.statusApi.unknownInsightExpirations[informer] != nil {
+			delete(c.statusApi.unknownInsightExpirations[informer], uid)
+		}
+		return
+	}
+
+	expireIn := now.Add(unknownInsightGracePeriod)
+	keepLog := func(expire time.Time) {
+		klog.V(2).Infof("USC :: Collector :: Keeping insight %q until %s after it is no longer reported as known by informer %q", uid, expire, informer)
+	}
+	switch {
+	// Two cases when we first consider an insight as unknown -> set expiration
+	case c.statusApi.unknownInsightExpirations == nil:
+		c.statusApi.unknownInsightExpirations = map[string]map[string]time.Time{informer: {uid: expireIn}}
+		keepLog(expireIn)
+	case c.statusApi.unknownInsightExpirations[informer][uid].IsZero():
+		c.statusApi.unknownInsightExpirations[informer] = map[string]time.Time{uid: expireIn}
+		keepLog(expireIn)
+
+	// Already set for expiration but still in grace period -> keep insight
+	case c.statusApi.unknownInsightExpirations[informer][uid].After(now):
+		keepLog(c.statusApi.unknownInsightExpirations[informer][uid])
+
+	// Already set for expiration and grace period expired -> drop insight
+	default:
+		delete(c.statusApi.unknownInsightExpirations[informer], uid)
+		delete(c.statusApi.cm.Data, fmt.Sprintf("usc.%s.%s", informer, uid))
+		klog.V(2).Infof("USC :: Collector :: Dropped insight %q because it is no longer reported as known by informer %q", uid, informer)
+	}
 }
 
 func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context) error {
