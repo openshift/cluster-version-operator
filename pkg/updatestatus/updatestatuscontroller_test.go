@@ -77,24 +77,28 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			informerMsg: []informerMsg{
 				{
-					informer: "cpi",
-					uid:      "new-item",
-					insight:  []byte("msg1"),
+					informer:      "cpi",
+					uid:           "new-item",
+					insight:       []byte("msg1"),
+					knownInsights: []string{"kept", "overwritten"},
 				},
 				{
-					informer: "cpi",
-					uid:      "overwritten",
-					insight:  []byte("msg2 (overwritten intermediate)"),
+					informer:      "cpi",
+					uid:           "overwritten",
+					insight:       []byte("msg2 (overwritten intermediate)"),
+					knownInsights: []string{"kept", "new-item"},
 				},
 				{
-					informer: "cpi",
-					uid:      "another",
-					insight:  []byte("msg3"),
+					informer:      "cpi",
+					uid:           "another",
+					insight:       []byte("msg3"),
+					knownInsights: []string{"kept", "overwritten", "new-item"},
 				},
 				{
-					informer: "cpi",
-					uid:      "overwritten",
-					insight:  []byte("msg4 (overwritten final)"),
+					informer:      "cpi",
+					uid:           "overwritten",
+					insight:       []byte("msg4 (overwritten final)"),
+					knownInsights: []string{"kept", "new-item", "another"},
 				},
 			},
 			expected: &corev1.ConfigMap{
@@ -174,6 +178,25 @@ func Test_updateStatusController(t *testing.T) {
 				},
 			},
 			expected: nil,
+		},
+		{
+			name: "unknown message gets removed from state",
+			controllerConfigMap: &corev1.ConfigMap{
+				Data: map[string]string{
+					"usc.one.old": "payload",
+				},
+			},
+			informerMsg: []informerMsg{{
+				informer:      "one",
+				uid:           "new",
+				insight:       []byte("new payload"),
+				knownInsights: nil,
+			}},
+			expected: &corev1.ConfigMap{
+				Data: map[string]string{
+					"usc.one.new": "new payload",
+				},
+			},
 		},
 	}
 
