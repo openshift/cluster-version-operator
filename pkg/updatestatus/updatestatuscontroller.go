@@ -30,9 +30,9 @@ import (
 // we have the Status API we need to serialize ourselves anyway.
 type informerMsg struct {
 	informer string
-	// knownInsight contains the UIDs of insights known by the informer, so the controller can remove insights formerly
+	// knownInsights contains the UIDs of insights known by the informer, so the controller can remove insights formerly
 	// reported by the informer but no longer known to it (e.g. because the informer was restarted and the culprit
-	// condition ceased to exist in the meantime).
+	// condition ceased to exist in the meantime). The `uid` of the insight in the message payload is always assumed to be known, and is not required to be included in `knownInsights` by the informers (but informers can do so).
 	knownInsights []string
 
 	uid     string
@@ -222,7 +222,7 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 }
 
 // removeUnknownInsights removes insights from the status API that are no longer reported as known to the informer
-// that originally reported them
+// that originally reported them.
 // Assumes the statusApi field is locked.
 func (c *updateStatusController) removeUnknownInsights(message informerMsg) {
 	known := sets.New(message.knownInsights...)
