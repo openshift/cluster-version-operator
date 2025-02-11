@@ -32,7 +32,8 @@ type informerMsg struct {
 	informer string
 	// knownInsights contains the UIDs of insights known by the informer, so the controller can remove insights formerly
 	// reported by the informer but no longer known to it (e.g. because the informer was restarted and the culprit
-	// condition ceased to exist in the meantime). The `uid` of the insight in the message payload is always assumed to be known, and is not required to be included in `knownInsights` by the informers (but informers can do so).
+	// condition ceased to exist in the meantime). The `uid` of the insight in the message payload is always assumed
+	// to be known, and is not required to be included in `knownInsights` by the informers (but informers can do so).
 	knownInsights []string
 
 	uid     string
