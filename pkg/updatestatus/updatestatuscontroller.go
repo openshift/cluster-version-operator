@@ -10,6 +10,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +30,11 @@ import (
 // we have the Status API we need to serialize ourselves anyway.
 type informerMsg struct {
 	informer string
+	// knownInsights contains the UIDs of insights known by the informer, so the controller can remove insights formerly
+	// reported by the informer but no longer known to it (e.g. because the informer was restarted and the culprit
+	// condition ceased to exist in the meantime). The `uid` of the insight in the message payload is always assumed
+	// to be known, and is not required to be included in `knownInsights` by the informers (but informers can do so).
+	knownInsights []string
 
 	uid     string
 	insight []byte
@@ -153,6 +159,7 @@ func (c *updateStatusController) processInsightMsg(message informerMsg) bool {
 	}
 	klog.Infof("USC :: Collector :: Received insight from informer %q (uid=%s)", message.informer, message.uid)
 	c.updateInsightInStatusApi(message)
+	c.removeUnknownInsights(message)
 
 	return true
 }
@@ -213,7 +220,21 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 			klog.Infof("USC :: Collector :: Insight (uid=%s) content did not change (len=%d)", msg.uid, len(updatedContent))
 		}
 	}
+}
 
+// removeUnknownInsights removes insights from the status API that are no longer reported as known to the informer
+// that originally reported them.
+// Assumes the statusApi field is locked.
+func (c *updateStatusController) removeUnknownInsights(message informerMsg) {
+	known := sets.New(message.knownInsights...)
+	known.Insert(message.uid)
+	informerPrefix := fmt.Sprintf("usc.%s.", message.informer)
+	for key := range c.statusApi.cm.Data {
+		if strings.HasPrefix(key, informerPrefix) && !known.Has(strings.TrimPrefix(key, informerPrefix)) {
+			delete(c.statusApi.cm.Data, key)
+			klog.V(2).Infof("USC :: Collector :: Dropped insight %q because it is no longer reported as known by informer %q", key, message.informer)
+		}
+	}
 }
 
 func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context) error {
