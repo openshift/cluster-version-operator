@@ -119,7 +119,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 	cfg := cb.RestConfig()
 	kc := cb.KubeClientOrDie("integration-test")
-	client := cb.ClientOrDie("integration-test")
+	client := cb.ConfigClientOrDie("integration-test")
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 
@@ -253,7 +253,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 	cfg := cb.RestConfig()
 	kc := cb.KubeClientOrDie("integration-test")
-	client := cb.ClientOrDie("integration-test")
+	client := cb.ConfigClientOrDie("integration-test")
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(6))
 
@@ -422,7 +422,7 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 	}
 	cfg := cb.RestConfig()
 	kc := cb.KubeClientOrDie("integration-test")
-	client := cb.ClientOrDie("integration-test")
+	client := cb.ConfigClientOrDie("integration-test")
 
 	ns := fmt.Sprintf("e2e-cvo-%s", randutil.String(4))
 

@@ -17,6 +17,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -32,14 +33,17 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/openshift/client-go/config/informers/externalversions"
+	configclientset "github.com/openshift/client-go/config/clientset/versioned"
+	configexternalversions "github.com/openshift/client-go/config/informers/externalversions"
+	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
+	operatorexternalversions "github.com/openshift/client-go/operator/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
 
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/cvo/configuration"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -79,6 +83,8 @@ type Options struct {
 	Exclude string
 
 	ClusterProfile string
+
+	HyperShift bool
 
 	// AlwaysEnableCapabilities is a list of cluster version capabilities
 	// which will always be implicitly enabled.
@@ -157,6 +163,9 @@ func (o *Options) Run(ctx context.Context) error {
 		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
 	}
 
+	// Inject the cluster ID into PromQL queries in HyperShift
+	o.InjectClusterIdIntoPromQL = o.HyperShift
+
 	// parse the prometheus url
 	var err error
 	o.PromQLTarget.URL, err = url.Parse(o.PrometheusURLString)
@@ -219,7 +228,8 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 	controllerCtx.CVInformerFactory.Start(informersDone)
 	controllerCtx.OpenshiftConfigInformerFactory.Start(informersDone)
 	controllerCtx.OpenshiftConfigManagedInformerFactory.Start(informersDone)
-	controllerCtx.InformerFactory.Start(informersDone)
+	controllerCtx.ConfigInformerFactory.Start(informersDone)
+	controllerCtx.OperatorInformerFactory.Start(informersDone)
 
 	allSynced := controllerCtx.CVInformerFactory.WaitForCacheSync(informersDone)
 	for _, synced := range allSynced {
@@ -382,12 +392,16 @@ func (cb *ClientBuilder) RestConfig(configFns ...func(*rest.Config)) *rest.Confi
 	return c
 }
 
-func (cb *ClientBuilder) ClientOrDie(name string, configFns ...func(*rest.Config)) clientset.Interface {
-	return clientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
+func (cb *ClientBuilder) ConfigClientOrDie(name string, configFns ...func(*rest.Config)) configclientset.Interface {
+	return configclientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
 func (cb *ClientBuilder) KubeClientOrDie(name string, configFns ...func(*rest.Config)) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
+}
+
+func (cb *ClientBuilder) OperatorClientOrDie(name string, configFns ...func(*rest.Config)) operatorclientset.Interface {
+	return operatorclientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
@@ -445,10 +459,11 @@ type Context struct {
 	AutoUpdate              *autoupdate.Controller
 	StopOnFeatureGateChange *featuregates.ChangeStopper
 
-	CVInformerFactory                     externalversions.SharedInformerFactory
+	CVInformerFactory                     configexternalversions.SharedInformerFactory
 	OpenshiftConfigInformerFactory        informers.SharedInformerFactory
 	OpenshiftConfigManagedInformerFactory informers.SharedInformerFactory
-	InformerFactory                       externalversions.SharedInformerFactory
+	ConfigInformerFactory                 configexternalversions.SharedInformerFactory
+	OperatorInformerFactory               operatorexternalversions.SharedInformerFactory
 
 	fgLister configlistersv1.FeatureGateLister
 }
@@ -456,18 +471,22 @@ type Context struct {
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
 func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabilities []configv1.ClusterVersionCapability) (*Context, error) {
-	client := cb.ClientOrDie("shared-informer")
+	configClient := cb.ConfigClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
+	operatorClient := cb.OperatorClientOrDie("operator-client")
 
-	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
+	cvInformer := configexternalversions.NewFilteredSharedInformerFactory(configClient, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
 	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigNamespace))
 	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigManagedNamespace))
+	configInformer := configexternalversions.NewSharedInformerFactory(configClient, resyncPeriod(o.ResyncInterval))
+	operatorInformerFactory := operatorexternalversions.NewSharedInformerFactoryWithOptions(operatorClient, o.ResyncInterval,
+		operatorexternalversions.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.FieldSelector = fields.OneTermEqualSelector("metadata.name", configuration.ClusterVersionOperatorConfigurationName).String()
+		}))
 
-	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
-
-	coInformer := sharedInformers.Config().V1().ClusterOperators()
+	coInformer := configInformer.Config().V1().ClusterOperators()
 
 	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
 	o.PromQLTarget.KubeClient = cvoKubeClient
@@ -481,11 +500,14 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		coInformer,
 		openshiftConfigInformer.Core().V1().ConfigMaps(),
 		openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
-		sharedInformers.Config().V1().Proxies(),
-		cb.ClientOrDie(o.Namespace),
+		configInformer.Config().V1().Proxies(),
+		operatorInformerFactory,
+		cb.ConfigClientOrDie(o.Namespace),
 		cvoKubeClient,
+		operatorClient,
 		o.Exclude,
 		o.ClusterProfile,
+		o.HyperShift,
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
 		o.UpdateService,
@@ -495,7 +517,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		return nil, err
 	}
 
-	featureChangeStopper, err := featuregates.NewChangeStopper(sharedInformers.Config().V1().FeatureGates())
+	featureChangeStopper, err := featuregates.NewChangeStopper(configInformer.Config().V1().FeatureGates())
 	if err != nil {
 		return nil, err
 	}
@@ -504,19 +526,20 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		CVInformerFactory:                     cvInformer,
 		OpenshiftConfigInformerFactory:        openshiftConfigInformer,
 		OpenshiftConfigManagedInformerFactory: openshiftConfigManagedInformer,
-		InformerFactory:                       sharedInformers,
+		ConfigInformerFactory:                 configInformer,
+		OperatorInformerFactory:               operatorInformerFactory,
 		CVO:                                   cvo,
 		StopOnFeatureGateChange:               featureChangeStopper,
 
-		fgLister: sharedInformers.Config().V1().FeatureGates().Lister(),
+		fgLister: configInformer.Config().V1().FeatureGates().Lister(),
 	}
 
 	if o.EnableAutoUpdate {
 		ctx.AutoUpdate, err = autoupdate.New(
 			o.Namespace, o.Name,
 			cvInformer.Config().V1().ClusterVersions(),
-			sharedInformers.Config().V1().ClusterOperators(),
-			cb.ClientOrDie(o.Namespace),
+			configInformer.Config().V1().ClusterOperators(),
+			cb.ConfigClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace),
 		)
 		if err != nil {
