@@ -22,6 +22,7 @@ import (
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 
+	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
@@ -239,7 +240,7 @@ func Test_assessNode(t *testing.T) {
 		machineConfigVersions        map[string]string
 		mostRecentVersionInCVHistory string
 
-		expected *NodeStatusInsight
+		expected *updatestatus.NodeStatusInsight
 	}{
 		{
 			name: "all nil input",
@@ -254,11 +255,11 @@ func Test_assessNode(t *testing.T) {
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -302,11 +303,11 @@ func Test_assessNode(t *testing.T) {
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -348,11 +349,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 				Spec:       machineconfigv1.MachineConfigPoolSpec{Paused: true},
 			},
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -396,11 +397,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.23",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -447,11 +448,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -498,11 +499,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "master"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "master-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "master-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "master-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "master",
@@ -549,11 +550,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.23",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -600,11 +601,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -652,11 +653,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -704,11 +705,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -756,11 +757,11 @@ func Test_assessNode(t *testing.T) {
 			mcp: &machineconfigv1.MachineConfigPool{
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -809,11 +810,11 @@ func Test_assessNode(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "worker"},
 			},
 			mostRecentVersionInCVHistory: "4.1.26",
-			expected: &NodeStatusInsight{
+			expected: &updatestatus.NodeStatusInsight{
 				Name:     "worker-1",
-				Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
-				PoolResource: PoolResourceRef{
-					ResourceRef: ResourceRef{
+				Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+				PoolResource: updatestatus.PoolResourceRef{
+					ResourceRef: updatestatus.ResourceRef{
 						Group:    "machineconfiguration.openshift.io",
 						Resource: "machineconfigpools",
 						Name:     "worker",
@@ -898,7 +899,7 @@ func Test_sync_with_node(t *testing.T) {
 		node *corev1.Node
 
 		expectedErr  error
-		expectedMsgs map[string]WorkerPoolInsight
+		expectedMsgs map[string]updatestatus.WorkerPoolInsight
 	}{
 		{
 			name: "Node's update is pending",
@@ -915,22 +916,22 @@ func Test_sync_with_node(t *testing.T) {
 					},
 				},
 			},
-			expectedMsgs: map[string]WorkerPoolInsight{
+			expectedMsgs: map[string]updatestatus.WorkerPoolInsight{
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
-						Type: NodeStatusInsightType,
-						NodeStatusInsight: &NodeStatusInsight{
+					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+						Type: updatestatus.NodeStatusInsightType,
+						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
-							PoolResource: PoolResourceRef{
-								ResourceRef: ResourceRef{
+							PoolResource: updatestatus.PoolResourceRef{
+								ResourceRef: updatestatus.ResourceRef{
 									Resource: "machineconfigpools",
 									Group:    "machineconfiguration.openshift.io",
 									Name:     "worker",
 								},
 							},
-							Resource: ResourceRef{Resource: "nodes", Name: "worker-1"},
+							Resource: updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
 							Scope:    "WorkerPool",
 							Version:  "4.1.23",
 							Conditions: []metav1.Condition{
@@ -957,22 +958,22 @@ func Test_sync_with_node(t *testing.T) {
 					},
 				},
 			},
-			expectedMsgs: map[string]WorkerPoolInsight{
+			expectedMsgs: map[string]updatestatus.WorkerPoolInsight{
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: WorkerPoolInsightUnion{
-						Type: NodeStatusInsightType,
-						NodeStatusInsight: &NodeStatusInsight{
+					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+						Type: updatestatus.NodeStatusInsightType,
+						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
-							PoolResource: PoolResourceRef{
-								ResourceRef: ResourceRef{
+							PoolResource: updatestatus.PoolResourceRef{
+								ResourceRef: updatestatus.ResourceRef{
 									Resource: "machineconfigpools",
 									Group:    "machineconfiguration.openshift.io",
 									Name:     "worker",
 								},
 							},
-							Resource:      ResourceRef{Resource: "nodes", Name: "worker-1"},
+							Resource:      updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
 							Scope:         "WorkerPool",
 							Version:       "4.1.23",
 							EstToComplete: toPointer(10 * time.Minute),

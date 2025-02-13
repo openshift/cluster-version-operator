@@ -23,6 +23,8 @@ import (
 
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
+
+	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 )
 
 // informerMsg is the communication structure between informers and the update status controller. It contains the UID of
@@ -40,7 +42,7 @@ type informerMsg struct {
 	insight []byte
 }
 
-func makeControlPlaneInsightMsg(insight ControlPlaneInsight, informer string) (informerMsg, error) {
+func makeControlPlaneInsightMsg(insight updatestatus.ControlPlaneInsight, informer string) (informerMsg, error) {
 	rawInsight, err := yaml.Marshal(insight)
 	if err != nil {
 		return informerMsg{}, err
@@ -53,7 +55,7 @@ func makeControlPlaneInsightMsg(insight ControlPlaneInsight, informer string) (i
 	return msg, msg.validate()
 }
 
-func makeWorkerPoolsInsightMsg(insight WorkerPoolInsight, informer string) (informerMsg, error) {
+func makeWorkerPoolsInsightMsg(insight updatestatus.WorkerPoolInsight, informer string) (informerMsg, error) {
 	rawInsight, err := yaml.Marshal(insight)
 	if err != nil {
 		return informerMsg{}, err

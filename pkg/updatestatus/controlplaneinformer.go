@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 )
 
 // controlPlaneInformerController is the controller that monitors health of the control plane-related resources
@@ -176,23 +177,23 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 	return nil
 }
 
-func makeInsightMsgForClusterOperator(coInsight *ClusterOperatorStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
-	insight := ControlPlaneInsight{
+func makeInsightMsgForClusterOperator(coInsight *updatestatus.ClusterOperatorStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := updatestatus.ControlPlaneInsight{
 		UID:        fmt.Sprintf("co-%s", coInsight.Name),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
-			Type:                         ClusterOperatorStatusInsightType,
+		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+			Type:                         updatestatus.ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: coInsight,
 		},
 	}
 	return makeControlPlaneInsightMsg(insight, controlPlaneInformerName)
 }
 
-func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperator, targetVersion string, appsClient appsv1client.AppsV1Interface, now metav1.Time) (*ClusterOperatorStatusInsight, error) {
+func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperator, targetVersion string, appsClient appsv1client.AppsV1Interface, now metav1.Time) (*updatestatus.ClusterOperatorStatusInsight, error) {
 	updating := metav1.Condition{
-		Type:               string(ClusterOperatorStatusInsightUpdating),
+		Type:               string(updatestatus.ClusterOperatorStatusInsightUpdating),
 		Status:             metav1.ConditionUnknown,
-		Reason:             string(ClusterOperatorUpdatingCannotDetermine),
+		Reason:             string(updatestatus.ClusterOperatorUpdatingCannotDetermine),
 		LastTransitionTime: now,
 	}
 
@@ -219,7 +220,7 @@ func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperat
 	updated := (noOperatorImageVersion || operatorImageUpdated) && versionUpdated
 	if updated {
 		updating.Status = metav1.ConditionFalse
-		updating.Reason = string(ClusterOperatorUpdatingReasonUpdated)
+		updating.Reason = string(updatestatus.ClusterOperatorUpdatingReasonUpdated)
 	}
 
 	var available *configv1.ClusterOperatorStatusCondition
@@ -241,40 +242,40 @@ func assessClusterOperator(ctx context.Context, operator *configv1.ClusterOperat
 	if !updated && progressing != nil {
 		if progressing.Status == configv1.ConditionTrue {
 			updating.Status = metav1.ConditionTrue
-			updating.Reason = string(ClusterOperatorUpdatingReasonProgressing)
+			updating.Reason = string(updatestatus.ClusterOperatorUpdatingReasonProgressing)
 			updating.Message = progressing.Message
 		}
 		if progressing.Status == configv1.ConditionFalse {
 			updating.Status = metav1.ConditionFalse
-			updating.Reason = string(ClusterOperatorUpdatingReasonPending)
+			updating.Reason = string(updatestatus.ClusterOperatorUpdatingReasonPending)
 			updating.Message = progressing.Message
 		}
 	}
 
 	health := metav1.Condition{
-		Type:               string(ClusterOperatorStatusInsightHealthy),
+		Type:               string(updatestatus.ClusterOperatorStatusInsightHealthy),
 		Status:             metav1.ConditionTrue,
-		Reason:             string(ClusterOperatorHealthyReasonAsExpected),
+		Reason:             string(updatestatus.ClusterOperatorHealthyReasonAsExpected),
 		LastTransitionTime: now,
 	}
 
 	if available == nil {
 		health.Status = metav1.ConditionUnknown
-		health.Reason = string(ClusterOperatorHealthyReasonUnavailable)
+		health.Reason = string(updatestatus.ClusterOperatorHealthyReasonUnavailable)
 		health.Message = "The cluster operator is unavailable because the available condition is not found in the cluster operator's status"
 	} else if available.Status != configv1.ConditionTrue {
 		health.Status = metav1.ConditionFalse
-		health.Reason = string(ClusterOperatorHealthyReasonUnavailable)
+		health.Reason = string(updatestatus.ClusterOperatorHealthyReasonUnavailable)
 		health.Message = available.Message
 	} else if degraded != nil && degraded.Status == configv1.ConditionTrue {
 		health.Status = metav1.ConditionFalse
-		health.Reason = string(ClusterOperatorHealthyReasonDegraded)
+		health.Reason = string(updatestatus.ClusterOperatorHealthyReasonDegraded)
 		health.Message = degraded.Message
 	}
 
-	return &ClusterOperatorStatusInsight{
+	return &updatestatus.ClusterOperatorStatusInsight{
 		Name: operator.Name,
-		Resource: ResourceRef{
+		Resource: updatestatus.ResourceRef{
 			Resource: "clusteroperators",
 			Group:    configv1.GroupName,
 			Name:     operator.Name,
@@ -309,19 +310,19 @@ func getImagePullSpec(ctx context.Context, name string, appsClient appsv1client.
 // makeInsightMsgForClusterVersion creates an informerMsg for the given ClusterVersionStatusInsight. It defines an uid
 // name and serializes the insight as YAML. Serialization is convenient because it prevents any data sharing issues
 // between controllers.
-func makeInsightMsgForClusterVersion(cvInsight *ClusterVersionStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
-	insight := ControlPlaneInsight{
+func makeInsightMsgForClusterVersion(cvInsight *updatestatus.ClusterVersionStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := updatestatus.ControlPlaneInsight{
 		UID:        fmt.Sprintf("cv-%s", cvInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
-			Type:                        ClusterVersionStatusInsightType,
+		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+			Type:                        updatestatus.ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: cvInsight,
 		},
 	}
 	return makeControlPlaneInsightMsg(insight, controlPlaneInformerName)
 }
 
-func uidForHealthInsight(healthInsight *HealthInsight) string {
+func uidForHealthInsight(healthInsight *updatestatus.HealthInsight) string {
 	hasher := md5.New()
 	hasher.Write([]byte(healthInsight.Impact.Summary))
 	for i := range healthInsight.Scope.Resources {
@@ -338,12 +339,12 @@ func uidForHealthInsight(healthInsight *HealthInsight) string {
 	return encoded
 }
 
-func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt metav1.Time) (informerMsg, error) {
-	insight := ControlPlaneInsight{
+func makeInsightMsgForHealthInsight(healthInsight *updatestatus.HealthInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := updatestatus.ControlPlaneInsight{
 		UID:        uidForHealthInsight(healthInsight),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: ControlPlaneInsightUnion{
-			Type:          HealthInsightType,
+		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+			Type:          updatestatus.HealthInsightType,
 			HealthInsight: healthInsight,
 		},
 	}
@@ -354,7 +355,7 @@ func makeInsightMsgForHealthInsight(healthInsight *HealthInsight, acquiredAt met
 // It does not take previous status insight into account. Many fields of the status insights (such as completion) cannot
 // be properly calculated without also watching and processing ClusterOperators, so that functionality will need to be
 // added later.
-func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) (*ClusterVersionStatusInsight, []*HealthInsight) {
+func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) (*updatestatus.ClusterVersionStatusInsight, []*updatestatus.HealthInsight) {
 
 	var lastHistoryItem *configv1.UpdateHistory
 	if len(cv.Status.History) > 0 {
@@ -367,24 +368,24 @@ func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) (*Cluste
 
 	klog.V(2).Infof("CPI :: CV/%s :: Updating=%s Started=%s Completed=%s", cv.Name, updating.Status, startedAt, completedAt)
 
-	var assessment ControlPlaneAssessment
+	var assessment updatestatus.ControlPlaneAssessment
 	var completion int32
 	switch updating.Status {
 	case metav1.ConditionTrue:
-		assessment = ControlPlaneAssessmentProgressing
+		assessment = updatestatus.ControlPlaneAssessmentProgressing
 	case metav1.ConditionFalse:
-		assessment = ControlPlaneAssessmentCompleted
+		assessment = updatestatus.ControlPlaneAssessmentCompleted
 		completion = 100
 	case metav1.ConditionUnknown:
-		assessment = ControlPlaneAssessmentUnknown
+		assessment = updatestatus.ControlPlaneAssessmentUnknown
 	default:
-		assessment = ControlPlaneAssessmentUnknown
+		assessment = updatestatus.ControlPlaneAssessmentUnknown
 	}
 
 	klog.V(2).Infof("CPI :: CV/%s :: Assessment=%s", cv.Name, assessment)
 
-	insight := &ClusterVersionStatusInsight{
-		Resource: ResourceRef{
+	insight := &updatestatus.ClusterVersionStatusInsight{
+		Resource: updatestatus.ResourceRef{
 			Resource: "clusterversions",
 			Group:    configv1.GroupName,
 			Name:     cv.Name,
@@ -404,7 +405,7 @@ func assessClusterVersion(cv *configv1.ClusterVersion, now metav1.Time) (*Cluste
 		insight.EstimatedCompletedAt = &metav1.Time{Time: est}
 	}
 
-	var healthInsights []*HealthInsight
+	var healthInsights []*updatestatus.HealthInsight
 	if forcedHealthInsight := forcedHealthInsight(cv, now); forcedHealthInsight != nil {
 		healthInsights = append(healthInsights, forcedHealthInsight)
 	}
@@ -416,24 +417,24 @@ const (
 	uscForceHealthInsightAnnotation = "usc.openshift.io/force-health-insight"
 )
 
-func forcedHealthInsight(cv *configv1.ClusterVersion, now metav1.Time) *HealthInsight {
+func forcedHealthInsight(cv *configv1.ClusterVersion, now metav1.Time) *updatestatus.HealthInsight {
 	if _, ok := cv.Annotations[uscForceHealthInsightAnnotation]; !ok {
 		return nil
 	}
 
-	return &HealthInsight{
+	return &updatestatus.HealthInsight{
 		StartedAt: now,
-		Scope: InsightScope{
-			Type:      ControlPlaneScope,
-			Resources: []ResourceRef{{Resource: "clusterversions", Group: configv1.GroupName, Name: cv.Name}},
+		Scope: updatestatus.InsightScope{
+			Type:      updatestatus.ControlPlaneScope,
+			Resources: []updatestatus.ResourceRef{{Resource: "clusterversions", Group: configv1.GroupName, Name: cv.Name}},
 		},
-		Impact: InsightImpact{
-			Level:       InfoImpactLevel,
-			Type:        NoneImpactType,
+		Impact: updatestatus.InsightImpact{
+			Level:       updatestatus.InfoImpactLevel,
+			Type:        updatestatus.NoneImpactType,
 			Summary:     fmt.Sprintf("Forced health insight for ClusterVersion %s", cv.Name),
 			Description: fmt.Sprintf("The resource has a %q annotation which forces USC to generate this health insight for testing purposes.", uscForceHealthInsightAnnotation),
 		},
-		Remediation: InsightRemediation{
+		Remediation: updatestatus.InsightRemediation{
 			Reference: "https://issues.redhat.com/browse/OTA-1418",
 		},
 	}
@@ -451,7 +452,7 @@ func estimateCompletion(started time.Time) time.Time {
 // Reason and Message fields will explain why.
 func isControlPlaneUpdating(cvProgressing *configv1.ClusterOperatorStatusCondition, lastHistoryItem *configv1.UpdateHistory) (metav1.Condition, metav1.Time, metav1.Time) {
 	updating := metav1.Condition{
-		Type: string(ClusterVersionStatusInsightUpdating),
+		Type: string(updatestatus.ClusterVersionStatusInsightUpdating),
 	}
 
 	if cvProgressing == nil {
@@ -495,7 +496,7 @@ func isControlPlaneUpdating(cvProgressing *configv1.ClusterOperatorStatusConditi
 
 func setCannotDetermineUpdating(cond *metav1.Condition, message string) {
 	cond.Status = metav1.ConditionUnknown
-	cond.Reason = string(ClusterVersionCannotDetermineUpdating)
+	cond.Reason = string(updatestatus.ClusterVersionCannotDetermineUpdating)
 	cond.Message = message
 }
 
@@ -506,13 +507,13 @@ func cvProgressingToUpdating(cvProgressing configv1.ClusterOperatorStatusConditi
 	var reason string
 	switch status {
 	case metav1.ConditionTrue:
-		reason = string(ClusterVersionProgressing)
+		reason = string(updatestatus.ClusterVersionProgressing)
 	case metav1.ConditionFalse:
-		reason = string(ClusterVersionNotProgressing)
+		reason = string(updatestatus.ClusterVersionNotProgressing)
 	case metav1.ConditionUnknown:
-		reason = string(ClusterVersionCannotDetermineUpdating)
+		reason = string(updatestatus.ClusterVersionCannotDetermineUpdating)
 	default:
-		reason = string(ClusterVersionCannotDetermineUpdating)
+		reason = string(updatestatus.ClusterVersionCannotDetermineUpdating)
 	}
 
 	message := fmt.Sprintf("ClusterVersion has Progressing=%s(Reason=%s) | Message='%s'", cvProgressing.Status, cvProgressing.Reason, cvProgressing.Message)
@@ -521,8 +522,8 @@ func cvProgressingToUpdating(cvProgressing configv1.ClusterOperatorStatusConditi
 
 // versionsFromHistory returns a ControlPlaneUpdateVersions struct with the target version and metadata from the given
 // history.
-func versionsFromHistory(history []configv1.UpdateHistory) ControlPlaneUpdateVersions {
-	var versions ControlPlaneUpdateVersions
+func versionsFromHistory(history []configv1.UpdateHistory) updatestatus.ControlPlaneUpdateVersions {
+	var versions updatestatus.ControlPlaneUpdateVersions
 
 	if len(history) == 0 {
 		return versions
@@ -531,12 +532,12 @@ func versionsFromHistory(history []configv1.UpdateHistory) ControlPlaneUpdateVer
 	versions.Target.Version = history[0].Version
 
 	if len(history) == 1 {
-		versions.Target.Metadata = []VersionMetadata{{Key: InstallationMetadata}}
+		versions.Target.Metadata = []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}}
 	}
 	if len(history) > 1 {
 		versions.Previous.Version = history[1].Version
 		if history[1].State == configv1.PartialUpdate {
-			versions.Previous.Metadata = []VersionMetadata{{Key: PartialMetadata}}
+			versions.Previous.Metadata = []updatestatus.VersionMetadata{{Key: updatestatus.PartialMetadata}}
 		}
 	}
 	return versions
