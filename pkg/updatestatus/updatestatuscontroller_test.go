@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/library-go/pkg/controller/factory"
-	"github.com/openshift/library-go/pkg/operator/events"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/workqueue"
 	clocktesting "k8s.io/utils/clock/testing"
+
+	"github.com/openshift/library-go/pkg/controller/factory"
+	"github.com/openshift/library-go/pkg/operator/events"
 )
 
 func Test_updateStatusController(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
+	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
@@ -142,12 +143,12 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	return nil
 }
 
-func makeInsightMsgForNode(nodeInsight *NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
-	insight := WorkerPoolInsight{
+func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
+	insight := updatestatus.WorkerPoolInsight{
 		UID:        fmt.Sprintf("node-%s", nodeInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
-		WorkerPoolInsightUnion: WorkerPoolInsightUnion{
-			Type:              NodeStatusInsightType,
+		WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+			Type:              updatestatus.NodeStatusInsightType,
 			NodeStatusInsight: nodeInsight,
 		},
 	}
@@ -237,18 +238,18 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 	var message string
 
 	updating := metav1.Condition{
-		Type:               string(NodeStatusInsightUpdating),
+		Type:               string(updatestatus.NodeStatusInsightUpdating),
 		Status:             metav1.ConditionUnknown,
-		Reason:             string(NodeCannotDetermine),
+		Reason:             string(updatestatus.NodeCannotDetermine),
 		LastTransitionTime: now,
 	}
 	available := metav1.Condition{
-		Type:               string(NodeStatusInsightAvailable),
+		Type:               string(updatestatus.NodeStatusInsightAvailable),
 		Status:             metav1.ConditionTrue,
 		LastTransitionTime: now,
 	}
 	degraded := metav1.Condition{
-		Type:               string(NodeStatusInsightDegraded),
+		Type:               string(updatestatus.NodeStatusInsightDegraded),
 		Status:             metav1.ConditionFalse,
 		LastTransitionTime: now,
 	}
@@ -256,35 +257,35 @@ func determineConditions(pool *machineconfigv1.MachineConfigPool, node *corev1.N
 	if isUpdating && isNodeDraining(node, isUpdating) {
 		estimate = toPointer(10 * time.Minute)
 		updating.Status = metav1.ConditionTrue
-		updating.Reason = string(NodeDraining)
+		updating.Reason = string(updatestatus.NodeDraining)
 	} else if isUpdating {
 		state := node.Annotations[mco.MachineConfigDaemonStateAnnotationKey]
 		switch state {
 		case mco.MachineConfigDaemonStateRebooting:
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
-			updating.Reason = string(NodeRebooting)
+			updating.Reason = string(updatestatus.NodeRebooting)
 		case mco.MachineConfigDaemonStateDone:
 			estimate = toPointer(time.Duration(0))
 			updating.Status = metav1.ConditionFalse
-			updating.Reason = string(NodeCompleted)
+			updating.Reason = string(updatestatus.NodeCompleted)
 		default:
 			estimate = toPointer(10 * time.Minute)
 			updating.Status = metav1.ConditionTrue
-			updating.Reason = string(NodeUpdating)
+			updating.Reason = string(updatestatus.NodeUpdating)
 		}
 
 	} else if isUpdated {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
-		updating.Reason = string(NodeCompleted)
+		updating.Reason = string(updatestatus.NodeCompleted)
 	} else if pool.Spec.Paused {
 		estimate = toPointer(time.Duration(0))
 		updating.Status = metav1.ConditionFalse
-		updating.Reason = string(NodePaused)
+		updating.Reason = string(updatestatus.NodePaused)
 	} else {
 		updating.Status = metav1.ConditionFalse
-		updating.Reason = string(NodeUpdatePending)
+		updating.Reason = string(updatestatus.NodeUpdatePending)
 	}
 	message = updating.Message
 
@@ -319,7 +320,7 @@ func toPointer(d time.Duration) *metav1.Duration {
 	return &v
 }
 
-func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigVersions map[string]string, mostRecentVersionInCVHistory string, now metav1.Time) *NodeStatusInsight {
+func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigVersions map[string]string, mostRecentVersionInCVHistory string, now metav1.Time) *updatestatus.NodeStatusInsight {
 	if node == nil || mcp == nil {
 		return nil
 	}
@@ -345,20 +346,20 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 
 	conditions, message, estimate := determineConditions(mcp, node, isUpdating, isUpdated, isUnavailable, isDegraded, lns, now)
 
-	scope := WorkerPoolScope
+	scope := updatestatus.WorkerPoolScope
 	if mcp.Name == mco.MachineConfigPoolMaster {
-		scope = ControlPlaneScope
+		scope = updatestatus.ControlPlaneScope
 	}
 
-	return &NodeStatusInsight{
+	return &updatestatus.NodeStatusInsight{
 		Name: node.Name,
-		Resource: ResourceRef{
+		Resource: updatestatus.ResourceRef{
 			Resource: "nodes",
 			Group:    corev1.GroupName,
 			Name:     node.Name,
 		},
-		PoolResource: PoolResourceRef{
-			ResourceRef: ResourceRef{
+		PoolResource: updatestatus.PoolResourceRef{
+			ResourceRef: updatestatus.ResourceRef{
 				Resource: "machineconfigpools",
 				Group:    machineconfigv1.GroupName,
 				Name:     mcp.Name,
