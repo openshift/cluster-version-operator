@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -483,16 +485,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	// TODO: use slices.Collect(maps.Keys(priorCaps)) after bumping to go1.23
-	collectKeys := func(caps map[configv1.ClusterVersionCapability]struct{}) []configv1.ClusterVersionCapability {
-		var ret []configv1.ClusterVersionCapability
-		for k := range caps {
-			ret = append(ret, k)
-		}
-		return ret
-	}
 	// ensureEnabledCapabilities includes both explicitly and implicitly enabled capabilities
-	ensureEnabledCapabilities := append(collectKeys(priorCaps), w.alwaysEnableCapabilities...)
+	ensureEnabledCapabilities := append(slices.Collect(maps.Keys(priorCaps)), w.alwaysEnableCapabilities...)
 	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities)
 
 	versionEqual, overridesEqual, capabilitiesEqual :=
