@@ -84,13 +84,13 @@ func (l *LayeredNodeState) GetUnavailableMessage() string {
 	for _, c := range l.unavailable {
 		message := c.reason
 		if message == reasonOfUnavailabilityNodeNotReady {
-			message = fmt.Sprintf("Node %s is not ready", l.node.Name)
+			message = "Node is not ready"
 		}
 		if message == reasonOfUnavailabilityNodeDiskPressure {
-			message = fmt.Sprintf("Node %s has disk pressure", l.node.Name)
+			message = "Node has disk pressure"
 		}
 		if message == reasonOfUnavailabilityNodeNetworkUnavailable {
-			message = fmt.Sprintf("Node %s has unavailable network", l.node.Name)
+			message = "Node has unavailable network"
 		}
 		messages = append(messages, message)
 	}
