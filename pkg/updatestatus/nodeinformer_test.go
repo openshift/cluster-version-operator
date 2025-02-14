@@ -2,7 +2,6 @@ package updatestatus
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -1013,14 +1012,13 @@ func Test_sync_with_node(t *testing.T) {
 			},
 		},
 		{
-			name: "error",
+			name: "no error if a node belongs to no MCP",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "worker-1",
 					Labels: map[string]string{"node-role.kubernetes.io/some": ""},
 				},
 			},
-			expectedErr: fmt.Errorf("failed to determine which machine config pool the node worker-1 belongs to"),
 		},
 	}
 

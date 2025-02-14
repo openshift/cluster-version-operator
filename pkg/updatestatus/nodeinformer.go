@@ -111,7 +111,11 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 		mcpName := c.machineConfigPoolSelectorCache.whichMCP(labels.Set(node.Labels))
 		if mcpName == "" {
-			return fmt.Errorf("failed to determine which machine config pool the node %s belongs to", node.Name)
+			// We assume that every node belongs to a MCP at all time.
+			// Although conceptually the assumption might not be true (see https://docs.openshift.com/container-platform/4.17/machine_configuration/index.html#architecture-machine-config-pools_machine-config-overview),
+			// we will wait to hear from our users the issues for cluster updates and will handle them accordingly by then.
+			klog.V(2).Infof("Ignored node %s as it does not belong to any %d machine config pool(s)", node.Name, c.machineConfigPoolSelectorCache.len())
+			return nil
 		}
 		klog.V(4).Infof("Node %s belongs to machine config pool %s", node.Name, mcpName)
 
@@ -301,6 +305,12 @@ func (c *machineConfigPoolSelectorCache) forget(mcpName string) bool {
 		return true
 	}
 	return false
+}
+
+func (c *machineConfigPoolSelectorCache) len() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return len(c.cache)
 }
 
 func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
