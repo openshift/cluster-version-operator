@@ -3,13 +3,9 @@ package updatestatus
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"gopkg.in/yaml.v3"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
@@ -17,14 +13,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	kubeinformers "k8s.io/client-go/informers"
-	kubeclient "k8s.io/client-go/kubernetes"
-	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
-
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
+	updateclient "github.com/openshift/client-go/update/clientset/versioned/typed/update/v1alpha1"
+	updateinformers "github.com/openshift/client-go/update/informers/externalversions"
 )
 
 // informerMsg is the communication structure between informers and the update status controller. It contains the UID of
@@ -38,46 +32,36 @@ type informerMsg struct {
 	// to be known, and is not required to be included in `knownInsights` by the informers (but informers can do so).
 	knownInsights []string
 
-	uid     string
-	insight []byte
+	uid string
+
+	cpInsight *updatestatus.ControlPlaneInsight
+	wpInsight *updatestatus.WorkerPoolInsight
 }
 
 func makeControlPlaneInsightMsg(insight updatestatus.ControlPlaneInsight, informer string) (informerMsg, error) {
-	rawInsight, err := yaml.Marshal(insight)
-	if err != nil {
-		return informerMsg{}, err
-	}
 	msg := informerMsg{
-		informer: informer,
-		uid:      insight.UID,
-		insight:  rawInsight,
+		informer:  informer,
+		uid:       insight.UID,
+		cpInsight: insight.DeepCopy(),
 	}
 	return msg, msg.validate()
 }
 
 func makeWorkerPoolsInsightMsg(insight updatestatus.WorkerPoolInsight, informer string) (informerMsg, error) {
-	rawInsight, err := yaml.Marshal(insight)
-	if err != nil {
-		return informerMsg{}, err
-	}
 	msg := informerMsg{
-		informer: informer,
-		uid:      insight.UID,
-		insight:  rawInsight,
+		informer:  informer,
+		uid:       insight.UID,
+		wpInsight: insight.DeepCopy(),
 	}
 	return msg, msg.validate()
 }
 
 type sendInsightFn func(insight informerMsg)
 
-func isStatusInsightKey(k string) bool {
-	return strings.HasPrefix(k, "usc.")
-}
-
-// updateStatusController is a controller that collects insights from informers and maintains a ConfigMap with the insights
-// until we have a proper UpdateStatus API. The controller maintains an internal desired content of the ConfigMap (even
-// if it does not exist in the cluster) and updates it in the cluster when new insights are received, or when the ConfigMap
-// changes in the cluster. The controller only maintains the ConfigMap in the cluster if it exists, it does not create it
+// updateStatusController is a controller that collects insights from informers and maintains the UpdateStatus API.
+// The controller maintains an internal desired content of the UpdateStatus instance (even if it does not exist in the
+// cluster) and updates it in the cluster when new insights are received, or when the UpdateStatus changes
+// in the cluster. The controller only maintains the UpdateStatus in the cluster if it exists, it does not create it
 // itself (this serves as a simple opt-in mechanism).
 //
 // The communication between informers (insight producers) and this controller is performed via a channel. The controller
@@ -85,49 +69,51 @@ func isStatusInsightKey(k string) bool {
 // informerMsg structure is the data transfer object.
 //
 // updateStatusController is set up to spawn the insight receiver after it is started. The receiver reads messages from
-// the channel, updates the internal state of the controller, and queues the ConfigMap to be updated in the cluster. The
-// sendInsightFn function can be used to send insights to the controller even before the insight receiver is started,
+// the channel, updates the internal state of the controller, and queues the UpdateStatus to be updated in the cluster.
+// The sendInsightFn function can be used to send insights to the controller even before the insight receiver starts,
 // but the buffered channel has limited capacity so senders can block eventually.
 //
 // NOTE: The communication mechanism was added in the initial scaffolding PR and does not aspire to be the final
 // and 100% efficient solution. Feel free to improve or even replace it if turns out to be unsuitable in practice.
 type updateStatusController struct {
-	configMaps corev1client.ConfigMapInterface
+	updateStatuses updateclient.UpdateStatusInterface
+	statusApi      statusApi
+	recorder       events.Recorder
+}
 
-	// statusApi is the desired state of the status API ConfigMap. It is updated when new insights are received.
-	// Any access to the struct should be done with the lock held.
-	statusApi struct {
-		sync.Mutex
-		cm *corev1.ConfigMap
+// statusApi is the desired state of the UpdateStatus API. It is updated when new insights are received.
+// Any access to the struct should be done with the lock held.
+type statusApi struct {
+	sync.Mutex
 
-		// processed is the number of insights processed, used for testing
-		processed int
-	}
+	// our is the desired state of the UpdateStatus API. It is updated when new insights are received.
+	us *updatestatus.UpdateStatus
 
-	recorder events.Recorder
+	// processed is the number of insights processed, used for testing
+	processed int
 }
 
 // newUpdateStatusController creates a new update status controller and returns it. The second return value is a function
 // the other controllers should use to send insights to this controller.
 func newUpdateStatusController(
-	coreClient kubeclient.Interface,
-	coreInformers kubeinformers.SharedInformerFactory,
+	updateClient updateclient.UpdateV1alpha1Interface,
+	updateInformers updateinformers.SharedInformerFactory,
 	recorder events.Recorder,
 ) (factory.Controller, sendInsightFn) {
 	uscRecorder := recorder.WithComponentSuffix("update-status-controller")
 
 	c := &updateStatusController{
-		configMaps: coreClient.CoreV1().ConfigMaps(uscNamespace),
-		recorder:   uscRecorder,
+		updateStatuses: updateClient.UpdateStatuses(),
+		recorder:       uscRecorder,
 	}
 
 	startInsightReceiver, sendInsight := c.setupInsightReceiver()
 
-	cmInformer := coreInformers.Core().V1().ConfigMaps().Informer()
+	usInformer := updateInformers.Update().V1alpha1().UpdateStatuses().Informer()
 	controller := factory.New().
-		// call sync every 5 minutes or on CM events in the openshift-cluster-version namespace
+		// call sync every 5 minutes or on events on the status API
 		WithSync(c.sync).ResyncEvery(5*time.Minute).
-		WithFilteredEventsInformersQueueKeysFunc(cmNameKey, nsFilter(uscNamespace), cmInformer).
+		WithInformersQueueKeysFunc(queueKey, usInformer).
 		WithPostStartHooks(startInsightReceiver).
 		ToController("UpdateStatusController", c.recorder)
 
@@ -140,8 +126,10 @@ func (m informerMsg) validate() error {
 		return fmt.Errorf("empty informer")
 	case m.uid == "":
 		return fmt.Errorf("empty uid")
-	case len(m.insight) == 0:
-		return fmt.Errorf("empty or nil insight")
+	case m.cpInsight == nil && m.wpInsight == nil:
+		return fmt.Errorf("empty insight")
+	case m.cpInsight != nil && m.wpInsight != nil:
+		return fmt.Errorf("both control plane and worker pool insights set")
 	}
 
 	return nil
@@ -178,7 +166,7 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 			select {
 			case message := <-fromInformers:
 				if c.processInsightMsg(message) {
-					syncCtx.Queue().Add(statusApiConfigMap)
+					syncCtx.Queue().Add(updateStatusResource)
 				}
 			case <-ctx.Done():
 				klog.Info("USC :: Collector :: Stopping insight collector")
@@ -194,33 +182,158 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 	return startInsightReceiver, sendInsight
 }
 
+// ensureUpdateStatusExists ensures that the internal state of the status API is initialized.
+// Assumes statusApi is locked.
+func (c *statusApi) ensureUpdateStatusExists() {
+	if c.us != nil {
+		return
+	}
+
+	c.us = &updatestatus.UpdateStatus{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: updateStatusResource,
+		},
+	}
+}
+
+func ensureControlPlaneInformer(cp *updatestatus.ControlPlane, informer string) *updatestatus.ControlPlaneInformer {
+	for i := range cp.Informers {
+		if cp.Informers[i].Name == informer {
+			return &cp.Informers[i]
+		}
+	}
+
+	cp.Informers = append(cp.Informers, updatestatus.ControlPlaneInformer{Name: informer})
+	return &cp.Informers[len(cp.Informers)-1]
+}
+
+func ensureWorkerPoolInformer(wp *updatestatus.Pool, informerName string) *updatestatus.WorkerPoolInformer {
+	for i := range wp.Informers {
+		if wp.Informers[i].Name == informerName {
+			return &wp.Informers[i]
+		}
+	}
+
+	wp.Informers = append(wp.Informers, updatestatus.WorkerPoolInformer{Name: informerName})
+	return &wp.Informers[len(wp.Informers)-1]
+}
+
+func ensureControlPlaneInsightByInformer(informer *updatestatus.ControlPlaneInformer, insight *updatestatus.ControlPlaneInsight) {
+	for i := range informer.Insights {
+		if informer.Insights[i].UID == insight.UID {
+			informer.Insights[i].AcquiredAt = insight.AcquiredAt
+			insight.ControlPlaneInsightUnion.DeepCopyInto(&informer.Insights[i].ControlPlaneInsightUnion)
+			return
+		}
+	}
+
+	informer.Insights = append(informer.Insights, *insight.DeepCopy())
+}
+
+func ensureWorkerPoolInsightByInformer(informer *updatestatus.WorkerPoolInformer, insight *updatestatus.WorkerPoolInsight) {
+	for i := range informer.Insights {
+		if informer.Insights[i].UID == insight.UID {
+			informer.Insights[i].AcquiredAt = insight.AcquiredAt
+			insight.WorkerPoolInsightUnion.DeepCopyInto(&informer.Insights[i].WorkerPoolInsightUnion)
+			return
+		}
+	}
+
+	informer.Insights = append(informer.Insights, *insight.DeepCopy())
+}
+
+// updateControlPlaneInsight updates the status API with the control plane insight.
+// Assumes statusApi is locked.
+func (c *statusApi) updateControlPlaneInsight(informerName string, insight *updatestatus.ControlPlaneInsight) {
+	// TODO: Logging - log(2) that we do something, and log(4) the diff
+	cp := &c.us.Status.ControlPlane
+	switch insight.Type {
+	case updatestatus.ClusterVersionStatusInsightType:
+		cp.Resource = insight.ClusterVersionStatusInsight.Resource
+	case updatestatus.MachineConfigPoolStatusInsightType:
+		cp.PoolResource = insight.MachineConfigPoolStatusInsight.Resource.DeepCopy()
+	}
+
+	informer := ensureControlPlaneInformer(cp, informerName)
+	ensureControlPlaneInsightByInformer(informer, insight)
+}
+
+func determineWorkerPool(insight *updatestatus.WorkerPoolInsight) updatestatus.PoolResourceRef {
+	switch insight.Type {
+	case updatestatus.MachineConfigPoolStatusInsightType:
+		return insight.MachineConfigPoolStatusInsight.Resource
+	case updatestatus.NodeStatusInsightType:
+		return insight.NodeStatusInsight.PoolResource
+	case updatestatus.HealthInsightType:
+		// TODO: How to map a generic health insight to a worker pool?
+		panic("not implemented yet")
+	}
+
+	panic(fmt.Sprintf("unknown insight type %q", insight.Type))
+}
+
+func (c *statusApi) updateWorkerPoolInsight(informerName string, insight *updatestatus.WorkerPoolInsight) {
+	// TODO: Logging - log(2) that we do something, and log(4) the diff
+	poolRef := determineWorkerPool(insight)
+
+	// TODO: This should be a ControlPlaneInsight
+	if poolRef.Name == "master" {
+		c.updateControlPlaneInsight(informerName, &updatestatus.ControlPlaneInsight{
+			UID:        insight.UID,
+			AcquiredAt: insight.AcquiredAt,
+			ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+				Type:                           insight.Type,
+				MachineConfigPoolStatusInsight: insight.MachineConfigPoolStatusInsight,
+				NodeStatusInsight:              insight.NodeStatusInsight,
+				HealthInsight:                  insight.HealthInsight,
+			},
+		})
+		return
+	}
+
+	wp := c.ensureWorkerPool(poolRef)
+	informer := ensureWorkerPoolInformer(wp, informerName)
+	ensureWorkerPoolInsightByInformer(informer, insight)
+}
+
+func (c *statusApi) ensureWorkerPool(pool updatestatus.PoolResourceRef) *updatestatus.Pool {
+	for i := range c.us.Status.WorkerPools {
+		if c.us.Status.WorkerPools[i].Name == pool.Name {
+			c.us.Status.WorkerPools[i].Resource = pool // TODO: Handle conflicts?
+			return &c.us.Status.WorkerPools[i]
+		}
+	}
+	c.us.Status.WorkerPools = append(c.us.Status.WorkerPools, updatestatus.Pool{
+		Name:     pool.Name,
+		Resource: pool,
+	})
+
+	return &c.us.Status.WorkerPools[len(c.us.Status.WorkerPools)-1]
+}
+
+func (c *statusApi) removeUnknownInsightsByInformer(informer string, known sets.Set[string]) {
+	for i := range c.us.Status.ControlPlane.Informers {
+		if c.us.Status.ControlPlane.Informers[i].Name == informer {
+			insights := make([]updatestatus.ControlPlaneInsight, 0, len(c.us.Status.ControlPlane.Informers[i].Insights))
+			for insight := range c.us.Status.ControlPlane.Informers[i].Insights {
+				if known.Has(c.us.Status.ControlPlane.Informers[i].Insights[insight].UID) {
+					insights = append(insights, c.us.Status.ControlPlane.Informers[i].Insights[insight])
+				}
+			}
+			c.us.Status.ControlPlane.Informers[i].Insights = insights
+		}
+	}
+}
+
 // updateInsightInStatusApi updates the status API using the message.
 // Assumes the statusApi field is locked.
 func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
-	if c.statusApi.cm == nil {
-		c.statusApi.cm = &corev1.ConfigMap{Data: map[string]string{}}
-	}
+	c.statusApi.ensureUpdateStatusExists()
 
-	// Assemble the key because data is flattened in CM compared to UpdateStatus API where we would have a separate
-	// container with insights for each informer
-	cmKey := fmt.Sprintf("usc.%s.%s", msg.informer, msg.uid)
-
-	var oldContent string
-	if klog.V(4).Enabled() {
-		oldContent = c.statusApi.cm.Data[cmKey]
-	}
-
-	updatedContent := string(msg.insight)
-
-	c.statusApi.cm.Data[cmKey] = updatedContent
-
-	klog.V(2).Infof("USC :: Collector :: Updated insight in status API (uid=%s)", msg.uid)
-	if klog.V(4).Enabled() {
-		if diff := cmp.Diff(oldContent, updatedContent); diff != "" {
-			klog.Infof("USC :: Collector :: Insight (uid=%s) diff:\n%s", msg.uid, diff)
-		} else {
-			klog.Infof("USC :: Collector :: Insight (uid=%s) content did not change (len=%d)", msg.uid, len(updatedContent))
-		}
+	if msg.cpInsight != nil {
+		c.statusApi.updateControlPlaneInsight(msg.informer, msg.cpInsight)
+	} else {
+		c.statusApi.updateWorkerPoolInsight(msg.informer, msg.wpInsight)
 	}
 }
 
@@ -230,57 +343,36 @@ func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
 func (c *updateStatusController) removeUnknownInsights(message informerMsg) {
 	known := sets.New(message.knownInsights...)
 	known.Insert(message.uid)
-	informerPrefix := fmt.Sprintf("usc.%s.", message.informer)
-	for key := range c.statusApi.cm.Data {
-		if strings.HasPrefix(key, informerPrefix) && !known.Has(strings.TrimPrefix(key, informerPrefix)) {
-			delete(c.statusApi.cm.Data, key)
-			klog.V(2).Infof("USC :: Collector :: Dropped insight %q because it is no longer reported as known by informer %q", key, message.informer)
-		}
-	}
+
+	c.statusApi.removeUnknownInsightsByInformer(message.informer, known)
 }
 
-func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context) error {
-	// Check whether the CM exists and do nothing if it does not exist; we never create it, only update
-	clusterCm, err := c.configMaps.Get(ctx, statusApiConfigMap, metav1.GetOptions{})
+func (c *updateStatusController) commitStatusApi(ctx context.Context) error {
+	// TODO: We need to change this to:
+	//   (1) On startup, load existing API and only then start receiving insights
+	//   (2) If the API does not exist on startup, create it
+	// Check whether the UpdateStatus exists and do nothing if it does not exist; we never create it, only update
+	clusterUpdateStatus, err := c.updateStatuses.Get(ctx, updateStatusResource, metav1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			klog.V(2).Info("USC :: Status API CM does not exist -> nothing to update")
+			klog.V(2).Info("USC :: Status API does not exist -> nothing to update")
 			return nil
 		}
-		klog.Errorf("USC :: Failed to get status API CM: %v", err)
+		klog.Errorf("USC :: Failed to get status API: %v", err)
 		return err
 	}
 
 	c.statusApi.Lock()
 	defer c.statusApi.Unlock()
 
-	if c.statusApi.cm == nil {
-		// This means we are running on a CM event before first insight arrived, otherwise internal state would exist
+	if c.statusApi.us == nil {
+		// This means we are running on UpdateStatus event before first insight arrived, otherwise internal state would exist
 		klog.V(2).Infof("USC :: No internal state known yet, setting internal state to cluster state")
-		c.statusApi.cm = clusterCm.DeepCopy()
+		c.statusApi.us = clusterUpdateStatus.DeepCopy()
 		return nil
 	}
 
-	// We have internal state, so we need to overwrite the cluster state with our internal state but keep items that we do
-	// not care about
-	mergedCm := clusterCm.DeepCopy()
-	for k := range mergedCm.Data {
-		if isStatusInsightKey(k) {
-			delete(mergedCm.Data, k)
-		}
-	}
-
-	for k, v := range c.statusApi.cm.Data {
-		if mergedCm.Data == nil {
-			mergedCm.Data = map[string]string{}
-		}
-		mergedCm.Data[k] = v
-	}
-
-	klog.V(2).Infof("USC :: Updating status API CM (%d insights)", len(c.statusApi.cm.Data))
-	c.statusApi.cm = mergedCm
-
-	_, err = c.configMaps.Update(ctx, c.statusApi.cm, metav1.UpdateOptions{})
+	_, err = c.updateStatuses.Update(ctx, c.statusApi.us, metav1.UpdateOptions{})
 	return err
 }
 
@@ -288,42 +380,30 @@ func (c *updateStatusController) sync(ctx context.Context, syncCtx factory.SyncC
 	queueKey := syncCtx.QueueKey()
 	if queueKey == "" {
 		klog.V(2).Info("USC :: Periodic resync")
-		queueKey = statusApiConfigMap
+		queueKey = updateStatusResource
 	}
-	if queueKey != statusApiConfigMap {
-		// We only care about the status API CM
+
+	if queueKey != updateStatusResource {
+		// We only care about the single status API resource
 		return nil
 	}
 
-	klog.V(2).Infof("USC :: Syncing status API CM (name=%s)", queueKey)
-	return c.commitStatusApiAsConfigMap(ctx)
+	klog.V(2).Infof("USC :: Syncing status API (name=%s)", queueKey)
+	return c.commitStatusApi(ctx)
 }
 
-const statusApiConfigMap = "status-api-cm-prototype"
+const updateStatusResource = "status-api-prototype"
 
-func cmNameKey(object runtime.Object) []string {
+func queueKey(object runtime.Object) []string {
 	if object == nil {
 		return nil
 	}
 
 	switch o := object.(type) {
-	case *corev1.ConfigMap:
+	case *updatestatus.UpdateStatus:
 		return []string{o.Name}
 	}
 
 	klog.Fatalf("USC :: Unknown object type: %T", object)
 	return nil
-}
-
-func nsFilter(namespace string) factory.EventFilterFunc {
-	return func(obj interface{}) bool {
-		if obj == nil {
-			return false
-		}
-		switch o := obj.(type) {
-		case *corev1.ConfigMap:
-			return o.Namespace == namespace
-		}
-		return false
-	}
 }
