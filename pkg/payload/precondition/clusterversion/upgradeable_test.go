@@ -2,6 +2,7 @@ package clusterversion
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -23,11 +24,12 @@ func TestUpgradeableRun(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		upgradeable    *configv1.ConditionStatus
-		currVersion    string
-		desiredVersion string
-		expected       *precondition.Error
+		name             string
+		upgradeable      *configv1.ConditionStatus
+		completedVersion string
+		currVersion      string
+		desiredVersion   string
+		expected         *precondition.Error
 	}{
 		{
 			name:           "first",
@@ -125,6 +127,26 @@ func TestUpgradeableRun(t *testing.T) {
 			currVersion:    "4.17.0-0.test-2024-10-07-173400-ci-ln-pwn9ngk-latest",
 			desiredVersion: "4.17.0-rc.6",
 		},
+		{
+			name:             "move-y-then-z, with false condition",
+			upgradeable:      ptr(configv1.ConditionFalse),
+			completedVersion: "4.1.1",
+			currVersion:      "4.2.1",
+			desiredVersion:   "4.2.3",
+			expected: &precondition.Error{
+				NonBlockingWarning: true,
+				Name:               "ClusterVersionUpgradeable",
+				Message:            "Retarget to 4.2.3 while a minor level update from 4.1.1 to 4.2.1 is in progress",
+				Reason:             "MinorVersionClusterUpdateInProgress",
+			},
+		},
+		{
+			name:             "move-z-then-z, with false condition",
+			upgradeable:      ptr(configv1.ConditionFalse),
+			completedVersion: "4.2.1",
+			currVersion:      "4.2.2",
+			desiredVersion:   "4.2.3",
+		},
 	}
 
 	for _, tc := range tests {
@@ -134,7 +156,12 @@ func TestUpgradeableRun(t *testing.T) {
 				Spec:       configv1.ClusterVersionSpec{},
 				Status: configv1.ClusterVersionStatus{
 					Desired: configv1.Release{Version: tc.currVersion},
+					History: []configv1.UpdateHistory{{State: configv1.CompletedUpdate, Version: tc.completedVersion}},
 				},
+			}
+			if tc.completedVersion != "" && tc.completedVersion != tc.currVersion {
+				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions,
+					configv1.ClusterOperatorStatusCondition{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue})
 			}
 			if tc.upgradeable != nil {
 				clusterVersion.Status.Conditions = append(clusterVersion.Status.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -154,7 +181,8 @@ func TestUpgradeableRun(t *testing.T) {
 			if (tc.expected == nil && err != nil) || (tc.expected != nil && err == nil) {
 				t.Errorf("%s: expected %v but got %v", tc.name, tc.expected, err)
 			} else if tc.expected != nil && err != nil {
-				if pError, ok := err.(*precondition.Error); !ok {
+				var pError *precondition.Error
+				if !errors.As(err, &pError) {
 					t.Errorf("Failed to convert to err: %v", err)
 				} else if diff := cmp.Diff(tc.expected, pError, cmpopts.IgnoreFields(precondition.Error{}, "Nested")); diff != "" {
 					t.Errorf("%s differs from expected:\n%s", tc.name, diff)
