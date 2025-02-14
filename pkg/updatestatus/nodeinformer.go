@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kubeinformers "k8s.io/client-go/informers"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -83,6 +84,7 @@ func newNodeInformerController(
 		// call sync on machine config pool changes
 		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, mcpInformer).
 		WithSync(c.sync).
+		WithPostStartHooks(c.initializeCaches).
 		ToController("NodeInformer", c.recorder)
 
 	return controller
@@ -194,6 +196,31 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	return nil
 }
 
+func (c *nodeInformerController) initializeCaches(_ context.Context, _ factory.SyncContext) error {
+	var errs []error
+
+	if pools, err := c.machineConfigPools.List(labels.Everything()); err != nil {
+		errs = append(errs, err)
+	} else {
+		for _, pool := range pools {
+			c.machineConfigPoolSelectorCache.ingest(pool)
+		}
+	}
+	klog.V(2).Infof("Stored %d machineConfigPools in the cache", c.machineConfigPoolSelectorCache.len())
+
+	machineConfigs, err := c.machineConfigs.List(labels.Everything())
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		for _, mc := range machineConfigs {
+			c.machineConfigVersionCache.ingest(mc)
+		}
+	}
+	klog.V(2).Infof("Stored %d machineConfig versions in the cache", c.machineConfigVersionCache.len())
+
+	return kutilerrors.NewAggregate(errs)
+}
+
 type machineConfigVersionCache struct {
 	cache map[string]string
 	lock  sync.Mutex
@@ -238,6 +265,12 @@ func (c *machineConfigVersionCache) match(config string) (string, bool) {
 	defer c.lock.Unlock()
 	v, ok := c.cache[config]
 	return v, ok
+}
+
+func (c *machineConfigVersionCache) len() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return len(c.cache)
 }
 
 type machineConfigPoolSelectorCache struct {
