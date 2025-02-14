@@ -14,8 +14,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
@@ -147,6 +149,23 @@ func getMCP(name string) *machineconfigv1.MachineConfigPool {
 			},
 		}
 	}
+}
+
+func (c *nodeInformerController) initializeCaches() error {
+	var errs []error
+
+	machineConfigs, err := c.machineConfigs.List(labels.Everything())
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		for _, mc := range machineConfigs {
+			c.machineConfigVersionCache.ingest(mc)
+		}
+	}
+
+	klog.V(2).Infof("Stored %d machineConfig versions in the cache", len(c.machineConfigVersionCache.cache))
+
+	return kerrors.NewAggregate(errs)
 }
 
 func Test_whichMCP(t *testing.T) {
@@ -850,7 +869,10 @@ func Test_assessNode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 
-			actual := assessNode(tc.node, tc.mcp, tc.machineConfigVersions, tc.mostRecentVersionInCVHistory, now)
+			actual := assessNode(tc.node, tc.mcp, func(k string) (string, bool) {
+				v, ok := tc.machineConfigVersions[k]
+				return v, ok
+			}, tc.mostRecentVersionInCVHistory, now)
 
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("%s: node status insight differs from expected:\n%s", tc.name, diff)
@@ -1020,6 +1042,10 @@ func Test_sync_with_node(t *testing.T) {
 				machineConfigPools: mcpLister,
 				sendInsight:        sendInsight,
 				now:                func() metav1.Time { return now },
+			}
+
+			if err := controller.initializeCaches(); err != nil {
+				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
 			queueKey := nodeInformerControllerQueueKeys(tc.node)[0]

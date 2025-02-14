@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -38,6 +39,10 @@ type nodeInformerController struct {
 
 	// sendInsight should be called to send produced insights to the update status controller
 	sendInsight sendInsightFn
+
+	// machineConfigVersionCache caches machine config versions
+	// The cache stores the name of MC as the key and the release image version as its value which is retrieved from the annotation of the MC.
+	machineConfigVersionCache machineConfigVersionCache
 
 	// now is a function that returns the current time, used for testing
 	now func() metav1.Time
@@ -110,18 +115,6 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 			return fmt.Errorf("failed to determine which machine config pool the node belongs to: %w", err)
 		}
 
-		machineConfigs, err := c.machineConfigs.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		machineConfigVersions := map[string]string{}
-		for _, mc := range machineConfigs {
-			if openshiftVersion, ok := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; ok && openshiftVersion != "" {
-				machineConfigVersions[mc.Name] = openshiftVersion
-			}
-		}
-
 		var mostRecentVersionInCVHistory string
 		clusterVersion, err := c.configClient.ConfigV1().ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
 		if err != nil {
@@ -132,7 +125,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 		}
 
 		now := c.now()
-		if insight := assessNode(node, mcp, machineConfigVersions, mostRecentVersionInCVHistory, now); insight != nil {
+		if insight := assessNode(node, mcp, c.machineConfigVersionCache.match, mostRecentVersionInCVHistory, now); insight != nil {
 			msg, err = makeInsightMsgForNode(insight, now)
 			if err != nil {
 				klog.Errorf("BUG: Could not create insight message: %v", err)
@@ -140,7 +133,24 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 			}
 		}
 	case machineConfigKindName:
-		return c.reconcileAllNodes(syncCtx.Queue())
+		machineConfig, err := c.machineConfigs.Get(name)
+		if err != nil && !kerrors.IsNotFound(err) {
+			return err
+		}
+		if kerrors.IsNotFound(err) {
+			// The machine config was deleted
+			if changed := c.machineConfigVersionCache.forget(name); changed {
+
+				klog.V(2).Infof("Reconciling all nodes as machine config %q is deleted", name)
+				return c.reconcileAllNodes(syncCtx.Queue())
+			}
+			return nil
+		}
+		if changed := c.machineConfigVersionCache.ingest(machineConfig); changed {
+			klog.V(2).Infof("Reconciling all nodes as machine config %q is refreshed", name)
+			return c.reconcileAllNodes(syncCtx.Queue())
+		}
+		return nil
 	case machineConfigPoolKindName:
 		return c.reconcileAllNodes(syncCtx.Queue())
 	default:
@@ -153,6 +163,52 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
 	c.sendInsight(msg)
 	return nil
+}
+
+type machineConfigVersionCache struct {
+	cache map[string]string
+	lock  sync.Mutex
+}
+
+func (c *machineConfigVersionCache) ingest(mc *machineconfigv1.MachineConfig) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	v, ok := c.cache[mc.Name]
+	if openshiftVersion, exist := mc.Annotations[mco.ReleaseImageVersionAnnotationKey]; exist && openshiftVersion != "" {
+		if !ok || v != openshiftVersion {
+			if c.cache == nil {
+				c.cache = make(map[string]string)
+			}
+			c.cache[mc.Name] = openshiftVersion
+			klog.V(4).Infof("Cached MachineConfig %s with version %s", mc.Name, openshiftVersion)
+			return true
+		}
+	} else if ok {
+		delete(c.cache, mc.Name)
+		klog.V(4).Infof("Deleted MachineConfig %s from the cache as no version can be found", mc.Name)
+		return true
+	}
+
+	return false
+}
+
+func (c *machineConfigVersionCache) forget(name string) bool {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	if _, ok := c.cache[name]; ok {
+		delete(c.cache, name)
+		klog.V(4).Infof("Deleted MachineConfig %s from the cache", name)
+		return true
+	}
+	return false
+}
+
+func (c *machineConfigVersionCache) match(config string) (string, bool) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	v, ok := c.cache[config]
+	return v, ok
 }
 
 func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
@@ -343,7 +399,7 @@ func toPointer(d time.Duration) *metav1.Duration {
 	return &v
 }
 
-func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigVersions map[string]string, mostRecentVersionInCVHistory string, now metav1.Time) *updatestatus.NodeStatusInsight {
+func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machineConfigVersionMatcher func(string) (string, bool), mostRecentVersionInCVHistory string, now metav1.Time) *updatestatus.NodeStatusInsight {
 	if node == nil || mcp == nil {
 		return nil
 	}
@@ -351,8 +407,8 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 	desiredConfig, ok := node.Annotations[mco.DesiredMachineConfigAnnotationKey]
 	noDesiredOnNode := !ok
 	currentConfig := node.Annotations[mco.CurrentMachineConfigAnnotationKey]
-	currentVersion, foundCurrent := machineConfigVersions[currentConfig]
-	desiredVersion, foundDesired := machineConfigVersions[desiredConfig]
+	currentVersion, foundCurrent := machineConfigVersionMatcher(currentConfig)
+	desiredVersion, foundDesired := machineConfigVersionMatcher(desiredConfig)
 
 	lns := mco.NewLayeredNodeState(node)
 	isUnavailable := lns.IsUnavailable(mcp)
