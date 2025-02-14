@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
@@ -63,10 +64,16 @@ func newNodeInformerController(
 	}
 
 	nodeInformer := coreInformers.Core().V1().Nodes().Informer()
+	mcInformer := machineConfigInformers.Machineconfiguration().V1().MachineConfigs().Informer()
+	mcpInformer := machineConfigInformers.Machineconfiguration().V1().MachineConfigPools().Informer()
 
 	controller := factory.New().
 		// call sync on node changes
 		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, nodeInformer).
+		// call sync on machine config changes
+		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, mcInformer).
+		// call sync on machine config pool changes
+		WithInformersQueueKeysFunc(nodeInformerControllerQueueKeys, mcpInformer).
 		WithSync(c.sync).
 		ToController("NodeInformer", c.recorder)
 
@@ -75,6 +82,7 @@ func newNodeInformerController(
 
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	queueKey := syncCtx.QueueKey()
+	klog.V(4).Infof("NI :: Syncing with key %s", queueKey)
 
 	t, name, err := parseNodeInformerControllerQueueKey(queueKey)
 	if err != nil {
@@ -131,6 +139,10 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 				return nil
 			}
 		}
+	case machineConfigKindName:
+		return c.reconcileAllNodes(syncCtx.Queue())
+	case machineConfigPoolKindName:
+		return c.reconcileAllNodes(syncCtx.Queue())
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
@@ -140,6 +152,17 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	}
 	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
 	c.sendInsight(msg)
+	return nil
+}
+
+func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
+	nodes, err := c.nodes.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, node := range nodes {
+		queue.Add(kindAndNameToQueueKey(nodeKindName, node.Name))
+	}
 	return nil
 }
 
@@ -374,7 +397,10 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 }
 
 const (
-	nodeKindName      = "Node"
+	nodeKindName              = "Node"
+	machineConfigKindName     = "MachineConfig"
+	machineConfigPoolKindName = "MachineConfigPool"
+
 	nodesInformerName = "ni"
 )
 
@@ -392,8 +418,16 @@ func nodeInformerControllerQueueKeys(object runtime.Object) []string {
 	}
 	switch o := object.(type) {
 	case *corev1.Node:
-		return []string{fmt.Sprintf("%s/%s", nodeKindName, o.Name)}
+		return []string{kindAndNameToQueueKey(nodeKindName, o.Name)}
+	case *machineconfigv1.MachineConfig:
+		return []string{kindAndNameToQueueKey(machineConfigKindName, o.Name)}
+	case *machineconfigv1.MachineConfigPool:
+		return []string{kindAndNameToQueueKey(machineConfigPoolKindName, o.Name)}
 	default:
 		panic(fmt.Sprintf("USC :: Unknown object type: %T", object))
 	}
+}
+
+func kindAndNameToQueueKey(kind, name string) string {
+	return fmt.Sprintf("%s/%s", kind, name)
 }
