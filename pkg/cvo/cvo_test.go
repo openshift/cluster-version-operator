@@ -2782,6 +2782,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 			}
 
+			if tt.wantUpdates != nil && tt.wantUpdates.Architecture != runtime.GOARCH {
+				t.Skipf("Skipped the test case %q on %s", tt.name, runtime.GOARCH)
+			}
+
 			if !reflect.DeepEqual(optr.availableUpdates, tt.wantUpdates) {
 				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.wantUpdates, optr.availableUpdates))
 			}

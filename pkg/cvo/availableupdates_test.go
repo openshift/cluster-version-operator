@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -161,6 +162,9 @@ func TestSyncAvailableUpdates(t *testing.T) {
 
 	if err != nil {
 		t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)
+	}
+	if expectedAvailableUpdates != nil && expectedAvailableUpdates.Architecture != runtime.GOARCH {
+		t.Skipf("Skipped the test on %s", runtime.GOARCH)
 	}
 	if diff := cmp.Diff(expectedAvailableUpdates, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
 		t.Fatalf("available updates differ from expected:\n%s", diff)
