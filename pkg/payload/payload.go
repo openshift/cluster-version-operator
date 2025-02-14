@@ -241,7 +241,7 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
 
 	// Initialize so it contains existing implicitly enabled capabilities
-	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
+	implicitlyEnabledCaps := capabilities.ImplicitlyEnabled
 
 	for _, updateManifest := range updatePayloadManifests {
 		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true)
