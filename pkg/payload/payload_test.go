@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -225,32 +226,25 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 		updateAnnotations  map[string]interface{}
 		currentAnnotations map[string]interface{}
 		capabilities       capability.ClusterCapabilities
-		wantImplicit       []configv1.ClusterVersionCapability
-		wantImplicitLen    int
+		wantImplicit       sets.Set[configv1.ClusterVersionCapability]
 	}{
 		{
 			name:    "basic",
 			pathExt: "test1",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{
 			name:    "basic with unknown cap",
 			pathExt: "test1",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{
 			name:    "different manifest",
@@ -260,42 +254,36 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "current manifest not enabled",
 			pathExt: "test3",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 		},
 		{
 			name:    "new cap already enabled",
 			pathExt: "test4",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
 			},
 		},
 		{
 			name:    "already implicitly enabled",
 			pathExt: "test5",
 			capabilities: capability.ClusterCapabilities{
-				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap2"},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{
 			name:    "only add cap once",
 			pathExt: "test6",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{
 			/*
@@ -307,87 +295,58 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			name:    "complex",
 			pathExt: "test7",
 			capabilities: capability.ClusterCapabilities{
-				Known: map[configv1.ClusterVersionCapability]struct{}{
-					"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}, "cap6": {},
-					"cap7": {}, "cap8": {}, "cap9": {}, "cap10": {}, "cap11": {}, "cap12": {},
-					"cap13": {}, "cap14": {}, "cap15": {}, "cap16": {}, "cap17": {}, "cap18": {},
-					"cap19": {}, "cap20": {}, "cap21": {}, "cap22": {}, "cap23": {}, "cap24": {},
-					"cap111": {}, "cap112": {}, "cap113": {}, "cap114": {}, "cap115": {}, "cap116": {},
-					"cap117": {}, "cap118": {}, "cap119": {}, "cap1111": {}, "cap1113": {}, "cap1115": {},
-					"cap1110": {}, "cap1112": {}, "cap1114": {}, "cap1116": {},
-				},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{
-					"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}, "cap6": {},
-					"cap7": {}, "cap8": {}, "cap9": {}, "cap10": {}, "cap11": {}, "cap12": {},
-					"cap13": {}, "cap14": {}, "cap15": {}, "cap16": {}, "cap17": {}, "cap18": {},
-					"cap19": {}, "cap20": {}, "cap21": {}, "cap22": {}, "cap23": {}, "cap24": {},
-				},
-				ImplicitlyEnabled: []configv1.ClusterVersionCapability{
-					configv1.ClusterVersionCapability("cap000"),
-					configv1.ClusterVersionCapability("cap111"),
-					configv1.ClusterVersionCapability("cap112"),
-					configv1.ClusterVersionCapability("cap113"),
-					configv1.ClusterVersionCapability("cap114"),
-				},
+				Known: sets.New[configv1.ClusterVersionCapability](
+					"cap1", "cap2", "cap3", "cap4", "cap5", "cap6",
+					"cap7", "cap8", "cap9", "cap10", "cap11", "cap12",
+					"cap13", "cap14", "cap15", "cap16", "cap17", "cap18",
+					"cap19", "cap20", "cap21", "cap22", "cap23", "cap24",
+					"cap111", "cap112", "cap113", "cap114", "cap115", "cap116",
+					"cap117", "cap118", "cap119", "cap1111", "cap1113", "cap1115",
+					"cap1110", "cap1112", "cap1114", "cap1116"),
+
+				Enabled: sets.New[configv1.ClusterVersionCapability](
+					"cap1", "cap2", "cap3", "cap4", "cap5", "cap6",
+					"cap7", "cap8", "cap9", "cap10", "cap11", "cap12",
+					"cap13", "cap14", "cap15", "cap16", "cap17", "cap18",
+					"cap19", "cap20", "cap21", "cap22", "cap23", "cap24"),
+
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability](
+					"cap000", "cap111", "cap112", "cap113", "cap114"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap000"),
-				configv1.ClusterVersionCapability("cap111"),
-				configv1.ClusterVersionCapability("cap112"),
-				configv1.ClusterVersionCapability("cap113"),
-				configv1.ClusterVersionCapability("cap114"),
-				configv1.ClusterVersionCapability("cap115"),
-				configv1.ClusterVersionCapability("cap116"),
-				configv1.ClusterVersionCapability("cap117"),
-				configv1.ClusterVersionCapability("cap118"),
-				configv1.ClusterVersionCapability("cap119"),
-				configv1.ClusterVersionCapability("cap1110"),
-				configv1.ClusterVersionCapability("cap1111"),
-				configv1.ClusterVersionCapability("cap1112"),
-				configv1.ClusterVersionCapability("cap1113"),
-				configv1.ClusterVersionCapability("cap1114"),
-				configv1.ClusterVersionCapability("cap1115"),
-				configv1.ClusterVersionCapability("cap1116"),
-			},
-			wantImplicitLen: 17,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability](
+				"cap000", "cap111", "cap112", "cap113", "cap114",
+				"cap115", "cap116", "cap117", "cap118", "cap119",
+				"cap1110", "cap1111", "cap1112", "cap1113", "cap1114",
+				"cap1115", "cap1116"),
 		},
 		{
 			name:    "no update manifests",
 			pathExt: "test8",
 			capabilities: capability.ClusterCapabilities{
-				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap1"},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap1"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap1"),
 		},
 		{
 			name:    "no current manifests",
 			pathExt: "test9",
 			capabilities: capability.ClusterCapabilities{
-				Known:             map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				Enabled:           map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabled: []configv1.ClusterVersionCapability{"cap1"},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap1"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap1"),
 		},
 		{
 			name:    "duplicate manifests",
 			pathExt: "test10",
 			capabilities: capability.ClusterCapabilities{
-				Known:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				Enabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []configv1.ClusterVersionCapability{
-				configv1.ClusterVersionCapability("cap2"),
-			},
-			wantImplicitLen: 1,
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 	}
 	for _, tt := range tests {
@@ -407,20 +366,8 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 				updateMans = append(updateMans, updateMans[0])
 			}
 			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities)
-			if len(caps) != tt.wantImplicitLen {
-				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %d. Implicitly enabled capabilities returned: %v", tt.wantImplicitLen, caps)
-			}
-			for _, wanted := range tt.wantImplicit {
-				found := false
-				for _, have := range caps {
-					if wanted == have {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Missing implicitly enabled capability %q. Implicitly enabled capabilities returned : %v", wanted, caps)
-				}
+			if diff := cmp.Diff(tt.wantImplicit, caps); diff != "" {
+				t.Errorf("%s: wantImplicit differs from expected:\n%s", tt.name, diff)
 			}
 		})
 	}
