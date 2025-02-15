@@ -236,12 +236,12 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 // the current payload the updated manifest's capabilities are checked to see if any must be implicitly enabled.
 // All capabilities requiring implicit enablement are returned.
 func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest, currentPayloadManifests []manifest.Manifest,
-	capabilities capability.ClusterCapabilities) []configv1.ClusterVersionCapability {
+	capabilities capability.ClusterCapabilities) sets.Set[configv1.ClusterVersionCapability] {
 
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
 
 	// Initialize so it contains existing implicitly enabled capabilities
-	implicitlyEnabledCaps := capabilities.ImplicitlyEnabledCapabilities
+	implicitlyEnabledCaps := sets.New[configv1.ClusterVersionCapability]().Union(capabilities.ImplicitlyEnabled)
 
 	for _, updateManifest := range updatePayloadManifests {
 		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true)
@@ -259,19 +259,20 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true); err != nil {
 				continue
 			}
-			caps := capability.GetImplicitlyEnabledCapabilities(currentManifest.GetManifestCapabilities(),
-				updateManifest.GetManifestCapabilities(), capabilities)
+			caps := capability.GetImplicitlyEnabledCapabilities(sets.New[configv1.ClusterVersionCapability](currentManifest.GetManifestCapabilities()...),
+				sets.New[configv1.ClusterVersionCapability](updateManifest.GetManifestCapabilities()...), capabilities)
 
 			capStrings := make([]string, len(caps))
-			for i, c := range caps {
+			for i, c := range capability.SortedList(caps) {
 				capStrings[i] = string(c)
-				if !capability.Contains(implicitlyEnabledCaps, c) {
-					implicitlyEnabledCaps = append(implicitlyEnabledCaps, c)
-				}
 			}
+			implicitlyEnabledCaps = implicitlyEnabledCaps.Union(caps)
 			klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",
 				getManifestResourceId(updateManifest), strings.Join(capStrings, ", "))
 		}
+	}
+	if implicitlyEnabledCaps.Len() == 0 {
+		return nil
 	}
 	return implicitlyEnabledCaps
 }
