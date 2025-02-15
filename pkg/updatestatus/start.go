@@ -61,6 +61,9 @@ func Run(ctx context.Context, cc *controllercmd.ControllerContext) error {
 
 	go updateStatusController.Run(ctx, 1)
 	go controlPlaneInformerController.Run(ctx, 1)
+	// To ensure the informers are synced before controller's WithPostStartHooks where the controller's caches are
+	// initialized with informer's listers.
+	machineConfigInformers.WaitForCacheSync(ctx.Done())
 	go nodeInformerController.Run(ctx, 1)
 
 	klog.Info("USC :: Controllers started")
