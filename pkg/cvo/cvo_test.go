@@ -2357,7 +2357,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2400,7 +2400,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2442,7 +2442,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2491,7 +2491,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
@@ -2555,7 +2555,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Current: configv1.Release{
 					Version:  "4.0.1",
 					Image:    "image/image:v4.0.1",
@@ -2622,7 +2622,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Current:       configv1.Release{Version: "4.0.1", Image: "image/image:v4.0.1"},
 				Updates: []configv1.Release{
 					{Version: "4.0.2", Image: "image/image:v4.0.2"},
@@ -2723,7 +2723,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			wantUpdates: &availableUpdates{
 				UpdateService: "http://localhost:8080/graph",
 				Channel:       "fast",
-				Architecture:  "amd64",
+				Architecture:  runtime.GOARCH,
 				Condition: configv1.ClusterOperatorStatusCondition{
 					Type:    configv1.RetrievedUpdates,
 					Status:  configv1.ConditionFalse,
