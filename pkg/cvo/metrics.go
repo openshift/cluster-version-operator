@@ -148,7 +148,11 @@ func shutdownHttpServer(parentCtx context.Context, svr *http.Server) {
 func startListening(svr *http.Server, tlsConfig *tls.Config, lAddr string, resultChannel chan asyncResult) {
 	tcpListener, err := net.Listen("tcp", lAddr)
 	if err != nil {
-		resultChannel <- asyncResult{name: "HTTPS server", error: err}
+		resultChannel <- asyncResult{
+			name:  "HTTPS server",
+			error: fmt.Errorf("failed to listen to the network address %s reserved for cluster-version-operator metrics: %w", lAddr, err),
+		}
+		return
 	}
 	tlsListener := tls.NewListener(tcpListener, tlsConfig)
 	klog.Infof("Metrics port listening for HTTPS on %v", lAddr)
