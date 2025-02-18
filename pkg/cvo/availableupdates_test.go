@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"testing"
 	"time"
 
@@ -125,7 +126,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 		release:               currentRelease,
 	}
 	availableUpdates := &availableUpdates{
-		Architecture: "amd64",
+		Architecture: runtime.GOARCH,
 		Current:      configv1.Release{Version: version, Image: "payload/" + version},
 	}
 	return availableUpdates, operator
