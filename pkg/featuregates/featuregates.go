@@ -29,6 +29,10 @@ type CvoGateChecker interface {
 	// StatusReleaseArchitecture controls whether CVO populates
 	// Release.Architecture in status properties like status.desired and status.history[].
 	StatusReleaseArchitecture() bool
+
+	// CVOConfiguration controls whether the CVO reconciles the ClusterVersionOperator resource that corresponds
+	// to its configuration.
+	CVOConfiguration() bool
 }
 
 type panicOnUsageBeforeInitializationFunc func()
@@ -56,6 +60,11 @@ func (p panicOnUsageBeforeInitializationFunc) UnknownVersion() bool {
 	return false
 }
 
+func (p panicOnUsageBeforeInitializationFunc) CVOConfiguration() bool {
+	p()
+	return false
+}
+
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
 // names do not correspond to product feature gates, the booleans here are "smaller" (product-level
 // gate will enable multiple CVO behaviors).
@@ -68,6 +77,7 @@ type CvoGates struct {
 	unknownVersion                bool
 	reconciliationIssuesCondition bool
 	statusReleaseArchitecture     bool
+	cvoConfiguration              bool
 }
 
 func (c CvoGates) ReconciliationIssuesCondition() bool {
@@ -82,6 +92,10 @@ func (c CvoGates) UnknownVersion() bool {
 	return c.unknownVersion
 }
 
+func (c CvoGates) CVOConfiguration() bool {
+	return c.cvoConfiguration
+}
+
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
@@ -89,6 +103,7 @@ func DefaultCvoGates(version string) CvoGates {
 		unknownVersion:                true,
 		reconciliationIssuesCondition: false,
 		statusReleaseArchitecture:     false,
+		cvoConfiguration:              false,
 	}
 }
 
@@ -110,6 +125,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.reconciliationIssuesCondition = true
 			case features.FeatureGateImageStreamImportMode:
 				enabledGates.statusReleaseArchitecture = true
+			case features.FeatureGateCVOConfiguration:
+				enabledGates.cvoConfiguration = true
 			}
 		}
 		for _, disabled := range g.Disabled {
@@ -118,6 +135,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.reconciliationIssuesCondition = false
 			case features.FeatureGateImageStreamImportMode:
 				enabledGates.statusReleaseArchitecture = false
+			case features.FeatureGateCVOConfiguration:
+				enabledGates.cvoConfiguration = false
 			}
 		}
 	}
