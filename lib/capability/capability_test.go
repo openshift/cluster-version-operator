@@ -101,12 +101,12 @@ func TestSetCapabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, nil, nil)
+			caps := SetCapabilities(test.config, nil)
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
 				test.wantKnownKeys = configv1.KnownClusterVersionCapabilities
-				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
+				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
 			}
 			if len(caps.KnownCapabilities) != len(test.wantKnownKeys) {
 				t.Errorf("Incorrect number of KnownCapabilities keys, wanted: %q. KnownCapabilities returned: %v", test.wantKnownKeys, caps.KnownCapabilities)
@@ -130,11 +130,10 @@ func TestSetCapabilities(t *testing.T) {
 
 func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 	tests := []struct {
-		name          string
-		config        *configv1.ClusterVersion
-		wantImplicit  []string
-		priorEnabled  map[configv1.ClusterVersionCapability]struct{}
-		alwaysEnabled map[configv1.ClusterVersionCapability]struct{}
+		name         string
+		config       *configv1.ClusterVersion
+		wantImplicit []string
+		priorEnabled []configv1.ClusterVersionCapability
 	}{
 		{name: "set baseline capabilities with additional",
 			config: &configv1.ClusterVersion{
@@ -144,36 +143,13 @@ func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 					},
 				},
 			},
-			priorEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
+			priorEnabled: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3", "cap2"},
 			wantImplicit: []string{"cap1", "cap2", "cap3"},
-		},
-		{name: "set baseline capabilities with always enabled",
-			config: &configv1.ClusterVersion{
-				Spec: configv1.ClusterVersionSpec{
-					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
-						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetCurrent,
-					},
-				},
-			},
-			alwaysEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			wantImplicit:  []string{"cap1", "cap2", "cap3"},
-		},
-		{name: "set baseline capabilities with additional and always enabled",
-			config: &configv1.ClusterVersion{
-				Spec: configv1.ClusterVersionSpec{
-					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
-						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetCurrent,
-					},
-				},
-			},
-			priorEnabled:  map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			alwaysEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap4": {}},
-			wantImplicit:  []string{"cap1", "cap2", "cap3", "cap4"},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, test.priorEnabled, test.alwaysEnabled)
+			caps := SetCapabilities(test.config, test.priorEnabled)
 			if len(caps.ImplicitlyEnabledCapabilities) != len(test.wantImplicit) {
 				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %q. ImplicitlyEnabledCapabilities returned: %v", test.wantImplicit, caps.ImplicitlyEnabledCapabilities)
 			}
