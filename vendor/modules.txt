@@ -184,6 +184,7 @@ github.com/openshift/api/machineconfiguration/v1
 github.com/openshift/api/machineconfiguration/v1alpha1
 github.com/openshift/api/operator/v1
 github.com/openshift/api/operator/v1alpha1
+github.com/openshift/api/operator/v1alpha1/zz_generated.crd-manifests
 github.com/openshift/api/security/v1
 # github.com/openshift/client-go v0.0.0-20250131180035-f7ec47e2d87a
 ## explicit; go 1.23.0
