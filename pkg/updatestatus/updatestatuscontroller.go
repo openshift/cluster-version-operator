@@ -31,6 +31,53 @@ const (
 	unknownInsightGracePeriod = 60 * time.Second
 )
 
+// High-level description of the informers -> USC communication protocol:
+// ----------------------------------------------------------------------
+// Informers send insights to the USC via messages. Communication is performed via a channel (but that is just the
+// current implementation detail) and the data sent by informers is encapsulated in the informerMsg structure. The
+// communication is unidirectional, from informers to the USC. The USC does not send any messages back to the informers.
+//
+// The informers send individual insights they want to propagate to the Status API, insights are identified by a UID.
+// Insights with the same UID are considered the same insight in the context of the informer that sent it. The received
+// insights are stored in the Status API by the USC if they are new, and updated with the new data if they are already
+// present.
+//
+// Informers keep track of active insights, and include a list of all known insights (just the UIDs) in each message.
+// On each message, USC compares the insights by the informer it has in the Status API with the list of known insights
+// in the message, and when an insight is first not reported as known by the informer, it is marked for expiration. If
+// the informer reports the insight as known again before it expires, the expiration is cancelled. If the insight is not
+// reported as known again within a grace period, it is dropped from the Status API. This allows informers to restart
+// and "learn" about conditions in the cluster without dropping insights that it have not yet learned about while
+// still eventually dropping insights that are no longer detected.
+//
+// Informers can also report insights they want to explicitly drop. This works similarly to the expiration mechanism,
+// but there is no grace period.
+//
+// TL;DR:
+// --------
+// Whenever an informer has an insight to report, it sends a message containing:
+// - The informer's name
+// - The insight itself, identified by a UID
+// - The list of all insights it knows about (just the UIDs)
+// - The list of all insights it wants to explicitly drop (just the UIDs)
+//
+// For each message received, the USC:
+// - Updates the Status API with the insight
+// - Marks insights by the informer already in Status API for expiration if informer does not know them
+// - Drops insights marked for expiration it grace period is over and informer does not still know them
+// - Unmarks the expiration for each insight the informer knows
+// - Drops insights explicitly requested by the informer
+//
+// Implementation status:
+// ---------------------
+// - [x] USC-side known insight tracking
+// - [x] USC-side insight expiration
+// - [ ] Informer-side known insight tracking
+// - [ ] Informer-side populating known insights in messages
+// - [ ] USC-side insight explicit dropping
+// - [ ] Informer-side explicit insight drop tracking
+// - [ ] Informer-side populating explicit drop insights in messages
+
 // informerMsg is the communication structure between informers and the update status controller. It contains the UID of
 // the insight and the insight itself, serialized as YAML. Passing serialized avoids shared data access problems. Until
 // we have the Status API we need to serialize ourselves anyway.
