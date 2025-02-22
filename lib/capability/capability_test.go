@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"k8s.io/apimachinery/pkg/util/sets"
+
 	configv1 "github.com/openshift/api/config/v1"
 )
 
@@ -101,27 +104,27 @@ func TestSetCapabilities(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, nil, nil)
+			caps := SetCapabilities(test.config, nil)
 			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
 				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
 
 				test.wantKnownKeys = configv1.KnownClusterVersionCapabilities
-				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[DefaultCapabilitySet]
+				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
 			}
-			if len(caps.KnownCapabilities) != len(test.wantKnownKeys) {
-				t.Errorf("Incorrect number of KnownCapabilities keys, wanted: %q. KnownCapabilities returned: %v", test.wantKnownKeys, caps.KnownCapabilities)
+			if len(caps.Known) != len(test.wantKnownKeys) {
+				t.Errorf("Incorrect number of Known keys, wanted: %q. Known returned: %v", test.wantKnownKeys, caps.Known)
 			}
 			for _, v := range test.wantKnownKeys {
-				if _, ok := caps.KnownCapabilities[v]; !ok {
-					t.Errorf("Missing KnownCapabilities key %q. KnownCapabilities returned : %v", v, caps.KnownCapabilities)
+				if _, ok := caps.Known[v]; !ok {
+					t.Errorf("Missing Known key %q. Known returned : %v", v, caps.Known)
 				}
 			}
-			if len(caps.EnabledCapabilities) != len(test.wantEnabledKeys) {
-				t.Errorf("Incorrect number of EnabledCapabilities keys, wanted: %q. EnabledCapabilities returned: %v", test.wantEnabledKeys, caps.EnabledCapabilities)
+			if len(caps.Enabled) != len(test.wantEnabledKeys) {
+				t.Errorf("Incorrect number of Enabled keys, wanted: %q. Enabled returned: %v", test.wantEnabledKeys, caps.Enabled)
 			}
 			for _, v := range test.wantEnabledKeys {
-				if _, ok := caps.EnabledCapabilities[v]; !ok {
-					t.Errorf("Missing EnabledCapabilities key %q. EnabledCapabilities returned : %v", v, caps.EnabledCapabilities)
+				if _, ok := caps.Enabled[v]; !ok {
+					t.Errorf("Missing Enabled key %q. Enabled returned : %v", v, caps.Enabled)
 				}
 			}
 		})
@@ -130,11 +133,10 @@ func TestSetCapabilities(t *testing.T) {
 
 func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 	tests := []struct {
-		name          string
-		config        *configv1.ClusterVersion
-		wantImplicit  []string
-		priorEnabled  map[configv1.ClusterVersionCapability]struct{}
-		alwaysEnabled map[configv1.ClusterVersionCapability]struct{}
+		name         string
+		config       *configv1.ClusterVersion
+		wantImplicit sets.Set[configv1.ClusterVersionCapability]
+		priorEnabled []configv1.ClusterVersionCapability
 	}{
 		{name: "set baseline capabilities with additional",
 			config: &configv1.ClusterVersion{
@@ -144,50 +146,15 @@ func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 					},
 				},
 			},
-			priorEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			wantImplicit: []string{"cap1", "cap2", "cap3"},
-		},
-		{name: "set baseline capabilities with always enabled",
-			config: &configv1.ClusterVersion{
-				Spec: configv1.ClusterVersionSpec{
-					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
-						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetCurrent,
-					},
-				},
-			},
-			alwaysEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			wantImplicit:  []string{"cap1", "cap2", "cap3"},
-		},
-		{name: "set baseline capabilities with additional and always enabled",
-			config: &configv1.ClusterVersion{
-				Spec: configv1.ClusterVersionSpec{
-					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
-						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetCurrent,
-					},
-				},
-			},
-			priorEnabled:  map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}},
-			alwaysEnabled: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap4": {}},
-			wantImplicit:  []string{"cap1", "cap2", "cap3", "cap4"},
+			priorEnabled: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3", "cap2"},
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3"),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, test.priorEnabled, test.alwaysEnabled)
-			if len(caps.ImplicitlyEnabledCapabilities) != len(test.wantImplicit) {
-				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %q. ImplicitlyEnabledCapabilities returned: %v", test.wantImplicit, caps.ImplicitlyEnabledCapabilities)
-			}
-			for _, wanted := range test.wantImplicit {
-				found := false
-				for _, have := range caps.ImplicitlyEnabledCapabilities {
-					if wanted == string(have) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Missing ImplicitlyEnabledCapabilities key %q. ImplicitlyEnabledCapabilities returned : %v", wanted, caps.ImplicitlyEnabledCapabilities)
-				}
+			caps := SetCapabilities(test.config, test.priorEnabled)
+			if diff := cmp.Diff(test.wantImplicit, caps.ImplicitlyEnabled); diff != "" {
+				t.Errorf("%s: wantImplicit differs from expected:\n%s", test.name, diff)
 			}
 		})
 	}
@@ -201,8 +168,8 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 	}{
 		{name: "empty capabilities",
 			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{},
+				Known:   sets.New[configv1.ClusterVersionCapability](),
+				Enabled: sets.New[configv1.ClusterVersionCapability](),
 			},
 			wantStatus: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: []configv1.ClusterVersionCapability{},
@@ -211,8 +178,8 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 		},
 		{name: "capabilities",
 			caps: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{configv1.ClusterVersionCapabilityOpenShiftSamples: {}},
+				Known:   sets.New[configv1.ClusterVersionCapability](configv1.ClusterVersionCapabilityOpenShiftSamples),
+				Enabled: sets.New[configv1.ClusterVersionCapability](configv1.ClusterVersionCapabilityOpenShiftSamples),
 			},
 			wantStatus: configv1.ClusterVersionCapabilitiesStatus{
 				EnabledCapabilities: []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityOpenShiftSamples},
@@ -224,7 +191,7 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			config := GetCapabilitiesStatus(test.caps)
 			if len(config.KnownCapabilities) != len(test.wantStatus.KnownCapabilities) {
-				t.Errorf("Incorrect number of KnownCapabilities keys, wanted: %q. KnownCapabilities returned: %v",
+				t.Errorf("Incorrect number of Known keys, wanted: %q. Known returned: %v",
 					test.wantStatus.KnownCapabilities, config.KnownCapabilities)
 			}
 			for _, v := range test.wantStatus.KnownCapabilities {
@@ -235,12 +202,12 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 						break
 					}
 					if !vFound {
-						t.Errorf("Missing KnownCapabilities key %q. KnownCapabilities returned : %v", v, config.KnownCapabilities)
+						t.Errorf("Missing Known key %q. Known returned : %v", v, config.KnownCapabilities)
 					}
 				}
 			}
 			if len(config.EnabledCapabilities) != len(test.wantStatus.EnabledCapabilities) {
-				t.Errorf("Incorrect number of EnabledCapabilities keys, wanted: %q. EnabledCapabilities returned: %v",
+				t.Errorf("Incorrect number of Enabled keys, wanted: %q. Enabled returned: %v",
 					test.wantStatus.EnabledCapabilities, config.EnabledCapabilities)
 			}
 			for _, v := range test.wantStatus.EnabledCapabilities {
@@ -251,7 +218,7 @@ func TestGetCapabilitiesStatus(t *testing.T) {
 						break
 					}
 					if !vFound {
-						t.Errorf("Missing EnabledCapabilities key %q. EnabledCapabilities returned : %v", v, config.EnabledCapabilities)
+						t.Errorf("Missing Enabled key %q. Enabled returned : %v", v, config.EnabledCapabilities)
 					}
 				}
 			}
@@ -273,20 +240,14 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 				configv1.ClusterVersionCapability("cap4"),
 			},
 			capabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{
-					configv1.ClusterVersionCapability("cap1"),
-				},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3", "cap4", "cap5"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
 			wantCapabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}, "cap5": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}, "cap3": {}, "cap4": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{
-					configv1.ClusterVersionCapability("cap2"),
-					configv1.ClusterVersionCapability("cap3"),
-					configv1.ClusterVersionCapability("cap4"),
-				},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3", "cap4", "cap5"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3", "cap4"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2", "cap3", "cap4"),
 			},
 		},
 		{name: "already enabled capability",
@@ -294,28 +255,24 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 				configv1.ClusterVersionCapability("cap2"),
 			},
 			capabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
 			},
 			wantCapabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{
-					configv1.ClusterVersionCapability("cap2"),
-				},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 		},
 		{name: "no implicitly enabled capabilities",
 			capabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{
-					configv1.ClusterVersionCapability("cap2"),
-				},
+				Known:             sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap1"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 			wantCapabilities: ClusterCapabilities{
-				KnownCapabilities:   map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Known:   sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
 		},
 	}
@@ -332,79 +289,68 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 	tests := []struct {
 		name           string
-		enabledManCaps []configv1.ClusterVersionCapability
-		updatedManCaps []configv1.ClusterVersionCapability
+		enabledManCaps sets.Set[configv1.ClusterVersionCapability]
+		updatedManCaps sets.Set[configv1.ClusterVersionCapability]
 		capabilities   ClusterCapabilities
-		wantImplicit   []string
+		wantImplicit   sets.Set[configv1.ClusterVersionCapability]
 	}{
 		{name: "implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
-			wantImplicit: []string{"cap2"},
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{name: "no prior caps, implicitly enabled capability",
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
-			wantImplicit:   []string{"cap2"},
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
+			wantImplicit:   sets.New[configv1.ClusterVersionCapability]("cap2"),
 		},
 		{name: "multiple implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap4", "cap5", "cap6"},
-			wantImplicit:   []string{"cap4", "cap5", "cap6"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap4", "cap5", "cap6"),
+			wantImplicit:   sets.New[configv1.ClusterVersionCapability]("cap4", "cap5", "cap6"),
 		},
 		{name: "no implicitly enable capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap3"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap1"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap3"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			capabilities: ClusterCapabilities{
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}},
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1"),
 			},
 		},
 		{name: "prior cap, no updated caps, no implicitly enabled capability",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
 		},
 		{name: "no implicitly enable capability, already enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1", "cap2"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap1": {}, "cap2": {}},
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2"),
 			},
 		},
 		{name: "no implicitly enable capability, new cap but already enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
-				EnabledCapabilities: map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
+				Enabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 		},
-		{name: "no implicitly enable capability, already implcitly enabled",
-			enabledManCaps: []configv1.ClusterVersionCapability{"cap1"},
-			updatedManCaps: []configv1.ClusterVersionCapability{"cap2"},
+		{name: "no implicitly enable capability, already implicitly enabled",
+			enabledManCaps: sets.New[configv1.ClusterVersionCapability]("cap1"),
+			updatedManCaps: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			capabilities: ClusterCapabilities{
-				EnabledCapabilities:           map[configv1.ClusterVersionCapability]struct{}{"cap2": {}},
-				ImplicitlyEnabledCapabilities: []configv1.ClusterVersionCapability{"cap2"},
+				Enabled:           sets.New[configv1.ClusterVersionCapability]("cap2"),
+				ImplicitlyEnabled: sets.New[configv1.ClusterVersionCapability]("cap2"),
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			caps := GetImplicitlyEnabledCapabilities(test.enabledManCaps, test.updatedManCaps, test.capabilities)
-			if len(caps) != len(test.wantImplicit) {
-				t.Errorf("Incorrect number of implicitly enabled keys, wanted: %d. Implicitly enabled capabilities returned: %v", len(test.wantImplicit), caps)
+			if diff := cmp.Diff(test.wantImplicit, caps); diff != "" {
+				t.Errorf("%s: wantImplicit differs from expected:\n%s", test.name, diff)
 			}
-			for _, wanted := range test.wantImplicit {
-				found := false
-				for _, have := range caps {
-					if wanted == string(have) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Missing implicitly enabled capability %q. Implicitly enabled capabilities returned : %v", wanted, caps)
-				}
-			}
+
 		})
 	}
 }

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -16,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
@@ -268,7 +271,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	// so that we don't fail, then immediately start reporting an earlier status
 	reporter := &statusWrapper{w: w, previousStatus: w.status.DeepCopy()}
 
-	implicitlyEnabledCaps := work.Capabilities.ImplicitlyEnabledCapabilities
+	implicitlyEnabledCaps := capability.SortedList(work.Capabilities.ImplicitlyEnabled)
 
 	desired := configv1.Update{
 		Version: work.Desired.Version,
@@ -411,8 +414,8 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
 		}
 		if w.payload != nil {
-			implicitlyEnabledCaps = payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
-				work.Capabilities)
+			implicitlyEnabledCaps = capability.SortedList(payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
+				work.Capabilities))
 		}
 		w.payload = payloadUpdate
 		msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
@@ -466,16 +469,16 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		Overrides:  config.Spec.Overrides,
 	}
 
-	var priorCaps map[configv1.ClusterVersionCapability]struct{}
+	var priorCaps sets.Set[configv1.ClusterVersionCapability]
 
 	// The sync worker’s generation should always be latest with every change.
 	// If this is the first time through initialize priorCaps to the last known value of enabled capabilities.
 	if w.work != nil {
 		w.work.Generation = generation
-		priorCaps = w.work.Capabilities.EnabledCapabilities
+		priorCaps = w.work.Capabilities.Enabled
 	} else {
 		klog.V(2).Info("Initializing prior known value of enabled capabilities from ClusterVersion status.")
-		priorCaps = capability.GetCapabilitiesAsMap(config.Status.Capabilities.EnabledCapabilities)
+		priorCaps = sets.New[configv1.ClusterVersionCapability](config.Status.Capabilities.EnabledCapabilities...)
 	}
 
 	if work.Empty() {
@@ -483,13 +486,15 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	work.Capabilities = capability.SetCapabilities(config, priorCaps, capability.GetCapabilitiesAsMap(w.alwaysEnableCapabilities))
+	// ensureEnabledCapabilities includes both explicitly and implicitly enabled capabilities
+	ensureEnabledCapabilities := append(slices.Collect(maps.Keys(priorCaps)), w.alwaysEnableCapabilities...)
+	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities)
 
 	versionEqual, overridesEqual, capabilitiesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
 
 	// needs to be set here since changes in implicitly enabled capabilities are not considered a "capabilities change"
-	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = work.Capabilities.ImplicitlyEnabledCapabilities
+	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = capability.SortedList(work.Capabilities.ImplicitlyEnabled)
 
 	if versionEqual && overridesEqual && capabilitiesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
@@ -549,7 +554,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	// Update capabilities settings and status to include any capabilities that were implicitly enabled due
 	// to previously managed resources.
 	w.work.Capabilities = capability.SetFromImplicitlyEnabledCapabilities(implicit, w.work.Capabilities)
-	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = w.work.Capabilities.ImplicitlyEnabledCapabilities
+	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = capability.SortedList(w.work.Capabilities.ImplicitlyEnabled)
 	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 
 	// Update syncWorker status with architecture of newly loaded payload.
