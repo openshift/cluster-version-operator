@@ -94,6 +94,13 @@ func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condit
 			},
 			Conditions: []metav1.Condition{
 				{
+					Type:               "recommended/FourFiveSix",
+					Status:             metav1.ConditionFalse,
+					Reason:             "FourFiveSix",
+					Message:            "Four Five Five is just fine https://example.com/" + to,
+					LastTransitionTime: metav1.Now(),
+				},
+				{
 					Type:               "Recommended",
 					Status:             metav1.ConditionFalse,
 					Reason:             "FourFiveSix",
@@ -234,8 +241,10 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			availableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
 			optr.availableUpdates = availableUpdates
 			optr.availableUpdates.ConditionalUpdates = conditionalUpdates
-			expectedConditions := []metav1.Condition{{}}
-			conditionalUpdates[0].Conditions[0].DeepCopyInto(&expectedConditions[0])
+			expectedConditions := make([]metav1.Condition, 0, len(conditionalUpdates[0].Conditions))
+			for _, condition := range conditionalUpdates[0].Conditions {
+				expectedConditions = append(expectedConditions, *condition.DeepCopy())
+			}
 			cv := cvFixture.DeepCopy()
 			tc.modifyOriginalState(optr)
 			tc.modifyCV(cv, conditionalUpdates[0])
@@ -269,16 +278,16 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 		name       string
 		risks      []configv1.ConditionalUpdateRisk
 		mockPromql clusterconditions.Condition
-		expected   metav1.Condition
+		expected   []metav1.Condition
 	}{
 		{
 			name: "no risks",
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
-			},
+			}},
 		},
 		{
 			name: "one risk that does not match",
@@ -294,12 +303,12 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: false, Error: nil}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
-			},
+			}},
 		},
 		{
 			name: "one risk that matches",
@@ -315,12 +324,17 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
+				Type:    "recommended/RiskThatApplies",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RiskThatApplies",
+				Message: "This is a risk! https://match.es",
+			}, {
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  "RiskThatApplies",
 				Message: "This is a risk! https://match.es",
-			},
+			}},
 		},
 		{
 			name: "matching risk with name that cannot be used as a condition reason",
@@ -336,12 +350,17 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
+				Type:    "recommended/RISKTHATAPPLIES",
+				Status:  metav1.ConditionFalse,
+				Reason:  recommendedReasonExposed,
+				Message: "This is a risk! https://match.es",
+			}, {
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  recommendedReasonExposed,
 				Message: "This is a risk! https://match.es",
-			},
+			}},
 		},
 		{
 			name: "two risks that match",
@@ -363,12 +382,22 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil, nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: true, Error: nil}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
+				Type:    "recommended/RiskThatApplies",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RiskThatApplies",
+				Message: "This is a risk! https://match.es",
+			}, {
+				Type:    "recommended/RiskThatAppliesToo",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RiskThatAppliesToo",
+				Message: "This is a risk too! https://match.es/too",
+			}, {
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  recommendedReasonMultiple,
 				Message: "This is a risk! https://match.es\n\nThis is a risk too! https://match.es/too",
-			},
+			}},
 		},
 		{
 			name: "first risk matches, second fails to evaluate",
@@ -390,7 +419,19 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil, nil},
 				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: errors.New("ERROR")}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
+				Type:    "recommended/RiskThatApplies",
+				Status:  metav1.ConditionFalse,
+				Reason:  "RiskThatApplies",
+				Message: "This is a risk! https://match.es",
+			}, {
+				Type:   "recommended/RiskThatFailsToEvaluate",
+				Status: metav1.ConditionUnknown,
+				Reason: recommendedReasonEvaluationFailed,
+				Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
+					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
+					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
+			}, {
 				Type:   "Recommended",
 				Status: metav1.ConditionFalse,
 				Reason: recommendedReasonMultiple,
@@ -398,7 +439,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					"Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
 					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
-			},
+			}},
 		},
 		{
 			name: "one risk that fails to evaluate",
@@ -414,14 +455,21 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				ValidQueue: []error{nil},
 				MatchQueue: []mock.MatchResult{{Match: false, Error: errors.New("ERROR")}},
 			},
-			expected: metav1.Condition{
+			expected: []metav1.Condition{{
+				Type:   "recommended/RiskThatFailsToEvaluate",
+				Status: metav1.ConditionUnknown,
+				Reason: recommendedReasonEvaluationFailed,
+				Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
+					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
+					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
+			}, {
 				Type:   "Recommended",
 				Status: metav1.ConditionUnknown,
 				Reason: recommendedReasonEvaluationFailed,
 				Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n" +
 					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
-			},
+			}},
 		},
 	}
 	for _, tc := range testcases {
