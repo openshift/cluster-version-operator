@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math/rand"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -483,7 +485,9 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		return w.status.DeepCopy()
 	}
 
-	work.Capabilities = capability.SetCapabilities(config, priorCaps, capability.GetCapabilitiesAsMap(w.alwaysEnableCapabilities))
+	// ensureEnabledCapabilities includes both explicitly and implicitly enabled capabilities
+	ensureEnabledCapabilities := append(slices.Collect(maps.Keys(priorCaps)), w.alwaysEnableCapabilities...)
+	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities)
 
 	versionEqual, overridesEqual, capabilitiesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))

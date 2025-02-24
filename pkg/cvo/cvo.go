@@ -37,7 +37,6 @@ import (
 	"github.com/openshift/library-go/pkg/verify/store/configmap"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 
-	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
@@ -288,7 +287,7 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFe
 	}
 
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, string(startingRequiredFeatureSet),
-		optr.clusterProfile, capability.GetKnownCapabilities())
+		optr.clusterProfile, configv1.KnownClusterVersionCapabilities)
 
 	if err != nil {
 		return nil, fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
