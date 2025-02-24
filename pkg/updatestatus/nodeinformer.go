@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	kubeinformers "k8s.io/client-go/informers"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -88,7 +89,14 @@ func newNodeInformerController(
 	return controller
 }
 
+var once sync.Once
+
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
+	// Warm up controller's caches.
+	// This has to be called after informers caches have been synced and before the first event comes in.
+	// The existing openshift-library does not provide such a hook.
+	once.Do(c.initializeCachesNoErrors)
+
 	queueKey := syncCtx.QueueKey()
 	klog.V(4).Infof("NI :: Syncing with key %s", queueKey)
 
@@ -194,6 +202,37 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	return nil
 }
 
+func (c *nodeInformerController) initializeCachesNoErrors() {
+	if err := c.initializeCaches(); err != nil {
+		klog.Errorf("Failed to initialize caches: %v", err)
+	}
+}
+
+func (c *nodeInformerController) initializeCaches() error {
+	var errs []error
+
+	if pools, err := c.machineConfigPools.List(labels.Everything()); err != nil {
+		errs = append(errs, err)
+	} else {
+		for _, pool := range pools {
+			c.machineConfigPoolSelectorCache.ingest(pool)
+		}
+	}
+	klog.V(2).Infof("Stored %d machineConfigPools in the cache", c.machineConfigPoolSelectorCache.len())
+
+	machineConfigs, err := c.machineConfigs.List(labels.Everything())
+	if err != nil {
+		errs = append(errs, err)
+	} else {
+		for _, mc := range machineConfigs {
+			c.machineConfigVersionCache.ingest(mc)
+		}
+	}
+	klog.V(2).Infof("Stored %d machineConfig versions in the cache", c.machineConfigVersionCache.len())
+
+	return kutilerrors.NewAggregate(errs)
+}
+
 type machineConfigVersionCache struct {
 	cache map[string]string
 	lock  sync.Mutex
@@ -238,6 +277,12 @@ func (c *machineConfigVersionCache) match(config string) (string, bool) {
 	defer c.lock.Unlock()
 	v, ok := c.cache[config]
 	return v, ok
+}
+
+func (c *machineConfigVersionCache) len() int {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	return len(c.cache)
 }
 
 type machineConfigPoolSelectorCache struct {

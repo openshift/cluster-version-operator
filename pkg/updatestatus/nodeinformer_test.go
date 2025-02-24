@@ -13,10 +13,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	corelistersv1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	machineconfigv1 "github.com/openshift/api/machineconfiguration/v1"
@@ -148,32 +146,6 @@ func getMCP(name string) *machineconfigv1.MachineConfigPool {
 			},
 		}
 	}
-}
-
-func (c *nodeInformerController) initializeCaches() error {
-	var errs []error
-
-	if pools, err := c.machineConfigPools.List(labels.Everything()); err != nil {
-		errs = append(errs, err)
-	} else {
-		for _, pool := range pools {
-			c.machineConfigPoolSelectorCache.ingest(pool)
-		}
-	}
-	klog.V(2).Infof("Stored %d machineConfigPools in the cache", len(c.machineConfigPoolSelectorCache.cache))
-
-	machineConfigs, err := c.machineConfigs.List(labels.Everything())
-	if err != nil {
-		errs = append(errs, err)
-	} else {
-		for _, mc := range machineConfigs {
-			c.machineConfigVersionCache.ingest(mc)
-		}
-	}
-
-	klog.V(2).Infof("Stored %d machineConfig versions in the cache", len(c.machineConfigVersionCache.cache))
-
-	return kerrors.NewAggregate(errs)
 }
 
 func Test_whichMCP(t *testing.T) {
