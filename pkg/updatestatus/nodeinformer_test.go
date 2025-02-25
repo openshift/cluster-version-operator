@@ -21,7 +21,7 @@ import (
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
