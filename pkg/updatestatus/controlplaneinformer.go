@@ -21,8 +21,8 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 )
 
 // controlPlaneInformerController is the controller that monitors health of the control plane-related resources
