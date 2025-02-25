@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	corev1 "k8s.io/api/core/v1"
+
+	// corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/util/workqueue"
@@ -26,45 +28,53 @@ func Test_updateStatusController(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		controllerConfigMap *corev1.ConfigMap
-		unknownExpirations  map[string]insightExpirations
+		before *updateStatusApi
 
 		informerMsg []informerMsg
 
-		expectedControllerConfigMap *corev1.ConfigMap
-		expectedUnknownExpirations  map[string]insightExpirations
+		expected *updateStatusApi
 	}{
 		{
-			name:                        "no messages, no state -> no state",
-			controllerConfigMap:         nil,
-			informerMsg:                 []informerMsg{},
-			expectedControllerConfigMap: nil,
+			name:        "no messages, no state -> no state",
+			before:      &updateStatusApi{cm: nil},
+			informerMsg: []informerMsg{},
+			expected:    &updateStatusApi{cm: nil},
 		},
 		{
 			name: "no messages, empty state -> empty state",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{},
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{},
+				},
 			},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{},
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{},
+				},
 			},
 		},
 		{
 			name: "no messages, state -> unchanged state",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.cpi.cv-version": "value",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.cpi.cv-version": "value",
+					},
 				},
 			},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.cpi.cv-version": "value",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.cpi.cv-version": "value",
+					},
 				},
 			},
 		},
 		{
-			name:                "one message, no state -> initialize from message",
-			controllerConfigMap: nil,
+			name: "one message, no state -> initialize from message",
+			before: &updateStatusApi{
+				cm: nil,
+			},
 			informerMsg: []informerMsg{
 				{
 					informer: "cpi",
@@ -72,18 +82,22 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  []byte("value"),
 				},
 			},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.cpi.cv-version": "value",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.cpi.cv-version": "value",
+					},
 				},
 			},
 		},
 		{
 			name: "messages over time build state over old state",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.cpi.kept":        "kept",
-					"usc.cpi.overwritten": "old",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.cpi.kept":        "kept",
+						"usc.cpi.overwritten": "old",
+					},
 				},
 			},
 			informerMsg: []informerMsg{
@@ -112,17 +126,20 @@ func Test_updateStatusController(t *testing.T) {
 					knownInsights: []string{"kept", "new-item", "another"},
 				},
 			},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.cpi.kept":        "kept",
-					"usc.cpi.new-item":    "msg1",
-					"usc.cpi.another":     "msg3",
-					"usc.cpi.overwritten": "msg4 (overwritten final)",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.cpi.kept":        "kept",
+						"usc.cpi.new-item":    "msg1",
+						"usc.cpi.another":     "msg3",
+						"usc.cpi.overwritten": "msg4 (overwritten final)",
+					},
 				},
 			},
 		},
 		{
-			name: "messages can come from different informers",
+			name:   "messages can come from different informers",
+			before: &updateStatusApi{},
 			informerMsg: []informerMsg{
 				{
 					informer: "one",
@@ -135,16 +152,20 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  []byte("msg from informer two"),
 				},
 			},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.item": "msg from informer one",
-					"usc.two.item": "msg from informer two",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.item": "msg from informer one",
+						"usc.two.item": "msg from informer two",
+					},
 				},
 			},
 		},
 		{
-			name:                "empty informer -> message gets dropped",
-			controllerConfigMap: nil,
+			name: "empty informer -> message gets dropped",
+			before: &updateStatusApi{
+				cm: nil,
+			},
 			informerMsg: []informerMsg{
 				{
 					informer: "",
@@ -152,11 +173,15 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  []byte("msg from informer one"),
 				},
 			},
-			expectedControllerConfigMap: nil,
+			expected: &updateStatusApi{
+				cm: nil,
+			},
 		},
 		{
-			name:                "empty uid -> message gets dropped",
-			controllerConfigMap: nil,
+			name: "empty uid -> message gets dropped",
+			before: &updateStatusApi{
+				cm: nil,
+			},
 			informerMsg: []informerMsg{
 				{
 					informer: "one",
@@ -164,11 +189,15 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  []byte("msg from informer one"),
 				},
 			},
-			expectedControllerConfigMap: nil,
+			expected: &updateStatusApi{
+				cm: nil,
+			},
 		},
 		{
-			name:                "empty insight payload -> message gets dropped",
-			controllerConfigMap: nil,
+			name: "empty insight payload -> message gets dropped",
+			before: &updateStatusApi{
+				cm: nil,
+			},
 			informerMsg: []informerMsg{
 				{
 					informer: "one",
@@ -176,11 +205,15 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  []byte{},
 				},
 			},
-			expectedControllerConfigMap: nil,
+			expected: &updateStatusApi{
+				cm: nil,
+			},
 		},
 		{
-			name:                "nil insight payload -> message gets dropped",
-			controllerConfigMap: nil,
+			name: "nil insight payload -> message gets dropped",
+			before: &updateStatusApi{
+				cm: nil,
+			},
 			informerMsg: []informerMsg{
 				{
 					informer: "one",
@@ -188,13 +221,17 @@ func Test_updateStatusController(t *testing.T) {
 					insight:  nil,
 				},
 			},
-			expectedControllerConfigMap: nil,
+			expected: &updateStatusApi{
+				cm: nil,
+			},
 		},
 		{
 			name: "unknown insight -> not removed from state immediately but set for expiration",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+					},
 				},
 			},
 			informerMsg: []informerMsg{{
@@ -203,25 +240,29 @@ func Test_updateStatusController(t *testing.T) {
 				insight:       []byte("new payload"),
 				knownInsights: nil,
 			}},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
-					"usc.one.new": "new payload",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+						"usc.one.new": "new payload",
+					},
 				},
-			},
-			expectedUnknownExpirations: map[string]insightExpirations{
-				"one": {"old": plus60sec},
+				unknownInsightExpirations: map[string]insightExpirations{
+					"one": {"old": plus60sec},
+				},
 			},
 		},
 		{
 			name: "unknown insight already set for expiration -> not removed from state while not expired yet",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+					},
 				},
-			},
-			unknownExpirations: map[string]insightExpirations{
-				"one": {"old": plus30sec},
+				unknownInsightExpirations: map[string]insightExpirations{
+					"one": {"old": plus30sec},
+				},
 			},
 			informerMsg: []informerMsg{{
 				informer:      "one",
@@ -229,25 +270,29 @@ func Test_updateStatusController(t *testing.T) {
 				insight:       []byte("new payload"),
 				knownInsights: nil,
 			}},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
-					"usc.one.new": "new payload",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+						"usc.one.new": "new payload",
+					},
 				},
-			},
-			expectedUnknownExpirations: map[string]insightExpirations{
-				"one": {"old": plus30sec},
+				unknownInsightExpirations: map[string]insightExpirations{
+					"one": {"old": plus30sec},
+				},
 			},
 		},
 		{
 			name: "previously unknown insight set for expiration is known again -> kept in state and expire dropped",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+					},
 				},
-			},
-			unknownExpirations: map[string]insightExpirations{
-				"one": {"old": minus30sec},
+				unknownInsightExpirations: map[string]insightExpirations{
+					"one": {"old": minus30sec},
+				},
 			},
 			informerMsg: []informerMsg{{
 				informer:      "one",
@@ -255,23 +300,27 @@ func Test_updateStatusController(t *testing.T) {
 				insight:       []byte("new payload"),
 				knownInsights: []string{"old"},
 			}},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
-					"usc.one.new": "new payload",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+						"usc.one.new": "new payload",
+					},
 				},
+				unknownInsightExpirations: nil,
 			},
-			expectedUnknownExpirations: nil,
 		},
 		{
 			name: "previously unknown insight expired and never became known again -> dropped from state and expire dropped",
-			controllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.old": "payload",
+			before: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.old": "payload",
+					},
 				},
-			},
-			unknownExpirations: map[string]insightExpirations{
-				"one": {"old": minus90sec},
+				unknownInsightExpirations: map[string]insightExpirations{
+					"one": {"old": minus90sec},
+				},
 			},
 			informerMsg: []informerMsg{{
 				informer:      "one",
@@ -279,34 +328,30 @@ func Test_updateStatusController(t *testing.T) {
 				insight:       []byte("new payload"),
 				knownInsights: nil,
 			}},
-			expectedControllerConfigMap: &corev1.ConfigMap{
-				Data: map[string]string{
-					"usc.one.new": "new payload",
+			expected: &updateStatusApi{
+				cm: &corev1.ConfigMap{
+					Data: map[string]string{
+						"usc.one.new": "new payload",
+					},
 				},
+				unknownInsightExpirations: nil,
 			},
-			expectedUnknownExpirations: nil,
 		},
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			kubeClient := fake.NewClientset()
 
 			controller := updateStatusController{
 				configMaps: kubeClient.CoreV1().ConfigMaps(uscNamespace),
-				now:        func() time.Time { return now },
+				state: updateStatusApi{
+					cm:                        tc.before.cm,
+					unknownInsightExpirations: tc.before.unknownInsightExpirations,
+					now:                       func() time.Time { return now },
+				},
 			}
-			controller.statusApi.Lock()
-			controller.statusApi.cm = tc.controllerConfigMap
-			for informer, expirations := range tc.unknownExpirations {
-				if controller.statusApi.unknownInsightExpirations == nil {
-					controller.statusApi.unknownInsightExpirations = make(map[string]insightExpirations)
-				}
-				controller.statusApi.unknownInsightExpirations[informer] = expirations
-			}
-			controller.statusApi.Unlock()
 
 			startInsightReceiver, sendInsight := controller.setupInsightReceiver()
 
@@ -326,12 +371,12 @@ func Test_updateStatusController(t *testing.T) {
 			var diffExpirations string
 			backoff := wait.Backoff{Duration: 5 * time.Millisecond, Factor: 2, Steps: 10}
 			if err := wait.ExponentialBackoff(backoff, func() (bool, error) {
-				controller.statusApi.Lock()
-				defer controller.statusApi.Unlock()
+				controller.state.Lock()
+				defer controller.state.Unlock()
 
-				sawProcessed = controller.statusApi.processed
-				diffConfigMap = cmp.Diff(tc.expectedControllerConfigMap, controller.statusApi.cm)
-				diffExpirations = cmp.Diff(tc.expectedUnknownExpirations, controller.statusApi.unknownInsightExpirations)
+				sawProcessed = controller.state.processed
+				diffConfigMap = cmp.Diff(tc.expected.cm, controller.state.cm)
+				diffExpirations = cmp.Diff(tc.expected.unknownInsightExpirations, controller.state.unknownInsightExpirations)
 
 				return diffConfigMap == "" && diffExpirations == "" && sawProcessed == expectedProcessed, nil
 			}); err != nil {
@@ -341,8 +386,8 @@ func Test_updateStatusController(t *testing.T) {
 				if diffExpirations != "" {
 					t.Errorf("expirations differ from expected:\n%s", diffExpirations)
 				}
-				if controller.statusApi.processed != len(tc.informerMsg) {
-					t.Errorf("controller processed %d messages, expected %d", controller.statusApi.processed, len(tc.informerMsg))
+				if controller.state.processed != len(tc.informerMsg) {
+					t.Errorf("controller processed %d messages, expected %d", controller.state.processed, len(tc.informerMsg))
 				}
 			}
 		})
