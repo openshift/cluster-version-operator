@@ -4,13 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"gopkg.in/yaml.v3"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -148,26 +145,9 @@ type insightExpirations map[string]time.Time
 type updateStatusController struct {
 	configMaps corev1client.ConfigMapInterface
 
-	// statusApi is the desired state of the status API ConfigMap. It is updated when new insights are received.
-	// Any access to the struct should be done with the lock held.
-	statusApi struct {
-		sync.Mutex
-		cm *corev1.ConfigMap
-
-		// unknownInsightExpirations is a map of informer -> map of UID -> expiration time. It is used to track insights
-		// that were reported by informers but are no longer known to them. The API keeps unknown insights until they
-		// expire. If an insight is reported as known again before it expires, it is removed from the map.
-		// TODO (muller): Needs to periodically rebuilt to avoid leaking memory
-		unknownInsightExpirations map[string]insightExpirations
-
-		// processed is the number of insights processed, used for testing
-		processed int
-	}
+	state updateStatusApi
 
 	recorder events.Recorder
-	// TODO: Get rid of this and use `clock.Clock` in all controllers, passed from start.go main function's
-	// controllercmd.ControllerContext
-	now func() time.Time
 }
 
 // newUpdateStatusController creates a new update status controller and returns it. The second return value is a function
@@ -182,7 +162,7 @@ func newUpdateStatusController(
 	c := &updateStatusController{
 		configMaps: coreClient.CoreV1().ConfigMaps(uscNamespace),
 		recorder:   uscRecorder,
-		now:        time.Now,
+		state:      updateStatusApi{now: time.Now},
 	}
 
 	startInsightReceiver, sendInsight := c.setupInsightReceiver()
@@ -211,25 +191,6 @@ func (m informerMsg) validate() error {
 	return nil
 }
 
-// processInsightMsg validates the message and if valid, updates the status API with the included
-// insight. Returns true if the message was valid and processed, false otherwise.
-func (c *updateStatusController) processInsightMsg(message informerMsg) bool {
-	c.statusApi.Lock()
-	defer c.statusApi.Unlock()
-
-	c.statusApi.processed++
-
-	if err := message.validate(); err != nil {
-		klog.Warningf("USC :: Collector :: Invalid message: %v", err)
-		return false
-	}
-	klog.Infof("USC :: Collector :: Received insight from informer %q (uid=%s)", message.informer, message.uid)
-	c.updateInsightInStatusApi(message)
-	c.removeUnknownInsights(message)
-
-	return true
-}
-
 // setupInsightReceiver creates a communication channel between informers and the update status controller, and returns
 // two methods: one to start the insight receiver (to be used as a post start hook so it called after the controller is
 // started), and one to be passed to informers to send insights to the controller.
@@ -241,7 +202,7 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 		for {
 			select {
 			case message := <-fromInformers:
-				if c.processInsightMsg(message) {
+				if c.state.processInsightMsg(message) {
 					syncCtx.Queue().Add(statusApiConfigMap)
 				}
 			case <-ctx.Done():
@@ -258,99 +219,6 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 	return startInsightReceiver, sendInsight
 }
 
-// updateInsightInStatusApi updates the status API using the message.
-// Assumes the statusApi field is locked.
-func (c *updateStatusController) updateInsightInStatusApi(msg informerMsg) {
-	if c.statusApi.cm == nil {
-		c.statusApi.cm = &corev1.ConfigMap{Data: map[string]string{}}
-	}
-
-	// Assemble the key because data is flattened in CM compared to UpdateStatus API where we would have a separate
-	// container with insights for each informer
-	cmKey := fmt.Sprintf("usc.%s.%s", msg.informer, msg.uid)
-
-	var oldContent string
-	if klog.V(4).Enabled() {
-		oldContent = c.statusApi.cm.Data[cmKey]
-	}
-
-	updatedContent := string(msg.insight)
-
-	c.statusApi.cm.Data[cmKey] = updatedContent
-
-	klog.V(2).Infof("USC :: Collector :: Updated insight in status API (uid=%s)", msg.uid)
-	if klog.V(4).Enabled() {
-		if diff := cmp.Diff(oldContent, updatedContent); diff != "" {
-			klog.Infof("USC :: Collector :: Insight (uid=%s) diff:\n%s", msg.uid, diff)
-		} else {
-			klog.Infof("USC :: Collector :: Insight (uid=%s) content did not change (len=%d)", msg.uid, len(updatedContent))
-		}
-	}
-}
-
-// removeUnknownInsights removes insights from the status API that are no longer reported as known to the informer
-// that originally reported them. The insights are kept for a grace period after they are no longer reported as known
-// and eventually dropped if they are not reported as known again within that period.
-// Assumes the statusApi field is locked.
-func (c *updateStatusController) removeUnknownInsights(message informerMsg) {
-	known := sets.New(message.knownInsights...)
-	known.Insert(message.uid)
-	informerPrefix := fmt.Sprintf("usc.%s.", message.informer)
-	for key := range c.statusApi.cm.Data {
-		if strings.HasPrefix(key, informerPrefix) {
-			uid := strings.TrimPrefix(key, informerPrefix)
-			c.handleInsightExpiration(message.informer, known.Has(uid), uid)
-		}
-	}
-
-	if len(c.statusApi.unknownInsightExpirations) > 0 && len(c.statusApi.unknownInsightExpirations[message.informer]) == 0 {
-		delete(c.statusApi.unknownInsightExpirations, message.informer)
-	}
-	if len(c.statusApi.unknownInsightExpirations) == 0 {
-		c.statusApi.unknownInsightExpirations = nil
-	}
-}
-
-// handleInsightExpiration considers potential expiration of an insight present in the API based on whether the informer
-// knows about it.
-// If the informer knows about the insight, it is not dropped from the API and any previous expiration is cancelled.
-// If the informer does not know about the insight then it is either set to expire in the future if no expiration is
-// set yet, or the expiration is checked to see whether the insight should be dropped.
-func (c *updateStatusController) handleInsightExpiration(informer string, knows bool, uid string) {
-	now := c.now()
-
-	if knows {
-		if c.statusApi.unknownInsightExpirations != nil && c.statusApi.unknownInsightExpirations[informer] != nil {
-			delete(c.statusApi.unknownInsightExpirations[informer], uid)
-		}
-		return
-	}
-
-	expireIn := now.Add(unknownInsightGracePeriod)
-	keepLog := func(expire time.Time) {
-		klog.V(2).Infof("USC :: Collector :: Keeping insight %q until %s after it is no longer reported as known by informer %q", uid, expire, informer)
-	}
-	switch {
-	// Two cases when we first consider an insight as unknown -> set expiration
-	case c.statusApi.unknownInsightExpirations == nil:
-		c.statusApi.unknownInsightExpirations = map[string]insightExpirations{informer: {uid: expireIn}}
-		keepLog(expireIn)
-	case c.statusApi.unknownInsightExpirations[informer][uid].IsZero():
-		c.statusApi.unknownInsightExpirations[informer] = insightExpirations{uid: expireIn}
-		keepLog(expireIn)
-
-	// Already set for expiration but still in grace period -> keep insight
-	case c.statusApi.unknownInsightExpirations[informer][uid].After(now):
-		keepLog(c.statusApi.unknownInsightExpirations[informer][uid])
-
-	// Already set for expiration and grace period expired -> drop insight
-	default:
-		delete(c.statusApi.unknownInsightExpirations[informer], uid)
-		delete(c.statusApi.cm.Data, fmt.Sprintf("usc.%s.%s", informer, uid))
-		klog.V(2).Infof("USC :: Collector :: Dropped insight %q because it is no longer reported as known by informer %q", uid, informer)
-	}
-}
-
 func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context) error {
 	// Check whether the CM exists and do nothing if it does not exist; we never create it, only update
 	clusterCm, err := c.configMaps.Get(ctx, statusApiConfigMap, metav1.GetOptions{})
@@ -363,36 +231,9 @@ func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context)
 		return err
 	}
 
-	c.statusApi.Lock()
-	defer c.statusApi.Unlock()
+	cm := c.state.sync(clusterCm)
 
-	if c.statusApi.cm == nil {
-		// This means we are running on a CM event before first insight arrived, otherwise internal state would exist
-		klog.V(2).Infof("USC :: No internal state known yet, setting internal state to cluster state")
-		c.statusApi.cm = clusterCm.DeepCopy()
-		return nil
-	}
-
-	// We have internal state, so we need to overwrite the cluster state with our internal state but keep items that we do
-	// not care about
-	mergedCm := clusterCm.DeepCopy()
-	for k := range mergedCm.Data {
-		if isStatusInsightKey(k) {
-			delete(mergedCm.Data, k)
-		}
-	}
-
-	for k, v := range c.statusApi.cm.Data {
-		if mergedCm.Data == nil {
-			mergedCm.Data = map[string]string{}
-		}
-		mergedCm.Data[k] = v
-	}
-
-	klog.V(2).Infof("USC :: Updating status API CM (%d insights)", len(c.statusApi.cm.Data))
-	c.statusApi.cm = mergedCm
-
-	_, err = c.configMaps.Update(ctx, c.statusApi.cm, metav1.UpdateOptions{})
+	_, err = c.configMaps.Update(ctx, cm, metav1.UpdateOptions{})
 	return err
 }
 
