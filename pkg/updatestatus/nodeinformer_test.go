@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -1092,14 +1090,10 @@ func Test_sync_with_node(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: nodesInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  nodesInformerName,
+					uid:       uid,
+					wpInsight: insight.DeepCopy(),
 				})
 			}
 

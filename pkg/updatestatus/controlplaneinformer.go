@@ -166,11 +166,7 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 	}
 
 	for _, msg := range msgs {
-		var msgForLog string
-		if klog.V(4).Enabled() {
-			msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
-		}
-		klog.V(2).Infof("CPI :: Syncing %s %s%s", t, name, msgForLog)
+		klog.V(2).Infof("CPI :: Syncing %s %s", t, name)
 		c.sendInsight(msg)
 	}
 

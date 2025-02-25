@@ -67,7 +67,12 @@ func (c *updateStatusApi) updateInsightInStatusApi(msg informerMsg) {
 		oldContent = c.cm.Data[cmKey]
 	}
 
-	updatedContent := string(msg.insight)
+	var updatedContent string
+	if msg.cpInsight != nil {
+		updatedContent = fmt.Sprintf("%s from %s", msg.cpInsight.UID, msg.informer)
+	} else {
+		updatedContent = fmt.Sprintf("%s from %s", msg.wpInsight.UID, msg.informer)
+	}
 
 	c.cm.Data[cmKey] = updatedContent
 

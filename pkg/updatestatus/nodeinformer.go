@@ -141,11 +141,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
-	var msgForLog string
-	if klog.V(4).Enabled() {
-		msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
-	}
-	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
+	klog.V(2).Infof("NI :: Syncing %s %s", t, name)
 	c.sendInsight(msg)
 	return nil
 }

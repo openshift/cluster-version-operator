@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 
 	// corev1 "k8s.io/api/core/v1"
@@ -77,15 +78,15 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			informerMsg: []informerMsg{
 				{
-					informer: "cpi",
-					uid:      "cv-version",
-					insight:  []byte("value"),
+					informer:  "cpi",
+					uid:       "cv-version",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: "cv-version"},
 				},
 			},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
-						"usc.cpi.cv-version": "value",
+						"usc.cpi.cv-version": "cv-version from cpi",
 					},
 				},
 			},
@@ -104,25 +105,25 @@ func Test_updateStatusController(t *testing.T) {
 				{
 					informer:      "cpi",
 					uid:           "new-item",
-					insight:       []byte("msg1"),
+					cpInsight:     &updatestatus.ControlPlaneInsight{UID: "new-item"},
 					knownInsights: []string{"kept", "overwritten"},
 				},
 				{
 					informer:      "cpi",
 					uid:           "overwritten",
-					insight:       []byte("msg2 (overwritten intermediate)"),
+					cpInsight:     &updatestatus.ControlPlaneInsight{UID: "overwritten"},
 					knownInsights: []string{"kept", "new-item"},
 				},
 				{
 					informer:      "cpi",
 					uid:           "another",
-					insight:       []byte("msg3"),
+					cpInsight:     &updatestatus.ControlPlaneInsight{UID: "another"},
 					knownInsights: []string{"kept", "overwritten", "new-item"},
 				},
 				{
 					informer:      "cpi",
 					uid:           "overwritten",
-					insight:       []byte("msg4 (overwritten final)"),
+					cpInsight:     &updatestatus.ControlPlaneInsight{UID: "overwritten"},
 					knownInsights: []string{"kept", "new-item", "another"},
 				},
 			},
@@ -130,9 +131,9 @@ func Test_updateStatusController(t *testing.T) {
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
 						"usc.cpi.kept":        "kept",
-						"usc.cpi.new-item":    "msg1",
-						"usc.cpi.another":     "msg3",
-						"usc.cpi.overwritten": "msg4 (overwritten final)",
+						"usc.cpi.new-item":    "new-item from cpi",
+						"usc.cpi.another":     "another from cpi",
+						"usc.cpi.overwritten": "overwritten from cpi",
 					},
 				},
 			},
@@ -142,21 +143,27 @@ func Test_updateStatusController(t *testing.T) {
 			before: &updateStatusApi{},
 			informerMsg: []informerMsg{
 				{
-					informer: "one",
-					uid:      "item",
-					insight:  []byte("msg from informer one"),
+					informer:  "one",
+					uid:       "item",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: "item"},
 				},
 				{
-					informer: "two",
-					uid:      "item",
-					insight:  []byte("msg from informer two"),
+					informer:  "two",
+					uid:       "item",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: "item"},
+				},
+				{
+					informer:  "three",
+					uid:       "item",
+					wpInsight: &updatestatus.WorkerPoolInsight{UID: "item"},
 				},
 			},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
-						"usc.one.item": "msg from informer one",
-						"usc.two.item": "msg from informer two",
+						"usc.one.item":   "item from one",
+						"usc.two.item":   "item from two",
+						"usc.three.item": "item from three",
 					},
 				},
 			},
@@ -168,9 +175,9 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			informerMsg: []informerMsg{
 				{
-					informer: "",
-					uid:      "item",
-					insight:  []byte("msg from informer one"),
+					informer:  "",
+					uid:       "item",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: "item"},
 				},
 			},
 			expected: &updateStatusApi{
@@ -184,25 +191,9 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			informerMsg: []informerMsg{
 				{
-					informer: "one",
-					uid:      "",
-					insight:  []byte("msg from informer one"),
-				},
-			},
-			expected: &updateStatusApi{
-				cm: nil,
-			},
-		},
-		{
-			name: "empty insight payload -> message gets dropped",
-			before: &updateStatusApi{
-				cm: nil,
-			},
-			informerMsg: []informerMsg{
-				{
-					informer: "one",
-					uid:      "item",
-					insight:  []byte{},
+					informer:  "one",
+					uid:       "",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: ""},
 				},
 			},
 			expected: &updateStatusApi{
@@ -216,9 +207,27 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			informerMsg: []informerMsg{
 				{
-					informer: "one",
-					uid:      "item",
-					insight:  nil,
+					informer:  "one",
+					uid:       "item",
+					cpInsight: nil,
+					wpInsight: nil,
+				},
+			},
+			expected: &updateStatusApi{
+				cm: nil,
+			},
+		},
+		{
+			name: "both cp & wp insights payload -> message gets dropped",
+			before: &updateStatusApi{
+				cm: nil,
+			},
+			informerMsg: []informerMsg{
+				{
+					informer:  "one",
+					uid:       "item",
+					cpInsight: &updatestatus.ControlPlaneInsight{UID: "item"},
+					wpInsight: &updatestatus.WorkerPoolInsight{UID: "item"},
 				},
 			},
 			expected: &updateStatusApi{
@@ -237,14 +246,14 @@ func Test_updateStatusController(t *testing.T) {
 			informerMsg: []informerMsg{{
 				informer:      "one",
 				uid:           "new",
-				insight:       []byte("new payload"),
+				cpInsight:     &updatestatus.ControlPlaneInsight{UID: "item"},
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
 						"usc.one.old": "payload",
-						"usc.one.new": "new payload",
+						"usc.one.new": "item from one",
 					},
 				},
 				unknownInsightExpirations: map[string]insightExpirations{
@@ -267,14 +276,14 @@ func Test_updateStatusController(t *testing.T) {
 			informerMsg: []informerMsg{{
 				informer:      "one",
 				uid:           "new",
-				insight:       []byte("new payload"),
+				cpInsight:     &updatestatus.ControlPlaneInsight{UID: "item"},
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
 						"usc.one.old": "payload",
-						"usc.one.new": "new payload",
+						"usc.one.new": "item from one",
 					},
 				},
 				unknownInsightExpirations: map[string]insightExpirations{
@@ -297,14 +306,14 @@ func Test_updateStatusController(t *testing.T) {
 			informerMsg: []informerMsg{{
 				informer:      "one",
 				uid:           "new",
-				insight:       []byte("new payload"),
+				cpInsight:     &updatestatus.ControlPlaneInsight{UID: "item"},
 				knownInsights: []string{"old"},
 			}},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
 						"usc.one.old": "payload",
-						"usc.one.new": "new payload",
+						"usc.one.new": "item from one",
 					},
 				},
 				unknownInsightExpirations: nil,
@@ -325,13 +334,13 @@ func Test_updateStatusController(t *testing.T) {
 			informerMsg: []informerMsg{{
 				informer:      "one",
 				uid:           "new",
-				insight:       []byte("new payload"),
+				cpInsight:     &updatestatus.ControlPlaneInsight{UID: "item"},
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
 				cm: &corev1.ConfigMap{
 					Data: map[string]string{
-						"usc.one.new": "new payload",
+						"usc.one.new": "item from one",
 					},
 				},
 				unknownInsightExpirations: nil,
