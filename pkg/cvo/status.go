@@ -172,7 +172,7 @@ const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccep
 // requesting via spec.capabilities, because the cluster version operator does not support uninstalling
 // capabilities if any associated resources were previously managed by the CVO or disabling previously
 // enabled capabilities.
-const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
+const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabled"
 
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
