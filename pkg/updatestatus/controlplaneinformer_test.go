@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
 	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -28,7 +27,7 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 )
 
 func newClusterVersionStatusInsightUpdating(status metav1.ConditionStatus, reason updatestatus.ClusterVersionStatusInsightUpdatingReason, message string, lastTransitionTime metav1.Time) metav1.Condition {
@@ -290,14 +289,10 @@ func Test_sync_with_cv(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: controlPlaneInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  controlPlaneInformerName,
+					uid:       uid,
+					cpInsight: insight.DeepCopy(),
 				})
 			}
 
@@ -588,14 +583,10 @@ func Test_sync_with_co(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: controlPlaneInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  controlPlaneInformerName,
+					uid:       uid,
+					cpInsight: insight.DeepCopy(),
 				})
 			}
 
