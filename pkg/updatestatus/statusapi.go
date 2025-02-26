@@ -7,9 +7,12 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift/api/update/v1alpha1"
 )
 
 // statusApi is the desired state of the status API ConfigMap. It is updated when new insights are received.
@@ -17,6 +20,7 @@ import (
 type updateStatusApi struct {
 	sync.Mutex
 	cm *corev1.ConfigMap
+	us *v1alpha1.UpdateStatus
 
 	// unknownInsightExpirations is a map of informer -> map of UID -> expiration time. It is used to track insights
 	// that were reported by informers but are no longer known to them. The API keeps unknown insights until they
@@ -149,20 +153,24 @@ func (c *updateStatusApi) handleInsightExpiration(informer string, knows bool, u
 	}
 }
 
-func (c *updateStatusApi) sync(clusterState *corev1.ConfigMap) *corev1.ConfigMap {
+func (c *updateStatusApi) sync(clusterState *v1alpha1.UpdateStatus) *v1alpha1.UpdateStatus {
 	c.Lock()
 	defer c.Unlock()
+
+	cmFromClusterState := &corev1.ConfigMap{}
 
 	if c.cm == nil {
 		// This means we are running on a CM event before first insight arrived, otherwise internal state would exist
 		klog.V(2).Infof("USC :: No internal state known yet, setting internal state to cluster state")
-		c.cm = clusterState.DeepCopy()
+		// c.cm = clusterState.DeepCopy()
+		c.cm = cmFromClusterState.DeepCopy()
 		return nil
 	}
 
 	// We have internal state, so we need to overwrite the cluster state with our internal state but keep items that we do
 	// not care about
-	mergedCm := clusterState.DeepCopy()
+	// mergedCm := clusterState.DeepCopy()
+	mergedCm := cmFromClusterState.DeepCopy()
 	for k := range mergedCm.Data {
 		if isStatusInsightKey(k) {
 			delete(mergedCm.Data, k)
@@ -179,5 +187,6 @@ func (c *updateStatusApi) sync(clusterState *corev1.ConfigMap) *corev1.ConfigMap
 	klog.V(2).Infof("USC :: Updating status API CM (%d insights)", len(c.cm.Data))
 	c.cm = mergedCm
 
-	return mergedCm.DeepCopy()
+	// return mergedCm.DeepCopy()
+	return clusterState.DeepCopy()
 }
