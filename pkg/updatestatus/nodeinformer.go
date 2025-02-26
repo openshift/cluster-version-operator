@@ -115,6 +115,11 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 	var msg informerMsg
 	switch t {
+	case eventKindName:
+		if name != eventNameReconcileAllNodes {
+			return fmt.Errorf("invalid name in queue key %s with type %s", queueKey, t)
+		}
+		return c.reconcileAllNodes(syncCtx.Queue())
 	case nodeKindName:
 		node, err := c.nodes.Get(name)
 		if err != nil {
@@ -316,6 +321,10 @@ func (c *machineConfigPoolSelectorCache) forget(mcpName string) bool {
 	return false
 }
 
+func queueKeyFoReconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) {
+	queue.Add(queueKeyFor(eventKindName, eventNameReconcileAllNodes))
+}
+
 func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
 	nodes, err := c.nodes.List(labels.Everything())
 	if err != nil {
@@ -335,15 +344,16 @@ func (c *nodeInformerController) syncMachineConfig(name string, q workqueue.Type
 	if kerrors.IsNotFound(err) {
 		// The machine config was deleted
 		if changed := c.machineConfigVersions.forget(name); changed {
-
 			klog.V(2).Infof("Reconciling all nodes as machine config %q is deleted", name)
-			return c.reconcileAllNodes(q)
+			queueKeyFoReconcileAllNodes(q)
+			return nil
 		}
 		return nil
 	}
 	if changed := c.machineConfigVersions.ingest(machineConfig); changed {
 		klog.V(2).Infof("Reconciling all nodes as machine config %q is refreshed", name)
-		return c.reconcileAllNodes(q)
+		queueKeyFoReconcileAllNodes(q)
+		return nil
 	}
 	return nil
 }
@@ -357,13 +367,15 @@ func (c *nodeInformerController) syncMachineConfigPool(name string, q workqueue.
 		// The pool was deleted
 		if changed := c.machineConfigPoolSelectorCache.forget(name); changed {
 			klog.V(2).Infof("Reconciling all nodes as machine config pool %q is deleted", name)
-			return c.reconcileAllNodes(q)
+			queueKeyFoReconcileAllNodes(q)
+			return nil
 		}
 		return nil
 	}
 	if changed := c.machineConfigPoolSelectorCache.ingest(machineConfigPool); changed {
 		klog.V(2).Infof("Reconciling all nodes as machine config pool %q is refreshed", name)
-		return c.reconcileAllNodes(q)
+		queueKeyFoReconcileAllNodes(q)
+		return nil
 	}
 	return nil
 }
@@ -580,9 +592,11 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 }
 
 const (
-	nodeKindName              = "Node"
-	machineConfigKindName     = "MachineConfig"
-	machineConfigPoolKindName = "MachineConfigPool"
+	nodeKindName               = "Node"
+	machineConfigKindName      = "MachineConfig"
+	machineConfigPoolKindName  = "MachineConfigPool"
+	eventKindName              = "Event"
+	eventNameReconcileAllNodes = "reconcileAllNodes"
 
 	nodesInformerName = "ni"
 )
@@ -600,6 +614,11 @@ func nodeInformerControllerQueueKeys(object runtime.Object) []string {
 		return nil
 	}
 	switch o := object.(type) {
+	case *corev1.Event:
+		if o.Name != eventNameReconcileAllNodes {
+			panic(fmt.Sprintf("USC :: Unknown object %s with type: %T", o.Name, object))
+		}
+		return []string{queueKeyFor(eventKindName, o.Name)}
 	case *corev1.Node:
 		return []string{queueKeyFor(nodeKindName, o.Name)}
 	case *machineconfigv1.MachineConfig:
