@@ -2,6 +2,7 @@ package updatestatus
 
 import (
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -33,6 +34,58 @@ type updateStatusApi struct {
 	// TODO: Get rid of this and use `clock.Clock` in all controllers, passed from start.go main function's
 	// controllercmd.ControllerContext
 	now func() time.Time
+}
+
+func (c *updateStatusApi) sort() {
+	if c.us == nil {
+		return
+	}
+
+	slices.SortFunc(c.us.Status.ControlPlane.Informers, func(a, b updatev1alpha1.ControlPlaneInformer) int {
+		if a.Name < b.Name {
+			return -1
+		}
+		if a.Name > b.Name {
+			return 1
+		}
+		return 0
+	})
+
+	for i := range c.us.Status.ControlPlane.Informers {
+		slices.SortFunc(c.us.Status.ControlPlane.Informers[i].Insights, func(a, b updatev1alpha1.ControlPlaneInsight) int {
+			if a.UID < b.UID {
+				return -1
+			}
+			if a.UID > b.UID {
+				return 1
+			}
+			return 0
+		})
+	}
+
+	for i := range c.us.Status.WorkerPools {
+		slices.SortFunc(c.us.Status.WorkerPools[i].Informers, func(a, b updatev1alpha1.WorkerPoolInformer) int {
+			if a.Name < b.Name {
+				return -1
+			}
+			if a.Name > b.Name {
+				return 1
+			}
+			return 0
+		})
+
+		for j := range c.us.Status.WorkerPools[i].Informers {
+			slices.SortFunc(c.us.Status.WorkerPools[i].Informers[j].Insights, func(a, b updatev1alpha1.WorkerPoolInsight) int {
+				if a.UID < b.UID {
+					return -1
+				}
+				if a.UID > b.UID {
+					return 1
+				}
+				return 0
+			})
+		}
+	}
 }
 
 // processInsightMsg validates the message and if valid, updates the status API with the included
@@ -152,7 +205,7 @@ func (c *updateStatusApi) makeKeep(informer string, known sets.Set[string]) keep
 			return true
 
 		case c.unknownInsightExpirations[informer][uid].IsZero():
-			c.unknownInsightExpirations[informer] = insightExpirations{uid: expireIn}
+			c.unknownInsightExpirations[informer][uid] = expireIn
 			logKeep(expireIn)
 			return true
 
