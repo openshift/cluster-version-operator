@@ -3,7 +3,6 @@ package updatestatus
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -109,17 +108,10 @@ func makeWorkerPoolsInsightMsg(insight updatestatus.WorkerPoolInsight, informer 
 
 type sendInsightFn func(insight informerMsg)
 
-func isStatusInsightKey(k string) bool {
-	return strings.HasPrefix(k, "usc.")
-}
-
-// insightExpirations is UID -> expiration time map
-type insightExpirations map[string]time.Time
-
-// updateStatusController is a controller that collects insights from informers and maintains a ConfigMap with the insights
-// until we have a proper UpdateStatus API. The controller maintains an internal desired content of the ConfigMap (even
-// if it does not exist in the cluster) and updates it in the cluster when new insights are received, or when the ConfigMap
-// changes in the cluster. The controller only maintains the ConfigMap in the cluster if it exists, it does not create it
+// updateStatusController is a controller that collects insights from informers and maintains the UpdateStatus API.
+// The controller maintains an internal desired content of the UpdateStatus instance (even if it does not exist in the
+// cluster) and updates it in the cluster when new insights are received, or when the UpdateStatus changes
+// in the cluster. The controller only maintains the UpdateStatus in the cluster if it exists, it does not create it
 // itself (this serves as a simple opt-in mechanism).
 //
 // The communication between informers (insight producers) and this controller is performed via a channel. The controller
@@ -127,8 +119,8 @@ type insightExpirations map[string]time.Time
 // informerMsg structure is the data transfer object.
 //
 // updateStatusController is set up to spawn the insight receiver after it is started. The receiver reads messages from
-// the channel, updates the internal state of the controller, and queues the ConfigMap to be updated in the cluster. The
-// sendInsightFn function can be used to send insights to the controller even before the insight receiver is started,
+// the channel, updates the internal state of the controller, and queues the UpdateStatus to be updated in the cluster.
+// The sendInsightFn function can be used to send insights to the controller even before the insight receiver starts,
 // but the buffered channel has limited capacity so senders can block eventually.
 //
 // NOTE: The communication mechanism was added in the initial scaffolding PR and does not aspire to be the final
@@ -213,6 +205,9 @@ func (c *updateStatusController) setupInsightReceiver() (factory.PostStartHook, 
 }
 
 func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context) error {
+	// TODO: We need to change this to:
+	//   (1) On startup, load existing API and only then start receiving insights
+	//   (2) If the API does not exist on startup, create it
 	// Check whether the CM exists and do nothing if it does not exist; we never create it, only update
 	clusterUpdateStatus, err := c.updateStatuses.Get(ctx, updateStatusResource, metav1.GetOptions{})
 	if err != nil {
