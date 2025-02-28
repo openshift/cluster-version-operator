@@ -327,6 +327,14 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		failingCondition.Reason = failingReason
 		failingCondition.Message = failingMessage
 	}
+	if failure != nil &&
+		skipFailure &&
+		progressReason == "ClusterOperatorUpdating" &&
+		strings.Contains(progressMessage, "longer than expected") {
+		failingCondition.Status = configv1.ConditionUnknown
+		failingCondition.Reason = "SlowClusterOperator"
+		failingCondition.Message = progressMessage
+	}
 	resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, failingCondition)
 
 	// update progressing
@@ -555,6 +563,16 @@ func convertErrorToProgressing(now time.Time, statusFailure error) (reason strin
 	case payload.UpdateEffectReport:
 		return uErr.Reason, uErr.Error(), false
 	case payload.UpdateEffectNone:
+		m := time.Duration(30)
+		// It takes longer to upgrade MCO
+		if uErr.Name == "machine-config" {
+			m = 3 * m
+		}
+		t := payload.COUpdateStartTimesGet(uErr.Name)
+		if (!t.IsZero()) && t.Before(now.Add(-(m * time.Minute))) {
+			// returns true because it is still only a suspicion
+			return uErr.Reason, fmt.Sprintf("waiting on %s over %d minutes which is longer than expected", uErr.Name, m), true
+		}
 		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
 	case payload.UpdateEffectFail:
 		return "", "", false
