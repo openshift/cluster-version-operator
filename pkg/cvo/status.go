@@ -327,6 +327,15 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		failingCondition.Reason = failingReason
 		failingCondition.Message = failingMessage
 	}
+	if failure != nil &&
+		skipFailure &&
+		(progressReason == "ClusterOperatorUpdating" || progressReason == "ClusterOperatorsUpdating") &&
+		strings.HasPrefix(progressMessage, slowCOUpdatePrefix) {
+		progressMessage = strings.TrimPrefix(progressMessage, slowCOUpdatePrefix)
+		failingCondition.Status = configv1.ConditionUnknown
+		failingCondition.Reason = "SlowClusterOperator"
+		failingCondition.Message = progressMessage
+	}
 	resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, failingCondition)
 
 	// update progressing
@@ -537,6 +546,8 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 	}
 }
 
+const slowCOUpdatePrefix = "Slow::"
+
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
 // progressing AND the general payload task making progress towards its goal. The error's UpdateEffect determines
@@ -555,7 +566,38 @@ func convertErrorToProgressing(now time.Time, statusFailure error) (reason strin
 	case payload.UpdateEffectReport:
 		return uErr.Reason, uErr.Error(), false
 	case payload.UpdateEffectNone:
-		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
+		var exceeded []string
+		names := uErr.Names
+		if len(names) == 0 {
+			names = []string{uErr.Name}
+		}
+		var machineConfig bool
+		for _, name := range names {
+			m := 30 * time.Minute
+			// It takes longer to upgrade MCO
+			if name == "machine-config" {
+				m = 3 * m
+			}
+			t := payload.COUpdateStartTimesGet(name)
+			if (!t.IsZero()) && t.Before(now.Add(-(m))) {
+				if name == "machine-config" {
+					machineConfig = true
+				} else {
+					exceeded = append(exceeded, name)
+				}
+			}
+		}
+		// returns true in those slow cases because it is still only a suspicion
+		if len(exceeded) > 0 && !machineConfig {
+			return uErr.Reason, fmt.Sprintf("%swaiting on %s over 30 minutes which is longer than expected", slowCOUpdatePrefix, strings.Join(exceeded, ", ")), true
+		}
+		if len(exceeded) > 0 && machineConfig {
+			return uErr.Reason, fmt.Sprintf("%swaiting on %s over 30 minutes and machine-config over 90 minutes which is longer than expected", slowCOUpdatePrefix, strings.Join(exceeded, ", ")), true
+		}
+		if len(exceeded) == 0 && machineConfig {
+			return uErr.Reason, fmt.Sprintf("%swaiting on machine-config over 90 minutes which is longer than expected", slowCOUpdatePrefix), true
+		}
+		return uErr.Reason, fmt.Sprintf("waiting on %s", strings.Join(names, ", ")), true
 	case payload.UpdateEffectFail:
 		return "", "", false
 	case payload.UpdateEffectFailAfterInterval:
