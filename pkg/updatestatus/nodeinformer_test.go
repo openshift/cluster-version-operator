@@ -210,8 +210,9 @@ func Test_whichMCP(t *testing.T) {
 
 			c := &nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
 
-			if err := initializeCaches(c); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
+			// This is to initialize the caches
+			if err := syncOnceWithAnUnrecognizableKey(c); err == nil {
+				t.Fatalf("Expected sync error did not occur")
 			}
 
 			if diff := cmp.Diff(tc.expected, c.mcpSelectors.whichMCP(tc.labels)); diff != "" {
@@ -222,11 +223,9 @@ func Test_whichMCP(t *testing.T) {
 	}
 }
 
-func initializeCaches(c *nodeInformerController) error {
-	if err := c.initializeMachineConfigVersions(); err != nil {
-		return err
-	}
-	return c.initializeMachineConfigPools()
+func syncOnceWithAnUnrecognizableKey(c *nodeInformerController) error {
+	syncOnceContext := newTestSyncContext("sync/once")
+	return c.sync(context.TODO(), syncOnceContext)
 }
 
 func Test_assessNode(t *testing.T) {
@@ -1078,10 +1077,6 @@ func Test_sync_with_node(t *testing.T) {
 				now:                func() metav1.Time { return now },
 			}
 
-			if err := initializeCaches(controller); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
-			}
-
 			queueKey := nodeInformerControllerQueueKeys(tc.node)[0]
 
 			actualErr := controller.sync(context.TODO(), newTestSyncContext(queueKey))
@@ -1136,6 +1131,12 @@ func Test_sync_with_event(t *testing.T) {
 	}
 	nodeLister := corelistersv1.NewNodeLister(nodeIndexer)
 
+	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
+
+	mcpIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
+
 	testCases := []struct {
 		name string
 
@@ -1172,8 +1173,10 @@ func Test_sync_with_event(t *testing.T) {
 			}
 
 			controller := &nodeInformerController{
-				nodes:       nodeLister,
-				sendInsight: sendInsight,
+				nodes:              nodeLister,
+				machineConfigs:     mcLister,
+				machineConfigPools: mcpLister,
+				sendInsight:        sendInsight,
 			}
 			queueKey := nodeInformerControllerQueueKeys(tc.object)[0]
 
@@ -1205,11 +1208,6 @@ func Test_sync_with_mcp(t *testing.T) {
 	now := metav1.Now()
 
 	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	for _, o := range []metav1.Object{} {
-		if err := mcIndexer.Add(o); err != nil {
-			t.Fatalf("Failed to add object to indexer: %v", err)
-		}
-	}
 	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
 
 	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
@@ -1297,8 +1295,11 @@ func Test_sync_with_mcp(t *testing.T) {
 				now:                func() metav1.Time { return now },
 			}
 
-			if err := initializeCaches(controller); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
+			if tc.mcpToRemove != "" || tc.mcpToAdd != "" {
+				// This is to initialize the caches
+				if err := syncOnceWithAnUnrecognizableKey(controller); err == nil {
+					t.Fatalf("Expected sync error did not occur")
+				}
 			}
 
 			if tc.mcpToRemove != "" {

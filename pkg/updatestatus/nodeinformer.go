@@ -40,6 +40,10 @@ type nodeInformerController struct {
 	// sendInsight should be called to send produced insights to the update status controller
 	sendInsight sendInsightFn
 
+	// once does the tasks that need to be executed once and only once at the beginning of its sync function
+	// for each nodeInformerController instance, e.g., initializing caches.
+	once sync.Once
+
 	// mcpSelectors caches the label selectors converted from the node selectors of the machine config pools by their names.
 	mcpSelectors machineConfigPoolSelectorCache
 
@@ -88,15 +92,13 @@ func newNodeInformerController(
 	return controller
 }
 
-var once sync.Once
-
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	// Warm up controller's caches.
 	// This has to be called after informers caches have been synced and before the first event comes in.
 	// The existing openshift-library does not provide such a hook.
 	// In case any error occurs during cache initialization, we can still proceed which leads to stale insights that
 	// will be corrected on the reconciliation when the caches are warmed up.
-	once.Do(func() {
+	c.once.Do(func() {
 		if err := c.initializeMachineConfigPools(); err != nil {
 			klog.Errorf("Failed to initialize machineConfigPoolSelectorCache: %v", err)
 		}
