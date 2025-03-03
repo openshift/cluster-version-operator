@@ -1118,6 +1118,82 @@ func Test_sync_with_node(t *testing.T) {
 	}
 }
 
+func Test_sync_with_event(t *testing.T) {
+
+	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "master-1"}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "worker-1"}}} {
+		if err := nodeIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add object to indexer: %v", err)
+		}
+	}
+	nodeLister := corelistersv1.NewNodeLister(nodeIndexer)
+
+	testCases := []struct {
+		name string
+
+		object runtime.Object
+
+		expectedPanic    bool
+		expectedErr      error
+		expectedQueueLen int
+	}{
+		{
+			name:             "reconcile for all nodes",
+			object:           &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "reconcileAllNodes"}},
+			expectedQueueLen: 2,
+		},
+		{
+			name:          "panic with aaa",
+			object:        &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "a"}},
+			expectedPanic: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if tc.expectedPanic {
+					if r := recover(); r == nil {
+						t.Errorf("The expected panic did not happen")
+					}
+				}
+			}()
+
+			var actualMsgs []informerMsg
+			var sendInsight sendInsightFn = func(insight informerMsg) {
+				actualMsgs = append(actualMsgs, insight)
+			}
+
+			controller := &nodeInformerController{
+				nodes:       nodeLister,
+				sendInsight: sendInsight,
+			}
+			queueKey := nodeInformerControllerQueueKeys(tc.object)[0]
+
+			syncContext := newTestSyncContext(queueKey)
+			actualErr := controller.sync(context.TODO(), syncContext)
+
+			if diff := cmp.Diff(tc.expectedErr, actualErr, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("%s: error differs from expected:\n%s", tc.name, diff)
+			}
+
+			if diff := cmp.Diff(tc.expectedQueueLen, syncContext.Queue().Len()); diff != "" {
+				t.Errorf("queue length after sync differs from expected:\n%s", diff)
+			}
+
+			var expectedMsgs []informerMsg
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_sync_with_mcp(t *testing.T) {
 	now := metav1.Now()
 
@@ -1157,7 +1233,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			},
 			pools:            []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker"), getMCP("non-exist-mcp")},
 			mcpToRemove:      "non-exist-mcp",
-			expectedQueueLen: 2,
+			expectedQueueLen: 1,
 		},
 		{
 			name: "reconcile for a new pool",
@@ -1168,7 +1244,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			},
 			pools:            []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker")},
 			mcpToAdd:         "infra",
-			expectedQueueLen: 2,
+			expectedQueueLen: 1,
 		},
 		{
 			name: "no-op if not-found",
