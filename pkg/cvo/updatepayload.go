@@ -173,15 +173,15 @@ func (r *payloadRetriever) targetUpdatePayloadDir(ctx context.Context, update co
 	if err := payload.ValidateDirectory(tdir); os.IsNotExist(err) {
 		// the dirs don't exist, try fetching the payload to tdir.
 		if err := r.fetchUpdatePayloadToDir(ctx, tdir, update); err != nil {
-			return "", err
+			return "", fmt.Errorf("fetching update payload: %s", err)
 		}
 	} else if err != nil {
-		return "", err
+		return "", fmt.Errorf("checking to see if %q already holds release-image content: %w", tdir, err)
 	}
 
 	// now that payload has been loaded check validation.
 	if err := payload.ValidateDirectory(tdir); err != nil {
-		return "", err
+		return "", fmt.Errorf("confirming the presence of release-image content in %q: %w", tdir, err)
 	}
 	return tdir, nil
 }
