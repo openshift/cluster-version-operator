@@ -428,17 +428,31 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return vi.GTE(vj)
 	})
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry)
 
-		if condition.Status == metav1.ConditionTrue {
-			u.addUpdate(conditionalUpdate.Release)
-		} else {
-			u.removeUpdate(conditionalUpdate.Release.Image)
+		conditions := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry)
+
+		knownTypes := make(map[string]struct{}, len(conditions))
+		for _, condition := range conditions {
+			knownTypes[condition.Type] = struct{}{}
+			if condition.Type == ConditionalUpdateConditionTypeRecommended {
+				if condition.Status == metav1.ConditionTrue {
+					u.addUpdate(conditionalUpdate.Release)
+				} else {
+					u.removeUpdate(conditionalUpdate.Release.Image)
+				}
+			}
+
+			meta.SetStatusCondition(&conditionalUpdate.Conditions, condition)
 		}
 
-		meta.SetStatusCondition(&conditionalUpdate.Conditions, condition)
-		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
+		for i := len(conditionalUpdate.Conditions) - 1; i >= 0; i-- {
+			conditionType := conditionalUpdate.Conditions[i].Type
+			if _, ok := knownTypes[conditionType]; !ok {
+				meta.RemoveStatusCondition(&conditionalUpdate.Conditions, conditionType)
+			}
+		}
 
+		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 	}
 }
 
@@ -491,6 +505,7 @@ const (
 // Reasons follow same pattern as k8s Condition Reasons
 // https://github.com/openshift/api/blob/59fa376de7cb668ddb95a7ee4e9879d7f6ca2767/vendor/k8s.io/apimachinery/pkg/apis/meta/v1/types.go#L1535-L1536
 var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
+var reasonAlwaysSafeCharacters = regexp.MustCompile(`[A-Za-z]`)
 
 func newRecommendedReason(now, want string) string {
 	switch {
@@ -503,7 +518,7 @@ func newRecommendedReason(now, want string) string {
 	}
 }
 
-func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) metav1.Condition {
+func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) []metav1.Condition {
 	recommended := metav1.Condition{
 		Type:   ConditionalUpdateConditionTypeRecommended,
 		Status: metav1.ConditionTrue,
@@ -511,13 +526,31 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 		Reason:  recommendedReasonRisksNotExposed,
 		Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 	}
+	conditions := make([]metav1.Condition, 0, len(risks)+1)
 
 	var errorMessages []string
 	for _, risk := range risks {
+		cleanName := risk.Name
+		if !reasonPattern.MatchString(cleanName) {
+			safeCharacters := reasonAlwaysSafeCharacters.FindAllString(cleanName, -1)
+			if len(safeCharacters) > 0 {
+				cleanName = strings.Join(safeCharacters, "")
+			} else {
+				cleanName = "UnsalvageableRiskName"
+			}
+		}
+		conditionType := fmt.Sprintf("%s/%s", strings.ToLower(ConditionalUpdateConditionTypeRecommended), cleanName)
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
 			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionUnknown)
 			recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonEvaluationFailed)
-			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
+			msg := unknownExposureMessage(risk, err)
+			errorMessages = append(errorMessages, msg)
+			conditions = append(conditions, metav1.Condition{
+				Type:    conditionType,
+				Status:  metav1.ConditionUnknown,
+				Reason:  recommendedReasonEvaluationFailed,
+				Message: msg,
+			})
 		} else if match {
 			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
 			wantReason := recommendedReasonExposed
@@ -525,14 +558,27 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 				wantReason = risk.Name
 			}
 			recommended.Reason = newRecommendedReason(recommended.Reason, wantReason)
-			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
+			msg := fmt.Sprintf("%s %s", risk.Message, risk.URL)
+			errorMessages = append(errorMessages, msg)
+			conditions = append(conditions, metav1.Condition{
+				Type:    conditionType,
+				Status:  metav1.ConditionFalse,
+				Reason:  wantReason,
+				Message: msg,
+			})
 		}
 	}
 	if len(errorMessages) > 0 {
 		recommended.Message = strings.Join(errorMessages, "\n\n")
 	}
 
-	return recommended
+	for foundTypeOverlap := true; foundTypeOverlap; {
+		foundTypeOverlap = false
+		// FIXME: add suffixes to any matching types in conditions
+	}
+
+	conditions = append(conditions, recommended)
+	return conditions
 }
 
 func injectClusterIdIntoConditionalUpdates(clusterId string, updates []configv1.ConditionalUpdate) []configv1.ConditionalUpdate {
