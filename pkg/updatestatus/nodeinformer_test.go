@@ -208,18 +208,25 @@ func Test_whichMCP(t *testing.T) {
 
 			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
 
-			c := nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
+			c := &nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
 
-			if err := c.initializeCaches(); err != nil {
+			if err := initializeCaches(c); err != nil {
 				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
-			if diff := cmp.Diff(tc.expected, c.machineConfigPoolSelectorCache.whichMCP(tc.labels)); diff != "" {
+			if diff := cmp.Diff(tc.expected, c.mcpSelectors.whichMCP(tc.labels)); diff != "" {
 				t.Errorf("%s: machine config pool differs from expected:\n%s", tc.name, diff)
 			}
 
 		})
 	}
+}
+
+func initializeCaches(c *nodeInformerController) error {
+	if err := c.initializeMachineConfigVersions(); err != nil {
+		return err
+	}
+	return c.initializeMachineConfigPools()
 }
 
 func Test_assessNode(t *testing.T) {
@@ -1062,7 +1069,7 @@ func Test_sync_with_node(t *testing.T) {
 				actualMsgs = append(actualMsgs, insight)
 			}
 
-			controller := nodeInformerController{
+			controller := &nodeInformerController{
 				nodes:              nodeLister,
 				configClient:       fakeconfigv1client.NewClientset(cv),
 				machineConfigs:     mcLister,
@@ -1071,7 +1078,7 @@ func Test_sync_with_node(t *testing.T) {
 				now:                func() metav1.Time { return now },
 			}
 
-			if err := controller.initializeCaches(); err != nil {
+			if err := initializeCaches(controller); err != nil {
 				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
@@ -1282,7 +1289,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			}
 			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
 
-			controller := nodeInformerController{
+			controller := &nodeInformerController{
 				nodes:              nodeLister,
 				machineConfigs:     mcLister,
 				machineConfigPools: mcpLister,
@@ -1290,7 +1297,7 @@ func Test_sync_with_mcp(t *testing.T) {
 				now:                func() metav1.Time { return now },
 			}
 
-			if err := controller.initializeCaches(); err != nil {
+			if err := initializeCaches(controller); err != nil {
 				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
