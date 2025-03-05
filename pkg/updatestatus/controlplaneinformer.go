@@ -21,8 +21,8 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
 )
 
 // controlPlaneInformerController is the controller that monitors health of the control plane-related resources
@@ -166,11 +166,7 @@ func (c *controlPlaneInformerController) sync(ctx context.Context, syncCtx facto
 	}
 
 	for _, msg := range msgs {
-		var msgForLog string
-		if klog.V(4).Enabled() {
-			msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
-		}
-		klog.V(2).Infof("CPI :: Syncing %s %s%s", t, name, msgForLog)
+		klog.V(2).Infof("CPI :: Syncing %s %s", t, name)
 		c.sendInsight(msg)
 	}
 
