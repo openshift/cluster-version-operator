@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
@@ -20,7 +19,7 @@ type insightExpirations map[string]time.Time
 // Any access to the struct should be done with the lock held.
 type updateStatusApi struct {
 	sync.Mutex
-	us *updatev1alpha1.UpdateStatus
+	us *updatev1alpha1.UpdateStatusStatus
 
 	// unknownInsightExpirations is a map of informer -> map of UID -> expiration time. It is used to track insights
 	// that were reported by informers but are no longer known to them. The API keeps unknown insights until they
@@ -41,7 +40,7 @@ func (c *updateStatusApi) sort() {
 		return
 	}
 
-	slices.SortFunc(c.us.Status.ControlPlane.Informers, func(a, b updatev1alpha1.ControlPlaneInformer) int {
+	slices.SortFunc(c.us.ControlPlane.Informers, func(a, b updatev1alpha1.ControlPlaneInformer) int {
 		if a.Name < b.Name {
 			return -1
 		}
@@ -51,8 +50,8 @@ func (c *updateStatusApi) sort() {
 		return 0
 	})
 
-	for i := range c.us.Status.ControlPlane.Informers {
-		slices.SortFunc(c.us.Status.ControlPlane.Informers[i].Insights, func(a, b updatev1alpha1.ControlPlaneInsight) int {
+	for i := range c.us.ControlPlane.Informers {
+		slices.SortFunc(c.us.ControlPlane.Informers[i].Insights, func(a, b updatev1alpha1.ControlPlaneInsight) int {
 			if a.UID < b.UID {
 				return -1
 			}
@@ -63,8 +62,8 @@ func (c *updateStatusApi) sort() {
 		})
 	}
 
-	for i := range c.us.Status.WorkerPools {
-		slices.SortFunc(c.us.Status.WorkerPools[i].Informers, func(a, b updatev1alpha1.WorkerPoolInformer) int {
+	for i := range c.us.WorkerPools {
+		slices.SortFunc(c.us.WorkerPools[i].Informers, func(a, b updatev1alpha1.WorkerPoolInformer) int {
 			if a.Name < b.Name {
 				return -1
 			}
@@ -74,8 +73,8 @@ func (c *updateStatusApi) sort() {
 			return 0
 		})
 
-		for j := range c.us.Status.WorkerPools[i].Informers {
-			slices.SortFunc(c.us.Status.WorkerPools[i].Informers[j].Insights, func(a, b updatev1alpha1.WorkerPoolInsight) int {
+		for j := range c.us.WorkerPools[i].Informers {
+			slices.SortFunc(c.us.WorkerPools[i].Informers[j].Insights, func(a, b updatev1alpha1.WorkerPoolInsight) int {
 				if a.UID < b.UID {
 					return -1
 				}
@@ -132,17 +131,17 @@ func (c *updateStatusApi) removeUnknownInsights(message informerMsg) {
 func (c *updateStatusApi) handleUnknownInsightsByInformer(informer string, known sets.Set[string]) {
 	cpFilter := c.makeControlPlaneInsightFilter(informer, known)
 
-	for i := range c.us.Status.ControlPlane.Informers {
-		if c.us.Status.ControlPlane.Informers[i].Name == informer {
-			c.us.Status.ControlPlane.Informers[i].Insights = cpFilter(c.us.Status.ControlPlane.Informers[i].Insights)
+	for i := range c.us.ControlPlane.Informers {
+		if c.us.ControlPlane.Informers[i].Name == informer {
+			c.us.ControlPlane.Informers[i].Insights = cpFilter(c.us.ControlPlane.Informers[i].Insights)
 		}
 	}
 
 	wpFilter := c.makeWorkerPoolInsightFilter(informer, known)
-	for pool := range c.us.Status.WorkerPools {
-		for i := range c.us.Status.WorkerPools[pool].Informers {
-			if c.us.Status.WorkerPools[pool].Informers[i].Name == informer {
-				c.us.Status.WorkerPools[pool].Informers[i].Insights = wpFilter(c.us.Status.WorkerPools[pool].Informers[i].Insights)
+	for pool := range c.us.WorkerPools {
+		for i := range c.us.WorkerPools[pool].Informers {
+			if c.us.WorkerPools[pool].Informers[i].Name == informer {
+				c.us.WorkerPools[pool].Informers[i].Insights = wpFilter(c.us.WorkerPools[pool].Informers[i].Insights)
 			}
 		}
 	}
@@ -274,10 +273,18 @@ func (c *updateStatusApi) sync(clusterState *updatev1alpha1.UpdateStatus) *updat
 		// This means we are running on a CM event before first insight arrived, otherwise internal state would exist
 		klog.V(2).Infof("USC :: No internal state known yet, setting internal state to cluster state")
 		// c.cm = clusterState.DeepCopy()
-		c.us = clusterState.DeepCopy()
+		c.us = clusterState.Status.DeepCopy()
 	}
 
-	return c.us.DeepCopy()
+	var us updatev1alpha1.UpdateStatus
+	us.TypeMeta = clusterState.TypeMeta
+	clusterState.ObjectMeta.DeepCopyInto(&us.ObjectMeta)
+	clusterState.Spec.DeepCopyInto(&us.Spec)
+	if c.us != nil {
+		c.us.DeepCopyInto(&us.Status)
+	}
+
+	return &us
 }
 
 // ensureUpdateStatusExists ensures that the internal state of the status API is initialized.
@@ -287,11 +294,7 @@ func (c *updateStatusApi) ensureUpdateStatusExists() {
 		return
 	}
 
-	c.us = &updatev1alpha1.UpdateStatus{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: updateStatusResource,
-		},
-	}
+	c.us = &updatev1alpha1.UpdateStatusStatus{}
 }
 
 func ensureControlPlaneInformer(cp *updatev1alpha1.ControlPlane, informer string) *updatev1alpha1.ControlPlaneInformer {
@@ -344,7 +347,7 @@ func ensureWorkerPoolInsightByInformer(informer *updatev1alpha1.WorkerPoolInform
 // Assumes statusApi is locked.
 func (c *updateStatusApi) updateControlPlaneInsight(informerName string, insight *updatev1alpha1.ControlPlaneInsight) {
 	// TODO: Logging - log(2) that we do something, and log(4) the diff
-	cp := &c.us.Status.ControlPlane
+	cp := &c.us.ControlPlane
 	switch insight.Type {
 	case updatev1alpha1.ClusterVersionStatusInsightType:
 		cp.Resource = insight.ClusterVersionStatusInsight.Resource
@@ -395,16 +398,16 @@ func (c *updateStatusApi) updateWorkerPoolInsight(informerName string, insight *
 }
 
 func (c *updateStatusApi) ensureWorkerPool(pool updatev1alpha1.PoolResourceRef) *updatev1alpha1.Pool {
-	for i := range c.us.Status.WorkerPools {
-		if c.us.Status.WorkerPools[i].Name == pool.Name {
-			c.us.Status.WorkerPools[i].Resource = pool // TODO: Handle conflicts?
-			return &c.us.Status.WorkerPools[i]
+	for i := range c.us.WorkerPools {
+		if c.us.WorkerPools[i].Name == pool.Name {
+			c.us.WorkerPools[i].Resource = pool // TODO: Handle conflicts?
+			return &c.us.WorkerPools[i]
 		}
 	}
-	c.us.Status.WorkerPools = append(c.us.Status.WorkerPools, updatev1alpha1.Pool{
+	c.us.WorkerPools = append(c.us.WorkerPools, updatev1alpha1.Pool{
 		Name:     pool.Name,
 		Resource: pool,
 	})
 
-	return &c.us.Status.WorkerPools[len(c.us.Status.WorkerPools)-1]
+	return &c.us.WorkerPools[len(c.us.WorkerPools)-1]
 }

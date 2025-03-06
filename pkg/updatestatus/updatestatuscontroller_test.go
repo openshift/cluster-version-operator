@@ -80,37 +80,33 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "no messages, empty state -> empty state",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{},
+				us: &updatev1alpha1.UpdateStatusStatus{},
 			},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{},
+				us: &updatev1alpha1.UpdateStatusStatus{},
 			},
 		},
 		{
 			name: "no messages, state -> unchanged state",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name:     "cpi",
-									Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
-								},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name:     "cpi",
+								Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
 							},
 						},
 					},
 				},
 			},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name:     "cpi",
-									Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
-								},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name:     "cpi",
+								Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
 							},
 						},
 					},
@@ -130,16 +126,13 @@ func Test_updateStatusController(t *testing.T) {
 				},
 			},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name:     "cpi",
-									Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
-								},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name:     "cpi",
+								Insights: []updatev1alpha1.ControlPlaneInsight{cvInsight},
 							},
 						},
 					},
@@ -149,36 +142,33 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "messages over time build state over old state",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "cpi",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										cvInsight,
-										{
-											UID:        "overwritten",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.ClusterOperatorStatusInsightType,
-												ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
-													Conditions: []metav1.Condition{
-														{
-															Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
-															Status:  metav1.ConditionFalse,
-															Reason:  "Original",
-															Message: "Original message",
-														},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "cpi",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									cvInsight,
+									{
+										UID:        "overwritten",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
+											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
+												Conditions: []metav1.Condition{
+													{
+														Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
+														Status:  metav1.ConditionFalse,
+														Reason:  "Original",
+														Message: "Original message",
 													},
-													Name: "overwritten",
-													Resource: updatev1alpha1.ResourceRef{
-														Group:    "config.openshift.io",
-														Resource: "clusteroperators",
-														Name:     "overwritten",
-													},
+												},
+												Name: "overwritten",
+												Resource: updatev1alpha1.ResourceRef{
+													Group:    "config.openshift.io",
+													Resource: "clusteroperators",
+													Name:     "overwritten",
 												},
 											},
 										},
@@ -302,82 +292,79 @@ func Test_updateStatusController(t *testing.T) {
 				},
 			},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "cpi",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										cvInsight,
-										{
-											UID:        "new-clusteroperator",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.ClusterOperatorStatusInsightType,
-												ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
-													Conditions: []metav1.Condition{
-														{
-															Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
-															Status:  metav1.ConditionTrue,
-															Reason:  "NewClusterOperator",
-															Message: "Message about new ClusterOperator",
-														},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "cpi",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									cvInsight,
+									{
+										UID:        "new-clusteroperator",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
+											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
+												Conditions: []metav1.Condition{
+													{
+														Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
+														Status:  metav1.ConditionTrue,
+														Reason:  "NewClusterOperator",
+														Message: "Message about new ClusterOperator",
 													},
-													Name: "new-clusteroperator",
-													Resource: updatev1alpha1.ResourceRef{
-														Group:    "config.openshift.io",
-														Resource: "clusteroperators",
-														Name:     "new-clusteroperator",
-													},
+												},
+												Name: "new-clusteroperator",
+												Resource: updatev1alpha1.ResourceRef{
+													Group:    "config.openshift.io",
+													Resource: "clusteroperators",
+													Name:     "new-clusteroperator",
 												},
 											},
 										},
-										{
-											UID:        "overwritten",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.ClusterOperatorStatusInsightType,
-												ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
-													Conditions: []metav1.Condition{
-														{
-															Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
-															Status:  metav1.ConditionTrue,
-															Reason:  "FinalWrite",
-															Message: "Final update into overwritten CO",
-														},
+									},
+									{
+										UID:        "overwritten",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
+											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
+												Conditions: []metav1.Condition{
+													{
+														Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
+														Status:  metav1.ConditionTrue,
+														Reason:  "FinalWrite",
+														Message: "Final update into overwritten CO",
 													},
-													Name: "overwritten",
-													Resource: updatev1alpha1.ResourceRef{
-														Group:    "config.openshift.io",
-														Resource: "clusteroperators",
-														Name:     "overwritten",
-													},
+												},
+												Name: "overwritten",
+												Resource: updatev1alpha1.ResourceRef{
+													Group:    "config.openshift.io",
+													Resource: "clusteroperators",
+													Name:     "overwritten",
 												},
 											},
 										},
-										{
-											UID:        "another-clusteroperator",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.ClusterOperatorStatusInsightType,
-												ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
-													Conditions: []metav1.Condition{
-														{
-															Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
-															Status:  metav1.ConditionTrue,
-															Reason:  "AnotherClusterOperator",
-															Message: "Message about another ClusterOperator",
-														},
+									},
+									{
+										UID:        "another-clusteroperator",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
+											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
+												Conditions: []metav1.Condition{
+													{
+														Type:    string(updatev1alpha1.ClusterOperatorStatusInsightUpdating),
+														Status:  metav1.ConditionTrue,
+														Reason:  "AnotherClusterOperator",
+														Message: "Message about another ClusterOperator",
 													},
-													Name: "another-clusteroperator",
-													Resource: updatev1alpha1.ResourceRef{
-														Group:    "config.openshift.io",
-														Resource: "clusteroperators",
-														Name:     "another-clusteroperator",
-													},
+												},
+												Name: "another-clusteroperator",
+												Resource: updatev1alpha1.ResourceRef{
+													Group:    "config.openshift.io",
+													Resource: "clusteroperators",
+													Name:     "another-clusteroperator",
 												},
 											},
 										},
@@ -470,85 +457,82 @@ func Test_updateStatusController(t *testing.T) {
 				},
 			},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										{
-											UID:        "item",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.HealthInsightType,
-												HealthInsight: &updatev1alpha1.HealthInsight{
-													StartedAt: metav1.NewTime(minus30sec),
-													Scope: updatev1alpha1.InsightScope{
-														Type:      updatev1alpha1.ControlPlaneScope,
-														Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
-													},
-													Impact: updatev1alpha1.InsightImpact{
-														Level:       updatev1alpha1.InfoImpactLevel,
-														Type:        updatev1alpha1.UnknownImpactType,
-														Summary:     "Item from informer one",
-														Description: "Longer description about item from informer one",
-													},
-													Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									{
+										UID:        "item",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.HealthInsightType,
+											HealthInsight: &updatev1alpha1.HealthInsight{
+												StartedAt: metav1.NewTime(minus30sec),
+												Scope: updatev1alpha1.InsightScope{
+													Type:      updatev1alpha1.ControlPlaneScope,
+													Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
 												},
+												Impact: updatev1alpha1.InsightImpact{
+													Level:       updatev1alpha1.InfoImpactLevel,
+													Type:        updatev1alpha1.UnknownImpactType,
+													Summary:     "Item from informer one",
+													Description: "Longer description about item from informer one",
+												},
+												Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
 											},
 										},
 									},
 								},
-								{
-									Name: "two",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										{
-											UID:        "item",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.HealthInsightType,
-												HealthInsight: &updatev1alpha1.HealthInsight{
-													StartedAt: metav1.NewTime(minus90sec),
-													Scope: updatev1alpha1.InsightScope{
-														Type:      updatev1alpha1.ControlPlaneScope,
-														Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
-													},
-													Impact: updatev1alpha1.InsightImpact{
-														Level:       updatev1alpha1.InfoImpactLevel,
-														Type:        updatev1alpha1.UnknownImpactType,
-														Summary:     "Item from informer two",
-														Description: "Longer description about item from informer two",
-													},
-													Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
+							},
+							{
+								Name: "two",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									{
+										UID:        "item",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.HealthInsightType,
+											HealthInsight: &updatev1alpha1.HealthInsight{
+												StartedAt: metav1.NewTime(minus90sec),
+												Scope: updatev1alpha1.InsightScope{
+													Type:      updatev1alpha1.ControlPlaneScope,
+													Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
 												},
+												Impact: updatev1alpha1.InsightImpact{
+													Level:       updatev1alpha1.InfoImpactLevel,
+													Type:        updatev1alpha1.UnknownImpactType,
+													Summary:     "Item from informer two",
+													Description: "Longer description about item from informer two",
+												},
+												Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
 											},
 										},
 									},
 								},
-								{
-									Name: "three",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										{
-											UID:        "item",
-											AcquiredAt: metav1.NewTime(now),
-											ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-												Type: updatev1alpha1.HealthInsightType,
-												HealthInsight: &updatev1alpha1.HealthInsight{
-													StartedAt: metav1.NewTime(minus90sec),
-													Scope: updatev1alpha1.InsightScope{
-														Type:      updatev1alpha1.ControlPlaneScope,
-														Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
-													},
-													Impact: updatev1alpha1.InsightImpact{
-														Level:       updatev1alpha1.InfoImpactLevel,
-														Type:        updatev1alpha1.UnknownImpactType,
-														Summary:     "Item from informer three",
-														Description: "Longer description about item from informer three",
-													},
-													Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
+							},
+							{
+								Name: "three",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									{
+										UID:        "item",
+										AcquiredAt: metav1.NewTime(now),
+										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+											Type: updatev1alpha1.HealthInsightType,
+											HealthInsight: &updatev1alpha1.HealthInsight{
+												StartedAt: metav1.NewTime(minus90sec),
+												Scope: updatev1alpha1.InsightScope{
+													Type:      updatev1alpha1.ControlPlaneScope,
+													Resources: []updatev1alpha1.ResourceRef{cvResourceRef},
 												},
+												Impact: updatev1alpha1.InsightImpact{
+													Level:       updatev1alpha1.InfoImpactLevel,
+													Type:        updatev1alpha1.UnknownImpactType,
+													Summary:     "Item from informer three",
+													Description: "Longer description about item from informer three",
+												},
+												Remediation: updatev1alpha1.InsightRemediation{Reference: "https://example.com"},
 											},
 										},
 									},
@@ -612,16 +596,13 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "unknown insight -> not removed from state immediately but set for expiration",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
 								},
 							},
 						},
@@ -635,18 +616,15 @@ func Test_updateStatusController(t *testing.T) {
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-										cvInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
+									cvInsight,
 								},
 							},
 						},
@@ -660,16 +638,13 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "unknown insight already set for expiration -> not removed from state while not expired yet",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
 								},
 							},
 						},
@@ -686,18 +661,15 @@ func Test_updateStatusController(t *testing.T) {
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-										cvInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
+									cvInsight,
 								},
 							},
 						},
@@ -711,16 +683,13 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "previously unknown insight set for expiration is known again -> kept in state and expire dropped",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
 								},
 							},
 						},
@@ -737,18 +706,15 @@ func Test_updateStatusController(t *testing.T) {
 				knownInsights: []string{coInsight.UID},
 			}},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-										cvInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
+									cvInsight,
 								},
 							},
 						},
@@ -760,16 +726,13 @@ func Test_updateStatusController(t *testing.T) {
 		{
 			name: "previously unknown insight expired and never became known again -> dropped from state and expire dropped",
 			before: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										coInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									coInsight,
 								},
 							},
 						},
@@ -786,17 +749,14 @@ func Test_updateStatusController(t *testing.T) {
 				knownInsights: nil,
 			}},
 			expected: &updateStatusApi{
-				us: &updatev1alpha1.UpdateStatus{
-					ObjectMeta: metav1.ObjectMeta{Name: "status-api-prototype"},
-					Status: updatev1alpha1.UpdateStatusStatus{
-						ControlPlane: updatev1alpha1.ControlPlane{
-							Resource: cvResourceRef,
-							Informers: []updatev1alpha1.ControlPlaneInformer{
-								{
-									Name: "one",
-									Insights: []updatev1alpha1.ControlPlaneInsight{
-										cvInsight,
-									},
+				us: &updatev1alpha1.UpdateStatusStatus{
+					ControlPlane: updatev1alpha1.ControlPlane{
+						Resource: cvResourceRef,
+						Informers: []updatev1alpha1.ControlPlaneInformer{
+							{
+								Name: "one",
+								Insights: []updatev1alpha1.ControlPlaneInsight{
+									cvInsight,
 								},
 							},
 						},
