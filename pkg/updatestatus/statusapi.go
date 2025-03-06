@@ -205,6 +205,9 @@ func (c *updateStatusApi) makeKeep(informer string, known sets.Set[string]) keep
 			return true
 
 		case c.unknownInsightExpirations[informer][uid].IsZero():
+			if _, hasInformer := c.unknownInsightExpirations[informer]; !hasInformer {
+				c.unknownInsightExpirations[informer] = insightExpirations{}
+			}
 			c.unknownInsightExpirations[informer][uid] = expireIn
 			logKeep(expireIn)
 			return true
