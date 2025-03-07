@@ -47,6 +47,9 @@ GO_COMPLIANCE_POLICY="exempt_all" CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH}   
   -o "${BIN_PATH}/cluster-version-operator-tests"                               \
   "${REPO}/cmd/cluster-version-operator-tests/..."
 
+echo "Compressing the cluster-version-operator-tests binary"
+gzip --keep --force "${BIN_PATH}/cluster-version-operator-tests"
+
 # Build the cluster-version-operator binary
 GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 echo "Building ${REPO} cluster-version-operator binary (${VERSION_OVERRIDE})"
