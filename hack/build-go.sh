@@ -37,6 +37,9 @@ ${GOFLAGS}                                                                    \
 -o "${BIN_PATH}/openshift-tests-extension"                                    \
 "${REPO}/cmd/openshift-tests-extension/..."
 
+echo "Compressing the openshift-tests-extension binary"
+gzip --keep --force "${BIN_PATH}/openshift-tests-extension"
+
 # Build the cluster-version-operator binary
 GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 echo "Building ${REPO} cluster-version-operator binary (${VERSION_OVERRIDE})"
