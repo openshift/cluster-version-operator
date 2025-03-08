@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -358,12 +359,22 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 	type args struct {
 		syncWorkerStatus *SyncWorkerStatus
 	}
+	payload.COUpdateStartTimesEnsure("co-not-timeout")
+	payload.COUpdateStartTimesAt("co-timeout", time.Now().Add(-60*time.Minute))
+	payload.COUpdateStartTimesAt("machine-config", time.Now().Add(-60*time.Minute))
+	defer func() {
+		payload.COUpdateStartTimesRemove("co-not-timeout")
+		payload.COUpdateStartTimesRemove("co-timeout")
+		payload.COUpdateStartTimesRemove("machine-config")
+	}()
+
 	tests := []struct {
 		name                                             string
 		args                                             args
 		shouldModifyWhenNotReconcilingAndHistoryNotEmpty bool
 		expectedConditionNotModified                     *configv1.ClusterOperatorStatusCondition
 		expectedConditionModified                        *configv1.ClusterOperatorStatusCondition
+		expectedProgressingCondition                     *configv1.ClusterOperatorStatusCondition
 	}{
 		{
 			name: "no errors are present",
@@ -394,10 +405,12 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			name: "single UpdateEffectNone error",
 			args: args{
 				syncWorkerStatus: &SyncWorkerStatus{
+					Actual: configv1.Release{Version: "1.2.3"},
 					Failure: &payload.UpdateError{
 						UpdateEffect: payload.UpdateEffectNone,
 						Reason:       "ClusterOperatorUpdating",
 						Message:      "Cluster operator A is updating",
+						Name:         "co-not-timeout",
 					},
 				},
 			},
@@ -411,6 +424,76 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
 				Type:   ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
+			},
+			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    configv1.OperatorProgressing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Working towards 1.2.3: waiting on co-not-timeout",
+			},
+		},
+		{
+			name: "single UpdateEffectNone error and timeout",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Actual: configv1.Release{Version: "1.2.3"},
+					Failure: &payload.UpdateError{
+						UpdateEffect: payload.UpdateEffectNone,
+						Reason:       "ClusterOperatorUpdating",
+						Message:      "Cluster operator A is updating",
+						Name:         "co-timeout",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Cluster operator A is updating",
+			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionUnknown,
+				Reason:  "SlowClusterOperator",
+				Message: "waiting on co-timeout over 30 minutes which is longer than expected",
+			},
+			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    configv1.OperatorProgressing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Working towards 1.2.3: waiting on co-timeout over 30 minutes which is longer than expected",
+			},
+		},
+		{
+			name: "single UpdateEffectNone error and machine-config",
+			args: args{
+				syncWorkerStatus: &SyncWorkerStatus{
+					Actual: configv1.Release{Version: "1.2.3"},
+					Failure: &payload.UpdateError{
+						UpdateEffect: payload.UpdateEffectNone,
+						Reason:       "ClusterOperatorUpdating",
+						Message:      "Cluster operator A is updating",
+						Name:         "machine-config",
+					},
+				},
+			},
+			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
+				Type:    ClusterStatusFailing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Cluster operator A is updating",
+			},
+			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
+			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
+				Type:   ClusterStatusFailing,
+				Status: configv1.ConditionFalse,
+			},
+			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
+				Type:    configv1.OperatorProgressing,
+				Status:  configv1.ConditionTrue,
+				Reason:  "ClusterOperatorUpdating",
+				Message: "Working towards 1.2.3: waiting on machine-config",
 			},
 		},
 		{
@@ -620,6 +703,13 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, ClusterStatusFailing)
 				if diff := cmp.Diff(expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 					t.Errorf("unexpected condition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
+				}
+
+				if tc.expectedProgressingCondition != nil && !c.isReconciling && !c.isHistoryEmpty {
+					progressingCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, configv1.OperatorProgressing)
+					if diff := cmp.Diff(tc.expectedProgressingCondition, progressingCondition, ignoreLastTransitionTime); diff != "" {
+						t.Errorf("unexpected progressingCondition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
+					}
 				}
 			}
 		})

@@ -47,9 +47,15 @@ func InitCOUpdateStartTimes() {
 // COUpdateStartTimesEnsure adds name to clusterOperatorUpdateStartTimes map and sets to
 // current time if name does not already exist in map.
 func COUpdateStartTimesEnsure(name string) {
+	COUpdateStartTimesAt(name, time.Now())
+}
+
+// COUpdateStartTimesAt adds name to clusterOperatorUpdateStartTimes map and sets to
+// t if name does not already exist in map.
+func COUpdateStartTimesAt(name string, t time.Time) {
 	clusterOperatorUpdateStartTimes.lock.Lock()
 	if _, ok := clusterOperatorUpdateStartTimes.m[name]; !ok {
-		clusterOperatorUpdateStartTimes.m[name] = time.Now()
+		clusterOperatorUpdateStartTimes.m[name] = t
 	}
 	clusterOperatorUpdateStartTimes.lock.Unlock()
 }
