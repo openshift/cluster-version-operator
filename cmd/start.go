@@ -39,7 +39,7 @@ func init() {
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.KubeSvc.Name, "metrics-service", opts.PromQLTarget.KubeSvc.Name, "The name of the remote PromQL query service. Must be specified when --use-dns-for-services is disabled.")
 	cmd.PersistentFlags().BoolVar(&opts.PromQLTarget.UseDNS, "use-dns-for-services", opts.PromQLTarget.UseDNS, "Configures the CVO to use DNS for resolution of services in the cluster.")
 	cmd.PersistentFlags().StringVar(&opts.PrometheusURLString, "metrics-url", opts.PrometheusURLString, "The URL used to access the remote PromQL query service.")
-	cmd.PersistentFlags().BoolVar(&opts.InjectClusterIdIntoPromQL, "hypershift", opts.InjectClusterIdIntoPromQL, "This options indicates whether the CVO is running inside a hosted control plane.")
+	cmd.PersistentFlags().BoolVar(&opts.HyperShift, "hypershift", opts.HyperShift, "This options indicates whether the CVO is running inside a hosted control plane.")
 	cmd.PersistentFlags().StringVar(&opts.UpdateService, "update-service", opts.UpdateService, "The preferred update service.  If set, this option overrides any upstream value configured in ClusterVersion spec.")
 	cmd.PersistentFlags().StringSliceVar(&opts.AlwaysEnableCapabilities, "always-enable-capabilities", opts.AlwaysEnableCapabilities, "List of the cluster capabilities which will always be implicitly enabled.")
 	rootCmd.AddCommand(cmd)
