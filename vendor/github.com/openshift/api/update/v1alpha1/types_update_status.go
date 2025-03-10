@@ -1,8 +1,9 @@
-package updatestatus
+package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 // +genclient
+// +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // UpdateStatus reports status for in-progress cluster version updates
@@ -53,7 +54,7 @@ type UpdateStatusStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 
 	// controlPlane contains a summary and insights related to the control plane update
-	// +required
+	// +optional
 	ControlPlane ControlPlane `json:"controlPlane"`
 
 	// workerPools contains summaries and insights related to the worker pools update
