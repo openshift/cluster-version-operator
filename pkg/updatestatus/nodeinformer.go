@@ -92,6 +92,13 @@ func newNodeInformerController(
 	return controller
 }
 
+// sync is called for any controller event. There are two kinds of them:
+//   - standard Kubernetes informer events on watched resources such as nodes, machineConfigs, and machineConfigPools
+//   - synthetic events such as eventNameReconcileAllNodes. They are generated for reconciling when handling events
+//     of the first kind.
+//
+// A changed node resource produces insights that are sent to the update status controller.
+// A changed mc/mcp may produce the synthetic event eventNameReconcileAllNodes which triggers the reconciliation of all nodes.
 func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncContext) error {
 	// Warm up controller's caches.
 	// This has to be called after informers caches have been synced and before the first event comes in.
@@ -117,11 +124,8 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 	var msg informerMsg
 	switch t {
-	case eventKindName:
-		if name != eventNameReconcileAllNodes {
-			return fmt.Errorf("invalid name in queue key %s with type %s", queueKey, t)
-		}
-		return c.reconcileAllNodes(syncCtx.Queue())
+	case syntheticKeyName:
+		return c.syncSyntheticKey(name, syncCtx.Queue())
 	case nodeKindName:
 		msgP, err := c.syncNode(ctx, name)
 		if err != nil {
@@ -260,7 +264,7 @@ func (c *machineConfigPoolSelectorCache) forget(mcpName string) bool {
 }
 
 func queueKeyFoReconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) {
-	queue.Add(queueKeyFor(eventKindName, eventNameReconcileAllNodes))
+	queue.Add(queueKeyFor(syntheticKeyName, eventNameReconcileAllNodes))
 }
 
 func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimitingInterface[any]) error {
@@ -362,6 +366,14 @@ func (c *nodeInformerController) syncNode(ctx context.Context, name string) (*in
 		}
 	}
 	return &msg, nil
+}
+
+func (c *nodeInformerController) syncSyntheticKey(name string, q workqueue.TypedRateLimitingInterface[any]) error {
+	if name == eventNameReconcileAllNodes {
+		return c.reconcileAllNodes(q)
+	}
+	klog.Errorf("Got an invalid synthetic key %s", name)
+	return nil
 }
 
 func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
@@ -576,10 +588,13 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 }
 
 const (
-	nodeKindName               = "Node"
-	machineConfigKindName      = "MachineConfig"
-	machineConfigPoolKindName  = "MachineConfigPool"
-	eventKindName              = "Event"
+	nodeKindName              = "Node"
+	machineConfigKindName     = "MachineConfig"
+	machineConfigPoolKindName = "MachineConfigPool"
+
+	syntheticKeyName = "synthetic"
+	// eventNameReconcileAllNodes presents a synthetic event that is used when nodeInformerController should reconcile
+	// all nodes.
 	eventNameReconcileAllNodes = "reconcileAllNodes"
 
 	nodesInformerName = "ni"
@@ -598,11 +613,6 @@ func nodeInformerControllerQueueKeys(object runtime.Object) []string {
 		return nil
 	}
 	switch o := object.(type) {
-	case *corev1.Event:
-		if o.Name != eventNameReconcileAllNodes {
-			panic(fmt.Sprintf("USC :: Unknown object %s with type: %T", o.Name, object))
-		}
-		return []string{queueKeyFor(eventKindName, o.Name)}
 	case *corev1.Node:
 		return []string{queueKeyFor(nodeKindName, o.Name)}
 	case *machineconfigv1.MachineConfig:

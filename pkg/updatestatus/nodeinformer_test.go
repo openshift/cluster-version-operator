@@ -1140,33 +1140,22 @@ func Test_sync_with_event(t *testing.T) {
 	testCases := []struct {
 		name string
 
-		object runtime.Object
-
-		expectedPanic    bool
+		key              string
 		expectedErr      error
 		expectedQueueLen int
 	}{
 		{
 			name:             "reconcile for all nodes",
-			object:           &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "reconcileAllNodes"}},
+			key:              "synthetic/reconcileAllNodes",
 			expectedQueueLen: 2,
 		},
 		{
-			name:          "panic with aaa",
-			object:        &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "a"}},
-			expectedPanic: true,
+			name: "unknown key",
+			key:  "synthetic/unknown",
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			defer func() {
-				if tc.expectedPanic {
-					if r := recover(); r == nil {
-						t.Errorf("The expected panic did not happen")
-					}
-				}
-			}()
-
 			var actualMsgs []informerMsg
 			var sendInsight sendInsightFn = func(insight informerMsg) {
 				actualMsgs = append(actualMsgs, insight)
@@ -1178,9 +1167,8 @@ func Test_sync_with_event(t *testing.T) {
 				machineConfigPools: mcpLister,
 				sendInsight:        sendInsight,
 			}
-			queueKey := nodeInformerControllerQueueKeys(tc.object)[0]
 
-			syncContext := newTestSyncContext(queueKey)
+			syncContext := newTestSyncContext(tc.key)
 			actualErr := controller.sync(context.TODO(), syncContext)
 
 			if diff := cmp.Diff(tc.expectedErr, actualErr, cmp.Comparer(func(x, y error) bool {
