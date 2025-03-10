@@ -374,7 +374,7 @@ func (c *nodeInformerController) syncSyntheticKey(name string, q workqueue.Typed
 
 func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := updatestatus.WorkerPoolInsight{
-		UID:        fmt.Sprintf("node-%s", nodeInsight.Resource.Name),
+		UID:        fmt.Sprintf("node-%s", strings.Replace(nodeInsight.Resource.Name, ".", "-", -1)),
 		AcquiredAt: acquiredAt,
 		WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
 			Type:              updatestatus.NodeStatusInsightType,

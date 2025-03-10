@@ -528,7 +528,8 @@ func versionsFromHistory(history []configv1.UpdateHistory) updatestatus.ControlP
 	versions.Target.Version = history[0].Version
 
 	if len(history) == 1 {
-		versions.Target.Metadata = []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}}
+		versions.Previous.Metadata = []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}}
+		versions.Previous.Version = "<none>"
 	}
 	if len(history) > 1 {
 		versions.Previous.Version = history[1].Version

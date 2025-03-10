@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	unknownInsightGracePeriod = 60 * time.Second
+	unknownInsightGracePeriod = 60 * time.Minute
 )
 
 // High-level description of the informers -> USC communication protocol:
@@ -221,7 +221,7 @@ func (c *updateStatusController) commitStatusApiAsConfigMap(ctx context.Context)
 
 	updateStatus := c.state.sync(clusterUpdateStatus)
 
-	_, err = c.updateStatuses.Update(ctx, updateStatus, metav1.UpdateOptions{})
+	_, err = c.updateStatuses.UpdateStatus(ctx, updateStatus, metav1.UpdateOptions{})
 	return err
 }
 
