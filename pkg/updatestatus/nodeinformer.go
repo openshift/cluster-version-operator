@@ -119,7 +119,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 
 		mcpName := c.machineConfigPoolSelectorCache.whichMCP(labels.Set(node.Labels))
 		if mcpName == "" {
-			// We assume that every node belongs to a MCP at all time.
+			// We assume that every node belongs to an MCP at all time.
 			// Although conceptually the assumption might not be true (see https://docs.openshift.com/container-platform/4.17/machine_configuration/index.html#architecture-machine-config-pools_machine-config-overview),
 			// we will wait to hear from our users the issues for cluster updates and will handle them accordingly by then.
 			klog.V(2).Infof("Ignored node %s as it does not belong to any %d machine config pool(s)", node.Name, c.machineConfigPoolSelectorCache.len())
@@ -130,7 +130,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 		mcp, err := c.machineConfigPools.Get(mcpName)
 		if err != nil {
 			if kerrors.IsNotFound(err) {
-				// it will be another event if a MCP is deleted
+				// it will be another event if an MCP is deleted
 				return nil
 			}
 			return err
@@ -367,7 +367,7 @@ func (c *nodeInformerController) reconcileAllNodes(queue workqueue.TypedRateLimi
 
 func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := updatestatus.WorkerPoolInsight{
-		UID:        fmt.Sprintf("node-%s", nodeInsight.Resource.Name),
+		UID:        fmt.Sprintf("node-%s", strings.Replace(nodeInsight.Resource.Name, ".", "-", -1)),
 		AcquiredAt: acquiredAt,
 		WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
 			Type:              updatestatus.NodeStatusInsightType,
