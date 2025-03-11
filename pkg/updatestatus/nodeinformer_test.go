@@ -208,18 +208,24 @@ func Test_whichMCP(t *testing.T) {
 
 			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
 
-			c := nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
+			c := &nodeInformerController{machineConfigs: mcLister, machineConfigPools: mcpLister}
 
-			if err := c.initializeCaches(); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
+			// This is to initialize the caches
+			if err := syncOnceWithAnUnrecognizableKey(c); err == nil {
+				t.Fatalf("Expected sync error did not occur")
 			}
 
-			if diff := cmp.Diff(tc.expected, c.machineConfigPoolSelectorCache.whichMCP(tc.labels)); diff != "" {
+			if diff := cmp.Diff(tc.expected, c.mcpSelectors.whichMCP(tc.labels)); diff != "" {
 				t.Errorf("%s: machine config pool differs from expected:\n%s", tc.name, diff)
 			}
 
 		})
 	}
+}
+
+func syncOnceWithAnUnrecognizableKey(c *nodeInformerController) error {
+	syncOnceContext := newTestSyncContext("sync/once")
+	return c.sync(context.TODO(), syncOnceContext)
 }
 
 func Test_assessNode(t *testing.T) {
@@ -1062,17 +1068,13 @@ func Test_sync_with_node(t *testing.T) {
 				actualMsgs = append(actualMsgs, insight)
 			}
 
-			controller := nodeInformerController{
+			controller := &nodeInformerController{
 				nodes:              nodeLister,
 				configClient:       fakeconfigv1client.NewClientset(cv),
 				machineConfigs:     mcLister,
 				machineConfigPools: mcpLister,
 				sendInsight:        sendInsight,
 				now:                func() metav1.Time { return now },
-			}
-
-			if err := controller.initializeCaches(); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
 			}
 
 			queueKey := nodeInformerControllerQueueKeys(tc.node)[0]
@@ -1118,15 +1120,82 @@ func Test_sync_with_node(t *testing.T) {
 	}
 }
 
+func Test_sync_with_event(t *testing.T) {
+
+	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	for _, o := range []metav1.Object{&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "master-1"}},
+		&corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: "worker-1"}}} {
+		if err := nodeIndexer.Add(o); err != nil {
+			t.Fatalf("Failed to add object to indexer: %v", err)
+		}
+	}
+	nodeLister := corelistersv1.NewNodeLister(nodeIndexer)
+
+	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
+
+	mcpIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
+
+	testCases := []struct {
+		name string
+
+		key              string
+		expectedErr      error
+		expectedQueueLen int
+	}{
+		{
+			name:             "reconcile for all nodes",
+			key:              "synthetic/reconcileAllNodes",
+			expectedQueueLen: 2,
+		},
+		{
+			name: "unknown key",
+			key:  "synthetic/unknown",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var actualMsgs []informerMsg
+			var sendInsight sendInsightFn = func(insight informerMsg) {
+				actualMsgs = append(actualMsgs, insight)
+			}
+
+			controller := &nodeInformerController{
+				nodes:              nodeLister,
+				machineConfigs:     mcLister,
+				machineConfigPools: mcpLister,
+				sendInsight:        sendInsight,
+			}
+
+			syncContext := newTestSyncContext(tc.key)
+			actualErr := controller.sync(context.TODO(), syncContext)
+
+			if diff := cmp.Diff(tc.expectedErr, actualErr, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("%s: error differs from expected:\n%s", tc.name, diff)
+			}
+
+			if diff := cmp.Diff(tc.expectedQueueLen, syncContext.Queue().Len()); diff != "" {
+				t.Errorf("queue length after sync differs from expected:\n%s", diff)
+			}
+
+			var expectedMsgs []informerMsg
+			if diff := cmp.Diff(expectedMsgs, actualMsgs, cmp.AllowUnexported(informerMsg{})); diff != "" {
+				t.Errorf("Sync messages differ from expected:\n%s", diff)
+			}
+		})
+	}
+}
+
 func Test_sync_with_mcp(t *testing.T) {
 	now := metav1.Now()
 
 	mcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-	for _, o := range []metav1.Object{} {
-		if err := mcIndexer.Add(o); err != nil {
-			t.Fatalf("Failed to add object to indexer: %v", err)
-		}
-	}
 	mcLister := machineconfigv1listers.NewMachineConfigLister(mcIndexer)
 
 	nodeIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
@@ -1157,7 +1226,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			},
 			pools:            []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker"), getMCP("non-exist-mcp")},
 			mcpToRemove:      "non-exist-mcp",
-			expectedQueueLen: 2,
+			expectedQueueLen: 1,
 		},
 		{
 			name: "reconcile for a new pool",
@@ -1168,7 +1237,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			},
 			pools:            []*machineconfigv1.MachineConfigPool{getMCP("master"), getMCP("worker")},
 			mcpToAdd:         "infra",
-			expectedQueueLen: 2,
+			expectedQueueLen: 1,
 		},
 		{
 			name: "no-op if not-found",
@@ -1206,7 +1275,7 @@ func Test_sync_with_mcp(t *testing.T) {
 			}
 			mcpLister := machineconfigv1listers.NewMachineConfigPoolLister(mcpIndexer)
 
-			controller := nodeInformerController{
+			controller := &nodeInformerController{
 				nodes:              nodeLister,
 				machineConfigs:     mcLister,
 				machineConfigPools: mcpLister,
@@ -1214,8 +1283,11 @@ func Test_sync_with_mcp(t *testing.T) {
 				now:                func() metav1.Time { return now },
 			}
 
-			if err := controller.initializeCaches(); err != nil {
-				t.Errorf("Failed to initialize caches: %v", err)
+			if tc.mcpToRemove != "" || tc.mcpToAdd != "" {
+				// This is to initialize the caches
+				if err := syncOnceWithAnUnrecognizableKey(controller); err == nil {
+					t.Fatalf("Expected sync error did not occur")
+				}
 			}
 
 			if tc.mcpToRemove != "" {
