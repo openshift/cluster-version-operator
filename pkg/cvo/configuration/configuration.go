@@ -97,6 +97,7 @@ func (config *ClusterVersionOperatorConfiguration) Sync(ctx context.Context, key
 
 	desiredConfig, err := config.lister.Get(ClusterVersionOperatorConfigurationName)
 	if apierrors.IsNotFound(err) {
+		// TODO: Set default values
 		return nil
 	}
 	if err != nil {
