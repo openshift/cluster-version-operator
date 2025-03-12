@@ -47,7 +47,9 @@ func (config *ClusterVersionOperatorConfiguration) clusterVersionOperatorEventHa
 		UpdateFunc: func(_, _ interface{}) {
 			config.queue.Add(config.queueKey)
 		},
-		DeleteFunc: func(_ interface{}) {},
+		DeleteFunc: func(_ interface{}) {
+			config.queue.Add(config.queueKey)
+		},
 	}
 }
 
