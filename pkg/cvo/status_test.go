@@ -202,6 +202,7 @@ type fakeRiFlags struct {
 	unknownVersion                bool
 	reconciliationIssuesCondition bool
 	statusReleaseArchitecture     bool
+	cvoConfiguration              bool
 }
 
 func (f fakeRiFlags) UnknownVersion() bool {
@@ -214,6 +215,10 @@ func (f fakeRiFlags) ReconciliationIssuesCondition() bool {
 
 func (f fakeRiFlags) StatusReleaseArchitecture() bool {
 	return f.statusReleaseArchitecture
+}
+
+func (f fakeRiFlags) CVOConfiguration() bool {
+	return f.cvoConfiguration
 }
 
 func TestUpdateClusterVersionStatus_UnknownVersionAndReconciliationIssues(t *testing.T) {
