@@ -449,7 +449,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			},
 		},
 		{
-			name: "MultipleErrors of UpdateEffectFail and UpdateEffectFailAfterInterval",
+			name: "MultipleErrors of UpdateEffectFail and UpdateEffectReport",
 			args: args{
 				syncWorkerStatus: &SyncWorkerStatus{
 					Failure: &payload.UpdateError{
@@ -460,14 +460,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 								Message:      "Cluster operator A is not available",
 							},
 							&payload.UpdateError{
-								UpdateEffect: payload.UpdateEffectFailAfterInterval,
+								UpdateEffect: payload.UpdateEffectReport,
 								Reason:       "ClusterOperatorDegraded",
 								Message:      "Cluster operator B is degraded",
 							},
 						}),
 						UpdateEffect: payload.UpdateEffectFail,
-						Reason:       "MultipleErrors",
-						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is degraded",
+						Reason:       "ClusterOperatorNotAvailable",
+						Message:      "Cluster operator A is not available",
 					},
 				},
 			},
@@ -551,7 +551,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			},
 		},
 		{
-			name: "MultipleErrors of UpdateEffectFail, UpdateEffectFailAfterInterval, and UpdateEffectNone",
+			name: "MultipleErrors of UpdateEffectFail, UpdateEffectReport, and UpdateEffectNone",
 			args: args{
 				syncWorkerStatus: &SyncWorkerStatus{
 					Failure: &payload.UpdateError{
@@ -567,14 +567,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 								Message:      "Cluster operator B is updating versions",
 							},
 							&payload.UpdateError{
-								UpdateEffect: payload.UpdateEffectFailAfterInterval,
+								UpdateEffect: payload.UpdateEffectReport,
 								Reason:       "ClusterOperatorDegraded",
 								Message:      "Cluster operator C is degraded",
 							},
 						}),
 						UpdateEffect: payload.UpdateEffectFail,
 						Reason:       "MultipleErrors",
-						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions\n* Cluster operator C is degraded",
+						Message:      "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions",
 					},
 				},
 			},
@@ -674,10 +674,6 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 						Name:         "Report",
 						UpdateEffect: payload.UpdateEffectReport,
 					},
-					&payload.UpdateError{
-						Name:         "Fail After Interval",
-						UpdateEffect: payload.UpdateEffectFailAfterInterval,
-					},
 				},
 				updateEffectType: payload.UpdateEffectNone,
 			},
@@ -690,10 +686,6 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 					Name:         "Report",
 					UpdateEffect: payload.UpdateEffectReport,
 				},
-				&payload.UpdateError{
-					Name:         "Fail After Interval",
-					UpdateEffect: payload.UpdateEffectFailAfterInterval,
-				},
 			},
 		},
 		{
@@ -701,8 +693,8 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 			args: args{
 				errs: []error{
 					&payload.UpdateError{
-						Name:         "Fail After Interval",
-						UpdateEffect: payload.UpdateEffectFailAfterInterval,
+						Name:         "Fail",
+						UpdateEffect: payload.UpdateEffectFail,
 					},
 					&payload.UpdateError{
 						Name:         "None #1",
@@ -721,8 +713,8 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 			},
 			want: []error{
 				&payload.UpdateError{
-					Name:         "Fail After Interval",
-					UpdateEffect: payload.UpdateEffectFailAfterInterval,
+					Name:         "Fail",
+					UpdateEffect: payload.UpdateEffectFail,
 				},
 				&payload.UpdateError{
 					Name:         "Report",
@@ -735,8 +727,8 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 			args: args{
 				errs: []error{
 					&payload.UpdateError{
-						Name:         "Fail After Interval",
-						UpdateEffect: payload.UpdateEffectFailAfterInterval,
+						Name:         "Fail",
+						UpdateEffect: payload.UpdateEffectFail,
 					},
 					&payload.UpdateError{
 						Name:         "None #1",
@@ -755,8 +747,8 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 			},
 			want: []error{
 				&payload.UpdateError{
-					Name:         "Fail After Interval",
-					UpdateEffect: payload.UpdateEffectFailAfterInterval,
+					Name:         "Fail",
+					UpdateEffect: payload.UpdateEffectFail,
 				},
 				&payload.UpdateError{
 					Name:         "None #1",
