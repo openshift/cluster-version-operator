@@ -36,7 +36,7 @@ type updateStatusApi struct {
 }
 
 func (c *updateStatusApi) sort() {
-	if c.us == nil {
+	if c.us == nil || c.us.ControlPlane == nil {
 		return
 	}
 
@@ -323,7 +323,7 @@ func ensureControlPlaneInsightByInformer(informer *updatev1alpha1.ControlPlaneIn
 	for i := range informer.Insights {
 		if informer.Insights[i].UID == insight.UID {
 			informer.Insights[i].AcquiredAt = insight.AcquiredAt
-			insight.ControlPlaneInsightUnion.DeepCopyInto(&informer.Insights[i].ControlPlaneInsightUnion)
+			insight.Insight.DeepCopyInto(&informer.Insights[i].Insight)
 			return
 		}
 	}
@@ -335,7 +335,7 @@ func ensureWorkerPoolInsightByInformer(informer *updatev1alpha1.WorkerPoolInform
 	for i := range informer.Insights {
 		if informer.Insights[i].UID == insight.UID {
 			informer.Insights[i].AcquiredAt = insight.AcquiredAt
-			insight.WorkerPoolInsightUnion.DeepCopyInto(&informer.Insights[i].WorkerPoolInsightUnion)
+			insight.Insight.DeepCopyInto(&informer.Insights[i].Insight)
 			return
 		}
 	}
@@ -347,12 +347,17 @@ func ensureWorkerPoolInsightByInformer(informer *updatev1alpha1.WorkerPoolInform
 // Assumes statusApi is locked.
 func (c *updateStatusApi) updateControlPlaneInsight(informerName string, insight *updatev1alpha1.ControlPlaneInsight) {
 	// TODO: Logging - log(2) that we do something, and log(4) the diff
-	cp := &c.us.ControlPlane
-	switch insight.Type {
+	if c.us.ControlPlane == nil {
+		c.us.ControlPlane = &updatev1alpha1.ControlPlane{}
+	}
+
+	cp := c.us.ControlPlane
+	switch insight.Insight.Type {
 	case updatev1alpha1.ClusterVersionStatusInsightType:
-		cp.Resource = insight.ClusterVersionStatusInsight.Resource
+		cp.Resource = insight.Insight.ClusterVersionStatusInsight.Resource.DeepCopy()
+
 	case updatev1alpha1.MachineConfigPoolStatusInsightType:
-		cp.PoolResource = insight.MachineConfigPoolStatusInsight.Resource.DeepCopy()
+		cp.PoolResource = insight.Insight.MachineConfigPoolStatusInsight.Resource.DeepCopy()
 	}
 
 	informer := ensureControlPlaneInformer(cp, informerName)
@@ -360,17 +365,17 @@ func (c *updateStatusApi) updateControlPlaneInsight(informerName string, insight
 }
 
 func determineWorkerPool(insight *updatev1alpha1.WorkerPoolInsight) updatev1alpha1.PoolResourceRef {
-	switch insight.Type {
+	switch insight.Insight.Type {
 	case updatev1alpha1.MachineConfigPoolStatusInsightType:
-		return insight.MachineConfigPoolStatusInsight.Resource
+		return insight.Insight.MachineConfigPoolStatusInsight.Resource
 	case updatev1alpha1.NodeStatusInsightType:
-		return insight.NodeStatusInsight.PoolResource
+		return insight.Insight.NodeStatusInsight.PoolResource
 	case updatev1alpha1.HealthInsightType:
 		// TODO: How to map a generic health insight to a worker pool?
 		panic("not implemented yet")
 	}
 
-	panic(fmt.Sprintf("unknown insight type %q", insight.Type))
+	panic(fmt.Sprintf("unknown insight type %q", insight.Insight.Type))
 }
 
 func (c *updateStatusApi) updateWorkerPoolInsight(informerName string, insight *updatev1alpha1.WorkerPoolInsight) {
@@ -382,11 +387,11 @@ func (c *updateStatusApi) updateWorkerPoolInsight(informerName string, insight *
 		c.updateControlPlaneInsight(informerName, &updatev1alpha1.ControlPlaneInsight{
 			UID:        insight.UID,
 			AcquiredAt: insight.AcquiredAt,
-			ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
-				Type:                           insight.Type,
-				MachineConfigPoolStatusInsight: insight.MachineConfigPoolStatusInsight,
-				NodeStatusInsight:              insight.NodeStatusInsight,
-				HealthInsight:                  insight.HealthInsight,
+			Insight: updatev1alpha1.ControlPlaneInsightUnion{
+				Type:                           insight.Insight.Type,
+				MachineConfigPoolStatusInsight: insight.Insight.MachineConfigPoolStatusInsight,
+				NodeStatusInsight:              insight.Insight.NodeStatusInsight,
+				HealthInsight:                  insight.Insight.HealthInsight,
 			},
 		})
 		return

@@ -364,8 +364,8 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				EstToComplete: toPointer(time.Duration(0)),
+				Scope:               "WorkerPool",
+				EstimatedToComplete: toPointer(time.Duration(0)),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -417,9 +417,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(time.Duration(0)),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(time.Duration(0)),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -473,9 +473,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -529,9 +529,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "master",
 					},
 				},
-				Scope:         "ControlPlane",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "ControlPlane",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -585,9 +585,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -698,9 +698,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -755,9 +755,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -974,7 +974,7 @@ func Test_sync_with_node(t *testing.T) {
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+					Insight: updatestatus.WorkerPoolInsightUnion{
 						Type: updatestatus.NodeStatusInsightType,
 						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
@@ -1016,7 +1016,7 @@ func Test_sync_with_node(t *testing.T) {
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+					Insight: updatestatus.WorkerPoolInsightUnion{
 						Type: updatestatus.NodeStatusInsightType,
 						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
@@ -1027,10 +1027,10 @@ func Test_sync_with_node(t *testing.T) {
 									Name:     "worker",
 								},
 							},
-							Resource:      updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
-							Scope:         "WorkerPool",
-							Version:       "4.1.23",
-							EstToComplete: toPointer(10 * time.Minute),
+							Resource:            updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+							Scope:               "WorkerPool",
+							Version:             "4.1.23",
+							EstimatedToComplete: toPointer(10 * time.Minute),
 							Conditions: []metav1.Condition{
 								{Type: "Updating", Status: "True", LastTransitionTime: now, Reason: "Updating", Message: "The node is updating"},
 								{Type: "Available", Status: "True", LastTransitionTime: now, Reason: "AsExpected", Message: "The node is available"},

@@ -26,7 +26,7 @@ func Test_updateStatusController(t *testing.T) {
 	var minus90sec = now.Add(-90 * time.Second)
 	var minus30sec = now.Add(-30 * time.Second)
 	var plus30sec = now.Add(30 * time.Second)
-	var plus60sec = now.Add(1 * time.Minute)
+	var plus60min = now.Add(1 * time.Hour)
 
 	cvResourceRef := updatev1alpha1.ResourceRef{
 		Group:    "config.openshift.io",
@@ -37,7 +37,7 @@ func Test_updateStatusController(t *testing.T) {
 	cvInsight := updatev1alpha1.ControlPlaneInsight{
 		UID:        "cv-version",
 		AcquiredAt: metav1.NewTime(now),
-		ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+		Insight: updatev1alpha1.ControlPlaneInsightUnion{
 			Type: updatev1alpha1.ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: &updatev1alpha1.ClusterVersionStatusInsight{
 				Resource: cvResourceRef,
@@ -54,7 +54,7 @@ func Test_updateStatusController(t *testing.T) {
 	coInsight := updatev1alpha1.ControlPlaneInsight{
 		UID:        "co-cluster-operator",
 		AcquiredAt: metav1.NewTime(now),
-		ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+		Insight: updatev1alpha1.ControlPlaneInsightUnion{
 			Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 				Resource: coResourceRef,
@@ -90,7 +90,7 @@ func Test_updateStatusController(t *testing.T) {
 			name: "no messages, state -> unchanged state",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name:     "cpi",
@@ -102,7 +102,7 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name:     "cpi",
@@ -127,8 +127,8 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name:     "cpi",
@@ -143,8 +143,8 @@ func Test_updateStatusController(t *testing.T) {
 			name: "messages over time build state over old state",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "cpi",
@@ -153,7 +153,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "overwritten",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 												Conditions: []metav1.Condition{
@@ -186,7 +186,7 @@ func Test_updateStatusController(t *testing.T) {
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{
 						UID:        "new-clusteroperator",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 							ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 								Conditions: []metav1.Condition{
@@ -213,7 +213,7 @@ func Test_updateStatusController(t *testing.T) {
 					uid:      "overwritten",
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{UID: "overwritten",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 							ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 								Conditions: []metav1.Condition{
@@ -241,7 +241,7 @@ func Test_updateStatusController(t *testing.T) {
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{
 						UID:        "another-clusteroperator",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 							ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 								Conditions: []metav1.Condition{
@@ -268,7 +268,7 @@ func Test_updateStatusController(t *testing.T) {
 					uid:      "overwritten",
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{UID: "overwritten",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 							ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 								Conditions: []metav1.Condition{
@@ -293,8 +293,8 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "cpi",
@@ -303,7 +303,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "new-clusteroperator",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 												Conditions: []metav1.Condition{
@@ -326,7 +326,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "overwritten",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 												Conditions: []metav1.Condition{
@@ -349,7 +349,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "another-clusteroperator",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.ClusterOperatorStatusInsightType,
 											ClusterOperatorStatusInsight: &updatev1alpha1.ClusterOperatorStatusInsight{
 												Conditions: []metav1.Condition{
@@ -386,7 +386,7 @@ func Test_updateStatusController(t *testing.T) {
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{
 						UID:        "item",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.HealthInsightType,
 							HealthInsight: &updatev1alpha1.HealthInsight{
 								StartedAt: metav1.NewTime(minus30sec),
@@ -411,7 +411,7 @@ func Test_updateStatusController(t *testing.T) {
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{
 						UID:        "item",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.HealthInsightType,
 							HealthInsight: &updatev1alpha1.HealthInsight{
 								StartedAt: metav1.NewTime(minus90sec),
@@ -436,7 +436,7 @@ func Test_updateStatusController(t *testing.T) {
 					cpInsight: &updatev1alpha1.ControlPlaneInsight{
 						UID:        "item",
 						AcquiredAt: metav1.NewTime(now),
-						ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+						Insight: updatev1alpha1.ControlPlaneInsightUnion{
 							Type: updatev1alpha1.HealthInsightType,
 							HealthInsight: &updatev1alpha1.HealthInsight{
 								StartedAt: metav1.NewTime(minus90sec),
@@ -458,7 +458,7 @@ func Test_updateStatusController(t *testing.T) {
 			},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -466,7 +466,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "item",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.HealthInsightType,
 											HealthInsight: &updatev1alpha1.HealthInsight{
 												StartedAt: metav1.NewTime(minus30sec),
@@ -492,7 +492,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "item",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.HealthInsightType,
 											HealthInsight: &updatev1alpha1.HealthInsight{
 												StartedAt: metav1.NewTime(minus90sec),
@@ -518,7 +518,7 @@ func Test_updateStatusController(t *testing.T) {
 									{
 										UID:        "item",
 										AcquiredAt: metav1.NewTime(now),
-										ControlPlaneInsightUnion: updatev1alpha1.ControlPlaneInsightUnion{
+										Insight: updatev1alpha1.ControlPlaneInsightUnion{
 											Type: updatev1alpha1.HealthInsightType,
 											HealthInsight: &updatev1alpha1.HealthInsight{
 												StartedAt: metav1.NewTime(minus90sec),
@@ -597,7 +597,7 @@ func Test_updateStatusController(t *testing.T) {
 			name: "unknown insight -> not removed from state immediately but set for expiration",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -617,8 +617,8 @@ func Test_updateStatusController(t *testing.T) {
 			}},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -631,7 +631,7 @@ func Test_updateStatusController(t *testing.T) {
 					},
 				},
 				unknownInsightExpirations: map[string]insightExpirations{
-					"one": {coInsight.UID: plus60sec},
+					"one": {coInsight.UID: plus60min},
 				},
 			},
 		},
@@ -639,7 +639,7 @@ func Test_updateStatusController(t *testing.T) {
 			name: "unknown insight already set for expiration -> not removed from state while not expired yet",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -662,8 +662,8 @@ func Test_updateStatusController(t *testing.T) {
 			}},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -684,7 +684,7 @@ func Test_updateStatusController(t *testing.T) {
 			name: "previously unknown insight set for expiration is known again -> kept in state and expire dropped",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -707,8 +707,8 @@ func Test_updateStatusController(t *testing.T) {
 			}},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -727,7 +727,7 @@ func Test_updateStatusController(t *testing.T) {
 			name: "previously unknown insight expired and never became known again -> dropped from state and expire dropped",
 			before: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
+					ControlPlane: &updatev1alpha1.ControlPlane{
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",
@@ -750,8 +750,8 @@ func Test_updateStatusController(t *testing.T) {
 			}},
 			expected: &updateStatusApi{
 				us: &updatev1alpha1.UpdateStatusStatus{
-					ControlPlane: updatev1alpha1.ControlPlane{
-						Resource: cvResourceRef,
+					ControlPlane: &updatev1alpha1.ControlPlane{
+						Resource: &cvResourceRef,
 						Informers: []updatev1alpha1.ControlPlaneInformer{
 							{
 								Name: "one",

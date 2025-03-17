@@ -99,15 +99,18 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
 							Assessment: updatestatus.ControlPlaneAssessmentProgressing,
 							Versions: updatestatus.ControlPlaneUpdateVersions{
-								Target: updatestatus.Version{
-									Version:  "4.18.0",
+								Previous: updatestatus.Version{
+									Version:  "<none>",
 									Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+								},
+								Target: updatestatus.Version{
+									Version: "4.18.0",
 								},
 							},
 							Completion:           0,
@@ -134,15 +137,18 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
 							Assessment: updatestatus.ControlPlaneAssessmentCompleted,
 							Versions: updatestatus.ControlPlaneUpdateVersions{
-								Target: updatestatus.Version{
-									Version:  "4.18.0",
+								Previous: updatestatus.Version{
+									Version:  "<none>",
 									Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+								},
+								Target: updatestatus.Version{
+									Version: "4.18.0",
 								},
 							},
 							Completion:           100,
@@ -170,7 +176,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -206,7 +212,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"0kmuaUQRUJDOAIAF1KWTmg": {
 					UID:        "0kmuaUQRUJDOAIAF1KWTmg",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.HealthInsightType,
 						HealthInsight: &updatestatus.HealthInsight{
 							StartedAt: now,
@@ -231,7 +237,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -530,7 +536,7 @@ func Test_sync_with_co(t *testing.T) {
 				"co-some-co": {
 					UID:        "co-some-co",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterOperatorStatusInsightType,
 						ClusterOperatorStatusInsight: &updatestatus.ClusterOperatorStatusInsight{
 							Name:     "some-co",
@@ -1062,9 +1068,12 @@ func Test_assessClusterVersion_cvStatusInsight(t *testing.T) {
 				Resource:   cvReference,
 				Assessment: updatestatus.ControlPlaneAssessmentProgressing,
 				Versions: updatestatus.ControlPlaneUpdateVersions{
-					Target: updatestatus.Version{
-						Version:  "4.18.0",
+					Previous: updatestatus.Version{
 						Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+						Version:  "<none>",
+					},
+					Target: updatestatus.Version{
+						Version: "4.18.0",
 					},
 				},
 				StartedAt:            minutesAgo[30],
@@ -1101,13 +1110,12 @@ func Test_assessClusterVersion_cvStatusInsight(t *testing.T) {
 				Resource:   cvReference,
 				Assessment: updatestatus.ControlPlaneAssessmentCompleted,
 				Versions: updatestatus.ControlPlaneUpdateVersions{
+					Previous: updatestatus.Version{
+						Version:  "<none>",
+						Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+					},
 					Target: updatestatus.Version{
 						Version: "4.18.0",
-						Metadata: []updatestatus.VersionMetadata{
-							{
-								Key: updatestatus.InstallationMetadata,
-							},
-						},
 					},
 				},
 				Completion:           100,
@@ -1698,9 +1706,12 @@ func Test_versionsFromHistory(t *testing.T) {
 				},
 			},
 			expected: updatestatus.ControlPlaneUpdateVersions{
-				Target: updatestatus.Version{
-					Version:  "4.18.0",
+				Previous: updatestatus.Version{
+					Version:  "<none>",
 					Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+				},
+				Target: updatestatus.Version{
+					Version: "4.18.0",
 				},
 			},
 		},

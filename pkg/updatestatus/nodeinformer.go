@@ -326,7 +326,7 @@ func (c *nodeInformerController) syncNode(ctx context.Context, name string) (*in
 
 	mcpName := c.mcpSelectors.whichMCP(labels.Set(node.Labels))
 	if mcpName == "" {
-		// We assume that every node belongs to a MCP at all time.
+		// We assume that every node belongs to an MCP at all time.
 		// Although conceptually the assumption might not be true (see https://docs.openshift.com/container-platform/4.17/machine_configuration/index.html#architecture-machine-config-pools_machine-config-overview),
 		// we will wait to hear from our users the issues for cluster updates and will handle them accordingly by then.
 		klog.V(2).Infof("Ignored node %s as it does not belong to any machine config pool", node.Name)
@@ -337,7 +337,7 @@ func (c *nodeInformerController) syncNode(ctx context.Context, name string) (*in
 	mcp, err := c.machineConfigPools.Get(mcpName)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			// it will be another event if a MCP is deleted
+			// it will be another event if an MCP is deleted
 			return nil, nil
 		}
 		return nil, err
@@ -376,7 +376,7 @@ func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquired
 	insight := updatestatus.WorkerPoolInsight{
 		UID:        fmt.Sprintf("node-%s", strings.Replace(nodeInsight.Resource.Name, ".", "-", -1)),
 		AcquiredAt: acquiredAt,
-		WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+		Insight: updatestatus.WorkerPoolInsightUnion{
 			Type:              updatestatus.NodeStatusInsightType,
 			NodeStatusInsight: nodeInsight,
 		},
@@ -575,11 +575,11 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 				Name:     mcp.Name,
 			},
 		},
-		Scope:         scope,
-		Version:       currentVersion,
-		EstToComplete: estimate,
-		Message:       message,
-		Conditions:    conditions,
+		Scope:               scope,
+		Version:             currentVersion,
+		EstimatedToComplete: estimate,
+		Message:             message,
+		Conditions:          conditions,
 	}
 }
 

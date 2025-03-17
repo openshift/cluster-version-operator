@@ -177,7 +177,7 @@ func makeInsightMsgForClusterOperator(coInsight *updatestatus.ClusterOperatorSta
 	insight := updatestatus.ControlPlaneInsight{
 		UID:        fmt.Sprintf("co-%s", coInsight.Name),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+		Insight: updatestatus.ControlPlaneInsightUnion{
 			Type:                         updatestatus.ClusterOperatorStatusInsightType,
 			ClusterOperatorStatusInsight: coInsight,
 		},
@@ -310,7 +310,7 @@ func makeInsightMsgForClusterVersion(cvInsight *updatestatus.ClusterVersionStatu
 	insight := updatestatus.ControlPlaneInsight{
 		UID:        fmt.Sprintf("cv-%s", cvInsight.Resource.Name),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+		Insight: updatestatus.ControlPlaneInsightUnion{
 			Type:                        updatestatus.ClusterVersionStatusInsightType,
 			ClusterVersionStatusInsight: cvInsight,
 		},
@@ -339,7 +339,7 @@ func makeInsightMsgForHealthInsight(healthInsight *updatestatus.HealthInsight, a
 	insight := updatestatus.ControlPlaneInsight{
 		UID:        uidForHealthInsight(healthInsight),
 		AcquiredAt: acquiredAt,
-		ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+		Insight: updatestatus.ControlPlaneInsightUnion{
 			Type:          updatestatus.HealthInsightType,
 			HealthInsight: healthInsight,
 		},
