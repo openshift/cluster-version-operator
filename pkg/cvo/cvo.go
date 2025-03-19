@@ -183,6 +183,9 @@ type Operator struct {
 	// always be implicitly enabled.
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 
+	// configFile is a path to a ClusterVersionOperator configuration file
+	configFile string
+
 	// configuration, if enabled, reconciles the ClusterVersionOperator configuration.
 	configuration *configuration.ClusterVersionOperatorConfiguration
 }
@@ -209,6 +212,7 @@ func New(
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
 	updateService string,
+	configFile string,
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
@@ -237,6 +241,7 @@ func New(
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
 		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
+		configFile:                configFile,
 		hypershift:                hypershift,
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
