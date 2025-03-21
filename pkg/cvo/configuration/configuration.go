@@ -3,6 +3,7 @@ package configuration
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -152,11 +153,13 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		}
 		klog.V(i.Debug).Infof("Successfully updated the log level from '%s' to '%s'", currentLogLevel, config.desiredLogLevel)
 
-		// E2E testing will be checking for existence or absence of these logs
-		klog.V(i.Normal).Infof("The CVO logging level is set to the 'Normal' log level or above")
-		klog.V(i.Debug).Infof("The CVO logging level is set to the 'Debug' log level or above")
-		klog.V(i.Trace).Infof("The CVO logging level is set to the 'Trace' log level or above")
-		klog.V(i.TraceAll).Infof("The CVO logging level is set to the 'TraceAll' log level or above")
+		if os.Getenv("CI") == "true" {
+			// E2E testing will be checking for existence or absence of these logs
+			klog.V(i.Normal).Infof("The CVO logging level is set to the 'Normal' log level or above")
+			klog.V(i.Debug).Infof("The CVO logging level is set to the 'Debug' log level or above")
+			klog.V(i.Trace).Infof("The CVO logging level is set to the 'Trace' log level or above")
+			klog.V(i.TraceAll).Infof("The CVO logging level is set to the 'TraceAll' log level or above")
+		}
 	}
 	return nil
 }
