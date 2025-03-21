@@ -67,13 +67,22 @@ func (config *ClusterVersionOperatorConfiguration) clusterVersionOperatorEventHa
 // NewClusterVersionOperatorConfiguration returns ClusterVersionOperatorConfiguration, which might be used
 // to synchronize with the ClusterVersionOperator resource.
 func NewClusterVersionOperatorConfiguration(client operatorclientset.Interface, factory operatorexternalversions.SharedInformerFactory) *ClusterVersionOperatorConfiguration {
+	var desiredLogLevel operatorv1.LogLevel
+	if currentLogLevel, notFound := loglevel.GetLogLevel(); notFound {
+		klog.Warningf("The current log level could not be found; assuming the 'Normal' level is the currently desired")
+		desiredLogLevel = operatorv1.Normal
+	} else {
+		desiredLogLevel = currentLogLevel
+	}
+
 	return &ClusterVersionOperatorConfiguration{
 		queueKey: fmt.Sprintf("ClusterVersionOperator/%s", ClusterVersionOperatorConfigurationName),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: "configuration"}),
-		client:  client.OperatorV1alpha1().ClusterVersionOperators(),
-		factory: factory,
+		client:          client.OperatorV1alpha1().ClusterVersionOperators(),
+		factory:         factory,
+		desiredLogLevel: desiredLogLevel,
 	}
 }
 
@@ -92,13 +101,6 @@ func (config *ClusterVersionOperatorConfiguration) Start(ctx context.Context) er
 		if !ok {
 			return fmt.Errorf("caches failed to sync: %w", ctx.Err())
 		}
-	}
-
-	if currentLogLevel, notFound := loglevel.GetLogLevel(); notFound {
-		klog.Warningf("The current log level could not be found; assuming the 'Normal' level is the currently desired")
-		config.desiredLogLevel = operatorv1.Normal
-	} else {
-		config.desiredLogLevel = currentLogLevel
 	}
 
 	config.started = true
