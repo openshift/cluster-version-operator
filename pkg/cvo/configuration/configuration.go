@@ -132,7 +132,7 @@ func (config *ClusterVersionOperatorConfiguration) Sync(ctx context.Context, key
 func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, desiredConfig *operatorv1alpha1.ClusterVersionOperator) error {
 	if desiredConfig.Status.ObservedGeneration != desiredConfig.Generation {
 		desiredConfig.Status.ObservedGeneration = desiredConfig.Generation
-		_, err := config.client.UpdateStatus(ctx, desiredConfig, metav1.UpdateOptions{})
+		_, err := config.client.UpdateStatus(ctx, desiredConfig, metav1.UpdateOptions{FieldManager: "cluster-version-operator"})
 		if err != nil {
 			return fmt.Errorf("failed to update the ClusterVersionOperator resource, err=%w", err)
 		}
