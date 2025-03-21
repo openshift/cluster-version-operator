@@ -51,15 +51,15 @@ func (config *ClusterVersionOperatorConfiguration) clusterVersionOperatorEventHa
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
 			config.queue.Add(config.queueKey)
-			klog.V(i.Debug).Infof("ClusterVersionOperator resource was added; queuing a configuration sync")
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was added; queuing a sync")
 		},
 		UpdateFunc: func(_, _ interface{}) {
 			config.queue.Add(config.queueKey)
-			klog.V(i.Debug).Infof("ClusterVersionOperator resource was modified or resync period has passed; queuing a configuration sync")
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was modified or resync period has passed; queuing a sync")
 		},
 		DeleteFunc: func(_ interface{}) {
 			config.queue.Add(config.queueKey)
-			klog.V(i.Debug).Infof("ClusterVersionOperator resource was deleted; queuing a configuration sync")
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was deleted; queuing a sync")
 		},
 	}
 }
