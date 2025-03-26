@@ -328,14 +328,13 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		failingCondition.Message = failingMessage
 	}
 	if failure != nil &&
-		skipFailure &&
-		(progressReason == "ClusterOperatorUpdating" || progressReason == "ClusterOperatorsUpdating") &&
-		strings.HasPrefix(progressMessage, slowCOUpdatePrefix) {
-		progressMessage = strings.TrimPrefix(progressMessage, slowCOUpdatePrefix)
+		strings.HasPrefix(progressReason, slowCOUpdatePrefix) {
 		failingCondition.Status = configv1.ConditionUnknown
 		failingCondition.Reason = "SlowClusterOperator"
 		failingCondition.Message = progressMessage
 	}
+	progressReason = strings.TrimPrefix(progressReason, slowCOUpdatePrefix)
+
 	resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, failingCondition)
 
 	// update progressing
@@ -589,13 +588,13 @@ func convertErrorToProgressing(now time.Time, statusFailure error) (reason strin
 		}
 		// returns true in those slow cases because it is still only a suspicion
 		if len(exceeded) > 0 && !machineConfig {
-			return uErr.Reason, fmt.Sprintf("%swaiting on %s over 30 minutes which is longer than expected", slowCOUpdatePrefix, strings.Join(exceeded, ", ")), true
+			return slowCOUpdatePrefix + uErr.Reason, fmt.Sprintf("waiting on %s over 30 minutes which is longer than expected", strings.Join(exceeded, ", ")), true
 		}
 		if len(exceeded) > 0 && machineConfig {
-			return uErr.Reason, fmt.Sprintf("%swaiting on %s over 30 minutes and machine-config over 90 minutes which is longer than expected", slowCOUpdatePrefix, strings.Join(exceeded, ", ")), true
+			return slowCOUpdatePrefix + uErr.Reason, fmt.Sprintf("waiting on %s over 30 minutes and machine-config over 90 minutes which is longer than expected", strings.Join(exceeded, ", ")), true
 		}
 		if len(exceeded) == 0 && machineConfig {
-			return uErr.Reason, fmt.Sprintf("%swaiting on machine-config over 90 minutes which is longer than expected", slowCOUpdatePrefix), true
+			return slowCOUpdatePrefix + uErr.Reason, "waiting on machine-config over 90 minutes which is longer than expected", true
 		}
 		return uErr.Reason, fmt.Sprintf("waiting on %s", strings.Join(names, ", ")), true
 	case payload.UpdateEffectFail:
