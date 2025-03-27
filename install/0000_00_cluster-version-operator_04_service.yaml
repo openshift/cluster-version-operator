@@ -16,4 +16,4 @@ spec:
     k8s-app: cluster-version-operator
   ports:
   - name: metrics
-    port: 9099 # chosen to be in the internal open range
+    port: 9099  # chosen to be in the internal open range
