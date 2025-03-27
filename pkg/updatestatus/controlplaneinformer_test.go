@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
 	"k8s.io/utils/ptr"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -27,7 +26,7 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 )
 
 func newClusterVersionStatusInsightUpdating(status metav1.ConditionStatus, reason updatestatus.ClusterVersionStatusInsightUpdatingReason, message string, lastTransitionTime metav1.Time) metav1.Condition {
@@ -100,15 +99,18 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
 							Assessment: updatestatus.ControlPlaneAssessmentProgressing,
 							Versions: updatestatus.ControlPlaneUpdateVersions{
-								Target: updatestatus.Version{
-									Version:  "4.18.0",
+								Previous: updatestatus.Version{
+									Version:  "<none>",
 									Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+								},
+								Target: updatestatus.Version{
+									Version: "4.18.0",
 								},
 							},
 							Completion:           0,
@@ -135,15 +137,18 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
 							Assessment: updatestatus.ControlPlaneAssessmentCompleted,
 							Versions: updatestatus.ControlPlaneUpdateVersions{
-								Target: updatestatus.Version{
-									Version:  "4.18.0",
+								Previous: updatestatus.Version{
+									Version:  "<none>",
 									Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+								},
+								Target: updatestatus.Version{
+									Version: "4.18.0",
 								},
 							},
 							Completion:           100,
@@ -171,7 +176,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -207,7 +212,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"0kmuaUQRUJDOAIAF1KWTmg": {
 					UID:        "0kmuaUQRUJDOAIAF1KWTmg",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.HealthInsightType,
 						HealthInsight: &updatestatus.HealthInsight{
 							StartedAt: now,
@@ -232,7 +237,7 @@ func Test_sync_with_cv(t *testing.T) {
 				"cv-version": {
 					UID:        "cv-version",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterVersionStatusInsightType,
 						ClusterVersionStatusInsight: &updatestatus.ClusterVersionStatusInsight{
 							Resource:   cvRef,
@@ -289,14 +294,10 @@ func Test_sync_with_cv(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: controlPlaneInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  controlPlaneInformerName,
+					uid:       uid,
+					cpInsight: insight.DeepCopy(),
 				})
 			}
 
@@ -535,7 +536,7 @@ func Test_sync_with_co(t *testing.T) {
 				"co-some-co": {
 					UID:        "co-some-co",
 					AcquiredAt: now,
-					ControlPlaneInsightUnion: updatestatus.ControlPlaneInsightUnion{
+					Insight: updatestatus.ControlPlaneInsightUnion{
 						Type: updatestatus.ClusterOperatorStatusInsightType,
 						ClusterOperatorStatusInsight: &updatestatus.ClusterOperatorStatusInsight{
 							Name:     "some-co",
@@ -587,14 +588,10 @@ func Test_sync_with_co(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: controlPlaneInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  controlPlaneInformerName,
+					uid:       uid,
+					cpInsight: insight.DeepCopy(),
 				})
 			}
 
@@ -1071,9 +1068,12 @@ func Test_assessClusterVersion_cvStatusInsight(t *testing.T) {
 				Resource:   cvReference,
 				Assessment: updatestatus.ControlPlaneAssessmentProgressing,
 				Versions: updatestatus.ControlPlaneUpdateVersions{
-					Target: updatestatus.Version{
-						Version:  "4.18.0",
+					Previous: updatestatus.Version{
 						Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+						Version:  "<none>",
+					},
+					Target: updatestatus.Version{
+						Version: "4.18.0",
 					},
 				},
 				StartedAt:            minutesAgo[30],
@@ -1110,13 +1110,12 @@ func Test_assessClusterVersion_cvStatusInsight(t *testing.T) {
 				Resource:   cvReference,
 				Assessment: updatestatus.ControlPlaneAssessmentCompleted,
 				Versions: updatestatus.ControlPlaneUpdateVersions{
+					Previous: updatestatus.Version{
+						Version:  "<none>",
+						Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+					},
 					Target: updatestatus.Version{
 						Version: "4.18.0",
-						Metadata: []updatestatus.VersionMetadata{
-							{
-								Key: updatestatus.InstallationMetadata,
-							},
-						},
 					},
 				},
 				Completion:           100,
@@ -1707,9 +1706,12 @@ func Test_versionsFromHistory(t *testing.T) {
 				},
 			},
 			expected: updatestatus.ControlPlaneUpdateVersions{
-				Target: updatestatus.Version{
-					Version:  "4.18.0",
+				Previous: updatestatus.Version{
+					Version:  "<none>",
 					Metadata: []updatestatus.VersionMetadata{{Key: updatestatus.InstallationMetadata}},
+				},
+				Target: updatestatus.Version{
+					Version: "4.18.0",
 				},
 			},
 		},

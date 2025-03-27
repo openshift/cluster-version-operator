@@ -24,7 +24,7 @@ import (
 	"github.com/openshift/library-go/pkg/controller/factory"
 	"github.com/openshift/library-go/pkg/operator/events"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
@@ -141,11 +141,7 @@ func (c *nodeInformerController) sync(ctx context.Context, syncCtx factory.SyncC
 	default:
 		return fmt.Errorf("invalid queue key %s with unexpected type %s", queueKey, t)
 	}
-	var msgForLog string
-	if klog.V(4).Enabled() {
-		msgForLog = fmt.Sprintf(" | msg=%s", string(msg.insight))
-	}
-	klog.V(2).Infof("NI :: Syncing %s %s%s", t, name, msgForLog)
+	klog.V(2).Infof("NI :: Syncing %s %s", t, name)
 	c.sendInsight(msg)
 	return nil
 }
@@ -330,7 +326,7 @@ func (c *nodeInformerController) syncNode(ctx context.Context, name string) (*in
 
 	mcpName := c.mcpSelectors.whichMCP(labels.Set(node.Labels))
 	if mcpName == "" {
-		// We assume that every node belongs to a MCP at all time.
+		// We assume that every node belongs to an MCP at all time.
 		// Although conceptually the assumption might not be true (see https://docs.openshift.com/container-platform/4.17/machine_configuration/index.html#architecture-machine-config-pools_machine-config-overview),
 		// we will wait to hear from our users the issues for cluster updates and will handle them accordingly by then.
 		klog.V(2).Infof("Ignored node %s as it does not belong to any machine config pool", node.Name)
@@ -341,7 +337,7 @@ func (c *nodeInformerController) syncNode(ctx context.Context, name string) (*in
 	mcp, err := c.machineConfigPools.Get(mcpName)
 	if err != nil {
 		if kerrors.IsNotFound(err) {
-			// it will be another event if a MCP is deleted
+			// it will be another event if an MCP is deleted
 			return nil, nil
 		}
 		return nil, err
@@ -378,9 +374,9 @@ func (c *nodeInformerController) syncSyntheticKey(name string, q workqueue.Typed
 
 func makeInsightMsgForNode(nodeInsight *updatestatus.NodeStatusInsight, acquiredAt metav1.Time) (informerMsg, error) {
 	insight := updatestatus.WorkerPoolInsight{
-		UID:        fmt.Sprintf("node-%s", nodeInsight.Resource.Name),
+		UID:        fmt.Sprintf("node-%s", strings.Replace(nodeInsight.Resource.Name, ".", "-", -1)),
 		AcquiredAt: acquiredAt,
-		WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+		Insight: updatestatus.WorkerPoolInsightUnion{
 			Type:              updatestatus.NodeStatusInsightType,
 			NodeStatusInsight: nodeInsight,
 		},
@@ -579,11 +575,11 @@ func assessNode(node *corev1.Node, mcp *machineconfigv1.MachineConfigPool, machi
 				Name:     mcp.Name,
 			},
 		},
-		Scope:         scope,
-		Version:       currentVersion,
-		EstToComplete: estimate,
-		Message:       message,
-		Conditions:    conditions,
+		Scope:               scope,
+		Version:             currentVersion,
+		EstimatedToComplete: estimate,
+		Message:             message,
+		Conditions:          conditions,
 	}
 }
 

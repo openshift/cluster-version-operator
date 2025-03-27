@@ -7,8 +7,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"gopkg.in/yaml.v3"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,7 +19,7 @@ import (
 	fakeconfigv1client "github.com/openshift/client-go/config/clientset/versioned/fake"
 	machineconfigv1listers "github.com/openshift/client-go/machineconfiguration/listers/machineconfiguration/v1"
 
-	updatestatus "github.com/openshift/cluster-version-operator/pkg/updatestatus/api"
+	updatestatus "github.com/openshift/api/update/v1alpha1"
 	"github.com/openshift/cluster-version-operator/pkg/updatestatus/mco"
 )
 
@@ -366,8 +364,8 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				EstToComplete: toPointer(time.Duration(0)),
+				Scope:               "WorkerPool",
+				EstimatedToComplete: toPointer(time.Duration(0)),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -419,9 +417,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(time.Duration(0)),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(time.Duration(0)),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -475,9 +473,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -531,9 +529,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "master",
 					},
 				},
-				Scope:         "ControlPlane",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "ControlPlane",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -587,9 +585,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -700,9 +698,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -757,9 +755,9 @@ func Test_assessNode(t *testing.T) {
 						Name:     "worker",
 					},
 				},
-				Scope:         "WorkerPool",
-				Version:       "4.1.23",
-				EstToComplete: toPointer(10 * time.Minute),
+				Scope:               "WorkerPool",
+				Version:             "4.1.23",
+				EstimatedToComplete: toPointer(10 * time.Minute),
 				Conditions: []metav1.Condition{
 					{
 						Type:               "Updating",
@@ -976,7 +974,7 @@ func Test_sync_with_node(t *testing.T) {
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+					Insight: updatestatus.WorkerPoolInsightUnion{
 						Type: updatestatus.NodeStatusInsightType,
 						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
@@ -1018,7 +1016,7 @@ func Test_sync_with_node(t *testing.T) {
 				"node-worker-1": {
 					UID:        "node-worker-1",
 					AcquiredAt: now,
-					WorkerPoolInsightUnion: updatestatus.WorkerPoolInsightUnion{
+					Insight: updatestatus.WorkerPoolInsightUnion{
 						Type: updatestatus.NodeStatusInsightType,
 						NodeStatusInsight: &updatestatus.NodeStatusInsight{
 							Name: "worker-1",
@@ -1029,10 +1027,10 @@ func Test_sync_with_node(t *testing.T) {
 									Name:     "worker",
 								},
 							},
-							Resource:      updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
-							Scope:         "WorkerPool",
-							Version:       "4.1.23",
-							EstToComplete: toPointer(10 * time.Minute),
+							Resource:            updatestatus.ResourceRef{Resource: "nodes", Name: "worker-1"},
+							Scope:               "WorkerPool",
+							Version:             "4.1.23",
+							EstimatedToComplete: toPointer(10 * time.Minute),
 							Conditions: []metav1.Condition{
 								{Type: "Updating", Status: "True", LastTransitionTime: now, Reason: "Updating", Message: "The node is updating"},
 								{Type: "Available", Status: "True", LastTransitionTime: now, Reason: "AsExpected", Message: "The node is available"},
@@ -1092,14 +1090,10 @@ func Test_sync_with_node(t *testing.T) {
 
 			var expectedMsgs []informerMsg
 			for uid, insight := range tc.expectedMsgs {
-				raw, err := yaml.Marshal(insight)
-				if err != nil {
-					t.Fatalf("Failed to marshal expected insight: %v", err)
-				}
 				expectedMsgs = append(expectedMsgs, informerMsg{
-					informer: nodesInformerName,
-					uid:      uid,
-					insight:  raw,
+					informer:  nodesInformerName,
+					uid:       uid,
+					wpInsight: insight.DeepCopy(),
 				})
 			}
 
