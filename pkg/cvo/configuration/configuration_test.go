@@ -15,6 +15,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var expectedManagedFieldsEntry = metav1.ManagedFieldsEntry{
+	Manager:    "cluster-version-operator",
+	Operation:  "Update",
+	APIVersion: "operator.openshift.io/v1alpha1",
+}
+
+var ignoreNotTestedManagedFieldsEntryFields = cmpopts.IgnoreFields(
+	metav1.ManagedFieldsEntry{}, "Time", "FieldsType", "FieldsV1")
+
 func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 	tests := []struct {
 		name                   string
@@ -27,7 +36,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			name: "first sync run correctly updates the status",
 			config: operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Generation: 1,
+					Generation:    1,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.Normal,
@@ -35,7 +45,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			},
 			expectedConfig: operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Generation: 1,
+					Generation:    1,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.Normal,
@@ -68,7 +79,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			},
 			expectedConfig: operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Generation: 3,
+					Generation:    3,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.Normal,
@@ -101,7 +113,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			},
 			expectedConfig: operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Generation: 4,
+					Generation:    4,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.Trace,
@@ -134,7 +147,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			},
 			expectedConfig: operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Generation: 40,
+					Generation:    40,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.TraceAll,
@@ -177,7 +191,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
-			if diff := cmp.Diff(tt.expectedConfig, *config, cmpopts.IgnoreFields(operatorv1alpha1.ClusterVersionOperator{}, "ObjectMeta")); diff != "" {
+			if diff := cmp.Diff(tt.expectedConfig, *config, ignoreNotTestedManagedFieldsEntryFields); diff != "" {
 				t.Errorf("unexpected config (-want, +got) = %v", diff)
 			}
 
@@ -214,8 +228,9 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 			},
 			expectedConfig: &operatorv1alpha1.ClusterVersionOperator{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:       "cluster",
-					Generation: 4,
+					Name:          "cluster",
+					Generation:    4,
+					ManagedFields: []metav1.ManagedFieldsEntry{expectedManagedFieldsEntry},
 				},
 				Spec: operatorv1alpha1.ClusterVersionOperatorSpec{
 					OperatorLogLevel: operatorv1.Trace,
@@ -263,7 +278,7 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 			case config != nil && tt.expectedConfig == nil:
 				t.Errorf("expected config to be NotFound, got '%v'", *config)
 			case config != nil && tt.expectedConfig != nil:
-				if diff := cmp.Diff(*tt.expectedConfig, *config, cmpopts.IgnoreFields(operatorv1alpha1.ClusterVersionOperator{}, "ObjectMeta")); diff != "" {
+				if diff := cmp.Diff(*tt.expectedConfig, *config, ignoreNotTestedManagedFieldsEntryFields); diff != "" {
 					t.Errorf("unexpected config (-want, +got) = %v", diff)
 				}
 			}
