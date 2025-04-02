@@ -258,6 +258,8 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
+			defer cancelFunc()
+			defer cvoConfiguration.queue.ShutDown()
 
 			// Run tested functionality
 			err = cvoConfiguration.Sync(ctx, "ClusterVersionOperator/cluster")
@@ -282,10 +284,6 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 					t.Errorf("unexpected config (-want, +got) = %v", diff)
 				}
 			}
-
-			// Shutdown created resources
-			cancelFunc()
-			cvoConfiguration.queue.ShutDown()
 		})
 	}
 }
