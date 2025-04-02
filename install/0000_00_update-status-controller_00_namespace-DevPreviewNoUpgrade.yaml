@@ -10,5 +10,5 @@ metadata:
     release.openshift.io/feature-set: DevPreviewNoUpgrade
   labels:
     name: openshift-update-status-controller
-    openshift.io/run-level: "" # specify no run-level turns it off on install and upgrades
+    openshift.io/run-level: ""  # specify no run-level turns it off on install and upgrades
     openshift.io/cluster-monitoring: "true"

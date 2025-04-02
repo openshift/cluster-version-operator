@@ -30,7 +30,7 @@ spec:
         imagePullPolicy: IfNotPresent
         args:
         - "update-status-controller"
-        - -v=5 # High while in DevPreview, lower for GA
+        - -v=5  # High while in DevPreview, lower for GA
         securityContext:
           capabilities:
             drop:
