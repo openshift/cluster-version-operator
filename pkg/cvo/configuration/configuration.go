@@ -138,7 +138,7 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		desiredConfig.Status.ObservedGeneration = desiredConfig.Generation
 		_, err := config.client.UpdateStatus(ctx, desiredConfig, metav1.UpdateOptions{FieldManager: "cluster-version-operator"})
 		if err != nil {
-			return fmt.Errorf("failed to update the ClusterVersionOperator resource, err=%w", err)
+			return fmt.Errorf("failed to update the ClusterVersionOperator resource: %w", err)
 		}
 	}
 	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
@@ -153,7 +153,7 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		klog.V(i.Debug).Infof("No need to update the current CVO log level '%s'; it is already set to the desired value", currentLogLevel)
 	} else {
 		if err := loglevel.SetLogLevel(config.desiredLogLevel); err != nil {
-			return fmt.Errorf("failed to set the log level to '%s', err=%w", config.desiredLogLevel, err)
+			return fmt.Errorf("failed to set the log level to %q: %w", config.desiredLogLevel, err)
 		}
 		klog.V(i.Debug).Infof("Successfully updated the log level from '%s' to '%s'", currentLogLevel, config.desiredLogLevel)
 
