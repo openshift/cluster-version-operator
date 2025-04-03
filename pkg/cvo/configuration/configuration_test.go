@@ -274,12 +274,9 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 			}
 
 			switch {
-			case apierrors.IsNotFound(err) && tt.expectedConfig == nil:
 			case apierrors.IsNotFound(err) && tt.expectedConfig != nil:
 				t.Errorf("expected config to be '%v', got NotFound", *tt.expectedConfig)
-			case config != nil && tt.expectedConfig == nil:
-				t.Errorf("expected config to be NotFound, got '%v'", *config)
-			case config != nil && tt.expectedConfig != nil:
+			case err == nil:
 				if diff := cmp.Diff(*tt.expectedConfig, *config, ignoreNotTestedManagedFieldsEntryFields); diff != "" {
 					t.Errorf("unexpected config (-want, +got) = %v", diff)
 				}
