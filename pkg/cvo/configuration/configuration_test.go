@@ -251,15 +251,17 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 				client = operatorclientsetfake.NewClientset()
 			}
 
-			ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
 			factory := operatorexternalversions.NewSharedInformerFactoryWithOptions(client, time.Minute)
 			cvoConfiguration := NewClusterVersionOperatorConfiguration(client, factory)
+			defer cvoConfiguration.queue.ShutDown()
+
+			ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
+			defer cancelFunc()
+
 			err := cvoConfiguration.Start(ctx)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
-			defer cancelFunc()
-			defer cvoConfiguration.queue.ShutDown()
 
 			// Run tested functionality
 			err = cvoConfiguration.Sync(ctx, "ClusterVersionOperator/cluster")
