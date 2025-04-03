@@ -126,9 +126,13 @@ func (config *ClusterVersionOperatorConfiguration) Sync(ctx context.Context, key
 	if err != nil {
 		return err
 	}
-	return config.sync(ctx, desiredConfig)
+	return config.sync(ctx, desiredConfig.DeepCopy())
 }
 
+// sync synchronizes the local configuration based on the desired configuration
+// and updates the status of the Kubernetes resource if needed.
+//
+// desiredConfig may be modified by the function and thus must not be treated as read-only.
 func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, desiredConfig *operatorv1alpha1.ClusterVersionOperator) error {
 	if desiredConfig.Status.ObservedGeneration != desiredConfig.Generation {
 		desiredConfig.Status.ObservedGeneration = desiredConfig.Generation
