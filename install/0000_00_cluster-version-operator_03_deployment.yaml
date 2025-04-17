@@ -25,7 +25,7 @@ spec:
       automountServiceAccountToken: false
       containers:
       - name: cluster-version-operator
-        image: {{.ReleaseImage}}
+        image: '{{.ReleaseImage}}'
         imagePullPolicy: IfNotPresent
         args:
         - "start"
@@ -70,7 +70,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
         - name: CLUSTER_PROFILE
-          value: {{ .ClusterProfile }}
+          value: '{{ .ClusterProfile }}'
       # this pod is hostNetwork and uses the internal LB DNS name when possible, which the kubelet also uses.
       # this dnsPolicy allows us to use the same dnsConfig as the kubelet, without access to read it ourselves.
       dnsPolicy: Default
