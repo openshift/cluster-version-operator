@@ -10,3 +10,4 @@ rules:
 
 ignore:
 - vendor/
+- bootstrap/bootstrap-pod.yaml  # it is a go template file
