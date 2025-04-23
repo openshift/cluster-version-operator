@@ -11,40 +11,40 @@ spec:
     image: {{.ReleaseImage}}
     imagePullPolicy: Always
     args:
-      - "start"
-      - "--release-image={{.ReleaseImage}}"
-      - "--enable-auto-update=false"
-      - "--listen="
-      - "--v=2"
-      - "--kubeconfig=/etc/kubernetes/kubeconfig"
+    - "start"
+    - "--release-image={{.ReleaseImage}}"
+    - "--enable-auto-update=false"
+    - "--listen="
+    - "--v=2"
+    - "--kubeconfig=/etc/kubernetes/kubeconfig"
     securityContext:
       privileged: true
     terminationMessagePolicy: FallbackToLogsOnError
     volumeMounts:
-      - mountPath: /etc/ssl/certs
-        name: etc-ssl-certs
-        readOnly: true
-      - mountPath: /etc/kubernetes/kubeconfig
-        name: kubeconfig
-        readOnly: true
+    - mountPath: /etc/ssl/certs
+      name: etc-ssl-certs
+      readOnly: true
+    - mountPath: /etc/kubernetes/kubeconfig
+      name: kubeconfig
+      readOnly: true
     env:
-      - name: KUBERNETES_SERVICE_PORT # allows CVO to communicate with apiserver directly on same host.
-        value: "6443"
-      - name: KUBERNETES_SERVICE_HOST # allows CVO to communicate with apiserver directly on same host.
-        value: "127.0.0.1"
-      - name: NODE_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: spec.nodeName
-      - name: CLUSTER_PROFILE
-        value: {{ .ClusterProfile }}
+    - name: KUBERNETES_SERVICE_PORT  # allows CVO to communicate with apiserver directly on same host.
+      value: "6443"
+    - name: KUBERNETES_SERVICE_HOST  # allows CVO to communicate with apiserver directly on same host.
+      value: "127.0.0.1"
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_PROFILE
+      value: {{ .ClusterProfile }}
   dnsPolicy: ClusterFirstWithHostNet
   hostNetwork: true
   terminationGracePeriodSeconds: 130
   volumes:
-    - name: kubeconfig
-      hostPath:
-        path: /etc/kubernetes/kubeconfig
-    - name: etc-ssl-certs
-      hostPath:
-        path: /etc/ssl/certs
+  - name: kubeconfig
+    hostPath:
+      path: /etc/kubernetes/kubeconfig
+  - name: etc-ssl-certs
+    hostPath:
+      path: /etc/ssl/certs
