@@ -36,6 +36,9 @@ spec:
         - "--serving-key-file=/etc/tls/serving-cert/tls.key"
         - "--v=2"
         - "--always-enable-capabilities=Ingress"
+        ports:
+        - name: metrics
+          containerPort: 9099
         resources:
           requests:
             cpu: 20m
