@@ -225,6 +225,11 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		Spec: batchv1.JobSpec{
 			ActiveDeadlineSeconds: deadline,
 			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"openshift.io/required-scc": "privileged",
+					},
+				},
 				Spec: corev1.PodSpec{
 					InitContainers: []corev1.Container{
 						setContainerDefaults(corev1.Container{
