@@ -86,9 +86,11 @@ type Options struct {
 
 	HyperShift bool
 
-	// AlwaysEnableCapabilities is a list of cluster version capabilities
-	// which will always be implicitly enabled.
+	// AlwaysEnableCapabilities is user-provided list of cluster version capabilities to be always be implicitly enabled
 	AlwaysEnableCapabilities []string
+	// alwaysEnableCapabilities is the parsed list of cluster version capabilities to be always be implicitly enabled,
+	// guaranteed to contain only known capabilities.
+	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 
 	// for testing only
 	Name            string
@@ -158,9 +160,8 @@ func (o *Options) Run(ctx context.Context) error {
 	if len(o.Exclude) > 0 {
 		klog.Infof("Excluding manifests for %q", o.Exclude)
 	}
-	alwaysEnableCaps, unknownCaps := parseAlwaysEnableCapabilities(o.AlwaysEnableCapabilities)
-	if len(unknownCaps) > 0 {
-		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
+	if err := o.parseAlwaysEnableCapabilities(); err != nil {
+		return fmt.Errorf("--always-enable-capability: %w", err)
 	}
 
 	// Inject the cluster ID into PromQL queries in HyperShift
@@ -185,7 +186,7 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb, alwaysEnableCaps)
+	controllerCtx, err := o.NewControllerContext(cb)
 	if err != nil {
 		return err
 	}
@@ -470,7 +471,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabilities []configv1.ClusterVersionCapability) (*Context, error) {
+func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 	operatorClient := cb.OperatorClientOrDie("operator-client")
@@ -511,7 +512,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
 		o.UpdateService,
-		alwaysEnableCapabilities,
+		o.alwaysEnableCapabilities,
 	)
 	if err != nil {
 		return nil, err
@@ -620,16 +621,14 @@ func (c *Context) InitializeFromPayload(ctx context.Context, restConfig *rest.Co
 
 // parseAlwaysEnableCapabilities parses the string list of capabilities
 // into two lists of configv1.ClusterVersionCapability: known and unknown.
-func parseAlwaysEnableCapabilities(caps []string) ([]configv1.ClusterVersionCapability, []configv1.ClusterVersionCapability) {
-	var (
-		knownCaps   []configv1.ClusterVersionCapability
-		unknownCaps []configv1.ClusterVersionCapability
-	)
-	for _, c := range caps {
+func (o *Options) parseAlwaysEnableCapabilities() error {
+	var unknownCaps []configv1.ClusterVersionCapability
+
+	for _, c := range o.AlwaysEnableCapabilities {
 		known := false
 		for _, kc := range configv1.KnownClusterVersionCapabilities {
 			if configv1.ClusterVersionCapability(c) == kc {
-				knownCaps = append(knownCaps, kc)
+				o.alwaysEnableCapabilities = append(o.alwaysEnableCapabilities, kc)
 				known = true
 				break
 			}
@@ -638,5 +637,10 @@ func parseAlwaysEnableCapabilities(caps []string) ([]configv1.ClusterVersionCapa
 			unknownCaps = append(unknownCaps, configv1.ClusterVersionCapability(c))
 		}
 	}
-	return knownCaps, unknownCaps
+
+	if len(unknownCaps) > 0 {
+		return fmt.Errorf("unknown capabilities: %v", unknownCaps)
+	}
+
+	return nil
 }
