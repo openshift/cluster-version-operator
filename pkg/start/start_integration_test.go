@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"k8s.io/utils/ptr"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -185,7 +187,8 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	options.alwaysEnableCapabilities = []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress}
-	controllers, err := options.NewControllerContext(cb)
+	cvConfigInformer, configInformer := options.prepareConfigInformers(cb)
+	controllers, err := options.NewControllerContext(cb, configv1.Default, ptr.To(featuregates.DefaultCvoGates("0.0.1-snapshot")), cvConfigInformer, configInformer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,7 +320,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	options.alwaysEnableCapabilities = []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress}
-	controllers, err := options.NewControllerContext(cb)
+	cvConfigInformer, configInformer := options.prepareConfigInformers(cb)
+	controllers, err := options.NewControllerContext(cb, configv1.Default, ptr.To(featuregates.DefaultCvoGates("0.0.1-snapshot")), cvConfigInformer, configInformer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +515,8 @@ metadata:
 	options.PayloadOverride = payloadDir
 	options.leaderElection = getLeaderElectionConfig(ctx, cfg)
 	options.alwaysEnableCapabilities = []configv1.ClusterVersionCapability{configv1.ClusterVersionCapabilityIngress}
-	controllers, err := options.NewControllerContext(cb)
+	cvConfigInformer, configInformer := options.prepareConfigInformers(cb)
+	controllers, err := options.NewControllerContext(cb, configv1.Default, ptr.To(featuregates.DefaultCvoGates("0.0.1-snapshot")), cvConfigInformer, configInformer)
 	if err != nil {
 		t.Fatal(err)
 	}

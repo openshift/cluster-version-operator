@@ -35,36 +35,6 @@ type CvoGateChecker interface {
 	CVOConfiguration() bool
 }
 
-type panicOnUsageBeforeInitializationFunc func()
-
-func panicOnUsageBeforeInitialization() {
-	panic("CVO feature flags were used before they were initialized")
-}
-
-// PanicOnUsageBeforeInitialization is a CvoGateChecker that panics if any of its methods are called. This checker should
-// be used before CVO feature gates are actually known and some code tries to check them.
-var PanicOnUsageBeforeInitialization = panicOnUsageBeforeInitializationFunc(panicOnUsageBeforeInitialization)
-
-func (p panicOnUsageBeforeInitializationFunc) ReconciliationIssuesCondition() bool {
-	p()
-	return false
-}
-
-func (p panicOnUsageBeforeInitializationFunc) StatusReleaseArchitecture() bool {
-	p()
-	return false
-}
-
-func (p panicOnUsageBeforeInitializationFunc) UnknownVersion() bool {
-	p()
-	return false
-}
-
-func (p panicOnUsageBeforeInitializationFunc) CVOConfiguration() bool {
-	p()
-	return false
-}
-
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
 // names do not correspond to product feature gates, the booleans here are "smaller" (product-level
 // gate will enable multiple CVO behaviors).
