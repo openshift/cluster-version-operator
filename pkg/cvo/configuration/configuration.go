@@ -141,8 +141,12 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 			return fmt.Errorf("failed to update the ClusterVersionOperator resource: %w", err)
 		}
 	}
-	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
+
 	config.lastObservedGeneration = desiredConfig.Generation
+	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
+	if config.desiredLogLevel == "" {
+		config.desiredLogLevel = operatorv1.Normal
+	}
 
 	currentLogLevel, notFound := loglevel.GetLogLevel()
 	if notFound {
