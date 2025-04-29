@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -162,6 +163,10 @@ func (o *Options) ValidateAndComplete() error {
 	// Inject the cluster ID into PromQL queries in HyperShift
 	o.InjectClusterIdIntoPromQL = o.HyperShift
 
+	if err := validateCapabilities(o.AlwaysEnableCapabilities); err != nil {
+		return fmt.Errorf("--always-enable-capabilities: %w", err)
+	}
+
 	return nil
 }
 
@@ -171,10 +176,6 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 	if len(o.Exclude) > 0 {
 		klog.Infof("Excluding manifests for %q", o.Exclude)
-	}
-	alwaysEnableCaps, unknownCaps := parseAlwaysEnableCapabilities(o.AlwaysEnableCapabilities)
-	if len(unknownCaps) > 0 {
-		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
 	}
 
 	// initialize the core objects
@@ -189,7 +190,7 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb, alwaysEnableCaps)
+	controllerCtx, err := o.NewControllerContext(cb)
 	if err != nil {
 		return err
 	}
@@ -474,7 +475,7 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabilities []configv1.ClusterVersionCapability) (*Context, error) {
+func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
 	client := cb.ClientOrDie("shared-informer")
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 	operatorClient := cb.OperatorClientOrDie("operator-client")
@@ -494,6 +495,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 
 	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
 	o.PromQLTarget.KubeClient = cvoKubeClient
+
 	cvo, err := cvo.New(
 		o.NodeName,
 		o.Namespace, o.Name,
@@ -515,7 +517,7 @@ func (o *Options) NewControllerContext(cb *ClientBuilder, alwaysEnableCapabiliti
 		o.PromQLTarget,
 		o.InjectClusterIdIntoPromQL,
 		o.UpdateService,
-		alwaysEnableCapabilities,
+		stringsToCapabilities(o.AlwaysEnableCapabilities),
 	)
 	if err != nil {
 		return nil, err
@@ -622,25 +624,22 @@ func (c *Context) InitializeFromPayload(ctx context.Context, restConfig *rest.Co
 	return nil
 }
 
-// parseAlwaysEnableCapabilities parses the string list of capabilities
-// into two lists of configv1.ClusterVersionCapability: known and unknown.
-func parseAlwaysEnableCapabilities(caps []string) ([]configv1.ClusterVersionCapability, []configv1.ClusterVersionCapability) {
-	var (
-		knownCaps   []configv1.ClusterVersionCapability
-		unknownCaps []configv1.ClusterVersionCapability
-	)
-	for _, c := range caps {
-		known := false
-		for _, kc := range configv1.KnownClusterVersionCapabilities {
-			if configv1.ClusterVersionCapability(c) == kc {
-				knownCaps = append(knownCaps, kc)
-				known = true
-				break
-			}
-		}
-		if !known {
-			unknownCaps = append(unknownCaps, configv1.ClusterVersionCapability(c))
-		}
+func stringsToCapabilities(names []string) []configv1.ClusterVersionCapability {
+	caps := make([]configv1.ClusterVersionCapability, len(names))
+	for i, c := range names {
+		caps[i] = configv1.ClusterVersionCapability(c)
 	}
-	return knownCaps, unknownCaps
+	return caps
+}
+
+func validateCapabilities(caps []string) error {
+	unknown := sets.New(caps...)
+	for _, kc := range configv1.KnownClusterVersionCapabilities {
+		unknown.Delete(string(kc))
+	}
+
+	if len(unknown) > 0 {
+		return fmt.Errorf("unknown capabilities: %s", sets.List(unknown))
+	}
+	return nil
 }
