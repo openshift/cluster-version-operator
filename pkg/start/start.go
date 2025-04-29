@@ -132,7 +132,7 @@ func NewOptions() *Options {
 	}
 }
 
-func (o *Options) Run(ctx context.Context) error {
+func (o *Options) ValidateAndComplete() error {
 	if o.NodeName == "" {
 		return fmt.Errorf("node-name is required")
 	}
@@ -152,6 +152,20 @@ func (o *Options) Run(ctx context.Context) error {
 		(o.PromQLTarget.KubeSvc.Namespace == "" || o.PromQLTarget.KubeSvc.Name == "") {
 		return fmt.Errorf("--use-dns-for-services is disabled, so --metrics-service and --metrics-namespace must be set")
 	}
+
+	if parsed, err := url.Parse(o.PrometheusURLString); err != nil {
+		return fmt.Errorf("error parsing promql url: %v", err)
+	} else {
+		o.PromQLTarget.URL = parsed
+	}
+
+	// Inject the cluster ID into PromQL queries in HyperShift
+	o.InjectClusterIdIntoPromQL = o.HyperShift
+
+	return nil
+}
+
+func (o *Options) Run(ctx context.Context) error {
 	if len(o.PayloadOverride) > 0 {
 		klog.Warningf("Using an override payload directory for testing only: %s", o.PayloadOverride)
 	}
@@ -161,16 +175,6 @@ func (o *Options) Run(ctx context.Context) error {
 	alwaysEnableCaps, unknownCaps := parseAlwaysEnableCapabilities(o.AlwaysEnableCapabilities)
 	if len(unknownCaps) > 0 {
 		return fmt.Errorf("--always-enable-capabilities was set with unknown capabilities: %v", unknownCaps)
-	}
-
-	// Inject the cluster ID into PromQL queries in HyperShift
-	o.InjectClusterIdIntoPromQL = o.HyperShift
-
-	// parse the prometheus url
-	var err error
-	o.PromQLTarget.URL, err = url.Parse(o.PrometheusURLString)
-	if err != nil {
-		return fmt.Errorf("error parsing promql url: %v", err)
 	}
 
 	// initialize the core objects

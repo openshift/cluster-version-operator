@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 
@@ -15,10 +16,12 @@ func init() {
 		Use:   "start",
 		Short: "Starts Cluster Version Operator",
 		Long:  "",
-		Run: func(cmd *cobra.Command, args []string) {
+		PreRunE: func(_ *cobra.Command, _ []string) error {
 			// To help debugging, immediately log version
 			klog.Info(version.String)
-
+			return opts.ValidateAndComplete()
+		},
+		Run: func(_ *cobra.Command, _ []string) {
 			if err := opts.Run(context.Background()); err != nil {
 				klog.Fatalf("error: %v", err)
 			}
