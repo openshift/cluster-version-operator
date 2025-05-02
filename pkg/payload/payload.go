@@ -140,11 +140,21 @@ type metadata struct {
 
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet string, profile string,
 	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
+	klog.V(2).Infof("Loading updatepayload from %q", dir)
+	if err := ValidateDirectory(dir); err != nil {
+		return nil, err
+	}
+	var (
+		cvoDir     = filepath.Join(dir, CVOManifestDir)
+		releaseDir = filepath.Join(dir, ReleaseManifestDir)
+	)
 
-	payload, tasks, err := loadUpdatePayloadMetadata(dir, releaseImage, profile)
+	payload, err := loadPayloadMetadata(releaseDir, releaseImage)
 	if err != nil {
 		return nil, err
 	}
+
+	tasks := loadPayloadTasks(releaseDir, cvoDir, releaseImage, profile)
 
 	var onlyKnownCaps *configv1.ClusterVersionCapabilitiesStatus
 
@@ -293,47 +303,36 @@ func ValidateDirectory(dir string) error {
 	return nil
 }
 
+func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
+	release, arch, err := loadReleaseFromMetadata(releaseDir)
+	if err != nil {
+		return nil, err
+	}
+	release.Image = releaseImage
+
+	imageRef, err := loadImageReferences(releaseDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if imageRef.Name != release.Version {
+		return nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
+	}
+
+	return &Update{
+		Release:      release,
+		ImageRef:     imageRef,
+		Architecture: arch,
+	}, nil
+}
+
 type payloadTasks struct {
 	idir       string
 	preprocess func([]byte) ([]byte, error)
 	skipFiles  sets.Set[string]
 }
 
-func loadUpdatePayloadMetadata(dir, releaseImage, clusterProfile string) (*Update, []payloadTasks, error) {
-	klog.V(2).Infof("Loading updatepayload from %q", dir)
-	if err := ValidateDirectory(dir); err != nil {
-		return nil, nil, err
-	}
-	var (
-		cvoDir     = filepath.Join(dir, CVOManifestDir)
-		releaseDir = filepath.Join(dir, ReleaseManifestDir)
-	)
-
-	release, arch, err := loadReleaseFromMetadata(releaseDir)
-	if err != nil {
-		return nil, nil, err
-	}
-	release.Image = releaseImage
-
-	imageRef, err := loadImageReferences(releaseDir)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if imageRef.Name != release.Version {
-		return nil, nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
-	}
-
-	tasks := getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile)
-
-	return &Update{
-		Release:      release,
-		ImageRef:     imageRef,
-		Architecture: arch,
-	}, tasks, nil
-}
-
-func getPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []payloadTasks {
+func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []payloadTasks {
 	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 
