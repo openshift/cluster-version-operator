@@ -17,3 +17,4 @@ spec:
   ports:
   - name: metrics
     port: 9099  # chosen to be in the internal open range
+    targetPort: metrics
