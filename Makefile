@@ -19,9 +19,12 @@ format:
 	go fmt ./...
 .PHONY: format
 
-verify:
-	hack/verify-yaml.sh
+verify: verify-yaml
 .PHONY: verify
+
+verify-yaml:
+	hack/verify-yaml.sh
+.PHONY: verify-yaml
 
 clean:
 	rm -rf _output/
