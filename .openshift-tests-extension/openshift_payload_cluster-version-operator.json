@@ -1,0 +1,12 @@
+[
+  {
+    "name": "[cvo-testing] cluster-version-operator-tests should support passing tests",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  }
+]
