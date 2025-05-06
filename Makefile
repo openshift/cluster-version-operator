@@ -15,6 +15,10 @@ integration-test:
 	./hack/integration-test.sh
 .PHONY: integration-test
 
+update: build
+	hack/update-test-metadata.sh
+.PHONY: update
+
 format:
 	go fmt ./...
 .PHONY: format
