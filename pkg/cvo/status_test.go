@@ -206,6 +206,10 @@ type fakeRiFlags struct {
 	cvoConfiguration              bool
 }
 
+func (f fakeRiFlags) SomethingInPayloadLoading() bool {
+	return true
+}
+
 func (f fakeRiFlags) UnknownVersion() bool {
 	return f.unknownVersion
 }

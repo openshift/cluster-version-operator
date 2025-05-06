@@ -33,6 +33,9 @@ type CvoGateChecker interface {
 	// CVOConfiguration controls whether the CVO reconciles the ClusterVersionOperator resource that corresponds
 	// to its configuration.
 	CVOConfiguration() bool
+
+	// SomethingInPayloadLoading is a hypothetical feature gate needed early in CVO execution
+	SomethingInPayloadLoading() bool
 }
 
 type panicOnUsageBeforeInitializationFunc func()
@@ -61,6 +64,11 @@ func (p panicOnUsageBeforeInitializationFunc) UnknownVersion() bool {
 }
 
 func (p panicOnUsageBeforeInitializationFunc) CVOConfiguration() bool {
+	p()
+	return false
+}
+
+func (p panicOnUsageBeforeInitializationFunc) SomethingInPayloadLoading() bool {
 	p()
 	return false
 }
@@ -94,6 +102,10 @@ func (c CvoGates) UnknownVersion() bool {
 
 func (c CvoGates) CVOConfiguration() bool {
 	return c.cvoConfiguration
+}
+
+func (c CvoGates) SomethingInPayloadLoading() bool {
+	return false
 }
 
 // DefaultCvoGates apply when actual features for given version are unknown

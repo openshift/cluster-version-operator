@@ -315,6 +315,10 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFe
 		return nil, fmt.Errorf("unable to create a configuration client: %v", err)
 	}
 
+	if optr.enabledFeatureGates.SomethingInPayloadLoading() {
+		fmt.Println("SomethingInPayloadLoading feature gate is enabled")
+	}
+
 	customSignatureStore := &customsignaturestore.Store{
 		Lister:     optr.cvLister,
 		Name:       optr.name,
