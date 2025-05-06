@@ -6,15 +6,20 @@ import (
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
+	operatorv1 "github.com/openshift/api/operator/v1"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
 	cvoclientv1alpha1 "github.com/openshift/client-go/operator/clientset/versioned/typed/operator/v1alpha1"
 	operatorexternalversions "github.com/openshift/client-go/operator/informers/externalversions"
 	operatorlistersv1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
+	"github.com/openshift/library-go/pkg/operator/loglevel"
+
+	i "github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 const ClusterVersionOperatorConfigurationName = "cluster"
@@ -31,6 +36,9 @@ type ClusterVersionOperatorConfiguration struct {
 	factory operatorexternalversions.SharedInformerFactory
 
 	started bool
+
+	desiredLogLevel        operatorv1.LogLevel
+	lastObservedGeneration int64
 }
 
 func (config *ClusterVersionOperatorConfiguration) Queue() workqueue.TypedRateLimitingInterface[any] {
@@ -43,12 +51,15 @@ func (config *ClusterVersionOperatorConfiguration) clusterVersionOperatorEventHa
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
 			config.queue.Add(config.queueKey)
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was added; queuing a sync")
 		},
 		UpdateFunc: func(_, _ interface{}) {
 			config.queue.Add(config.queueKey)
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was modified or resync period has passed; queuing a sync")
 		},
 		DeleteFunc: func(_ interface{}) {
 			config.queue.Add(config.queueKey)
+			klog.V(i.Debug).Infof("ClusterVersionOperator resource was deleted; queuing a sync")
 		},
 	}
 }
@@ -56,13 +67,22 @@ func (config *ClusterVersionOperatorConfiguration) clusterVersionOperatorEventHa
 // NewClusterVersionOperatorConfiguration returns ClusterVersionOperatorConfiguration, which might be used
 // to synchronize with the ClusterVersionOperator resource.
 func NewClusterVersionOperatorConfiguration(client operatorclientset.Interface, factory operatorexternalversions.SharedInformerFactory) *ClusterVersionOperatorConfiguration {
+	var desiredLogLevel operatorv1.LogLevel
+	if currentLogLevel, notFound := loglevel.GetLogLevel(); notFound {
+		klog.Warningf("The current log level could not be found; assuming the 'Normal' level is the currently desired")
+		desiredLogLevel = operatorv1.Normal
+	} else {
+		desiredLogLevel = currentLogLevel
+	}
+
 	return &ClusterVersionOperatorConfiguration{
 		queueKey: fmt.Sprintf("ClusterVersionOperator/%s", ClusterVersionOperatorConfigurationName),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: "configuration"}),
-		client:  client.OperatorV1alpha1().ClusterVersionOperators(),
-		factory: factory,
+		client:          client.OperatorV1alpha1().ClusterVersionOperators(),
+		factory:         factory,
+		desiredLogLevel: desiredLogLevel,
 	}
 }
 
@@ -92,9 +112,9 @@ func (config *ClusterVersionOperatorConfiguration) Sync(ctx context.Context, key
 		panic("ClusterVersionOperatorConfiguration instance was not properly started before its synchronization.")
 	}
 	startTime := time.Now()
-	klog.V(2).Infof("Started syncing CVO configuration %q", key)
+	klog.V(i.Normal).Infof("Started syncing CVO configuration %q", key)
 	defer func() {
-		klog.V(2).Infof("Finished syncing CVO configuration (%v)", time.Since(startTime))
+		klog.V(i.Normal).Infof("Finished syncing CVO configuration (%v)", time.Since(startTime))
 	}()
 
 	desiredConfig, err := config.lister.Get(ClusterVersionOperatorConfigurationName)
@@ -108,7 +128,51 @@ func (config *ClusterVersionOperatorConfiguration) Sync(ctx context.Context, key
 	return config.sync(ctx, desiredConfig)
 }
 
-func (config *ClusterVersionOperatorConfiguration) sync(_ context.Context, _ *operatorv1alpha1.ClusterVersionOperator) error {
-	klog.Infof("ClusterVersionOperator configuration has been synced")
+// sync synchronizes the local configuration based on the desired configuration
+// and updates the status of the Kubernetes resource if needed.
+//
+// desiredConfig is a read-only representation of the desired configuration.
+func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, desiredConfig *operatorv1alpha1.ClusterVersionOperator) error {
+	if desiredConfig.Status.ObservedGeneration != desiredConfig.Generation {
+		newConfig := desiredConfig.DeepCopy()
+		newConfig.Status.ObservedGeneration = desiredConfig.Generation
+		_, err := config.client.UpdateStatus(ctx, newConfig, metav1.UpdateOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to update the ClusterVersionOperator resource: %w", err)
+		}
+	}
+
+	config.lastObservedGeneration = desiredConfig.Generation
+	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
+	if config.desiredLogLevel == "" {
+		config.desiredLogLevel = operatorv1.Normal
+	}
+
+	currentLogLevel, notFound := loglevel.GetLogLevel()
+	if notFound {
+		klog.Warningf("The current log level could not be found; an attempt to set the log level to the desired level will be made")
+	}
+
+	if !notFound && currentLogLevel == config.desiredLogLevel {
+		klog.V(i.Debug).Infof("No need to update the current CVO log level '%s'; it is already set to the desired value", currentLogLevel)
+	} else {
+		if err := loglevel.SetLogLevel(config.desiredLogLevel); err != nil {
+			return fmt.Errorf("failed to set the log level to %q: %w", config.desiredLogLevel, err)
+		}
+
+		// E2E testing will be checking for existence or absence of these logs
+		switch config.desiredLogLevel {
+		case operatorv1.Normal:
+			klog.V(i.Normal).Infof("Successfully updated the log level from '%s' to 'Normal'", currentLogLevel)
+		case operatorv1.Debug:
+			klog.V(i.Debug).Infof("Successfully updated the log level from '%s' to 'Debug'", currentLogLevel)
+		case operatorv1.Trace:
+			klog.V(i.Trace).Infof("Successfully updated the log level from '%s' to 'Trace'", currentLogLevel)
+		case operatorv1.TraceAll:
+			klog.V(i.TraceAll).Infof("Successfully updated the log level from '%s' to 'TraceAll'", currentLogLevel)
+		default:
+			klog.Errorf("The CVO logging level has unexpected value '%s'", config.desiredLogLevel)
+		}
+	}
 	return nil
 }
