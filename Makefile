@@ -23,12 +23,16 @@ format:
 	go fmt ./...
 .PHONY: format
 
-verify: verify-yaml
+verify: verify-yaml verify-update
 .PHONY: verify
 
 verify-yaml:
 	hack/verify-yaml.sh
 .PHONY: verify-yaml
+
+verify-update: update
+	git diff --exit-code HEAD
+.PHONY: verify-update
 
 clean:
 	rm -rf _output/
