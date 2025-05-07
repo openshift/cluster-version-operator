@@ -304,7 +304,7 @@ func ValidateDirectory(dir string) error {
 }
 
 func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
-	release, err := loadReleaseFromMetadata(releaseDir)
+	release, err := loadReleaseMetadata(releaseDir)
 	if err != nil {
 		return nil, err
 	}
@@ -358,7 +358,7 @@ func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) [
 	}}
 }
 
-func loadReleaseFromMetadata(releaseDir string) (configv1.Release, error) {
+func loadReleaseMetadata(releaseDir string) (configv1.Release, error) {
 	var release configv1.Release
 	path := filepath.Join(releaseDir, cincinnatiJSONFile)
 	data, err := os.ReadFile(path)
