@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,7 +20,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
+	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -35,9 +34,10 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/openshift/client-go/config/informers/externalversions"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
-	operatorexternalversions "github.com/openshift/client-go/operator/informers/externalversions"
+	operatorinformers "github.com/openshift/client-go/operator/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
 
@@ -489,11 +489,11 @@ type Context struct {
 	AutoUpdate              *autoupdate.Controller
 	StopOnFeatureGateChange *featuregates.ChangeStopper
 
-	CVInformerFactory                     externalversions.SharedInformerFactory
-	OpenshiftConfigInformerFactory        informers.SharedInformerFactory
-	OpenshiftConfigManagedInformerFactory informers.SharedInformerFactory
-	InformerFactory                       externalversions.SharedInformerFactory
-	OperatorInformerFactory               operatorexternalversions.SharedInformerFactory
+	CVInformerFactory                     configinformers.SharedInformerFactory
+	InformerFactory                       configinformers.SharedInformerFactory
+	OpenshiftConfigInformerFactory        coreinformers.SharedInformerFactory
+	OpenshiftConfigManagedInformerFactory coreinformers.SharedInformerFactory
+	OperatorInformerFactory               operatorinformers.SharedInformerFactory
 
 	fgLister configlistersv1.FeatureGateLister
 }
@@ -505,18 +505,18 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 	operatorClient := cb.OperatorClientOrDie("operator-client")
 
-	cvInformer := externalversions.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
+	clusterVersionConfigInformerFactory := configinformers.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
 		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
 	})
-	openshiftConfigInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigNamespace))
-	openshiftConfigManagedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), informers.WithNamespace(internal.ConfigManagedNamespace))
-	sharedInformers := externalversions.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
-	operatorInformerFactory := operatorexternalversions.NewSharedInformerFactoryWithOptions(operatorClient, o.ResyncInterval,
-		operatorexternalversions.WithTweakListOptions(func(opts *metav1.ListOptions) {
+	configInformerFactory := configinformers.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
+	openshiftConfigInformer := coreinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), coreinformers.WithNamespace(internal.ConfigNamespace))
+	openshiftConfigManagedInformer := coreinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), coreinformers.WithNamespace(internal.ConfigManagedNamespace))
+	operatorInformerFactory := operatorinformers.NewSharedInformerFactoryWithOptions(operatorClient, o.ResyncInterval,
+		operatorinformers.WithTweakListOptions(func(opts *metav1.ListOptions) {
 			opts.FieldSelector = fields.OneTermEqualSelector("metadata.name", configuration.ClusterVersionOperatorConfigurationName).String()
 		}))
 
-	coInformer := sharedInformers.Config().V1().ClusterOperators()
+	coInformer := clusterVersionConfigInformerFactory.Config().V1().ClusterOperators()
 
 	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
 	o.PromQLTarget.KubeClient = cvoKubeClient
@@ -527,11 +527,11 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
 		o.ReleaseImage,
 		o.PayloadOverride,
 		resyncPeriod(o.ResyncInterval),
-		cvInformer.Config().V1().ClusterVersions(),
+		clusterVersionConfigInformerFactory.Config().V1().ClusterVersions(),
 		coInformer,
 		openshiftConfigInformer.Core().V1().ConfigMaps(),
 		openshiftConfigManagedInformer.Core().V1().ConfigMaps(),
-		sharedInformers.Config().V1().Proxies(),
+		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
@@ -548,28 +548,28 @@ func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
 		return nil, err
 	}
 
-	featureChangeStopper, err := featuregates.NewChangeStopper(sharedInformers.Config().V1().FeatureGates())
+	featureChangeStopper, err := featuregates.NewChangeStopper(configInformerFactory.Config().V1().FeatureGates())
 	if err != nil {
 		return nil, err
 	}
 
 	ctx := &Context{
-		CVInformerFactory:                     cvInformer,
+		CVInformerFactory:                     clusterVersionConfigInformerFactory,
 		OpenshiftConfigInformerFactory:        openshiftConfigInformer,
 		OpenshiftConfigManagedInformerFactory: openshiftConfigManagedInformer,
-		InformerFactory:                       sharedInformers,
+		InformerFactory:                       configInformerFactory,
 		OperatorInformerFactory:               operatorInformerFactory,
 		CVO:                                   cvo,
 		StopOnFeatureGateChange:               featureChangeStopper,
 
-		fgLister: sharedInformers.Config().V1().FeatureGates().Lister(),
+		fgLister: configInformerFactory.Config().V1().FeatureGates().Lister(),
 	}
 
 	if o.EnableAutoUpdate {
 		ctx.AutoUpdate, err = autoupdate.New(
 			o.Namespace, o.Name,
-			cvInformer.Config().V1().ClusterVersions(),
-			sharedInformers.Config().V1().ClusterOperators(),
+			clusterVersionConfigInformerFactory.Config().V1().ClusterVersions(),
+			configInformerFactory.Config().V1().ClusterOperators(),
 			cb.ClientOrDie(o.Namespace),
 			cb.KubeClientOrDie(o.Namespace),
 		)
