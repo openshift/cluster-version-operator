@@ -214,14 +214,26 @@ func (o *Options) Run(ctx context.Context) error {
 		klog.Infof("Determined OCP version for this CVO: %q", cvoOcpVersion)
 	}
 
+	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
+
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb)
+	controllerCtx, err := o.NewControllerContext(cb, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		return err
 	}
 	o.leaderElection = getLeaderElectionConfig(ctx, cb.RestConfig(defaultQPS))
 	o.run(ctx, controllerCtx, lock, cb.RestConfig(defaultQPS), cb.RestConfig(highQPS))
 	return nil
+}
+
+func (o *Options) prepareConfigInformerFactories(cb *ClientBuilder) (configinformers.SharedInformerFactory, configinformers.SharedInformerFactory) {
+	client := cb.ClientOrDie("shared-informer")
+	clusterVersionConfigInformerFactory := configinformers.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
+		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
+	})
+	configInformerFactory := configinformers.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
+
+	return clusterVersionConfigInformerFactory, configInformerFactory
 }
 
 // run launches a number of goroutines to handle manifest application,
@@ -500,15 +512,9 @@ type Context struct {
 
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
-func (o *Options) NewControllerContext(cb *ClientBuilder) (*Context, error) {
-	client := cb.ClientOrDie("shared-informer")
+func (o *Options) NewControllerContext(cb *ClientBuilder, clusterVersionConfigInformerFactory, configInformerFactory configinformers.SharedInformerFactory) (*Context, error) {
 	kubeClient := cb.KubeClientOrDie(internal.ConfigNamespace, useProtobuf)
 	operatorClient := cb.OperatorClientOrDie("operator-client")
-
-	clusterVersionConfigInformerFactory := configinformers.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
-	})
-	configInformerFactory := configinformers.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
 	openshiftConfigInformer := coreinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), coreinformers.WithNamespace(internal.ConfigNamespace))
 	openshiftConfigManagedInformer := coreinformers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod(o.ResyncInterval), coreinformers.WithNamespace(internal.ConfigManagedNamespace))
 	operatorInformerFactory := operatorinformers.NewSharedInformerFactoryWithOptions(operatorClient, o.ResyncInterval,
