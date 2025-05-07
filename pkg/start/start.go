@@ -228,9 +228,10 @@ func (o *Options) Run(ctx context.Context) error {
 
 func (o *Options) prepareConfigInformerFactories(cb *ClientBuilder) (configinformers.SharedInformerFactory, configinformers.SharedInformerFactory) {
 	client := cb.ClientOrDie("shared-informer")
-	clusterVersionConfigInformerFactory := configinformers.NewFilteredSharedInformerFactory(client, resyncPeriod(o.ResyncInterval), "", func(opts *metav1.ListOptions) {
-		opts.FieldSelector = fmt.Sprintf("metadata.name=%s", o.Name)
-	})
+	filterByName := func(opts *metav1.ListOptions) {
+		opts.FieldSelector = fields.OneTermEqualSelector("metadata.name", o.Name).String()
+	}
+	clusterVersionConfigInformerFactory := configinformers.NewSharedInformerFactoryWithOptions(client, resyncPeriod(o.ResyncInterval), configinformers.WithTweakListOptions(filterByName))
 	configInformerFactory := configinformers.NewSharedInformerFactory(client, resyncPeriod(o.ResyncInterval))
 
 	return clusterVersionConfigInformerFactory, configInformerFactory
