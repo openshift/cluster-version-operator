@@ -22,10 +22,11 @@ import (
 	"github.com/blang/semver/v4"
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	"github.com/openshift/library-go/pkg/manifest"
 
 	"github.com/openshift/cluster-version-operator/lib/capability"
+	localmanifest "github.com/openshift/cluster-version-operator/lib/manifest"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
-	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // State describes the state of the payload and alters
@@ -247,41 +248,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 // All capabilities requiring implicit enablement are returned.
 func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest, currentPayloadManifests []manifest.Manifest,
 	capabilities capability.ClusterCapabilities) sets.Set[configv1.ClusterVersionCapability] {
-
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
-
-	// Initialize so it contains existing implicitly enabled capabilities
-	implicitlyEnabledCaps := capabilities.ImplicitlyEnabled.Clone()
-
-	for _, updateManifest := range updatePayloadManifests {
-		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true)
-
-		// update manifest is enabled, no need to check
-		if updateManErr == nil {
-			continue
-		}
-		for _, currentManifest := range currentPayloadManifests {
-			if !updateManifest.SameResourceID(currentManifest) {
-				continue
-			}
-
-			// current manifest is disabled, no need to check
-			if err := currentManifest.IncludeAllowUnknownCapabilities(nil, nil, nil, &clusterCaps, nil, true); err != nil {
-				continue
-			}
-			caps := capability.GetImplicitlyEnabledCapabilities(sets.New[configv1.ClusterVersionCapability](currentManifest.GetManifestCapabilities()...),
-				sets.New[configv1.ClusterVersionCapability](updateManifest.GetManifestCapabilities()...), capabilities)
-			implicitlyEnabledCaps = implicitlyEnabledCaps.Union(caps)
-			if caps.Len() > 0 {
-				klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",
-					getManifestResourceId(updateManifest), capability.SortedList(caps))
-			}
-		}
-	}
-	if implicitlyEnabledCaps.Len() == 0 {
-		return nil
-	}
-	return implicitlyEnabledCaps
+	return localmanifest.GetImplicitlyEnabledCapabilities(
+		updatePayloadManifests,
+		currentPayloadManifests,
+		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps},
+		capabilities.ImplicitlyEnabled,
+	)
 }
 
 // ValidateDirectory checks if a directory can be a candidate update by
