@@ -308,17 +308,18 @@ func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
 	if err != nil {
 		return nil, err
 	}
-	release.Image = releaseImage
-
-	imageRef, err := loadImageReferences(releaseDir)
-	if err != nil {
-		return nil, err
-	}
 
 	arch := string(release.Architecture)
 	if arch == "" {
 		arch = runtime.GOARCH
 		klog.V(2).Infof("Architecture from %s (%s) retrieved from runtime: %q", cincinnatiJSONFile, release.Version, arch)
+	}
+
+	release.Image = releaseImage
+
+	imageRef, err := loadImageReferences(releaseDir)
+	if err != nil {
+		return nil, err
 	}
 
 	if imageRef.Name != release.Version {
@@ -356,6 +357,17 @@ func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) [
 		preprocess: nil,
 		skipFiles:  sets.New[string](cjf, irf),
 	}}
+}
+
+// RootPath represents a path to the directory containing the payload
+type RootPath string
+
+const DefaultRootPath = RootPath(DefaultPayloadDir)
+
+// LoadReleaseMetadata loads the release metadata from the appropriate location inside the payload directory
+func (p RootPath) LoadReleaseMetadata() (configv1.Release, error) {
+	releaseDir := filepath.Join(string(p), ReleaseManifestDir)
+	return loadReleaseMetadata(releaseDir)
 }
 
 func loadReleaseMetadata(releaseDir string) (configv1.Release, error) {
