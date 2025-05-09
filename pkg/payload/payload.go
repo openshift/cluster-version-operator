@@ -358,6 +358,17 @@ func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) [
 	}}
 }
 
+// RootPath represents a path to the directory containing the payload
+type RootPath string
+
+const DefaultRootPath = RootPath(DefaultPayloadDir)
+
+// LoadReleaseMetadata loads the release metadata from the appropriate location inside the payload directory
+func (p RootPath) LoadReleaseMetadata() (configv1.Release, error) {
+	releaseDir := filepath.Join(string(p), ReleaseManifestDir)
+	return loadReleaseMetadata(releaseDir)
+}
+
 func loadReleaseMetadata(releaseDir string) (configv1.Release, error) {
 	var release configv1.Release
 	path := filepath.Join(releaseDir, cincinnatiJSONFile)

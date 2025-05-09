@@ -188,7 +188,9 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	if err := options.ValidateAndComplete(); err != nil {
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
-	controllers, err := options.NewControllerContext(cb)
+
+	cvif, cif := options.prepareConfigInformerFactories(cb)
+	controllers, err := options.NewControllerContext(cb, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +325,9 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	if err := options.ValidateAndComplete(); err != nil {
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
-	controllers, err := options.NewControllerContext(cb)
+
+	cvif, cif := options.prepareConfigInformerFactories(cb)
+	controllers, err := options.NewControllerContext(cb, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -520,7 +524,9 @@ metadata:
 	if err := options.ValidateAndComplete(); err != nil {
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
-	controllers, err := options.NewControllerContext(cb)
+
+	cvif, cif := options.prepareConfigInformerFactories(cb)
+	controllers, err := options.NewControllerContext(cb, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
