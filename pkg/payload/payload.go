@@ -308,17 +308,18 @@ func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
 	if err != nil {
 		return nil, err
 	}
-	release.Image = releaseImage
-
-	imageRef, err := loadImageReferences(releaseDir)
-	if err != nil {
-		return nil, err
-	}
 
 	arch := string(release.Architecture)
 	if arch == "" {
 		arch = runtime.GOARCH
 		klog.V(2).Infof("Architecture from %s (%s) retrieved from runtime: %q", cincinnatiJSONFile, release.Version, arch)
+	}
+
+	release.Image = releaseImage
+
+	imageRef, err := loadImageReferences(releaseDir)
+	if err != nil {
+		return nil, err
 	}
 
 	if imageRef.Name != release.Version {
