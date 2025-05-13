@@ -189,8 +189,11 @@ func (o *Options) Run(ctx context.Context) error {
 		return err
 	}
 
-	_ = o.getOpenShiftVersion()
 	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
+	_, _, err = o.processInitialFeatureGate(ctx, configInformerFactory)
+	if err != nil {
+		return fmt.Errorf("error processing feature gates: %w", err)
+	}
 
 	// initialize the controllers and attempt to load the payload information
 	controllerCtx, err := o.NewControllerContext(cb, clusterVersionConfigInformerFactory, configInformerFactory)
@@ -239,7 +242,59 @@ func (o *Options) getOpenShiftVersion() string {
 
 	klog.Infof("Determined OpenShift version for this CVO: %q", releaseMetadata.Version)
 	return releaseMetadata.Version
+}
 
+func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory) (configv1.FeatureSet, *featuregates.CvoGates, error) {
+	featureGates := configInformerFactory.Config().V1().FeatureGates().Lister()
+	configInformerFactory.Start(ctx.Done())
+	configInformerFactory.WaitForCacheSync(ctx.Done())
+
+	cvoOpenShiftVersion := o.getOpenShiftVersion()
+	cvoGates := featuregates.DefaultCvoGates(cvoOpenShiftVersion)
+
+	var startingFeatureSet configv1.FeatureSet
+	var clusterFeatureGate *configv1.FeatureGate
+
+	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
+	// retry the remaining ones ourselves. If we fail longer than that, the operator won't be able to do work
+	// anyway. Return the error and crashloop.
+	//
+	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
+	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
+	var lastError error
+	if err := wait.PollUntilContextTimeout(context.Background(), 2*time.Second, 25*time.Second, true, func(ctx context.Context) (bool, error) {
+		gate, fgErr := featureGates.Get("cluster")
+		switch {
+		case apierrors.IsNotFound(fgErr):
+			// if we have no featuregates, then the cluster is using the default featureset, which is "".
+			// This excludes everything that could possibly depend on a different feature set.
+			startingFeatureSet = ""
+			klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup", startingFeatureSet)
+			return true, nil
+		case fgErr != nil:
+			lastError = fgErr
+			klog.Warningf("Failed to get FeatureGate from cluster: %v", fgErr)
+			return false, nil
+		default:
+			clusterFeatureGate = gate
+			startingFeatureSet = gate.Spec.FeatureSet
+			cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
+			klog.Infof("FeatureGate found in cluster, using its feature set %q at startup", startingFeatureSet)
+			return true, nil
+		}
+	}); err != nil {
+		if lastError != nil {
+			return "", nil, lastError
+		}
+		return "", nil, err
+	}
+
+	if cvoGates.UnknownVersion() {
+		klog.Warningf("CVO features for version %s could not be detected from FeatureGate; will use defaults plus special UnknownVersion feature gate", cvoOpenShiftVersion)
+	}
+	klog.Infof("CVO features for version %s enabled at startup: %+v", cvoOpenShiftVersion, cvoGates)
+
+	return startingFeatureSet, &cvoGates, nil
 }
 
 // run launches a number of goroutines to handle manifest application,
