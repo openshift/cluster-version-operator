@@ -208,7 +208,7 @@ func (o *Options) Run(ctx context.Context) error {
 	case err != nil:
 		klog.Warningf("Failed to read release metadata to determine OCP version for this CVO (will use placeholder version %q): %v", cvoOcpVersion, err)
 	case releaseMetadata.Version == "":
-		klog.Warningf("Version missing from release metadata, cannot determine OCP version for this CVO (will use placeholder version %q): %v", cvoOcpVersion, err)
+		klog.Warningf("Version missing from release metadata, cannot determine OCP version for this CVO (will use placeholder version %q)", cvoOcpVersion)
 	default:
 		cvoOcpVersion = releaseMetadata.Version
 		klog.Infof("Determined OCP version for this CVO: %q", cvoOcpVersion)
