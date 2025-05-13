@@ -194,24 +194,24 @@ func (o *Options) Run(ctx context.Context) error {
 		payloadRoot = payload.RootPath(o.PayloadOverride)
 	}
 
-	cvoOcpVersion := "0.0.1-snapshot"
-	// Peek at the local release metadata to determine the version of OCP this CVO belongs to. This assumes the CVO is
+	cvoOpenShiftVersion := "0.0.1-snapshot"
+	// Peek at the local release metadata to determine the version of OpenShift this CVO belongs to. This assumes the CVO is
 	// executing in a container from the payload image. Full payload content is only read later once leader lease is
 	// acquired, and here we should only read as little data as possible to determine the version so we can establish
 	// enabled feature gate checker for all following code.
 	//
-	// We cannot refuse to start CVO if for some reason we cannot determine the OCP version on startup from the local
+	// We cannot refuse to start CVO if for some reason we cannot determine the OpenShift version on startup from the local
 	// release metadata. The only consequence is we fail to determine enabled/disabled feature gates and will have to use
 	// some defaults.
 	releaseMetadata, err := payloadRoot.LoadReleaseMetadata()
 	switch {
 	case err != nil:
-		klog.Warningf("Failed to read release metadata to determine OCP version for this CVO (will use placeholder version %q): %v", cvoOcpVersion, err)
+		klog.Warningf("Failed to read release metadata to determine OpenShift version for this CVO (will use placeholder version %q): %v", cvoOpenShiftVersion, err)
 	case releaseMetadata.Version == "":
-		klog.Warningf("Version missing from release metadata, cannot determine OCP version for this CVO (will use placeholder version %q)", cvoOcpVersion)
+		klog.Warningf("Version missing from release metadata, cannot determine OpenShift version for this CVO (will use placeholder version %q)", cvoOpenShiftVersion)
 	default:
-		cvoOcpVersion = releaseMetadata.Version
-		klog.Infof("Determined OCP version for this CVO: %q", cvoOcpVersion)
+		cvoOpenShiftVersion = releaseMetadata.Version
+		klog.Infof("Determined OpenShift version for this CVO: %q", cvoOpenShiftVersion)
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
