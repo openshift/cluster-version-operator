@@ -183,6 +183,9 @@ type Operator struct {
 	// always be implicitly enabled.
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability
 
+	// configFile is a path to a ClusterVersionOperator configuration file
+	configFile string
+
 	// configuration, if enabled, reconciles the ClusterVersionOperator configuration.
 	configuration *configuration.ClusterVersionOperatorConfiguration
 }
@@ -209,6 +212,7 @@ func New(
 	promqlTarget clusterconditions.PromQLTarget,
 	injectClusterIdIntoPromQL bool,
 	updateService string,
+	configFile string,
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
@@ -237,6 +241,7 @@ func New(
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
 		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
+		configFile:                configFile,
 		hypershift:                hypershift,
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
@@ -463,7 +468,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		resultChannel <- asyncResult{name: "available updates"}
 	}()
 
-	if optr.shouldReconcileCVOConfiguration() {
+	if optr.shouldReconcileCVOConfiguration() && optr.configFile == "" {
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
@@ -477,7 +482,20 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			resultChannel <- asyncResult{name: "cvo configuration"}
 		}()
 	} else {
-		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or HyperShift is detected; the configuration sync routine will not run.")
+		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled, HyperShift is detected or --config-file flag is used; the configuration sync routine will not run.")
+	}
+
+	if optr.enabledFeatureGates.CVOConfiguration() && optr.configFile != "" {
+		resultChannelCount++
+		go func() {
+			defer utilruntime.HandleCrash()
+			wait.UntilWithContext(runContext, func(_ context.Context) {
+				klog.V(4).Infof("Syncing configuration file")
+			}, time.Second*15)
+			resultChannel <- asyncResult{name: "cvo configuration file"}
+		}()
+	} else {
+		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or --config-file flag is not used; the configuration file sync routine will not run.")
 	}
 
 	resultChannelCount++
