@@ -256,8 +256,8 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 	var clusterFeatureGate *configv1.FeatureGate
 
 	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
-	// retry the remaining ones ourselves. If we fail longer than that, the operator won't be able to do work
-	// anyway. Return the error and crashloop.
+	// retry the remaining ones ourselves. If we fail longer than that, CVO won't be able to do work anyway.
+	// Return the error and crashloop.
 	//
 	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
 	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
@@ -672,8 +672,8 @@ func (c *Context) InitializeFromPayload(ctx context.Context, restConfig *rest.Co
 	var clusterFeatureGate *configv1.FeatureGate
 
 	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
-	// retry the remaining ones ourselves. If we fail longer than that, the operator won't be able to do work
-	// anyway. Return the error and crashloop.
+	// retry the remaining ones ourselves. If we fail longer than that, CVO won't be able to do work anyway.
+	// Return the error and crashloop.
 	//
 	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
 	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
