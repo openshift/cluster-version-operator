@@ -174,6 +174,19 @@ type Operator struct {
 	// via annotation
 	exclude string
 
+	// requiredFeatureSet is the feature set that was detected in the cluster when CVO was started and is used
+	// to select the manifests that will be applied in the cluster. The starting value cannot be changed in the executing
+	// CVO but the featurechangestopper controller will detect a feature set change in the cluster and shutdown the CVO.
+	// Enforcing featuresets is a standard GA CVO behavior that supports the feature gating functionality across the whole
+	// cluster, as opposed to the enabledFeatureGates which controls what gated behaviors of CVO itself are enabled by
+	// the cluster feature gates.
+	// See: https://github.com/openshift/enhancements/blob/master/enhancements/update/cvo-techpreview-manifests.md
+	requiredFeatureSet configv1.FeatureSet
+
+	// enabledFeatureGates is the checker for what gated CVO behaviors are enabled or disabled by specific cluster-level
+	// feature gates. It allows multiplexing the cluster-level feature gates to more granular CVO-level gates. Similarly
+	// to the requiredFeatureSet, the enabledFeatureGates cannot be changed in the executing CVO but the
+	// featurechangestopper controller will detect when cluster feature gate config changes and shutdown the CVO.
 	enabledFeatureGates featuregates.CvoGateChecker
 
 	clusterProfile string
@@ -210,6 +223,8 @@ func New(
 	injectClusterIdIntoPromQL bool,
 	updateService string,
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
+	featureSet configv1.FeatureSet,
+	cvoGates featuregates.CvoGateChecker,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -243,10 +258,9 @@ func New(
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
-		// Because of OCPBUGS-30080, we can only detect the enabled feature gates after Operator loads the initial payload
-		// from disk via LoadInitialPayload. We must not have any gate-checking code until that happens, so we initialize
-		// this field with a checker that panics when used.
-		enabledFeatureGates:      featuregates.PanicOnUsageBeforeInitialization,
+		requiredFeatureSet:  featureSet,
+		enabledFeatureGates: cvoGates,
+
 		alwaysEnableCapabilities: alwaysEnableCapabilities,
 	}
 
@@ -283,7 +297,7 @@ func New(
 
 // LoadInitialPayload waits until a ClusterVersion object exists. It then retrieves the payload contents, verifies the
 // initial state and returns it. If the payload is invalid, an error is returned.
-func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFeatureSet configv1.FeatureSet, restConfig *rest.Config) (*payload.Update, error) {
+func (optr *Operator) LoadInitialPayload(ctx context.Context, restConfig *rest.Config) (*payload.Update, error) {
 
 	// wait until cluster version object exists
 	if err := wait.PollUntilContextCancel(ctx, 3*time.Second, true, func(ctx context.Context) (bool, error) {
@@ -303,7 +317,7 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFe
 		return nil, fmt.Errorf("Error when attempting to get cluster version object: %w", err)
 	}
 
-	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, string(startingRequiredFeatureSet),
+	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, string(optr.requiredFeatureSet),
 		optr.clusterProfile, configv1.KnownClusterVersionCapabilities)
 
 	if err != nil {
@@ -339,8 +353,12 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, startingRequiredFe
 
 // InitializeFromPayload configures the controller that loads and applies content to the cluster given an initial payload
 // and feature gate data.
-func (optr *Operator) InitializeFromPayload(update *payload.Update, requiredFeatureSet configv1.FeatureSet, cvoFlags featuregates.CvoGateChecker, restConfig *rest.Config, burstRestConfig *rest.Config) {
-	optr.enabledFeatureGates = cvoFlags
+func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *rest.Config, burstRestConfig *rest.Config) error {
+	update, err := optr.LoadInitialPayload(ctx, restConfig)
+	if err != nil {
+		return err
+	}
+
 	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 
@@ -358,11 +376,13 @@ func (optr *Operator) InitializeFromPayload(update *payload.Update, requiredFeat
 			Cap:      time.Second * 15,
 		},
 		optr.exclude,
-		requiredFeatureSet,
+		optr.requiredFeatureSet,
 		optr.eventRecorder,
 		optr.clusterProfile,
 		optr.alwaysEnableCapabilities,
 	)
+
+	return nil
 }
 
 // ownerReferenceModifier sets the owner reference to the current CV resource if no other reference exists. It also resets
