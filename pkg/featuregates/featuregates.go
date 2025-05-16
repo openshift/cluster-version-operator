@@ -5,6 +5,12 @@ import (
 	"github.com/openshift/api/features"
 )
 
+// StubOpenShiftVersion is the default OpenShift version placeholder for the purpose of determining
+// enabled and disabled CVO feature gates. It is assumed to never conflict with a real OpenShift
+// version. Both DefaultCvoGates and CvoGatesFromFeatureGate should return a safe conservative
+// default set of enabled and disabled gates, typically with unknownVersion set to true.
+const StubOpenShiftVersion = "0.0.1-snapshot"
+
 // CvoGateChecker allows CVO code to check which feature gates are enabled
 type CvoGateChecker interface {
 	// UnknownVersion flag is set to true if CVO did not find a matching version in the FeatureGate
