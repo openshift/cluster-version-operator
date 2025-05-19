@@ -190,7 +190,11 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	cvif, cif := options.prepareConfigInformerFactories(cb)
-	controllers, err := options.NewControllerContext(cb, cvif, cif)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +331,11 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	cvif, cif := options.prepareConfigInformerFactories(cb)
-	controllers, err := options.NewControllerContext(cb, cvif, cif)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -526,7 +534,11 @@ metadata:
 	}
 
 	cvif, cif := options.prepareConfigInformerFactories(cb)
-	controllers, err := options.NewControllerContext(cb, cvif, cif)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	if err != nil {
+		t.Fatal(err)
+	}
+	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
 	if err != nil {
 		t.Fatal(err)
 	}
