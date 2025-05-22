@@ -18,6 +18,7 @@ spec:
     - "--v=2"
     - "--kubeconfig=/etc/kubernetes/kubeconfig"
     securityContext:
+      readOnlyRootFilesystem: true
       privileged: true
     terminationMessagePolicy: FallbackToLogsOnError
     volumeMounts:
