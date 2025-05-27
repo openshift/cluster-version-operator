@@ -488,6 +488,12 @@ func filterOutUpdateErrors(errs []error, updateEffect payload.UpdateEffectType) 
 func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersionStatus, implicitlyEnabled []configv1.ClusterVersionCapability,
 	now metav1.Time) {
 
+	// This is to clean up the condition with type=ImplicitlyEnabled introduced by OCPBUGS-56114
+	if c := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, "ImplicitlyEnabled"); c != nil {
+		klog.V(2).Infof("Remove the condition with type ImplicitlyEnabled")
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, "ImplicitlyEnabled")
+	}
+
 	if len(implicitlyEnabled) > 0 {
 		message := "The following capabilities could not be disabled: "
 		caps := make([]string, len(implicitlyEnabled))
