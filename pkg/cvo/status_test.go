@@ -115,7 +115,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-								{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+								{Type: "ImplicitlyEnabledCapabilities", Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 							},
 						},
 					},
@@ -156,7 +156,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Error ensuring the cluster version is up to date: bad"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-							{Type: ImplicitlyEnabledCapabilities, Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
+							{Type: "ImplicitlyEnabledCapabilities", Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
 						},
 					},
 				})
@@ -871,7 +871,11 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			}
 			for _, c := range combinations {
 				tc.args.syncWorkerStatus.Reconciling = c.isReconciling
-				cvStatus := &configv1.ClusterVersionStatus{}
+				cvStatus := &configv1.ClusterVersionStatus{
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{Type: "ImplicitlyEnabled", Message: "to be removed"},
+					},
+				}
 				if !c.isHistoryEmpty {
 					cvStatus.History = []configv1.UpdateHistory{{State: configv1.PartialUpdate}}
 				}
@@ -890,6 +894,10 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 					if diff := cmp.Diff(tc.expectedProgressingCondition, progressingCondition, ignoreLastTransitionTime); diff != "" {
 						t.Errorf("unexpected progressingCondition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
 					}
+				}
+				conditionRemoved := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, "ImplicitlyEnabled")
+				if conditionRemoved != nil {
+					t.Errorf("ImplicitlyEnabled condition should be removed but is still there when Reconciling == %t && isHistoryEmpty == %t", c.isReconciling, c.isHistoryEmpty)
 				}
 			}
 			payload.COUpdateStartTimesRemove("machine-config")
