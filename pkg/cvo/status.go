@@ -172,7 +172,7 @@ const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccep
 // requesting via spec.capabilities, because the cluster version operator does not support uninstalling
 // capabilities if any associated resources were previously managed by the CVO or disabling previously
 // enabled capabilities.
-const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabled"
+const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
 
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
@@ -487,6 +487,12 @@ func filterOutUpdateErrors(errs []error, updateEffect payload.UpdateEffectType) 
 
 func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersionStatus, implicitlyEnabled []configv1.ClusterVersionCapability,
 	now metav1.Time) {
+
+	// This is to clean up the condition with type=ImplicitlyEnabled introduced by OCPBUGS-56114
+	if c := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, "ImplicitlyEnabled"); c != nil {
+		klog.V(2).Infof("Remove the condition with type ImplicitlyEnabled")
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, "ImplicitlyEnabled")
+	}
 
 	if len(implicitlyEnabled) > 0 {
 		message := "The following capabilities could not be disabled: "
