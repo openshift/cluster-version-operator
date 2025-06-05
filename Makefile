@@ -12,7 +12,8 @@ test:
 .PHONY: test
 
 integration-test:
-	hack/test-integration.sh
+	# This runs against a real OpenShift cluster through the current KUBECONFIG context
+	TEST_INTEGRATION=1 go test ./... -test.run=^TestIntegration
 .PHONY: integration-test
 
 update: build
