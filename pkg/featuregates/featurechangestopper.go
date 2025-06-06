@@ -30,12 +30,16 @@ type ChangeStopper struct {
 }
 
 // NewChangeStopper returns a new ChangeStopper.
-func NewChangeStopper(featureGateInformer configinformersv1.FeatureGateInformer) (*ChangeStopper, error) {
+func NewChangeStopper(featureGateInformer configinformersv1.FeatureGateInformer, requiredFeatureSet configv1.FeatureSet, cvoGates CvoGates) (*ChangeStopper, error) {
 	c := &ChangeStopper{
 		featureGateLister: featureGateInformer.Lister(),
 		cacheSynced:       []cache.InformerSynced{featureGateInformer.Informer().HasSynced},
 		queue:             workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "feature-gate-stopper"}),
+
+		startingRequiredFeatureSet: &requiredFeatureSet,
+		startingCvoGates:           &cvoGates,
 	}
+
 	c.queue.Add("cluster") // seed an initial sync, in case startingRequiredFeatureSet is wrong
 	if _, err := featureGateInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(_ interface{}) {
@@ -52,11 +56,6 @@ func NewChangeStopper(featureGateInformer configinformersv1.FeatureGateInformer)
 	}
 
 	return c, nil
-}
-
-func (c *ChangeStopper) SetStartingFeatures(requiredFeatureSet configv1.FeatureSet, cvoGates CvoGates) {
-	c.startingRequiredFeatureSet = &requiredFeatureSet
-	c.startingCvoGates = &cvoGates
 }
 
 // syncHandler processes a single work entry, with the

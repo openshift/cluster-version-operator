@@ -101,11 +101,10 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 			client := fakeconfigv1client.NewSimpleClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
-			c, err := NewChangeStopper(informerFactory.Config().V1().FeatureGates())
+			c, err := NewChangeStopper(informerFactory.Config().V1().FeatureGates(), tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates)
 			if err != nil {
 				t.Fatal(err)
 			}
-			c.SetStartingFeatures(tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates)
 			informerFactory.Start(ctx.Done())
 
 			if err := c.Run(ctx, shutdownFn); err != nil {
