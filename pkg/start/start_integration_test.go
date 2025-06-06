@@ -189,12 +189,12 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
 
-	cvif, cif := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
+	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,12 +330,12 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
 
-	cvif, cif := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
+	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -533,12 +533,12 @@ metadata:
 		t.Fatalf("incorrectly initialized options: %v", err)
 	}
 
-	cvif, cif := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), cvif)
+	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, cvif, cif)
+	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
