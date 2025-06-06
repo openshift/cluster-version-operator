@@ -12,7 +12,7 @@ test:
 .PHONY: test
 
 integration-test:
-	./hack/integration-test.sh
+	hack/test-integration.sh
 .PHONY: integration-test
 
 update: build
