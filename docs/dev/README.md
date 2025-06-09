@@ -59,13 +59,12 @@ Run `make test` to execute all unit tests.
 
 ### Integration tests
 
-The [`hack/test-integration.sh`](../../hack/test-integration.sh) script executes integration tests against an OpenShift
-cluster. It requires `$KUBECONFIG` with administrator credentials. Only execute integration tests against disposable
-testing clusters.
+Run `make integration-test` to execute integration tests against an OpenShift cluster. It requires `$KUBECONFIG` with
+administrator credentials. Only execute integration tests against disposable testing clusters.
 
 ```console
 $ export KUBECONFIG=<admin kubeconfig path>
-$ ./hack/test-integration.sh
+$ make integration-test
 ```
 
 ### Replace cluster's CVO with development CVO release payload image
