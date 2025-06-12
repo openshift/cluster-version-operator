@@ -19,6 +19,7 @@ import (
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
+	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
@@ -104,53 +105,59 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 	if b.modifier != nil {
 		b.modifier(co)
 	}
-
-	// create the object, and if we successfully created, update the status
-	if b.mode == resourcebuilder.PrecreatingMode {
-		clusterOperator, err := b.createClient.Create(ctx, co, metav1.CreateOptions{})
-		if err != nil {
-			if kerrors.IsAlreadyExists(err) {
-				return nil
-			}
-			return err
-		}
-		clusterOperator.Status.RelatedObjects = co.Status.DeepCopy().RelatedObjects
-		if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, metav1.UpdateOptions{}); err != nil {
-			if kerrors.IsConflict(err) {
-				return nil
-			}
-			return err
-		}
-		return nil
-	} else if b.mode == resourcebuilder.ReconcilingMode {
-		existing, err := b.client.Get(ctx, co.Name)
-		if err != nil {
-			return err
-		}
-
-		var original configv1.ClusterOperator
-		existing.DeepCopyInto(&original)
-		var modified bool
-		resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, co.ObjectMeta)
-		if modified {
-			if diff := cmp.Diff(&original, existing); diff != "" {
-				klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", co.Name, diff)
-			} else {
-				klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", co.Name)
-			}
-			if _, err := b.createClient.Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
+	updatingMode := (b.mode == resourcebuilder.UpdatingMode)
+	deleteReq, err := deleteClusterOperator(ctx, b.createClient, co, updatingMode)
+	if err != nil {
+		return err
+	} else if !deleteReq {
+		// create the object, and if we successfully created, update the status
+		if b.mode == resourcebuilder.PrecreatingMode {
+			clusterOperator, err := b.createClient.Create(ctx, co, metav1.CreateOptions{})
+			if err != nil {
+				if kerrors.IsAlreadyExists(err) {
+					return nil
+				}
 				return err
 			}
+			clusterOperator.Status.RelatedObjects = co.Status.DeepCopy().RelatedObjects
+			if _, err := b.createClient.UpdateStatus(ctx, clusterOperator, metav1.UpdateOptions{}); err != nil {
+				if kerrors.IsConflict(err) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		} else if b.mode == resourcebuilder.ReconcilingMode {
+			existing, err := b.client.Get(ctx, co.Name)
+			if err != nil {
+				return err
+			}
+
+			var original configv1.ClusterOperator
+			existing.DeepCopyInto(&original)
+			var modified bool
+			resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, co.ObjectMeta)
+			if modified {
+				if diff := cmp.Diff(&original, existing); diff != "" {
+					klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", co.Name, diff)
+				} else {
+					klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", co.Name)
+				}
+				if _, err := b.createClient.Update(ctx, existing, metav1.UpdateOptions{}); err != nil {
+					return err
+				}
+			}
+		}
+
+		err := checkOperatorHealth(ctx, b.client, co, b.mode)
+		if err == nil {
+			// Operator is updated to desired version and healthy. These times are now only used to compute
+			// the "waiting 40 minutes" message, so once we succeed, keeping time when we *first* started
+			// to upgrade this CO makes no sense. We need to track when the current ongoing upgrade started.
+			payload.COUpdateStartTimesRemove(co.Name)
 		}
 	}
 
-	err := checkOperatorHealth(ctx, b.client, co, b.mode)
-	if err == nil {
-		// Operator is updated to desired version and healthy. These times are now only used to compute
-		// the "waiting 40 minutes" message, so once we succeed, keeping time when we *first* started
-		// to upgrade this CO makes no sense. We need to track when the current ongoing upgrade started.
-		payload.COUpdateStartTimesRemove(co.Name)
-	}
 	return err
 }
 
@@ -269,4 +276,31 @@ func checkOperatorHealth(ctx context.Context, client ClusterOperatorsGetter, exp
 	}
 
 	return nil
+}
+
+func deleteClusterOperator(ctx context.Context, client configclientv1.ClusterOperatorInterface, expected *configv1.ClusterOperator, updateMode bool) (bool, error) {
+	if expected.Name == "" {
+		return false, fmt.Errorf("invalid object: name cannot be empty")
+	}
+	if delAnnoFound, err := resourcedelete.ValidDeleteAnnotation(expected.GetAnnotations()); !delAnnoFound || err != nil {
+		return delAnnoFound, err
+	}
+	existing, err := client.Get(ctx, expected.Name, metav1.GetOptions{})
+	resource := resourcedelete.Resource{
+		Kind:      "ClusterOperator",
+		Namespace: "",
+		Name:      expected.GetName(),
+	}
+	if deleteRequested, err := resourcedelete.GetDeleteProgress(resource, err); err == nil {
+		// Only request deletion when in update mode.
+		if !deleteRequested && updateMode {
+			if err := client.Delete(ctx, expected.GetName(), metav1.DeleteOptions{}); err != nil {
+				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+			}
+			resourcedelete.SetDeleteRequested(existing, resource)
+		}
+	} else {
+		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+	}
+	return true, nil
 }
