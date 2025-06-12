@@ -1,0 +1,15 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # This NetworkPolicy is used to deny all ingress and egress traffic by default in this namespace,
+  # serving as a baseline. At the moment no other Network Policy should be needed:
+  # - CVO is a host-networked Pod, so it is not affected by network policies
+  # - Bare `version` Pods spawned by CVO do not require any network communication
+  name: default-deny
+  namespace: openshift-cluster-version
+spec:
+  # Match all pods in the namespace
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
