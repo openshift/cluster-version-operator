@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -244,48 +243,42 @@ func (o *Options) getOpenShiftVersion() string {
 }
 
 func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory) (configv1.FeatureSet, featuregates.CvoGates, error) {
+	var startingFeatureSet configv1.FeatureSet
+	var cvoGates featuregates.CvoGates
+
 	featureGates := configInformerFactory.Config().V1().FeatureGates().Lister()
 	configInformerFactory.Start(ctx.Done())
-	configInformerFactory.WaitForCacheSync(ctx.Done())
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	for key, synced := range configInformerFactory.WaitForCacheSync(ctx.Done()) {
+		if !synced {
+			return startingFeatureSet, cvoGates, fmt.Errorf("failed to sync %s informer cache: %w", key.String(), ctx.Err())
+		}
+	}
 
 	cvoOpenShiftVersion := o.getOpenShiftVersion()
-	cvoGates := featuregates.DefaultCvoGates(cvoOpenShiftVersion)
+	cvoGates = featuregates.DefaultCvoGates(cvoOpenShiftVersion)
 
-	var startingFeatureSet configv1.FeatureSet
 	var clusterFeatureGate *configv1.FeatureGate
 
-	// client-go automatically retries some network blip errors on GETs for 30s by default, and we want to
-	// retry the remaining ones ourselves. If we fail longer than that, CVO won't be able to do work anyway.
-	// Return the error and crashloop.
-	//
-	// We implement the timeout with a context because the timeout in PollImmediateWithContext does not behave
-	// well when ConditionFunc takes longer time to execute, like here where the GET can be retried by client-go
-	var lastError error
-	if err := wait.PollUntilContextTimeout(context.Background(), 2*time.Second, 25*time.Second, true, func(ctx context.Context) (bool, error) {
-		gate, fgErr := featureGates.Get("cluster")
-		switch {
-		case apierrors.IsNotFound(fgErr):
-			// if we have no featuregates, then the cluster is using the default featureset, which is "".
-			// This excludes everything that could possibly depend on a different feature set.
-			startingFeatureSet = ""
-			klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup", startingFeatureSet)
-			return true, nil
-		case fgErr != nil:
-			lastError = fgErr
-			klog.Warningf("Failed to get FeatureGate from cluster: %v", fgErr)
-			return false, nil
-		default:
-			clusterFeatureGate = gate
-			startingFeatureSet = gate.Spec.FeatureSet
-			cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
-			klog.Infof("FeatureGate found in cluster, using its feature set %q at startup", startingFeatureSet)
-			return true, nil
-		}
-	}); err != nil {
-		if lastError != nil {
-			return "", cvoGates, lastError
-		}
-		return "", cvoGates, err
+	gate, err := featureGates.Get("cluster")
+	switch {
+	case apierrors.IsNotFound(err):
+		// if we have no featuregates, then the cluster is using the default featureset, which is "".
+		// This excludes everything that could possibly depend on a different feature set.
+		startingFeatureSet = ""
+		klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup", startingFeatureSet)
+	case err != nil:
+		// This should not happen because featureGates is backed by the informer cache which successfully synced earlier
+		klog.Errorf("Failed to get FeatureGate from cluster: %v", err)
+		return startingFeatureSet, cvoGates, fmt.Errorf("failed to get FeatureGate from informer cache: %w", err)
+	default:
+		clusterFeatureGate = gate
+		startingFeatureSet = gate.Spec.FeatureSet
+		cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
+		klog.Infof("FeatureGate found in cluster, using its feature set %q at startup", startingFeatureSet)
 	}
 
 	if cvoGates.UnknownVersion() {
