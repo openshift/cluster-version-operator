@@ -6,52 +6,60 @@ import (
 )
 
 // EnsureClusterRoleBinding ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
-func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBinding, required rbacv1.ClusterRoleBinding) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+// Returns true when existing had to be updated with required.
+func EnsureClusterRoleBinding(existing *rbacv1.ClusterRoleBinding, required rbacv1.ClusterRoleBinding) bool {
+	var modified bool
+	EnsureObjectMeta(&modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureRoleRefDefaultsv1(&required.RoleRef)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
-		*modified = true
+		modified = true
 		existing.Subjects = required.Subjects
 	}
 	if !equality.Semantic.DeepEqual(existing.RoleRef, required.RoleRef) {
-		*modified = true
+		modified = true
 		existing.RoleRef = required.RoleRef
 	}
+
+	return modified
 }
 
 // EnsureClusterRole ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
-func EnsureClusterRole(modified *bool, existing *rbacv1.ClusterRole, required rbacv1.ClusterRole) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+// Returns true when existing had to be updated with required.
+func EnsureClusterRole(existing *rbacv1.ClusterRole, required rbacv1.ClusterRole) bool {
+	var modified bool
+	EnsureObjectMeta(&modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.AggregationRule, required.AggregationRule) {
-		*modified = true
+		modified = true
 		existing.AggregationRule = required.AggregationRule
 	}
 	if required.AggregationRule != nil {
 		// The control plane overwrites any values that are manually specified in the rules field of an aggregate ClusterRole.
 		// Skip reconciling on Rules field
-		return
+		return modified
 	}
 	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {
-		*modified = true
+		modified = true
 		existing.Rules = required.Rules
 	}
+	return modified
 }
 
 // EnsureRoleBinding ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
-func EnsureRoleBinding(modified *bool, existing *rbacv1.RoleBinding, required rbacv1.RoleBinding) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+// Returns true when existing had to be updated with required.
+func EnsureRoleBinding(existing *rbacv1.RoleBinding, required rbacv1.RoleBinding) bool {
+	var modified bool
+	EnsureObjectMeta(&modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureRoleRefDefaultsv1(&required.RoleRef)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
-		*modified = true
+		modified = true
 		existing.Subjects = required.Subjects
 	}
 	if !equality.Semantic.DeepEqual(existing.RoleRef, required.RoleRef) {
-		*modified = true
+		modified = true
 		existing.RoleRef = required.RoleRef
 	}
+
+	return modified
 }
 
 func ensureRoleRefDefaultsv1(roleRef *rbacv1.RoleRef) {
@@ -61,11 +69,14 @@ func ensureRoleRefDefaultsv1(roleRef *rbacv1.RoleRef) {
 }
 
 // EnsureRole ensures that the existing matches the required.
-// modified is set to true when existing had to be updated with required.
-func EnsureRole(modified *bool, existing *rbacv1.Role, required rbacv1.Role) {
-	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+// Returns true when existing had to be updated with required.
+func EnsureRole(existing *rbacv1.Role, required rbacv1.Role) bool {
+	var modified bool
+	EnsureObjectMeta(&modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !equality.Semantic.DeepEqual(existing.Rules, required.Rules) {
-		*modified = true
+		modified = true
 		existing.Rules = required.Rules
 	}
+
+	return modified
 }
