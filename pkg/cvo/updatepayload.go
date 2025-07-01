@@ -264,6 +264,9 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 				setContainerDefaults(corev1.Container{
 					Name:    "rename-to-final-location",
 					Command: []string{"mv", tmpDir, dir},
+					SecurityContext: &corev1.SecurityContext{
+						ReadOnlyRootFilesystem: ptr.To(true),
+					},
 				}),
 			},
 			Volumes: []corev1.Volume{{

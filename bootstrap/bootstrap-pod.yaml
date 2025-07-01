@@ -19,6 +19,7 @@ spec:
     - "--kubeconfig=/etc/kubernetes/kubeconfig"
     securityContext:
       privileged: true
+      readOnlyRootFilesystem: true
     terminationMessagePolicy: FallbackToLogsOnError
     volumeMounts:
     - mountPath: /etc/ssl/certs
