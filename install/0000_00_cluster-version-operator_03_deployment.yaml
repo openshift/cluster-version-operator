@@ -43,8 +43,12 @@ spec:
           requests:
             cpu: 20m
             memory: 50Mi
+        securityContext:
+          readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
+        - mountPath: /tmp
+          name: tmp
         - mountPath: /etc/ssl/certs
           name: etc-ssl-certs
           readOnly: true
@@ -101,6 +105,8 @@ spec:
         effect: "NoExecute"
         tolerationSeconds: 120
       volumes:
+      - emptyDir: {}
+        name: tmp
       - name: etc-ssl-certs
         hostPath:
           path: /etc/ssl/certs
