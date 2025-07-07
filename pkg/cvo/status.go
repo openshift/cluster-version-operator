@@ -327,6 +327,14 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		failingCondition.Reason = failingReason
 		failingCondition.Message = failingMessage
 	}
+	if failure != nil &&
+		strings.HasPrefix(progressReason, slowCOUpdatePrefix) {
+		failingCondition.Status = configv1.ConditionUnknown
+		failingCondition.Reason = "SlowClusterOperator"
+		failingCondition.Message = progressMessage
+	}
+	progressReason = strings.TrimPrefix(progressReason, slowCOUpdatePrefix)
+
 	resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, failingCondition)
 
 	// update progressing
@@ -537,6 +545,8 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 	}
 }
 
+const slowCOUpdatePrefix = "Slow::"
+
 // convertErrorToProgressing returns true if the provided status indicates a failure condition can be interpreted as
 // still making internal progress. The general error we try to suppress is an operator or operators still being
 // progressing AND the general payload task making progress towards its goal. The error's UpdateEffect determines
@@ -555,28 +565,67 @@ func convertErrorToProgressing(now time.Time, statusFailure error) (reason strin
 	case payload.UpdateEffectReport:
 		return uErr.Reason, uErr.Error(), false
 	case payload.UpdateEffectNone:
-		return uErr.Reason, fmt.Sprintf("waiting on %s", uErr.Name), true
+		return convertErrorToProgressingForUpdateEffectNone(uErr, now)
 	case payload.UpdateEffectFail:
 		return "", "", false
 	case payload.UpdateEffectFailAfterInterval:
-		var exceeded []string
-		threshold := now.Add(-(40 * time.Minute))
-		names := uErr.Names
-		if len(names) == 0 {
-			names = []string{uErr.Name}
+		return convertErrorToProgressingForUpdateEffectFailAfterInterval(uErr, now)
+	}
+	return "", "", false
+}
+
+func convertErrorToProgressingForUpdateEffectNone(uErr *payload.UpdateError, now time.Time) (string, string, bool) {
+	var exceeded []string
+	names := uErr.Names
+	if len(names) == 0 {
+		names = []string{uErr.Name}
+	}
+	var machineConfig bool
+	for _, name := range names {
+		m := 30 * time.Minute
+		// It takes longer to upgrade MCO
+		if name == "machine-config" {
+			m = 3 * m
 		}
-		for _, name := range names {
-			if payload.COUpdateStartTimesGet(name).Before(threshold) {
+		t := payload.COUpdateStartTimesGet(name)
+		if (!t.IsZero()) && t.Before(now.Add(-(m))) {
+			if name == "machine-config" {
+				machineConfig = true
+			} else {
 				exceeded = append(exceeded, name)
 			}
 		}
-		if len(exceeded) > 0 {
-			return uErr.Reason, fmt.Sprintf("wait has exceeded 40 minutes for these operators: %s", strings.Join(exceeded, ", ")), false
-		} else {
-			return uErr.Reason, fmt.Sprintf("waiting up to 40 minutes on %s", uErr.Name), true
+	}
+	// returns true in those slow cases because it is still only a suspicion
+	if len(exceeded) > 0 && !machineConfig {
+		return slowCOUpdatePrefix + uErr.Reason, fmt.Sprintf("waiting on %s over 30 minutes which is longer than expected", strings.Join(exceeded, ", ")), true
+	}
+	if len(exceeded) > 0 && machineConfig {
+		return slowCOUpdatePrefix + uErr.Reason, fmt.Sprintf("waiting on %s over 30 minutes and machine-config over 90 minutes which is longer than expected", strings.Join(exceeded, ", ")), true
+	}
+	if len(exceeded) == 0 && machineConfig {
+		return slowCOUpdatePrefix + uErr.Reason, "waiting on machine-config over 90 minutes which is longer than expected", true
+	}
+	return uErr.Reason, fmt.Sprintf("waiting on %s", strings.Join(names, ", ")), true
+}
+
+func convertErrorToProgressingForUpdateEffectFailAfterInterval(uErr *payload.UpdateError, now time.Time) (string, string, bool) {
+	var exceeded []string
+	threshold := now.Add(-(40 * time.Minute))
+	names := uErr.Names
+	if len(names) == 0 {
+		names = []string{uErr.Name}
+	}
+	for _, name := range names {
+		if payload.COUpdateStartTimesGet(name).Before(threshold) {
+			exceeded = append(exceeded, name)
 		}
 	}
-	return "", "", false
+	if len(exceeded) > 0 {
+		return uErr.Reason, fmt.Sprintf("wait has exceeded 40 minutes for these operators: %s", strings.Join(exceeded, ", ")), false
+	} else {
+		return uErr.Reason, fmt.Sprintf("waiting up to 40 minutes on %s", uErr.Name), true
+	}
 }
 
 // syncFailingStatus handles generic errors in the cluster version. It tries to preserve
