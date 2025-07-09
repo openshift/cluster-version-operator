@@ -208,7 +208,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		}}
 		container.SecurityContext = &corev1.SecurityContext{
 			Privileged:             ptr.To(true),
-			ReadOnlyRootFilesystem: ptr.To(false),
+			ReadOnlyRootFilesystem: ptr.To(true),
 		}
 		container.Resources = corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
@@ -264,9 +264,6 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 				setContainerDefaults(corev1.Container{
 					Name:    "rename-to-final-location",
 					Command: []string{"mv", tmpDir, dir},
-					SecurityContext: &corev1.SecurityContext{
-						ReadOnlyRootFilesystem: ptr.To(true),
-					},
 				}),
 			},
 			Volumes: []corev1.Volume{{
