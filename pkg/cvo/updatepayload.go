@@ -208,7 +208,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		}}
 		container.SecurityContext = &corev1.SecurityContext{
 			Privileged:             ptr.To(true),
-			ReadOnlyRootFilesystem: ptr.To(false),
+			ReadOnlyRootFilesystem: ptr.To(true),
 		}
 		container.Resources = corev1.ResourceRequirements{
 			Requests: corev1.ResourceList{
