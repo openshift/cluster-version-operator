@@ -244,17 +244,19 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 					Command: []string{"mkdir", tmpDir},
 				}),
 				setContainerDefaults(corev1.Container{
-					Name: "move-operator-manifests-to-temporary-directory",
+					Name: "copy-operator-manifests-to-temporary-directory",
 					Command: []string{
-						"mv",
+						"cp",
+						"-r",
 						filepath.Join(payload.DefaultPayloadDir, payload.CVOManifestDir),
 						filepath.Join(tmpDir, payload.CVOManifestDir),
 					},
 				}),
 				setContainerDefaults(corev1.Container{
-					Name: "move-release-manifests-to-temporary-directory",
+					Name: "copy-release-manifests-to-temporary-directory",
 					Command: []string{
-						"mv",
+						"cp",
+						"-r",
 						filepath.Join(payload.DefaultPayloadDir, payload.ReleaseManifestDir),
 						filepath.Join(tmpDir, payload.ReleaseManifestDir),
 					},
