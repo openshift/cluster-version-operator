@@ -58,9 +58,7 @@ const (
 
 // Options are the valid inputs to starting the CVO.
 type Options struct {
-	ReleaseImage    string
-	ServingCertFile string
-	ServingKeyFile  string
+	ReleaseImage string
 
 	Kubeconfig string
 	NodeName   string
@@ -138,12 +136,6 @@ func (o *Options) ValidateAndComplete() error {
 	}
 	if o.ReleaseImage == "" {
 		return fmt.Errorf("missing --release-image flag, it is required")
-	}
-	if o.ListenAddr != "" && o.ServingCertFile == "" {
-		return fmt.Errorf("--listen was not set empty, so --serving-cert-file must be set")
-	}
-	if o.ListenAddr != "" && o.ServingKeyFile == "" {
-		return fmt.Errorf("--listen was not set empty, so --serving-key-file must be set")
 	}
 	if o.PrometheusURLString == "" {
 		return fmt.Errorf("missing --metrics-url flag, it is required")
@@ -357,7 +349,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
