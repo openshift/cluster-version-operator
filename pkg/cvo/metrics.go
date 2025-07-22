@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -128,12 +129,33 @@ type asyncResult struct {
 }
 
 func createHttpServer() *http.Server {
+	auth := authHandler{downstream: promhttp.Handler()}
 	handler := http.NewServeMux()
-	handler.Handle("/metrics", promhttp.Handler())
+	handler.Handle("/metrics", &auth)
 	server := &http.Server{
 		Handler: handler,
 	}
 	return server
+}
+
+type authHandler struct {
+	downstream http.Handler
+}
+
+func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
+		return
+	}
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	if token == authHeader {
+		http.Error(w, "failed to get the Bearer token", http.StatusUnauthorized)
+		return
+	}
+
+	// TODO use the token
+	a.downstream.ServeHTTP(w, r)
 }
 
 func shutdownHttpServer(parentCtx context.Context, svr *http.Server) {
