@@ -24,6 +24,50 @@ spec:
     spec:
       automountServiceAccountToken: false
       containers:
+      - args:
+        - --logtostderr
+        - --secure-listen-address=[$(IP)]:9099
+        - --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+        - --upstream=http://127.0.0.1:9099/
+        - --tls-cert-file=/etc/tls/serving-cert/tls.crt
+        - --tls-private-key-file=/etc/tls/serving-cert/tls.key
+        - --client-ca-file=/etc/tls/service-ca/client-ca.crt
+        - --config-file=/etc/kube-rbac-proxy/config.yaml
+        env:
+        - name: IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        image: quay.io/brancz/kube-rbac-proxy:v0.13.0
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 9099
+          hostPort: 9099
+          name: metrics
+        resources:
+          requests:
+            cpu: 1m
+            memory: 15Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - mountPath: /etc/tls/serving-cert
+          name: serving-cert
+          readOnly: false
+        - mountPath: /etc/tls/service-ca
+          name: service-ca
+          readOnly: false
+        - mountPath: /etc/kube-rbac-proxy
+          name: secret-kube-rbac-proxy-metric
+          readOnly: true
       - name: cluster-version-operator
         image: 'quay.io/cvo/release:latest'
         imagePullPolicy: IfNotPresent
@@ -31,14 +75,9 @@ spec:
         - "start"
         - "--release-image=quay.io/cvo/release:latest"
         - "--enable-auto-update=false"
-        - "--listen=0.0.0.0:9099"
-        - "--serving-cert-file=/etc/tls/serving-cert/tls.crt"
-        - "--serving-key-file=/etc/tls/serving-cert/tls.key"
+        - "--listen=127.0.0.1:9099"
         - "--v=2"
         - "--always-enable-capabilities=Ingress"
-        ports:
-        - name: metrics
-          containerPort: 9099
         resources:
           requests:
             cpu: 20m
@@ -50,9 +89,6 @@ spec:
           readOnly: true
         - mountPath: /etc/cvo/updatepayloads
           name: etc-cvo-updatepayloads
-          readOnly: true
-        - mountPath: /etc/tls/serving-cert
-          name: serving-cert
           readOnly: true
         - mountPath: /etc/tls/service-ca
           name: service-ca
@@ -101,6 +137,9 @@ spec:
         effect: "NoExecute"
         tolerationSeconds: 120
       volumes:
+      - name: secret-kube-rbac-proxy-metric
+        secret:
+          secretName: openshift-cluster-version-kube-rbac-proxy-metric
       - name: etc-ssl-certs
         hostPath:
           path: /etc/ssl/certs
