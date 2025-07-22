@@ -64,6 +64,9 @@ spec:
         - mountPath: /etc/kube-rbac-proxy
           name: secret-kube-rbac-proxy-metric
           readOnly: true
+        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+          name: kube-api-access
+          readOnly: true
       - name: cluster-version-operator
         image: 'quay.io/cvo/release:latest'
         imagePullPolicy: IfNotPresent
