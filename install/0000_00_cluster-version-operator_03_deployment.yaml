@@ -30,7 +30,7 @@ spec:
         - --upstream=http://127.0.0.1:9099/
         - --tls-cert-file=/etc/tls/serving-cert/tls.crt
         - --tls-private-key-file=/etc/tls/serving-cert/tls.key
-        - --client-ca-file=/etc/tls/service-ca/client-ca.crt
+        - --client-ca-file=/etc/tls/service-ca/service-ca.crt
         - --config-file=/etc/kube-rbac-proxy/config.yaml
         - --allow-paths=/metrics
         env:
