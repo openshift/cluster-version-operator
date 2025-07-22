@@ -27,12 +27,12 @@ spec:
       - args:
         - --logtostderr
         - --secure-listen-address=[$(IP)]:9099
-        - --tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
         - --upstream=http://127.0.0.1:9099/
         - --tls-cert-file=/etc/tls/serving-cert/tls.crt
         - --tls-private-key-file=/etc/tls/serving-cert/tls.key
         - --client-ca-file=/etc/tls/service-ca/client-ca.crt
         - --config-file=/etc/kube-rbac-proxy/config.yaml
+        - --allow-paths=/metrics
         env:
         - name: IP
           valueFrom:
@@ -57,10 +57,10 @@ spec:
         volumeMounts:
         - mountPath: /etc/tls/serving-cert
           name: serving-cert
-          readOnly: false
+          readOnly: true
         - mountPath: /etc/tls/service-ca
           name: service-ca
-          readOnly: false
+          readOnly: true
         - mountPath: /etc/kube-rbac-proxy
           name: secret-kube-rbac-proxy-metric
           readOnly: true
