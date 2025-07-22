@@ -28,14 +28,6 @@ type CvoGateChecker interface {
 	// to restart when the flags change.
 	UnknownVersion() bool
 
-	// ReconciliationIssuesCondition controls whether CVO maintains a Condition with
-	// ReconciliationIssues type, containing a JSON that describes all "issues" that prevented
-	// or delayed CVO from reconciling individual resources in the cluster. This is a pseudo-API
-	// that the experimental work for "oc adm upgrade status" uses to report upgrade status, and
-	// should never be relied upon by any production code. We may want to eventually turn this into
-	// some kind of "real" API.
-	ReconciliationIssuesCondition() bool
-
 	// StatusReleaseArchitecture controls whether CVO populates
 	// Release.Architecture in status properties like status.desired and status.history[].
 	StatusReleaseArchitecture() bool
@@ -54,14 +46,9 @@ type CvoGates struct {
 	desiredVersion string
 
 	// individual flags mirror the CvoGateChecker interface
-	unknownVersion                bool
-	reconciliationIssuesCondition bool
-	statusReleaseArchitecture     bool
-	cvoConfiguration              bool
-}
-
-func (c CvoGates) ReconciliationIssuesCondition() bool {
-	return c.reconciliationIssuesCondition
+	unknownVersion            bool
+	statusReleaseArchitecture bool
+	cvoConfiguration          bool
 }
 
 func (c CvoGates) StatusReleaseArchitecture() bool {
@@ -79,11 +66,10 @@ func (c CvoGates) CVOConfiguration() bool {
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
-		desiredVersion:                version,
-		unknownVersion:                true,
-		reconciliationIssuesCondition: false,
-		statusReleaseArchitecture:     false,
-		cvoConfiguration:              false,
+		desiredVersion:            version,
+		unknownVersion:            true,
+		statusReleaseArchitecture: false,
+		cvoConfiguration:          false,
 	}
 }
 
@@ -101,8 +87,6 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		enabledGates.unknownVersion = false
 		for _, enabled := range g.Enabled {
 			switch enabled.Name {
-			case features.FeatureGateUpgradeStatus:
-				enabledGates.reconciliationIssuesCondition = true
 			case features.FeatureGateImageStreamImportMode:
 				enabledGates.statusReleaseArchitecture = true
 			case features.FeatureGateCVOConfiguration:
@@ -111,8 +95,6 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		}
 		for _, disabled := range g.Disabled {
 			switch disabled.Name {
-			case features.FeatureGateUpgradeStatus:
-				enabledGates.reconciliationIssuesCondition = false
 			case features.FeatureGateImageStreamImportMode:
 				enabledGates.statusReleaseArchitecture = false
 			case features.FeatureGateCVOConfiguration:

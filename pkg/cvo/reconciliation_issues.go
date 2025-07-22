@@ -12,11 +12,6 @@ import (
 
 const (
 	reconciliationIssuesConditionType configv1.ClusterStatusConditionType = "ReconciliationIssues"
-
-	noReconciliationIssuesReason  string = "NoIssues"
-	noReconciliationIssuesMessage string = "No issues found during reconciliation"
-
-	reconciliationIssuesFoundReason string = "IssuesFound"
 )
 
 // errorWalkCallback processes an error.  It returns an error to fail the walk.

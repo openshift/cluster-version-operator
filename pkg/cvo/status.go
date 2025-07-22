@@ -411,25 +411,9 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		}
 	}
 
-	oldRiCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
-	if enabledGates.ReconciliationIssuesCondition() || (oldRiCondition != nil && enabledGates.UnknownVersion()) {
-		riCondition := configv1.ClusterOperatorStatusCondition{
-			Type:    reconciliationIssuesConditionType,
-			Status:  configv1.ConditionFalse,
-			Reason:  noReconciliationIssuesReason,
-			Message: noReconciliationIssuesMessage,
-		}
-		if status.Failure != nil {
-			message, err := reconciliationIssueFromError(status.Failure)
-			if err != nil {
-				message = err.Error()
-			}
-			riCondition.Status = configv1.ConditionTrue
-			riCondition.Reason = reconciliationIssuesFoundReason
-			riCondition.Message = message
-		}
-		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, riCondition)
-	} else if oldRiCondition != nil {
+	// Pre-GA 4.20 TechPreview clusters may have this condition and we need to remove it if it exists when updated to this version
+	// TODO: Remove this code in 4.21
+	if oldRiCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType); oldRiCondition != nil {
 		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, reconciliationIssuesConditionType)
 	}
 
