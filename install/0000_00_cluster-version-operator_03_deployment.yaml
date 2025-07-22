@@ -53,10 +53,6 @@ spec:
           capabilities:
             drop:
             - ALL
-          readOnlyRootFilesystem: true
-          runAsGroup: 65532
-          runAsNonRoot: true
-          runAsUser: 65532
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /etc/tls/serving-cert
