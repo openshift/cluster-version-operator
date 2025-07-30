@@ -7,8 +7,20 @@ build:
 	hack/build-go.sh
 .PHONY: build
 
-test:
-	go test ./...
+gotestsum:
+	which gotestsum || go install gotest.tools/gotestsum@latest
+.PHONY: gotestsum
+
+JUNIT_DIR := "_output"
+PACKAGES := "./..."
+ifeq ($(CI),true)
+JUNIT_DIR := "$(ARTIFACT_DIR)"
+# tests in github.com/openshift/cluster-version-operator/test/ will be executed separately in CI
+PACKAGES := $(shell go list ./... | grep -v "github.com/openshift/cluster-version-operator/test/" | xargs)
+endif
+
+test: gotestsum
+	gotestsum --junitfile="$(JUNIT_DIR)/junit.xml" --packages="$(PACKAGES)"
 .PHONY: test
 
 integration-test:
