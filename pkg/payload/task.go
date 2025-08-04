@@ -108,7 +108,7 @@ func (st *Task) Copy() *Task {
 
 func (st *Task) String() string {
 	manId := getManifestResourceId(*st.Manifest)
-	return fmt.Sprintf("%s (%d of %d)", manId, st.Index, st.Total)
+	return fmt.Sprintf("%s (%d of %d, %s)", manId, st.Index, st.Total, st.OriginalFilename)
 }
 
 // Run attempts to create the provided object until it:
