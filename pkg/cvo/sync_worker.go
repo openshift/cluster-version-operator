@@ -1032,16 +1032,18 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 		}
 
 		for _, task := range tasks {
+			klog.V(2).Infof("Checking context during sync for %s", task)
 			if err := ctx.Err(); err != nil {
 				return cr.ContextError(err)
 			}
+			klog.V(2).Infof("Attempting lock during sync for %s", task)
 			// This locks the sync worker deep inside
 			cr.Update()
 
-			klog.V(manifestVerbosity).Infof("Running sync for %s", task)
+			klog.V(2).Infof("Running sync for %s", task)
 
 			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
-				klog.V(manifestVerbosity).Infof("Skipping %s: %s", task, err)
+				klog.V(2).Infof("Skipping %s: %s", task, err)
 				continue
 			}
 			if err := task.Run(ctx, payloadUpdate.Release.Version, w.builder, work.State); err != nil {
@@ -1053,7 +1055,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 				}
 			}
 			cr.Inc()
-			klog.V(manifestVerbosity).Infof("Done syncing for %s", task)
+			klog.V(4).Infof("Done syncing for %s", task)
 		}
 		return nil
 	})

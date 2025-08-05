@@ -15,6 +15,7 @@ import (
 
 // ApplyJobv1 applies the required Job to the cluster.
 func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *batchv1.Job, reconciling bool) (*batchv1.Job, bool, error) {
+	klog.V(2).Infof("Job %s/%s apply started", required.Namespace, required.Name)
 	existing, err := client.Jobs(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		klog.V(2).Infof("Job %s/%s not found, creating", required.Namespace, required.Name)
@@ -24,6 +25,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 	if err != nil {
 		return nil, false, err
 	}
+	klog.V(2).Infof("Job %s/%s found", required.Namespace, required.Name)
 	// if we only create this resource, we have no need to continue further
 	if IsCreateOnly(required) {
 		return nil, false, nil
