@@ -118,7 +118,7 @@ func Test_TaskGraph_Split(t *testing.T) {
 			}
 			g.Split(tt.onFn)
 			if !reflect.DeepEqual(g.Nodes, tt.expect) {
-				t.Fatalf("unexpected:\n%s\n%s", (&TaskGraph{Nodes: tt.expect}).Tree(), g.Tree())
+				t.Fatalf("unexpected:\n%s\n%s", (&TaskGraph{Nodes: tt.expect}).Tree("manifest"), g.Tree("manifest"))
 			}
 		})
 	}
@@ -151,9 +151,9 @@ func TestByNumberAndComponent(t *testing.T) {
 			name:  "no recognizable groups",
 			tasks: tasks("a", "b", "c"),
 			want: [][]*TaskNode{
-				{
-					&TaskNode{Tasks: tasks("a", "b", "c")},
-				},
+				{&TaskNode{Tasks: tasks("a")}},
+				{&TaskNode{Tasks: tasks("b")}},
+				{&TaskNode{Tasks: tasks("c")}},
 			},
 		},
 		{
@@ -166,36 +166,40 @@ func TestByNumberAndComponent(t *testing.T) {
 			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name:  "one recognizable and two unrecognizeable",
 			tasks: tasks("a", "0000_01_x-y-z_file1", "c"),
 			want: [][]*TaskNode{
-				{
-					&TaskNode{Tasks: tasks("a", "0000_01_x-y-z_file1", "c")},
-				},
+				{&TaskNode{Tasks: tasks("a")}},
+				{&TaskNode{Tasks: tasks("0000_01_x-y-z_file1"), runlevel: 1, component: "x-y-z"}},
+				{&TaskNode{Tasks: tasks("c")}},
 			},
 		},
 		{
+			name:  "two tasks with the same runlevel and component",
 			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name:  "two components in one runlevel",
 			tasks: tasks("0000_01_a-b-c_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_a-b-c_file1")},
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_a-b-c_file1"), runlevel: 1, component: "a-b-c"},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name: "unrecognized between single runlevel/component",
 			tasks: tasks(
 				"0000_01_a-b-c_file1",
 				"0000_01_x-y-z_file1",
@@ -208,18 +212,18 @@ func TestByNumberAndComponent(t *testing.T) {
 				{
 					&TaskNode{Tasks: tasks(
 						"0000_01_a-b-c_file1",
-					)},
+					), runlevel: 1, component: "a-b-c"},
 					&TaskNode{Tasks: tasks(
 						"0000_01_x-y-z_file1",
 						"0000_01_x-y-z_file2",
-					)},
+					), runlevel: 1, component: "x-y-z"},
 				},
+				{&TaskNode{Tasks: tasks("a")}},
 				{
 					&TaskNode{Tasks: tasks(
-						"a",
 						"0000_01_x-y-z_file2",
 						"0000_01_x-y-z_file3",
-					)},
+					), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
@@ -227,7 +231,7 @@ func TestByNumberAndComponent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ByNumberAndComponent(tt.tasks); !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("%s", cmp.Diff(tt.want, got))
+				t.Fatalf("%s", cmp.Diff(tt.want, got, cmp.AllowUnexported(TaskNode{}, manifest.Manifest{})))
 			}
 		})
 	}
@@ -339,7 +343,7 @@ func TestShiftOrder(t *testing.T) {
 				return test.tasks
 			}
 			if out := ShiftOrder(fn, test.step, test.stride)(nil); !reflect.DeepEqual(test.want, out) {
-				t.Errorf("%s", cmp.Diff(test.want, out))
+				t.Errorf("%s", cmp.Diff(test.want, out, cmp.AllowUnexported(TaskNode{}, manifest.Manifest{})))
 			}
 		})
 	}
@@ -389,38 +393,42 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name:  "one recognizable and two unrecognizeable",
 			tasks: tasks("a", "0000_01_x-y-z_file1", "c"),
 			want: [][]*TaskNode{
 				{
 					&TaskNode{Tasks: tasks("a")},
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1"), runlevel: 1, component: "x-y-z"},
 					&TaskNode{Tasks: tasks("c")},
 				},
 			},
 		},
 		{
+			name:  "two tasks with the same runlevel and component",
 			tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file1", "0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name:  "two components in one runlevel",
 			tasks: tasks("0000_01_a-b-c_file1", "0000_01_x-y-z_file2"),
 			want: [][]*TaskNode{
 				{
-					&TaskNode{Tasks: tasks("0000_01_a-b-c_file1")},
-					&TaskNode{Tasks: tasks("0000_01_x-y-z_file2")},
+					&TaskNode{Tasks: tasks("0000_01_a-b-c_file1"), runlevel: 1, component: "a-b-c"},
+					&TaskNode{Tasks: tasks("0000_01_x-y-z_file2"), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name: "unrecognized between single runlevel/component",
 			tasks: tasks(
 				"0000_01_a-b-c_file1",
 				"0000_01_x-y-z_file1",
@@ -433,22 +441,23 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 				{
 					&TaskNode{Tasks: tasks(
 						"0000_01_a-b-c_file1",
-					)},
+					), runlevel: 1, component: "a-b-c"},
 					&TaskNode{Tasks: tasks(
 						"0000_01_x-y-z_file1",
 						"0000_01_x-y-z_file2",
-					)},
+					), runlevel: 1, component: "x-y-z"},
 					&TaskNode{Tasks: tasks(
 						"a",
 					)},
 					&TaskNode{Tasks: tasks(
 						"0000_01_x-y-z_file2",
 						"0000_01_x-y-z_file3",
-					)},
+					), runlevel: 1, component: "x-y-z"},
 				},
 			},
 		},
 		{
+			name: "one component spread over two runlevels",
 			tasks: tasks(
 				"0000_01_a-b-c_file1",
 				"0000_01_x-y-z_file1",
@@ -460,15 +469,15 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 				{
 					&TaskNode{Tasks: tasks(
 						"0000_01_a-b-c_file1",
-					)},
+					), runlevel: 1, component: "a-b-c"},
 					&TaskNode{Tasks: tasks(
 						"0000_01_x-y-z_file1",
 						"0000_01_x-y-z_file2",
-					)},
+					), runlevel: 1, component: "x-y-z"},
 					&TaskNode{Tasks: tasks(
 						"0000_02_x-y-z_file2",
 						"0000_02_x-y-z_file3",
-					)},
+					), runlevel: 2, component: "x-y-z"},
 				},
 			},
 		},
@@ -476,7 +485,7 @@ func TestFlattenByNumberAndComponent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FlattenByNumberAndComponent(tt.tasks); !reflect.DeepEqual(got, tt.want) {
-				t.Fatalf("%s", cmp.Diff(tt.want, got))
+				t.Fatalf("%s", cmp.Diff(tt.want, got, cmp.AllowUnexported(TaskNode{}, manifest.Manifest{})))
 			}
 		})
 	}
@@ -500,7 +509,7 @@ func Test_TaskGraph_real(t *testing.T) {
 	g := NewTaskGraph(tasks)
 	g.Split(SplitOnJobs)
 	g.Parallelize(ByNumberAndComponent)
-	t.Logf("\n%s", g.Tree())
+	t.Logf("\n%s", g.Tree("manifest"))
 	t.Logf("original depth: %d", len(tasks))
 }
 
@@ -617,7 +626,7 @@ func Test_TaskGraph_example(t *testing.T) {
 			g.Split(SplitOnJobs)
 			g.Parallelize(ByNumberAndComponent)
 			if !reflect.DeepEqual(g, tt.expect) {
-				t.Fatalf("unexpected:\n%s\n---\n%s", tt.expect.Tree(), g.Tree())
+				t.Fatalf("unexpected:\n%s\n---\n%s", tt.expect.Tree("manifest"), g.Tree("manifest"))
 			}
 		})
 	}
@@ -683,7 +692,7 @@ func Test_TaskGraph_bulkAdd(t *testing.T) {
 				t.Errorf("TaskGraph.bulkAdd() = %v, want %v", got, tt.want)
 			}
 			if !reflect.DeepEqual(tt.expect, g.Nodes) {
-				t.Errorf("unexpected:\n%s\n---\n%s", (&TaskGraph{Nodes: tt.expect}).Tree(), g.Tree())
+				t.Errorf("unexpected:\n%s\n---\n%s", (&TaskGraph{Nodes: tt.expect}).Tree("manifest"), g.Tree("manifest"))
 			}
 		})
 	}
