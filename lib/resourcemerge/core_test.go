@@ -46,6 +46,37 @@ func TestEnsurePodSpec(t *testing.T) {
 					{Name: "test"}}},
 		},
 		{
+			name: "AutomountServiceAccountToken none",
+			existing: corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+			input: corev1.PodSpec{},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{},
+		},
+		{
+			name: "AutomountServiceAccountToken changed",
+			existing: corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(true)},
+			input: corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+
+			expectedModified: true,
+			expected:         corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+		},
+		{
+			name: "AutomountServiceAccountToken no changes",
+			existing: corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+			input: corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+
+			expectedModified: false,
+			expected:         corev1.PodSpec{
+				AutomountServiceAccountToken: boolPtr(false)},
+		},
+		{
 			name: "PodSecurityContext empty",
 			existing: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
