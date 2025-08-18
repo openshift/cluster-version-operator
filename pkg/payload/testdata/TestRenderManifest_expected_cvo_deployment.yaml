@@ -22,7 +22,7 @@ spec:
       labels:
         k8s-app: cluster-version-operator
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: false  # removed in the next version.
       containers:
       - name: cluster-version-operator
         image: 'quay.io/cvo/release:latest'

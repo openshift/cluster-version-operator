@@ -62,7 +62,7 @@ func TestEnsurePodSpec(t *testing.T) {
 				AutomountServiceAccountToken: boolPtr(false)},
 
 			expectedModified: true,
-			expected:         corev1.PodSpec{
+			expected: corev1.PodSpec{
 				AutomountServiceAccountToken: boolPtr(false)},
 		},
 		{
@@ -73,7 +73,7 @@ func TestEnsurePodSpec(t *testing.T) {
 				AutomountServiceAccountToken: boolPtr(false)},
 
 			expectedModified: false,
-			expected:         corev1.PodSpec{
+			expected: corev1.PodSpec{
 				AutomountServiceAccountToken: boolPtr(false)},
 		},
 		{
