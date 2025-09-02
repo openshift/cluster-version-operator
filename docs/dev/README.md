@@ -48,7 +48,7 @@ that will contain all manifests from an existing release payload and the develop
 ```console
 $ oc adm release new --from-release=quay.io/openshift-release-dev/ocp-release:4.11.18-x86_64 \
                      --to-image-base=${REPO}/origin-cluster-version-operator:latest \
-                     --image=${REPO}/ocp-release:latest
+                     --to-image=${REPO}/ocp-release:latest
 ```
 
 ## Testing CVO
