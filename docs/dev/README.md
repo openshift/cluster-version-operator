@@ -51,6 +51,63 @@ $ oc adm release new --from-release=quay.io/openshift-release-dev/ocp-release:4.
                      --to-image=${REPO}/ocp-release:latest
 ```
 
+Note that the pull secret for the `quay.io/openshift-release-dev/ocp-release` container image can be acquired [here](https://console.redhat.com/openshift/install/pull-secret).
+
+In case you want to utilize different credentials for the same container image registry domain, for example, 
+one set of credentials for the existing release image and one for a personal location where to upload the new release 
+image in the same container image registry domain, the following unsupported methods are possible at the moment.
+Note that these methods may not be supported or functional when used with other container tools.
+
+The main idea is to modify the used [authentication file](https://docs.podman.io/en/latest/markdown/podman-login.1.html#authfile-path)
+and specify a second `auth` entry that has a specified port or path, which acts as a new entry for which different 
+credentials can be specified.
+
+Given an authentication file with a specified path:
+
+```json
+{
+  "auths": {
+    "quay.io/username": {
+      "auth": "token to be used when accessing the username's namespace"
+    },
+    "quay.io": {
+      "auth": "broad token to be used when the quay.io host is specified"
+    }
+  }
+}
+```
+
+Build and publish a release image:
+
+```console
+$ oc adm release new --from-release=quay.io/openshift-release-dev/ocp-release:4.11.18-x86_64 \
+                     --to-image-base=quay.io/username/origin-cluster-version-operator:latest \
+                     --to-image=quay.io/username/ocp-release:latest
+```
+
+Given a specified port in the authentication file:
+
+```json
+{
+  "auths": {
+    "quay.io:443": {
+      "auth": "broad token to be used when the quay.io host and the 443 port are specified"
+    },
+    "quay.io": {
+      "auth": "broad token to be used when the quay.io host is specified"
+    }
+  }
+}
+```
+
+Build and publish a release image by specifying the port accordingly, for example:
+
+```console
+$ oc adm release new --from-release=quay.io/openshift-release-dev/ocp-release:4.11.18-x86_64 \
+                     --to-image-base=quay.io:443/${NAMESPACE}/origin-cluster-version-operator:latest \
+                     --to-image=quay.io:443/${NAMESPACE}/ocp-release:latest
+```
+
 ## Testing CVO
 
 ### Unit tests
