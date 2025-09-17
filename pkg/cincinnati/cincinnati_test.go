@@ -816,7 +816,7 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 		exp: node{
 			Version:  semver.MustParse("4.0.0-5"),
 			Image:    "quay.io/openshift-release-dev/ocp-release:4.0.0-5",
-			Metadata: map[string]string{},
+			Metadata: map[string]interface{}{},
 		},
 	}, {
 		raw: []byte(`{
@@ -829,7 +829,7 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 		exp: node{
 			Version: semver.MustParse("4.0.0-0.1"),
 			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-0.1",
-			Metadata: map[string]string{
+			Metadata: map[string]interface{}{
 				"description": "This is the beta1 image based on the 4.0.0-0.nightly-2019-01-15-010905 build",
 			},
 		},
