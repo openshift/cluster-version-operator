@@ -10,8 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
-	"strings"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -27,6 +25,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/capability"
 	localmanifest "github.com/openshift/cluster-version-operator/lib/manifest"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 )
 
 // State describes the state of the payload and alters
@@ -68,9 +67,6 @@ const (
 	// provide better visibility during install and upgrade of
 	// error conditions.
 	PrecreatingPayload
-
-	// releaseMultiArchID identifies a multi architecture release.
-	releaseMultiArchID = "multi"
 )
 
 // Initializing is true if the state is InitializingPayload.
@@ -368,39 +364,12 @@ func loadReleaseMetadata(releaseDir string) (configv1.Release, error) {
 		return release, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
 	}
 
+	release, err = cincinnati.ParseMetadata(metadata.Metadata)
+	if err != nil {
+		klog.Warningf("errors while parsing metadata from %s (%s): %v", cincinnatiJSONFile, release.Version, err)
+	}
+
 	release.Version = metadata.Version
-
-	if archRaw, hasArch := metadata.Metadata["release.openshift.io/architecture"]; hasArch {
-		arch, isString := archRaw.(string)
-		if !isString {
-			return release, fmt.Errorf("Architecture from %s (%s) is not a string: %v",
-				cincinnatiJSONFile, release.Version, archRaw)
-		}
-
-		if arch != releaseMultiArchID {
-			return release, fmt.Errorf("Architecture from %s (%s) contains invalid value: %q. Valid value is %q.",
-				cincinnatiJSONFile, release.Version, arch, releaseMultiArchID)
-		}
-
-		release.Architecture = configv1.ClusterVersionArchitectureMulti
-		klog.V(2).Infof("Architecture from %s (%s) is multi: %q", cincinnatiJSONFile, release.Version, arch)
-	}
-
-	if urlInterface, ok := metadata.Metadata["url"]; ok {
-		if urlString, ok := urlInterface.(string); ok {
-			release.URL = configv1.URL(urlString)
-		} else {
-			klog.Warningf("URL from %s (%s) is not a string: %v", cincinnatiJSONFile, release.Version, urlInterface)
-		}
-	}
-	if channelsInterface, ok := metadata.Metadata["io.openshift.upgrades.graph.release.channels"]; ok {
-		if channelsString, ok := channelsInterface.(string); ok {
-			release.Channels = strings.Split(channelsString, ",")
-			sort.Strings(release.Channels)
-		} else {
-			klog.Warningf("channel list from %s (%s) is not a string: %v", cincinnatiJSONFile, release.Version, channelsInterface)
-		}
-	}
 
 	return release, nil
 }
