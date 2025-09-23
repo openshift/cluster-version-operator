@@ -43,6 +43,14 @@ type ClusterVersionOperatorConfiguration struct {
 	started bool
 
 	configuration configuration
+
+	// Function to handle an update to the internal configuration.
+	//
+	// In the future, the desired configuration may be consumed via other controllers.
+	// This will require some sort of synchronization upon a configuration change.
+	// For the moment, the log level is the sole consumer of the configuration.
+	// Apply the log level directly here for simplicity for the time being.
+	handler func(configuration) error
 }
 
 func (config *ClusterVersionOperatorConfiguration) Queue() workqueue.TypedRateLimitingInterface[any] {
@@ -87,6 +95,7 @@ func NewClusterVersionOperatorConfiguration(client operatorclientset.Interface, 
 		client:        client.OperatorV1alpha1().ClusterVersionOperators(),
 		factory:       factory,
 		configuration: configuration{desiredLogLevel: desiredLogLevel},
+		handler:       func(c configuration) error { return applyLogLevel(c.desiredLogLevel) },
 	}
 }
 
@@ -152,5 +161,8 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		config.configuration.desiredLogLevel = operatorv1.Normal
 	}
 
-	return applyLogLevel(config.configuration.desiredLogLevel)
+	if config.handler != nil {
+		return config.handler(config.configuration)
+	}
+	return nil
 }

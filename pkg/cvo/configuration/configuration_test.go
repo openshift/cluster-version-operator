@@ -24,6 +24,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 		expectedConfig         operatorv1alpha1.ClusterVersionOperator
 		internalConfig         configuration
 		expectedInternalConfig configuration
+		handlerFunctionCalled  bool
 	}{
 		{
 			name: "first sync run correctly updates the status",
@@ -54,6 +55,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 1,
 			},
+			handlerFunctionCalled: true,
 		},
 		{
 			name: "sync updates observed generation correctly",
@@ -87,6 +89,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 3,
 			},
+			handlerFunctionCalled: true,
 		},
 		{
 			name: "sync updates desired log level correctly",
@@ -120,6 +123,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 				desiredLogLevel:        operatorv1.Trace,
 				lastObservedGeneration: 4,
 			},
+			handlerFunctionCalled: true,
 		},
 		{
 			name: "number of not observed generations does not impact sync",
@@ -153,6 +157,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 				desiredLogLevel:        operatorv1.TraceAll,
 				lastObservedGeneration: 40,
 			},
+			handlerFunctionCalled: true,
 		},
 	}
 	for _, tt := range tests {
@@ -165,6 +170,12 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			factory := operatorexternalversions.NewSharedInformerFactoryWithOptions(client, time.Minute)
 
 			configController := NewClusterVersionOperatorConfiguration(client, factory)
+
+			called := false
+			configController.handler = func(_ configuration) error {
+				called = true
+				return nil
+			}
 
 			ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
 
@@ -192,6 +203,10 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.expectedConfig, *config, cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ManagedFields")); diff != "" {
 				t.Errorf("unexpected config (-want, +got) = %v", diff)
+			}
+
+			if tt.handlerFunctionCalled != called {
+				t.Errorf("unexpected handler function execution; wanted=%v, got=%v", tt.handlerFunctionCalled, called)
 			}
 
 			// Shutdown created resources
