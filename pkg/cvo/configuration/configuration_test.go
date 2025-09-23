@@ -22,8 +22,8 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 		name                   string
 		config                 operatorv1alpha1.ClusterVersionOperator
 		expectedConfig         operatorv1alpha1.ClusterVersionOperator
-		internalConfig         ClusterVersionOperatorConfiguration
-		expectedInternalConfig ClusterVersionOperatorConfiguration
+		internalConfig         configuration
+		expectedInternalConfig configuration
 	}{
 		{
 			name: "first sync run correctly updates the status",
@@ -46,11 +46,11 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 					ObservedGeneration: 1,
 				},
 			},
-			internalConfig: ClusterVersionOperatorConfiguration{
+			internalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 0,
 			},
-			expectedInternalConfig: ClusterVersionOperatorConfiguration{
+			expectedInternalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 1,
 			},
@@ -79,11 +79,11 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 					ObservedGeneration: 3,
 				},
 			},
-			internalConfig: ClusterVersionOperatorConfiguration{
+			internalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 2,
 			},
-			expectedInternalConfig: ClusterVersionOperatorConfiguration{
+			expectedInternalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 3,
 			},
@@ -112,11 +112,11 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 					ObservedGeneration: 4,
 				},
 			},
-			internalConfig: ClusterVersionOperatorConfiguration{
+			internalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 3,
 			},
-			expectedInternalConfig: ClusterVersionOperatorConfiguration{
+			expectedInternalConfig: configuration{
 				desiredLogLevel:        operatorv1.Trace,
 				lastObservedGeneration: 4,
 			},
@@ -145,11 +145,11 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 					ObservedGeneration: 40,
 				},
 			},
-			internalConfig: ClusterVersionOperatorConfiguration{
+			internalConfig: configuration{
 				desiredLogLevel:        operatorv1.Normal,
 				lastObservedGeneration: 3,
 			},
-			expectedInternalConfig: ClusterVersionOperatorConfiguration{
+			expectedInternalConfig: configuration{
 				desiredLogLevel:        operatorv1.TraceAll,
 				lastObservedGeneration: 40,
 			},
@@ -158,24 +158,35 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Initialize testing logic
+			tt.config.Name = ClusterVersionOperatorConfigurationName
+			tt.expectedConfig.Name = ClusterVersionOperatorConfigurationName
+
 			client := operatorclientsetfake.NewClientset(&tt.config)
-			tt.internalConfig.client = client.OperatorV1alpha1().ClusterVersionOperators()
+			factory := operatorexternalversions.NewSharedInformerFactoryWithOptions(client, time.Minute)
+
+			configController := NewClusterVersionOperatorConfiguration(client, factory)
+
 			ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))
 
+			if err := configController.Start(ctx); err != nil {
+				t.Errorf("unexpected error %v", err)
+			}
+			configController.configuration = tt.internalConfig
+
 			// Run tested functionality
-			if err := tt.internalConfig.sync(ctx, &tt.config); err != nil {
+			if err := configController.Sync(ctx, "key"); err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
 
 			// Verify results
-			if tt.internalConfig.lastObservedGeneration != tt.expectedInternalConfig.lastObservedGeneration {
-				t.Errorf("unexpected 'lastObservedGeneration' value; wanted=%v, got=%v", tt.expectedInternalConfig.lastObservedGeneration, tt.internalConfig.lastObservedGeneration)
+			if configController.configuration.lastObservedGeneration != tt.expectedInternalConfig.lastObservedGeneration {
+				t.Errorf("unexpected 'lastObservedGeneration' value; wanted=%v, got=%v", tt.expectedInternalConfig.lastObservedGeneration, configController.configuration.lastObservedGeneration)
 			}
-			if tt.internalConfig.desiredLogLevel != tt.expectedInternalConfig.desiredLogLevel {
-				t.Errorf("unexpected 'desiredLogLevel' value; wanted=%v, got=%v", tt.expectedInternalConfig.desiredLogLevel, tt.internalConfig.desiredLogLevel)
+			if configController.configuration.desiredLogLevel != tt.expectedInternalConfig.desiredLogLevel {
+				t.Errorf("unexpected 'desiredLogLevel' value; wanted=%v, got=%v", tt.expectedInternalConfig.desiredLogLevel, configController.configuration.desiredLogLevel)
 			}
 
-			config, err := client.OperatorV1alpha1().ClusterVersionOperators().Get(ctx, "", metav1.GetOptions{})
+			config, err := client.OperatorV1alpha1().ClusterVersionOperators().Get(ctx, ClusterVersionOperatorConfigurationName, metav1.GetOptions{})
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}

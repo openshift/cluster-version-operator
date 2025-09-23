@@ -24,6 +24,11 @@ import (
 
 const ClusterVersionOperatorConfigurationName = "cluster"
 
+type configuration struct {
+	lastObservedGeneration int64
+	desiredLogLevel        operatorv1.LogLevel
+}
+
 type ClusterVersionOperatorConfiguration struct {
 	queueKey string
 	// queue tracks checking for the CVO configuration.
@@ -37,8 +42,7 @@ type ClusterVersionOperatorConfiguration struct {
 
 	started bool
 
-	desiredLogLevel        operatorv1.LogLevel
-	lastObservedGeneration int64
+	configuration configuration
 }
 
 func (config *ClusterVersionOperatorConfiguration) Queue() workqueue.TypedRateLimitingInterface[any] {
@@ -80,9 +84,9 @@ func NewClusterVersionOperatorConfiguration(client operatorclientset.Interface, 
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: "configuration"}),
-		client:          client.OperatorV1alpha1().ClusterVersionOperators(),
-		factory:         factory,
-		desiredLogLevel: desiredLogLevel,
+		client:        client.OperatorV1alpha1().ClusterVersionOperators(),
+		factory:       factory,
+		configuration: configuration{desiredLogLevel: desiredLogLevel},
 	}
 }
 
@@ -142,11 +146,11 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		}
 	}
 
-	config.lastObservedGeneration = desiredConfig.Generation
-	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
-	if config.desiredLogLevel == "" {
-		config.desiredLogLevel = operatorv1.Normal
+	config.configuration.lastObservedGeneration = desiredConfig.Generation
+	config.configuration.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
+	if config.configuration.desiredLogLevel == "" {
+		config.configuration.desiredLogLevel = operatorv1.Normal
 	}
 
-	return applyLogLevel(config.desiredLogLevel)
+	return applyLogLevel(config.configuration.desiredLogLevel)
 }
