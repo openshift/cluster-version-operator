@@ -148,31 +148,5 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		config.desiredLogLevel = operatorv1.Normal
 	}
 
-	currentLogLevel, notFound := loglevel.GetLogLevel()
-	if notFound {
-		klog.Warningf("The current log level could not be found; an attempt to set the log level to the desired level will be made")
-	}
-
-	if !notFound && currentLogLevel == config.desiredLogLevel {
-		klog.V(i.Debug).Infof("No need to update the current CVO log level '%s'; it is already set to the desired value", currentLogLevel)
-	} else {
-		if err := loglevel.SetLogLevel(config.desiredLogLevel); err != nil {
-			return fmt.Errorf("failed to set the log level to %q: %w", config.desiredLogLevel, err)
-		}
-
-		// E2E testing will be checking for existence or absence of these logs
-		switch config.desiredLogLevel {
-		case operatorv1.Normal:
-			klog.V(i.Normal).Infof("Successfully updated the log level from '%s' to 'Normal'", currentLogLevel)
-		case operatorv1.Debug:
-			klog.V(i.Debug).Infof("Successfully updated the log level from '%s' to 'Debug'", currentLogLevel)
-		case operatorv1.Trace:
-			klog.V(i.Trace).Infof("Successfully updated the log level from '%s' to 'Trace'", currentLogLevel)
-		case operatorv1.TraceAll:
-			klog.V(i.TraceAll).Infof("Successfully updated the log level from '%s' to 'TraceAll'", currentLogLevel)
-		default:
-			klog.Errorf("The CVO logging level has unexpected value '%s'", config.desiredLogLevel)
-		}
-	}
-	return nil
+	return applyLogLevel(config.desiredLogLevel)
 }
