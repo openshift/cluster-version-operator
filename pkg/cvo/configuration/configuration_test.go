@@ -169,7 +169,7 @@ func TestClusterVersionOperatorConfiguration_sync(t *testing.T) {
 			client := operatorclientsetfake.NewClientset(&tt.config)
 			factory := operatorexternalversions.NewSharedInformerFactoryWithOptions(client, time.Minute)
 
-			configController := NewClusterVersionOperatorConfiguration(client, factory)
+			configController := NewClusterVersionOperatorConfiguration().UsingKubeAPIServer(client, factory)
 
 			called := false
 			configController.handler = func(_ configuration) error {
@@ -265,7 +265,7 @@ func TestClusterVersionOperatorConfiguration_Sync(t *testing.T) {
 			}
 
 			factory := operatorexternalversions.NewSharedInformerFactoryWithOptions(client, time.Minute)
-			cvoConfiguration := NewClusterVersionOperatorConfiguration(client, factory)
+			cvoConfiguration := NewClusterVersionOperatorConfiguration().UsingKubeAPIServer(client, factory)
 			defer cvoConfiguration.queue.ShutDown()
 
 			ctx, cancelFunc := context.WithDeadline(context.Background(), time.Now().Add(time.Minute))

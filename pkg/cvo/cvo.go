@@ -291,7 +291,7 @@ func New(
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
 	if shouldReconcileCVOConfiguration(cvoGates, optr.hypershift) {
-		optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
+		optr.configuration = configuration.NewClusterVersionOperatorConfiguration().UsingKubeAPIServer(operatorClient, operatorInformerFactory)
 	}
 
 	return optr, nil
