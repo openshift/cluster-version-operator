@@ -446,7 +446,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	defer optr.queue.ShutDown()
 	defer optr.availableUpdatesQueue.ShutDown()
 	defer optr.upgradeableQueue.ShutDown()
-	defer optr.configuration.Queue().ShutDown()
+	if optr.configuration != nil {
+		defer optr.configuration.Queue().ShutDown()
+	}
 	stopCh := runContext.Done()
 
 	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
@@ -457,6 +459,12 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
 		return fmt.Errorf("caches never synchronized: %w", runContext.Err())
+	}
+
+	if optr.configuration != nil {
+		if err := optr.configuration.Start(runContext); err != nil {
+			return fmt.Errorf("unable to initialize the CVO configuration controller: %v", err)
+		}
 	}
 
 	// trigger the first cluster version reconcile always
@@ -489,13 +497,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
-			if err := optr.configuration.Start(runContext); err != nil {
-				utilruntime.HandleError(fmt.Errorf("unable to initialize the CVO configuration sync: %v", err))
-			} else {
-				wait.UntilWithContext(runContext, func(runContext context.Context) {
-					optr.worker(runContext, optr.configuration.Queue(), optr.configuration.Sync)
-				}, time.Second)
-			}
+			wait.UntilWithContext(runContext, func(runContext context.Context) {
+				optr.worker(runContext, optr.configuration.Queue(), optr.configuration.Sync)
+			}, time.Second)
 			resultChannel <- asyncResult{name: "cvo configuration"}
 		}()
 	} else {
@@ -571,7 +575,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			optr.queue.ShutDown()
 			optr.availableUpdatesQueue.ShutDown()
 			optr.upgradeableQueue.ShutDown()
-			optr.configuration.Queue().ShutDown()
+			if optr.configuration != nil {
+				optr.configuration.Queue().ShutDown()
+			}
 		}
 	}
 
