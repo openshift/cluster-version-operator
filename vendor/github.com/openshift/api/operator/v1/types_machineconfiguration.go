@@ -41,8 +41,10 @@ type MachineConfigurationSpec struct {
 	// managedBootImages allows configuration for the management of boot images for machine
 	// resources within the cluster. This configuration allows users to select resources that should
 	// be updated to the latest boot images during cluster upgrades, ensuring that new machines
-	// always boot with the current cluster version's boot image. When omitted, no boot images
-	// will be updated.
+	// always boot with the current cluster version's boot image. When omitted, this means no opinion
+	// and the platform is left to choose a reasonable default, which is subject to change over time.
+	// The default for each machine manager mode is All for GCP and AWS platforms, and None for all
+	// other platforms.
 	// +openshift:enable:FeatureGate=ManagedBootImages
 	// +optional
 	ManagedBootImages ManagedBootImages `json:"managedBootImages"`
@@ -51,9 +53,18 @@ type MachineConfigurationSpec struct {
 	// MachineConfig-based updates, such as drains, service reloads, etc. Specifying this will allow
 	// for less downtime when doing small configuration updates to the cluster. This configuration
 	// has no effect on cluster upgrades which will still incur node disruption where required.
-	// +openshift:enable:FeatureGate=NodeDisruptionPolicy
 	// +optional
 	NodeDisruptionPolicy NodeDisruptionPolicyConfig `json:"nodeDisruptionPolicy"`
+
+	// irreconcilableValidationOverrides is an optional field that can used to make changes to a MachineConfig that
+	// cannot be applied to existing nodes.
+	// When specified, the fields configured with validation overrides will no longer reject changes to those
+	// respective fields due to them not being able to be applied to existing nodes.
+	// Only newly provisioned nodes will have these configurations applied.
+	// Existing nodes will report observed configuration differences in their MachineConfigNode status.
+	// +openshift:enable:FeatureGate=IrreconcilableMachineConfig
+	// +optional
+	IrreconcilableValidationOverrides IrreconcilableValidationOverrides `json:"irreconcilableValidationOverrides,omitempty,omitzero"`
 }
 
 type MachineConfigurationStatus struct {
@@ -62,11 +73,10 @@ type MachineConfigurationStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 
 	// conditions is a list of conditions and their status
-	// +patchMergeKey=type
-	// +patchStrategy=merge
 	// +listType=map
 	// +listMapKey=type
-	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 
 	// Previously there was a StaticPodOperatorStatus here for legacy reasons. Many of the fields within
 	// it are no longer relevant for the MachineConfiguration CRD's functions. The following remainder
@@ -93,9 +103,14 @@ type MachineConfigurationStatus struct {
 
 	// nodeDisruptionPolicyStatus status reflects what the latest cluster-validated policies are,
 	// and will be used by the Machine Config Daemon during future node updates.
-	// +openshift:enable:FeatureGate=NodeDisruptionPolicy
 	// +optional
 	NodeDisruptionPolicyStatus NodeDisruptionPolicyStatus `json:"nodeDisruptionPolicyStatus"`
+
+	// managedBootImagesStatus reflects what the latest cluster-validated boot image configuration is
+	// and will be used by Machine Config Controller while performing boot image updates.
+	// +openshift:enable:FeatureGate=ManagedBootImages
+	// +optional
+	ManagedBootImagesStatus ManagedBootImages `json:"managedBootImagesStatus"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -115,6 +130,40 @@ type MachineConfigurationList struct {
 	Items []MachineConfiguration `json:"items"`
 }
 
+// IrreconcilableValidationOverridesStorage defines available storage irreconcilable overrides.
+// +kubebuilder:validation:Enum=Disks;FileSystems;Raid
+type IrreconcilableValidationOverridesStorage string
+
+const (
+	// Disks enables changes to the `spec.config.storage.disks` section of MachineConfig CRs.
+	IrreconcilableValidationOverridesStorageDisks IrreconcilableValidationOverridesStorage = "Disks"
+
+	// FileSystems enables changes to the `spec.config.storage.filesystems` section of MachineConfig CRs.
+	IrreconcilableValidationOverridesStorageFileSystems IrreconcilableValidationOverridesStorage = "FileSystems"
+
+	// Raid enables changes to the `spec.config.storage.raid` section of MachineConfig CRs.
+	IrreconcilableValidationOverridesStorageRaid IrreconcilableValidationOverridesStorage = "Raid"
+)
+
+// IrreconcilableValidationOverrides holds the irreconcilable validations overrides to be applied on each rendered
+// MachineConfig generation.
+// +kubebuilder:validation:MinProperties=1
+type IrreconcilableValidationOverrides struct {
+	// storage can be used to allow making irreconcilable changes to the selected sections under the
+	// `spec.config.storage` field of MachineConfig CRs
+	// It must have at least one item, may not exceed 3 items and must not contain duplicates.
+	// Allowed element values are "Disks", "FileSystems", "Raid" and omitted.
+	// When contains "Disks" changes to the `spec.config.storage.disks` section of MachineConfig CRs are allowed.
+	// When contains "FileSystems" changes to the `spec.config.storage.filesystems` section of MachineConfig CRs are allowed.
+	// When contains "Raid" changes to the `spec.config.storage.raid` section of MachineConfig CRs are allowed.
+	// When omitted changes to the `spec.config.storage` section are forbidden.
+	// +optional
+	// +listType=set
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=3
+	Storage []IrreconcilableValidationOverridesStorage `json:"storage,omitempty,omitzero"`
+}
+
 type ManagedBootImages struct {
 	// machineManagers can be used to register machine management resources for boot image updates. The Machine Config Operator
 	// will watch for changes to this list. Only one entry is permitted per type of machine management resource.
@@ -122,6 +171,7 @@ type ManagedBootImages struct {
 	// +listType=map
 	// +listMapKey=resource
 	// +listMapKey=apiGroup
+	// +kubebuilder:validation:MaxItems=5
 	MachineManagers []MachineManager `json:"machineManagers"`
 }
 
@@ -152,6 +202,7 @@ type MachineManagerSelector struct {
 	// Valid values are All and Partial.
 	// All means that every resource matched by the machine manager will be updated.
 	// Partial requires specified selector(s) and allows customisation of which resources matched by the machine manager will be updated.
+	// None means that every resource matched by the machine manager will not be updated.
 	// +unionDiscriminator
 	// +required
 	Mode MachineManagerSelectorMode `json:"mode"`
@@ -170,7 +221,7 @@ type PartialSelector struct {
 }
 
 // MachineManagerSelectorMode is a string enum used in the MachineManagerSelector union discriminator.
-// +kubebuilder:validation:Enum:="All";"Partial"
+// +kubebuilder:validation:Enum:="All";"Partial";"None"
 type MachineManagerSelectorMode string
 
 const (
@@ -180,6 +231,9 @@ const (
 	// Partial represents a configuration mode that will register resources specified by the parent MachineManager only
 	// if they match with the label selector.
 	Partial MachineManagerSelectorMode = "Partial"
+
+	// None represents a configuration mode that excludes all resources specified by the parent MachineManager from boot image updates.
+	None MachineManagerSelectorMode = "None"
 )
 
 // MachineManagerManagedResourceType is a string enum used in the MachineManager type to describe the resource
