@@ -10,7 +10,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/ptr"
 )
 
 // ApplyClusterRoleBindingv1 applies the required clusterrolebinding to the cluster.
@@ -29,13 +28,20 @@ func ApplyClusterRoleBindingv1(ctx context.Context, client rbacclientv1.ClusterR
 		return nil, false, nil
 	}
 
-	modified := ptr.To(false)
-	resourcemerge.EnsureClusterRoleBinding(modified, existing, *required)
-	if !*modified {
+	var original rbacv1.ClusterRoleBinding
+	existing.DeepCopyInto(&original)
+
+	modified := resourcemerge.EnsureClusterRoleBinding(existing, *required)
+	if !modified {
 		return existing, false, nil
 	}
+
 	if reconciling {
-		klog.V(2).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating ClusterRoleBinding %s due to diff: %v", required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating ClusterRoleBinding %s with empty diff: possible hotloop after wrong comparison", required.Name)
+		}
 	}
 
 	actual, err := client.ClusterRoleBindings().Update(ctx, existing, metav1.UpdateOptions{})
@@ -58,13 +64,20 @@ func ApplyClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGet
 		return nil, false, nil
 	}
 
-	modified := ptr.To(false)
-	resourcemerge.EnsureClusterRole(modified, existing, *required)
-	if !*modified {
+	var original rbacv1.ClusterRole
+	existing.DeepCopyInto(&original)
+
+	modified := resourcemerge.EnsureClusterRole(existing, *required)
+	if !modified {
 		return existing, false, nil
 	}
+
 	if reconciling {
-		klog.V(2).Infof("Updating ClusterRole %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating ClusterRole %s due to diff: %v", required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating ClusterRole %s with empty diff: possible hotloop after wrong comparison", required.Name)
+		}
 	}
 
 	actual, err := client.ClusterRoles().Update(ctx, existing, metav1.UpdateOptions{})
@@ -87,13 +100,20 @@ func ApplyRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGet
 		return nil, false, nil
 	}
 
-	modified := ptr.To(false)
-	resourcemerge.EnsureRoleBinding(modified, existing, *required)
-	if !*modified {
+	var original rbacv1.RoleBinding
+	existing.DeepCopyInto(&original)
+
+	modified := resourcemerge.EnsureRoleBinding(existing, *required)
+	if !modified {
 		return existing, false, nil
 	}
+
 	if reconciling {
-		klog.V(2).Infof("Updating RoleBinding %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating RoleBinding %s due to diff: %v", required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating RoleBinding %s with empty diff: possible hotloop after wrong comparison", required.Name)
+		}
 	}
 
 	actual, err := client.RoleBindings(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -116,13 +136,20 @@ func ApplyRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required 
 		return nil, false, nil
 	}
 
-	modified := ptr.To(false)
-	resourcemerge.EnsureRole(modified, existing, *required)
-	if !*modified {
+	var original rbacv1.Role
+	original.DeepCopyInto(&original)
+
+	modified := resourcemerge.EnsureRole(existing, *required)
+	if !modified {
 		return existing, false, nil
 	}
+
 	if reconciling {
-		klog.V(2).Infof("Updating Role %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		if diff := cmp.Diff(&original, existing); diff != "" {
+			klog.V(2).Infof("Updating Role %s due to diff: %v", required.Name, diff)
+		} else {
+			klog.V(2).Infof("Updating Role %s with empty diff: possible hotloop after wrong comparison", required.Name)
+		}
 	}
 
 	actual, err := client.Roles(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
