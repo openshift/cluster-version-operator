@@ -112,7 +112,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 	return actual, true, err
 }
 
-// ApplyConfigMapv1 applies the required serviceaccount to the cluster.
+// ApplyConfigMapv1 applies the required ConfigMap to the cluster.
 func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter, required *corev1.ConfigMap, reconciling bool) (*corev1.ConfigMap, bool, error) {
 	existing, err := client.ConfigMaps(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
