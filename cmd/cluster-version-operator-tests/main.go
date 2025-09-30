@@ -17,8 +17,15 @@ func main() {
 	registry := extension.NewRegistry()
 	ext := extension.NewExtension("openshift", "payload", "cluster-version-operator")
 
+	// Parallel tests must be able to run alongside any other test, and not be disruptive to the cluster’s normal operation.
+	// Tests should be as fast as possible; and less than 5 minutes in duration -- and typically much shorter.
+	// Longer tests need approval from the OCP architects.
 	ext.AddSuite(extension.Suite{
-		Name: "cluster-version-operator",
+		Name:    "openshift/cluster-version-operator/conformance/parallel",
+		Parents: []string{"openshift/conformance/parallel"},
+		Qualifiers: []string{
+			`!(name.contains("[Serial]") || name.contains("[Slow]"))`,
+		},
 	})
 
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
