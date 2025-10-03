@@ -18,7 +18,8 @@ func main() {
 	ext := extension.NewExtension("openshift", "payload", "cluster-version-operator")
 
 	ext.AddSuite(extension.Suite{
-		Name: "cluster-version-operator",
+		Name:    "cluster-version-operator/tests",
+		Parents: []string{"openshift/conformance/parallel"},
 	})
 
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
