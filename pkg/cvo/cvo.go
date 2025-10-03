@@ -918,7 +918,24 @@ func mergeReleaseMetadata(release configv1.Release, getAvailableUpdates func() *
 					}
 				}
 			}
-			if update != nil {
+			if update == nil {
+				var versionMatch *configv1.Release
+				if availableUpdates.Current.Version == merged.Version {
+					versionMatch = &availableUpdates.Current
+				} else {
+					for i, u := range availableUpdates.Updates {
+						if u.Version == merged.Version {
+							versionMatch = &availableUpdates.Updates[i]
+							break
+						}
+					}
+				}
+				if versionMatch == nil {
+					klog.V(2).Infof("No available update found matching the digest of %q or the version %q", merged.Image, merged.Version)
+				} else {
+					klog.V(2).Infof("No available update found matching the digest of %q, although there was a match for version %q with a different tag or digest %q", merged.Image, merged.Version, versionMatch.Image)
+				}
+			} else {
 				if merged.Version == "" {
 					merged.Version = update.Version
 				}
