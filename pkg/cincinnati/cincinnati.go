@@ -3,6 +3,7 @@ package cincinnati
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -289,9 +290,9 @@ type graph struct {
 }
 
 type node struct {
-	Version  semver.Version    `json:"version"`
-	Image    string            `json:"payload"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	Version  semver.Version         `json:"version"`
+	Image    string                 `json:"payload"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 type edge struct {
@@ -329,28 +330,65 @@ func (e *edge) UnmarshalJSON(data []byte) error {
 }
 
 func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
-	cvoUpdate := configv1.Release{
-		Version: update.Version.String(),
-		Image:   update.Image,
-	}
-	if urlString, ok := update.Metadata["url"]; ok {
-		_, err := url.Parse(urlString)
-		if err != nil {
-			return cvoUpdate, fmt.Errorf("invalid URL for %s: %s", cvoUpdate.Version, err)
+	release, err := ParseMetadata(update.Metadata)
+	release.Version = update.Version.String()
+	release.Image = update.Image
+	return release, err
+}
+
+// ParseMetadata parses release metadata (URL, channels, etc.).  It does not populate the version or image properties.
+func ParseMetadata(metadata map[string]interface{}) (configv1.Release, error) {
+	release := configv1.Release{}
+	errs := []error{}
+	if urlInterface, hasURL := metadata["url"]; hasURL {
+		if urlString, isString := urlInterface.(string); isString {
+			if _, err := url.Parse(urlString); err == nil {
+				release.URL = configv1.URL(urlString)
+			} else {
+				errs = append(errs, fmt.Errorf("invalid release URL: %s", err))
+			}
+		} else {
+			errs = append(errs, fmt.Errorf("URL is not a string: %v", urlInterface))
 		}
-		cvoUpdate.URL = configv1.URL(urlString)
 	}
-	if arch, ok := update.Metadata["release.openshift.io/architecture"]; ok {
-		switch arch {
-		case "multi":
-			cvoUpdate.Architecture = configv1.ClusterVersionArchitectureMulti
-		default:
-			klog.Warningf("Unrecognized release.openshift.io/architecture value %q", arch)
+	if archInterface, hasArch := metadata["release.openshift.io/architecture"]; hasArch {
+		if arch, isString := archInterface.(string); isString {
+			if arch == "multi" {
+				release.Architecture = configv1.ClusterVersionArchitectureMulti
+			} else {
+				errs = append(errs, fmt.Errorf("unrecognized release.openshift.io/architecture value %q", arch))
+			}
+		} else {
+			errs = append(errs, fmt.Errorf("release.openshift.io/architecture is not a string: %v", archInterface))
 		}
 	}
-	if channels, ok := update.Metadata["io.openshift.upgrades.graph.release.channels"]; ok {
-		cvoUpdate.Channels = strings.Split(channels, ",")
-		sort.Strings(cvoUpdate.Channels)
+	if channelsInterface, hasChannels := metadata["io.openshift.upgrades.graph.release.channels"]; hasChannels {
+		if channelsString, isString := channelsInterface.(string); isString {
+			if len(channelsString) == 0 {
+				errs = append(errs, fmt.Errorf("io.openshift.upgrades.graph.release.channels is an empty string"))
+			} else {
+				channels := strings.Split(channelsString, ",")
+				if len(channels) == 0 {
+					errs = append(errs, fmt.Errorf("no comma-delimited channels in io.openshift.upgrades.graph.release.channels %q", channelsString))
+				} else {
+					for i := len(channels) - 1; i >= 0; i-- {
+						if len(channels[i]) == 0 {
+							errs = append(errs, fmt.Errorf("io.openshift.upgrades.graph.release.channels entry %d is an empty string: %q", i, channelsString))
+							channels = append(channels[:i], channels[i+1:]...)
+						}
+					}
+					if len(channels) == 0 {
+						errs = append(errs, fmt.Errorf("no non-empty channels in io.openshift.upgrades.graph.release.channels %q", channels))
+					} else {
+						sort.Strings(channels)
+						release.Channels = channels
+					}
+				}
+			}
+		} else {
+			errs = append(errs, fmt.Errorf("io.openshift.upgrades.graph.release.channels is not a string: %v", channelsInterface))
+		}
 	}
-	return cvoUpdate, nil
+	klog.V(2).Infof("parsed metadata: URL %q, architecture %q, channels %v, errors %v", release.URL, release.Architecture, release.Channels, errs)
+	return release, errors.Join(errs...)
 }
