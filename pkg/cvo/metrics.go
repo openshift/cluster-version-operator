@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"io"
@@ -173,6 +174,7 @@ func (a *authHandler) authorize(token string) (bool, error) {
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
 		http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
@@ -246,11 +248,24 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 // Also detects changes to metrics certificate files upon which
 // the metrics HTTP server is shutdown and recreated with a new
 // TLS configuration.
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile, clientCAFile string, restConfig *rest.Config) error {
+	checksums := map[string][]byte{
+		certFile: nil,
+		keyFile:  nil,
+	}
+	if clientCAFile != "" {
+		checksums[clientCAFile] = nil
+	}
+
+	checksums, err := checksumFiles(checksums)
+	if err != nil {
+		return err
+	}
+
 	var tlsConfig *tls.Config
 	if listenAddress != "" {
 		var err error
-		tlsConfig, err = makeTLSConfig(certFile, keyFile)
+		tlsConfig, err = makeTLSConfig(certFile, keyFile, clientCAFile)
 		if err != nil {
 			return fmt.Errorf("Failed to create TLS config: %w", err)
 		}
@@ -270,16 +285,9 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 
 	go startListening(server, tlsConfig, listenAddress, resultChannel)
 
-	certDir := filepath.Dir(certFile)
-	keyDir := filepath.Dir(keyFile)
-
-	origCertChecksum, err := checksumFile(certFile)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize certificate file checksum: %w", err)
-	}
-	origKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize key file checksum: %w", err)
+	watchDirectories := map[string]struct{}{}
+	for fName := range checksums {
+		watchDirectories[filepath.Dir(fName)] = struct{}{}
 	}
 
 	// Set up and start the file watcher.
@@ -288,12 +296,9 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return fmt.Errorf("Failed to create file watcher for certificate and key rotation: %w", err)
 	} else {
 		defer watcher.Close()
-		if err := watcher.Add(certDir); err != nil {
-			return fmt.Errorf("Failed to add %v to watcher: %w", certDir, err)
-		}
-		if certDir != keyDir {
-			if err := watcher.Add(keyDir); err != nil {
-				return fmt.Errorf("Failed to add %v to watcher: %w", keyDir, err)
+		for watchDir := range watchDirectories {
+			if err := watcher.Add(watchDir); err != nil {
+				return fmt.Errorf("Failed to add %v to watcher: %w", watchDir, err)
 			}
 		}
 	}
@@ -326,23 +331,10 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 				loopError = handleServerResult(result, loopError)
 			case event := <-watcher.Events:
 				if event.Op != fsnotify.Chmod && event.Op != fsnotify.Remove {
-					if changed, err := certsChanged(origCertChecksum, origKeyChecksum, certFile, keyFile); changed {
-
-						// Update file checksums with latest files.
-						//
-						if origCertChecksum, err = checksumFile(certFile); err != nil {
-							klog.Errorf("Failed to update certificate file checksum: %v", err)
-							loopError = err
-							break
-						}
-						if origKeyChecksum, err = checksumFile(keyFile); err != nil {
-							klog.Errorf("Failed to update key file checksum: %v", err)
-							loopError = err
-							break
-						}
-
-						tlsConfig, err = makeTLSConfig(certFile, keyFile)
+					if changed, csums, err := certsChanged(checksums); changed {
+						tlsConfig, err = makeTLSConfig(certFile, keyFile, clientCAFile)
 						if err == nil {
+							checksums = csums
 							restartServer = true
 							shutdownHttpServer(shutdownContext, server)
 							continue
@@ -712,41 +704,30 @@ func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
 // Determine if the certificates have changed and need to be updated.
 // If no errors occur, returns true if both files have changed and
 // neither is an empty file. Otherwise returns false and any error.
-func certsChanged(origCertChecksum []byte, origKeyChecksum []byte, certFile, keyFile string) (bool, error) {
-	// Check if both files exist.
-	certNotEmpty, err := fileExistsAndNotEmpty(certFile)
-	if err != nil {
-		return false, fmt.Errorf("Error checking if changed TLS cert file empty/exists: %w", err)
-	}
-	keyNotEmpty, err := fileExistsAndNotEmpty(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("Error checking if changed TLS key file empty/exists: %w", err)
-	}
-	if !certNotEmpty || !keyNotEmpty {
-		// One of the files is missing despite some file event.
-		return false, fmt.Errorf("Certificate or key is missing or empty, certificates will not be rotated.")
+func certsChanged(checksums map[string][]byte) (bool, map[string][]byte, error) {
+	for fName := range checksums {
+		err := requireFileExistsAndNotEmpty(fName)
+		if err != nil {
+			return false, nil, fmt.Errorf("Server configuration file must exist and be non-empty.  Certificates will not be rotated.  %w", err)
+		}
 	}
 
-	currentCertChecksum, err := checksumFile(certFile)
+	csums, err := checksumFiles(checksums)
 	if err != nil {
-		return false, fmt.Errorf("Error checking certificate file checksum: %w", err)
+		return false, nil, err
 	}
 
-	currentKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("Error checking key file checksum: %w", err)
+	changed := false
+	for fName, sum := range checksums {
+		if !bytes.Equal(sum, csums[fName]) {
+			changed = true
+			klog.V(2).Infof("Server configuration file %s changed.  Will recreate metrics server with updated TLS configuration.", fName)
+		}
 	}
-
-	// Check if the non-empty certificate/key files have actually changed.
-	if !bytes.Equal(origCertChecksum, currentCertChecksum) && !bytes.Equal(origKeyChecksum, currentKeyChecksum) {
-		klog.V(2).Info("Certificate and key changed. Will recreate metrics server with updated TLS configuration.")
-		return true, nil
-	}
-
-	return false, nil
+	return changed, csums, nil
 }
 
-func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) {
+func makeTLSConfig(servingCertFile, servingKeyFile, clientCAFile string) (*tls.Config, error) {
 	// Load the initial certificate contents.
 	certBytes, err := os.ReadFile(servingCertFile)
 	if err != nil {
@@ -761,11 +742,26 @@ func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) 
 		return nil, err
 	}
 
-	return crypto.SecureTLSConfig(&tls.Config{
+	tlsConfig := tls.Config{
 		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return &certificate, nil
 		},
-	}), nil
+	}
+
+	if clientCAFile != "" {
+		clientCABytes, err := os.ReadFile(clientCAFile)
+		if err != nil {
+			return nil, err
+		}
+
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = x509.NewCertPool()
+		if ok := tlsConfig.ClientCAs.AppendCertsFromPEM(clientCABytes); !ok {
+			return nil, fmt.Errorf("failed to load any client Certificate Authority certificates from %s", clientCAFile)
+		}
+	}
+
+	return crypto.SecureTLSConfig(&tlsConfig), nil
 }
 
 // Compute the sha256 checksum for file 'fName' returning any error.
@@ -785,15 +781,25 @@ func checksumFile(fName string) ([]byte, error) {
 	return hash.Sum(nil), nil
 }
 
-// Check if a file exists and has file.Size() not equal to 0.
-// Returns any error returned by os.Stat other than os.ErrNotExist.
-func fileExistsAndNotEmpty(fName string) (bool, error) {
-	if fi, err := os.Stat(fName); err == nil {
-		return (fi.Size() != 0), nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	} else {
-		// Some other error, file may not exist.
-		return false, err
+// Compute the sha256 checksums for files 'fNames' returning any error.
+func checksumFiles(fNames map[string][]byte) (map[string][]byte, error) {
+	sums := make(map[string][]byte, len(fNames))
+	for fName := range fNames {
+		sum, err := checksumFile(fName)
+		if err != nil {
+			return nil, err
+		}
+		sums[fName] = sum
 	}
+	return sums, nil
+}
+
+// requireFileExistsAndNotEmpty errors if a file does not exist or has a file.Size() equal to zero.
+func requireFileExistsAndNotEmpty(fName string) error {
+	if fi, err := os.Stat(fName); err != nil {
+		return err
+	} else if fi.Size() == 0 {
+		return fmt.Errorf("file %s is empty", fName)
+	}
+	return nil
 }
