@@ -132,7 +132,16 @@ type asyncResult struct {
 	error error
 }
 
-func createHttpServer(ctx context.Context, client *authenticationclientsetv1.AuthenticationV1Client) *http.Server {
+func createHttpServer(ctx context.Context, client *authenticationclientsetv1.AuthenticationV1Client, disableAuth bool) *http.Server {
+	if disableAuth {
+		handler := http.NewServeMux()
+		handler.Handle("/metrics", promhttp.Handler())
+		server := &http.Server{
+			Handler: handler,
+		}
+		return server
+	}
+
 	auth := authHandler{downstream: promhttp.Handler(), ctx: ctx, client: client.TokenReviews()}
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", &auth)
@@ -242,7 +251,7 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 // Also detects changes to metrics certificate files upon which
 // the metrics HTTP server is shutdown and recreated with a new
 // TLS configuration.
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, disableMetricsAuth bool) error {
 	var tlsConfig *tls.Config
 	if listenAddress != "" {
 		var err error
@@ -259,7 +268,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
-	server := createHttpServer(runContext, client)
+	server := createHttpServer(runContext, client, disableMetricsAuth)
 
 	resultChannel := make(chan asyncResult, 1)
 	resultChannelCount := 1
@@ -313,7 +322,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 			case result := <-resultChannel: // crashed before a shutdown was requested or metrics server recreated
 				if restartServer {
 					klog.Info("Creating metrics server with updated TLS configuration.")
-					server = createHttpServer(runContext, client)
+					server = createHttpServer(runContext, client, disableMetricsAuth)
 					go startListening(server, tlsConfig, listenAddress, resultChannel)
 					restartServer = false
 					continue
