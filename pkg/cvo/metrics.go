@@ -133,9 +133,12 @@ type asyncResult struct {
 }
 
 func createHttpServer(ctx context.Context, client *authenticationclientsetv1.AuthenticationV1Client) *http.Server {
-	auth := authHandler{downstream: promhttp.Handler(), ctx: ctx, client: client.TokenReviews()}
+	auth := &authHandler{downstream: promhttp.Handler(), ctx: ctx}
+	if client != nil {
+		auth.client = client.TokenReviews()
+	}
 	handler := http.NewServeMux()
-	handler.Handle("/metrics", &auth)
+	handler.Handle("/metrics", auth)
 	server := &http.Server{
 		Handler: handler,
 	}
@@ -173,30 +176,32 @@ func (a *authHandler) authorize(token string) (bool, error) {
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
-		return
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	if token == "" {
-		http.Error(w, "empty Bearer token", http.StatusUnauthorized)
-		return
-	}
-	if token == authHeader {
-		http.Error(w, "failed to get the Bearer token", http.StatusUnauthorized)
-		return
-	}
+	if a.client != nil {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
+			return
+		}
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		if token == "" {
+			http.Error(w, "empty Bearer token", http.StatusUnauthorized)
+			return
+		}
+		if token == authHeader {
+			http.Error(w, "failed to get the Bearer token", http.StatusUnauthorized)
+			return
+		}
 
-	authorized, err := a.authorize(token)
-	if err != nil {
-		klog.Warningf("Failed to authorize token: %v", err)
-		http.Error(w, "failed to authorize due to an internal error", http.StatusInternalServerError)
-		return
-	}
-	if !authorized {
-		http.Error(w, "failed to authorize", http.StatusUnauthorized)
-		return
+		authorized, err := a.authorize(token)
+		if err != nil {
+			klog.Warningf("Failed to authorize token: %v", err)
+			http.Error(w, "failed to authorize due to an internal error", http.StatusInternalServerError)
+			return
+		}
+		if !authorized {
+			http.Error(w, "failed to authorize", http.StatusUnauthorized)
+			return
+		}
 	}
 	a.downstream.ServeHTTP(w, r)
 }
@@ -246,7 +251,7 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 // Also detects changes to metrics certificate files upon which
 // the metrics HTTP server is shutdown and recreated with a new
 // TLS configuration.
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, hyperShift bool, restConfig *rest.Config) error {
 	var tlsConfig *tls.Config
 	if listenAddress != "" {
 		var err error
@@ -258,9 +263,13 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return errors.New("TLS configuration is required to serve metrics")
 	}
 
-	client, err := authenticationclientsetv1.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create config: %w", err)
+	var client *authenticationclientsetv1.AuthenticationV1Client
+	if !hyperShift {
+		var err error
+		client, err = authenticationclientsetv1.NewForConfig(restConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create config: %w", err)
+		}
 	}
 
 	server := createHttpServer(runContext, client)
