@@ -350,7 +350,8 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig)
+							disableMetricsAuth := o.InjectClusterIdIntoPromQL // this is wired to the "--hypershift" flag, so when hypershfit is no, we disableMetricsAuth
+							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig, disableMetricsAuth)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
