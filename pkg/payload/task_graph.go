@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -24,6 +25,20 @@ const (
 	groupNumber    = 1
 	groupComponent = 2
 )
+
+// matchValues takes a reMatchPattern match and returns the runlevel and component.
+func matchValues(match []string) (int, string) {
+	if match == nil {
+		return 0, ""
+	}
+
+	runlevel, err := strconv.Atoi(match[groupNumber])
+	if err != nil {
+		panic(err)
+	}
+
+	return runlevel, match[groupComponent]
+}
 
 // ByNumberAndComponent creates parallelization for tasks whose original filenames are of the form
 // 0000_NN_NAME_* - files that share 0000_NN_NAME_ are run in serial, but chunks of files that have
@@ -45,7 +60,6 @@ func ByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 	}
 
 	var buckets [][]*TaskNode
-	var lastNode *TaskNode
 	for i := 0; i < count; {
 		matchBase := matches[i]
 		j := i + 1
@@ -56,26 +70,31 @@ func ByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 				break
 			}
 			if matchBase[groupComponent] != matchNext[groupComponent] {
-				groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+				node := &TaskNode{
+					Tasks: tasks[i:j],
+				}
+				node.runlevel, node.component = matchValues(matchBase)
+				groups = append(groups, node)
 				i = j
 			}
 			matchBase = matchNext
 		}
 		if len(groups) > 0 {
-			groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+			node := &TaskNode{
+				Tasks: tasks[i:j],
+			}
+			node.runlevel, node.component = matchValues(matchBase)
+			groups = append(groups, node)
 			i = j
 			buckets = append(buckets, groups)
-			lastNode = nil
 			continue
 		}
-		if lastNode == nil {
-			lastNode = &TaskNode{Tasks: append([]*Task(nil), tasks[i:j]...)}
-			i = j
-			buckets = append(buckets, []*TaskNode{lastNode})
-			continue
+		node := &TaskNode{
+			Tasks: append([]*Task(nil), tasks[i:j]...),
 		}
-		lastNode.Tasks = append(lastNode.Tasks, tasks[i:j]...)
+		node.runlevel, node.component = matchValues(matchBase)
 		i = j
+		buckets = append(buckets, []*TaskNode{node})
 	}
 	return buckets
 }
@@ -105,21 +124,32 @@ func FlattenByNumberAndComponent(tasks []*Task) [][]*TaskNode {
 				break
 			}
 			if matchBase[groupComponent] != matchNext[groupComponent] {
-				groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+				node := &TaskNode{
+					Tasks: tasks[i:j],
+				}
+				node.runlevel, node.component = matchValues(matchBase)
+				groups = append(groups, node)
 				i = j
 			}
 			matchBase = matchNext
 		}
 		if len(groups) > 0 {
-			groups = append(groups, &TaskNode{Tasks: tasks[i:j]})
+			node := &TaskNode{
+				Tasks: tasks[i:j],
+			}
+			node.runlevel, node.component = matchValues(matchBase)
+			groups = append(groups, node)
 			i = j
 			lastNode = nil
 			continue
 		}
 		if lastNode == nil {
-			lastNode = &TaskNode{Tasks: append([]*Task(nil), tasks[i:j]...)}
-			i = j
+			lastNode = &TaskNode{
+				Tasks: append([]*Task(nil), tasks[i:j]...),
+			}
+			lastNode.runlevel, lastNode.component = matchValues(matches[i])
 			groups = append(groups, lastNode)
+			i = j
 			continue
 		}
 		lastNode.Tasks = append(lastNode.Tasks, tasks[i:j]...)
@@ -137,6 +167,12 @@ type TaskNode struct {
 	Tasks []*Task
 	// Out is a list of node indices to which there is an edge from this node (=dependents).
 	Out []int
+
+	// runlevel is task's run level, extracted from the manifest filename.
+	runlevel int
+
+	// component is task's component name, extracted from the manifest filename.
+	component string
 }
 
 func (n *TaskNode) String() string {
@@ -148,7 +184,7 @@ func (n *TaskNode) String() string {
 		}
 		arr = append(arr, t.Manifest.GVK.String())
 	}
-	return "{Tasks: " + strings.Join(arr, ", ") + "}"
+	return fmt.Sprintf("{RunLevel: %d, Component: %q, Tasks: %s}", n.runlevel, n.component, strings.Join(arr, ", "))
 }
 
 func (n *TaskNode) replaceIn(index, with int) {
@@ -370,21 +406,34 @@ func (g *TaskGraph) Roots() []int {
 }
 
 // Tree renders the task graph in Graphviz DOT.
-func (g *TaskGraph) Tree() string {
+func (g *TaskGraph) Tree(granularity string) string {
 	out := []string{
 		"digraph tasks {",
 		"  labelloc=t;",
 		"  rankdir=TB;",
 	}
 	for i, node := range g.Nodes {
-		label := make([]string, 0, len(node.Tasks))
-		for _, task := range node.Tasks {
-			label = append(label, strings.Replace(task.String(), "\"", "", -1))
+		var label string
+		if node.runlevel != 0 || node.component != "" {
+			label = fmt.Sprintf("%02d-%s, %d manifests", node.runlevel, node.component, len(node.Tasks))
+		} else {
+			label = fmt.Sprintf("%d manifests", len(node.Tasks))
 		}
-		if len(label) == 0 {
-			label = append(label, "no manifests")
+		switch granularity {
+		case "manifest":
+			labels := make([]string, 0, len(node.Tasks))
+			for _, task := range node.Tasks {
+				labels = append(labels, strings.Replace(task.String(), "\"", "", -1))
+			}
+			if len(labels) > 0 {
+				label = fmt.Sprintf("%s\\n%s", label, strings.Join(labels, "\\n"))
+			}
+		case "task-node":
+			// nothing to append
+		default:
+			panic(fmt.Sprintf("unrecognized granularity %q", granularity))
 		}
-		out = append(out, fmt.Sprintf("  %d [ label=\"%s\" shape=\"box\" ];", i, strings.Join(label, "\\n")))
+		out = append(out, fmt.Sprintf("  %d [ label=\"%s\" shape=\"box\" ];", i, label))
 	}
 	for i, node := range g.Nodes {
 		for _, j := range node.Out {
