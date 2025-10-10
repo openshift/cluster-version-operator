@@ -718,7 +718,7 @@ spec:
                                     /<datacenter>/network/<portgroup>.
                                   items:
                                     type: string
-                                  maxItems: 1
+                                  maxItems: 10
                                   minItems: 1
                                   type: array
                                   x-kubernetes-list-type: atomic
@@ -1051,6 +1051,7 @@ spec:
                   its components are not visible within the cluster.
                 enum:
                 - HighlyAvailable
+                - HighlyAvailableArbiter
                 - SingleReplica
                 - External
                 type: string
@@ -1185,20 +1186,35 @@ spec:
                             created for the cluster.
                           properties:
                             key:
-                              description: key is the key of the tag
+                              description: |-
+                                key sets the key of the AWS resource tag key-value pair. Key is required when defining an AWS resource tag.
+                                Key should consist of between 1 and 128 characters, and may
+                                contain only the set of alphanumeric characters, space (' '), '_', '.', '/', '=', '+', '-', ':', and '@'.
                               maxLength: 128
                               minLength: 1
-                              pattern: ^[0-9A-Za-z_.:/=+-@]+$
                               type: string
+                              x-kubernetes-validations:
+                              - message: invalid AWS resource tag key. The string
+                                  can contain only the set of alphanumeric characters,
+                                  space (' '), '_', '.', '/', '=', '+', '-', ':',
+                                  '@'
+                                rule: self.matches('^[0-9A-Za-z_.:/=+-@ ]+$')
                             value:
                               description: |-
-                                value is the value of the tag.
+                                value sets the value of the AWS resource tag key-value pair. Value is required when defining an AWS resource tag.
+                                Value should consist of between 1 and 256 characters, and may
+                                contain only the set of alphanumeric characters, space (' '), '_', '.', '/', '=', '+', '-', ':', and '@'.
                                 Some AWS service do not support empty values. Since tags are added to resources in many services, the
                                 length of the tag value must meet the requirements of all services.
                               maxLength: 256
                               minLength: 1
-                              pattern: ^[0-9A-Za-z_.:/=+-@]+$
                               type: string
+                              x-kubernetes-validations:
+                              - message: invalid AWS resource tag value. The string
+                                  can contain only the set of alphanumeric characters,
+                                  space (' '), '_', '.', '/', '=', '+', '-', ':',
+                                  '@'
+                                rule: self.matches('^[0-9A-Za-z_.:/=+-@ ]+$')
                           required:
                           - key
                           - value
@@ -1477,6 +1493,110 @@ spec:
                     description: gcp contains settings specific to the Google Cloud
                       Platform infrastructure provider.
                     properties:
+                      cloudLoadBalancerConfig:
+                        default:
+                          dnsType: PlatformDefault
+                        description: |-
+                          cloudLoadBalancerConfig holds configuration related to DNS and cloud
+                          load balancers. It allows configuration of in-cluster DNS as an alternative
+                          to the platform default DNS implementation.
+                          When using the ClusterHosted DNS type, Load Balancer IP addresses
+                          must be provided for the API and internal API load balancers as well as the
+                          ingress load balancer.
+                        nullable: true
+                        properties:
+                          clusterHosted:
+                            description: |-
+                              clusterHosted holds the IP addresses of API, API-Int and Ingress Load
+                              Balancers on Cloud Platforms. The DNS solution hosted within the cluster
+                              use these IP addresses to provide resolution for API, API-Int and Ingress
+                              services.
+                            properties:
+                              apiIntLoadBalancerIPs:
+                                description: |-
+                                  apiIntLoadBalancerIPs holds Load Balancer IPs for the internal API service.
+                                  These Load Balancer IP addresses can be IPv4 and/or IPv6 addresses.
+                                  Entries in the apiIntLoadBalancerIPs must be unique.
+                                  A maximum of 16 IP addresses are permitted.
+                                format: ip
+                                items:
+                                  description: IP is an IP address (for example, "10.0.0.0"
+                                    or "fd00::").
+                                  maxLength: 39
+                                  minLength: 1
+                                  type: string
+                                  x-kubernetes-validations:
+                                  - message: value must be a valid IP address
+                                    rule: isIP(self)
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-type: set
+                              apiLoadBalancerIPs:
+                                description: |-
+                                  apiLoadBalancerIPs holds Load Balancer IPs for the API service.
+                                  These Load Balancer IP addresses can be IPv4 and/or IPv6 addresses.
+                                  Could be empty for private clusters.
+                                  Entries in the apiLoadBalancerIPs must be unique.
+                                  A maximum of 16 IP addresses are permitted.
+                                format: ip
+                                items:
+                                  description: IP is an IP address (for example, "10.0.0.0"
+                                    or "fd00::").
+                                  maxLength: 39
+                                  minLength: 1
+                                  type: string
+                                  x-kubernetes-validations:
+                                  - message: value must be a valid IP address
+                                    rule: isIP(self)
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-type: set
+                              ingressLoadBalancerIPs:
+                                description: |-
+                                  ingressLoadBalancerIPs holds IPs for Ingress Load Balancers.
+                                  These Load Balancer IP addresses can be IPv4 and/or IPv6 addresses.
+                                  Entries in the ingressLoadBalancerIPs must be unique.
+                                  A maximum of 16 IP addresses are permitted.
+                                format: ip
+                                items:
+                                  description: IP is an IP address (for example, "10.0.0.0"
+                                    or "fd00::").
+                                  maxLength: 39
+                                  minLength: 1
+                                  type: string
+                                  x-kubernetes-validations:
+                                  - message: value must be a valid IP address
+                                    rule: isIP(self)
+                                maxItems: 16
+                                type: array
+                                x-kubernetes-list-type: set
+                            type: object
+                          dnsType:
+                            default: PlatformDefault
+                            description: |-
+                              dnsType indicates the type of DNS solution in use within the cluster. Its default value of
+                              `PlatformDefault` indicates that the cluster's DNS is the default provided by the cloud platform.
+                              It can be set to `ClusterHosted` to bypass the configuration of the cloud default DNS. In this mode,
+                              the cluster needs to provide a self-hosted DNS solution for the cluster's installation to succeed.
+                              The cluster's use of the cloud's Load Balancers is unaffected by this setting.
+                              The value is immutable after it has been set at install time.
+                              Currently, there is no way for the customer to add additional DNS entries into the cluster hosted DNS.
+                              Enabling this functionality allows the user to start their own DNS solution outside the cluster after
+                              installation is complete. The customer would be responsible for configuring this custom DNS solution,
+                              and it can be run in addition to the in-cluster DNS solution.
+                            enum:
+                            - ClusterHosted
+                            - PlatformDefault
+                            type: string
+                            x-kubernetes-validations:
+                            - message: dnsType is immutable
+                              rule: oldSelf == '' || self == oldSelf
+                        type: object
+                        x-kubernetes-validations:
+                        - message: clusterHosted is permitted only when dnsType is
+                            ClusterHosted
+                          rule: 'has(self.dnsType) && self.dnsType != ''ClusterHosted''
+                            ? !has(self.clusterHosted) : true'
                       projectID:
                         description: resourceGroupName is the Project ID for new GCP
                           resources created for the cluster.
@@ -1620,8 +1740,11 @@ spec:
                       serviceEndpoints:
                         description: |-
                           serviceEndpoints is a list of custom endpoints which will override the default
-                          service endpoints of an IBM Cloud service. These endpoints are consumed by
-                          components within the cluster to reach the respective IBM Cloud Services.
+                          service endpoints of an IBM service. These endpoints are used by components
+                          within the cluster when trying to reach the IBM Cloud Services that have been
+                          overridden. The CCCMO reads in the IBMCloudPlatformSpec and validates each
+                          endpoint is resolvable. Once validated, the cloud config and IBMCloudPlatformStatus
+                          are updated to reflect the same custom endpoints.
                         items:
                           description: |-
                             IBMCloudServiceEndpoint stores the configuration of a custom url to
@@ -1654,7 +1777,9 @@ spec:
                               description: |-
                                 url is fully qualified URI with scheme https, that overrides the default generated
                                 endpoint for a client.
-                                This must be provided and cannot be empty.
+                                This must be provided and cannot be empty. The path must follow the pattern
+                                /v[0,9]+ or /api/v[0,9]+
+                              maxLength: 300
                               type: string
                               x-kubernetes-validations:
                               - message: url must be a valid absolute URL
