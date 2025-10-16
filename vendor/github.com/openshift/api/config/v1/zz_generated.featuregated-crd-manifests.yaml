@@ -361,12 +361,12 @@ infrastructures.config.openshift.io:
   Capability: ""
   Category: ""
   FeatureGates:
-  - AWSClusterHostedDNSInstall
-  - AzureClusterHostedDNSInstall
+  - AWSClusterHostedDNS
   - DualReplica
   - DyanmicServiceEndpointIBMCloud
-  - GCPClusterHostedDNSInstall
-  - GCPCustomAPIEndpointsInstall
+  - GCPClusterHostedDNS
+  - GCPCustomAPIEndpoints
+  - GCPLabelsTags
   - HighlyAvailableArbiter
   - HighlyAvailableArbiter+DualReplica
   - NutanixMultiSubnets
