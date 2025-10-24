@@ -28,6 +28,15 @@ func main() {
 		},
 	})
 
+	// Serial tests run in isolation, however they must return the cluster to its original state upon exiting.
+	ext.AddSuite(extension.Suite{
+		Name:    "openshift/cluster-version-operator/conformance/serial",
+		Parents: []string{"openshift/conformance/serial"},
+		Qualifiers: []string{
+			`name.contains("[Serial]")`,
+		},
+	})
+
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
