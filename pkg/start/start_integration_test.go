@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/diff"
 	randutil "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -241,7 +241,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(cv.Status, lastCV.Status) {
-		t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(lastCV.Status, cv.Status))
+		t.Fatalf("unexpected: %s", cmp.Diff(lastCV.Status, cv.Status))
 	}
 	verifyReleasePayload(ctx, t, kc, ns, "0.0.1", payloadImage1)
 }
@@ -722,7 +722,7 @@ func verifyClusterVersionHistory(t *testing.T, cv *configv1.ClusterVersion) {
 			t.Fatalf("Invalid history, entry %d had no completion time: %#v", i, history)
 		}
 		if history.Image == previous.Image && history.Version == previous.Version {
-			t.Fatalf("Invalid history, entry %d and %d have identical updates, should be one entry: %s", i-1, i, diff.ObjectReflectDiff(previous, &history))
+			t.Fatalf("Invalid history, entry %d and %d have identical updates, should be one entry: %s", i-1, i, cmp.Diff(previous, &history))
 		}
 	}
 }
@@ -750,7 +750,7 @@ func verifyClusterVersionStatus(t *testing.T, cv *configv1.ClusterVersion, expec
 		CompletionTime: actual.CompletionTime,
 	}
 	if !reflect.DeepEqual(expect, actual) {
-		t.Fatalf("unexpected history: %s", diff.ObjectReflectDiff(expect, actual))
+		t.Fatalf("unexpected history: %s", cmp.Diff(expect, actual))
 	}
 	if len(cv.Status.VersionHash) == 0 {
 		t.Fatalf("unexpected version hash: %#v", cv.Status.VersionHash)

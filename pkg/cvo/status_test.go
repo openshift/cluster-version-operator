@@ -11,7 +11,6 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/diff"
 	apierrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
@@ -180,7 +179,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 			err := optr.syncFailingStatus(ctx, tt.original, tt.ierr)
 
 			if !reflect.DeepEqual(originalCopy, tt.original) {
-				t.Fatalf("syncFailingStatus mutated input: %s", diff.ObjectReflectDiff(originalCopy, tt.original))
+				t.Fatalf("syncFailingStatus mutated input: %s", cmp.Diff(originalCopy, tt.original))
 			}
 
 			if err != nil && tt.wantErr == nil {

@@ -25,7 +25,6 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/informers"
@@ -2783,7 +2782,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(optr.availableUpdates, tt.wantUpdates) {
-				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.wantUpdates, optr.availableUpdates))
+				t.Fatalf("unexpected: %s", cmp.Diff(tt.wantUpdates, optr.availableUpdates))
 			}
 			if (optr.queue.Len() > 0) != (optr.availableUpdates != nil) {
 				t.Fatalf("unexpected queue")
@@ -3884,7 +3883,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				}
 
 				if !reflect.DeepEqual(optr.upgradeable, tt.expectedResult) {
-					t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(tt.expectedResult, optr.upgradeable))
+					t.Fatalf("unexpected: %s", cmp.Diff(tt.expectedResult, optr.upgradeable))
 				}
 				if (optr.queue.Len() > 0) != (optr.upgradeable != nil) {
 					t.Fatalf("unexpected queue")
@@ -4151,7 +4150,7 @@ func expectMutation(t *testing.T, a ktesting.Action, verb string, resource, subr
 		}
 		if !reflect.DeepEqual(expect, actual) {
 			t.Logf("%#v", actual)
-			t.Fatalf("unexpected object: %s", diff.ObjectReflectDiff(expect, actual))
+			t.Fatalf("unexpected object: %s", cmp.Diff(expect, actual))
 		}
 	default:
 		t.Fatalf("unknown verb %T", a)
@@ -4365,7 +4364,7 @@ func TestOperator_mergeReleaseMetadata(t *testing.T) {
 			optr := Operator{availableUpdates: testCase.availableUpdates}
 			actual := mergeReleaseMetadata(testCase.input, optr.getAvailableUpdates)
 			if !reflect.DeepEqual(actual, testCase.expected) {
-				t.Fatalf("unexpected: %s", diff.ObjectReflectDiff(testCase.expected, actual))
+				t.Fatalf("unexpected: %s", cmp.Diff(testCase.expected, actual))
 			}
 		})
 	}

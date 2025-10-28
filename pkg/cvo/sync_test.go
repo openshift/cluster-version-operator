@@ -10,6 +10,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/davecgh/go-spew/spew"
@@ -19,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/diff"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
@@ -82,10 +82,10 @@ func Test_SyncWorker_apply(t *testing.T) {
 			}
 
 			if got, exp := actions[0], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
+				t.Fatalf("%s", cmp.Diff(exp, got))
 			}
 			if got, exp := actions[1], (newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestB"}, "default", "testb")); !reflect.DeepEqual(got, exp) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(exp, got))
+				t.Fatalf("%s", cmp.Diff(exp, got))
 			}
 		},
 	}, {
@@ -128,7 +128,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 			exp := newAction(schema.GroupVersionKind{Group: "test.cvo.io", Version: "v1", Kind: "TestA"}, "default", "testa")
 			for i, got := range actions {
 				if !reflect.DeepEqual(got, exp) {
-					t.Fatalf("unexpected action %d: %s", i, diff.ObjectReflectDiff(exp, got))
+					t.Fatalf("unexpected action %d: %s", i, cmp.Diff(exp, got))
 				}
 			}
 		},
