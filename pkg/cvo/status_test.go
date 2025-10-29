@@ -217,65 +217,6 @@ func (f fakeRiFlags) CVOConfiguration() bool {
 	return f.cvoConfiguration
 }
 
-// TODO: Can be removed in 4.21
-func TestUpdateClusterVersionStatus_AlwaysRemove_ReconciliationIssues(t *testing.T) {
-	testCases := []struct {
-		name string
-
-		unknownVersion bool
-		oldCondition   *configv1.ClusterOperatorStatusCondition
-		failure        error
-	}{
-		{
-			name:           "version known, no failure => condition not present",
-			unknownVersion: false,
-		},
-		{
-			name:           "version known, failure => condition not present",
-			unknownVersion: false,
-			failure:        fmt.Errorf("something happened"),
-		},
-		{
-			name: "version unknown, failure, existing condition => condition present",
-			oldCondition: &configv1.ClusterOperatorStatusCondition{
-				Type:    reconciliationIssuesConditionType,
-				Status:  configv1.ConditionFalse,
-				Reason:  "noReconciliationIssuesReason",
-				Message: "Happy condition is happy",
-			},
-			unknownVersion: true,
-			failure:        fmt.Errorf("something happened"),
-		},
-		{
-			name:           "version unknown, failure, no existing condition => condition not present",
-			unknownVersion: true,
-			failure:        fmt.Errorf("something happened"),
-		},
-	}
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			gates := fakeRiFlags{
-				unknownVersion: tc.unknownVersion,
-			}
-			release := configv1.Release{}
-			getAvailableUpdates := func() *availableUpdates { return nil }
-			var noErrors field.ErrorList
-			cvStatus := configv1.ClusterVersionStatus{}
-			if tc.oldCondition != nil {
-				cvStatus.Conditions = append(cvStatus.Conditions, *tc.oldCondition)
-			}
-			updateClusterVersionStatus(&cvStatus, &SyncWorkerStatus{Failure: tc.failure}, release, getAvailableUpdates, gates, noErrors)
-			condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType)
-			if condition != nil {
-				t.Errorf("expected condition %s to not be present, but it was: %v", reconciliationIssuesConditionType, condition)
-			}
-		})
-
-	}
-
-}
-
 func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 	type args struct {

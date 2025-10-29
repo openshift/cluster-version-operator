@@ -10,10 +10,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
-const (
-	reconciliationIssuesConditionType configv1.ClusterStatusConditionType = "ReconciliationIssues"
-)
-
 // errorWalkCallback processes an error.  It returns an error to fail the walk.
 type errorWalkCallback func(err error, depth int) error
 

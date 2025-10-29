@@ -411,12 +411,6 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		}
 	}
 
-	// Pre-GA 4.20 TechPreview clusters may have this condition and we need to remove it if it exists when updated to this version
-	// TODO: Remove this code in 4.21
-	if oldRiCondition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, reconciliationIssuesConditionType); oldRiCondition != nil {
-		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, reconciliationIssuesConditionType)
-	}
-
 	// default retrieved updates if it is not set
 	if resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, configv1.RetrievedUpdates) == nil {
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
