@@ -24,15 +24,11 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 const (
-	// ClusterStatusFailing is set on the ClusterVersion status when a cluster
-	// cannot reach the desired state. It is considered more serious than Degraded
-	// and indicates the cluster is not healthy.
-	ClusterStatusFailing = configv1.ClusterStatusConditionType("Failing")
-
 	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
 	// that indicates whether the conditional update is recommended or not
 	ConditionalUpdateConditionTypeRecommended = "Recommended"
@@ -159,21 +155,6 @@ func mergeOperatorHistory(cvStatus *configv1.ClusterVersionStatus, desired confi
 	cvStatus.Desired = desired
 }
 
-// ClusterVersionInvalid indicates that the cluster version has an error that prevents the server from
-// taking action. The cluster version operator will only reconcile the current state as long as this
-// condition is set.
-const ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
-
-// DesiredReleaseAccepted indicates whether the requested (desired) release payload was successfully loaded
-// and no failures occurred during image verification and precondition checking.
-const DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccepted"
-
-// ImplicitlyEnabledCapabilities is True if there are enabled capabilities which the user is not currently
-// requesting via spec.capabilities, because the cluster version operator does not support uninstalling
-// capabilities if any associated resources were previously managed by the CVO or disabling previously
-// enabled capabilities.
-const ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
-
 // syncStatus calculates the new status of the ClusterVersion based on the current sync state and any
 // validation errors found. We allow the caller to pass the original object to avoid DeepCopying twice.
 func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1.ClusterVersion, status *SyncWorkerStatus, validationErrs field.ErrorList) error {
@@ -265,14 +246,14 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		reason = "InvalidClusterVersion"
 
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               ClusterVersionInvalid,
+			Type:               internal.ClusterVersionInvalid,
 			Status:             configv1.ConditionTrue,
 			Reason:             reason,
 			Message:            buf.String(),
 			LastTransitionTime: now,
 		})
 	} else {
-		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, ClusterVersionInvalid)
+		resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.ClusterVersionInvalid)
 	}
 
 	// set the implicitly enabled capabilities condition
@@ -318,7 +299,7 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 
 	// set the failing condition
 	failingCondition := configv1.ClusterOperatorStatusCondition{
-		Type:               ClusterStatusFailing,
+		Type:               internal.ClusterStatusFailing,
 		Status:             configv1.ConditionFalse,
 		LastTransitionTime: now,
 	}
@@ -482,7 +463,7 @@ func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersion
 		message = message + strings.Join([]string(caps), ", ")
 
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               ImplicitlyEnabledCapabilities,
+			Type:               internal.ImplicitlyEnabledCapabilities,
 			Status:             configv1.ConditionTrue,
 			Reason:             "CapabilitiesImplicitlyEnabled",
 			Message:            message,
@@ -490,7 +471,7 @@ func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersion
 		})
 	} else {
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               ImplicitlyEnabledCapabilities,
+			Type:               internal.ImplicitlyEnabledCapabilities,
 			Status:             configv1.ConditionFalse,
 			Reason:             "AsExpected",
 			Message:            "Capabilities match configured spec",
@@ -502,7 +483,7 @@ func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersion
 func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus, status LoadPayloadStatus, now metav1.Time) {
 	if status.Step == "PayloadLoaded" {
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               DesiredReleaseAccepted,
+			Type:               internal.DesiredReleaseAccepted,
 			Status:             configv1.ConditionTrue,
 			Reason:             status.Step,
 			Message:            status.Message,
@@ -511,7 +492,7 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 	} else if status.Step != "" {
 		if status.Failure != nil {
 			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:               DesiredReleaseAccepted,
+				Type:               internal.DesiredReleaseAccepted,
 				Status:             configv1.ConditionFalse,
 				Reason:             status.Step,
 				Message:            status.Message,
@@ -519,7 +500,7 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 			})
 		} else {
 			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:               DesiredReleaseAccepted,
+				Type:               internal.DesiredReleaseAccepted,
 				Status:             configv1.ConditionUnknown,
 				Reason:             status.Step,
 				Message:            status.Message,
@@ -644,7 +625,7 @@ func (optr *Operator) syncFailingStatus(ctx context.Context, original *configv1.
 
 	// reset the failing message
 	resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-		Type:               ClusterStatusFailing,
+		Type:               internal.ClusterStatusFailing,
 		Status:             configv1.ConditionTrue,
 		Message:            ierr.Error(),
 		LastTransitionTime: now,

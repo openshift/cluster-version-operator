@@ -27,8 +27,7 @@ import (
 )
 
 const (
-	adminAckGateFmt             string = "^ack-[4-5][.]([0-9]{1,})-[^-]"
-	upgradeableAdminAckRequired        = configv1.ClusterStatusConditionType("UpgradeableAdminAckRequired")
+	adminAckGateFmt string = "^ack-[4-5][.]([0-9]{1,})-[^-]"
 )
 
 var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
@@ -187,7 +186,7 @@ type clusterOperatorsUpgradeable struct {
 
 func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
 	cond := &configv1.ClusterOperatorStatusCondition{
-		Type:   configv1.ClusterStatusConditionType("UpgradeableClusterOperators"),
+		Type:   internal.UpgradeableClusterOperators,
 		Status: configv1.ConditionFalse,
 	}
 	ops, err := check.coLister.List(labels.Everything())
@@ -239,7 +238,7 @@ type clusterVersionOverridesUpgradeable struct {
 
 func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
 	cond := &configv1.ClusterOperatorStatusCondition{
-		Type:   configv1.ClusterStatusConditionType("UpgradeableClusterVersionOverrides"),
+		Type:   internal.UpgradeableClusterVersionOverrides,
 		Status: configv1.ConditionFalse,
 	}
 
@@ -296,7 +295,7 @@ type clusterManifestDeleteInProgressUpgradeable struct {
 
 func (check *clusterManifestDeleteInProgressUpgradeable) Check() *configv1.ClusterOperatorStatusCondition {
 	cond := &configv1.ClusterOperatorStatusCondition{
-		Type:   configv1.ClusterStatusConditionType("UpgradeableDeletesInProgress"),
+		Type:   internal.UpgradeableDeletesInProgress,
 		Status: configv1.ConditionFalse,
 	}
 	if deletes := resourcedelete.DeletesInProgress(); len(deletes) > 0 {
@@ -360,7 +359,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 		message := fmt.Sprintf("Unable to get ClusterVersion, err=%v.", err)
 		klog.Error(message)
 		return &configv1.ClusterOperatorStatusCondition{
-			Type:    upgradeableAdminAckRequired,
+			Type:    internal.UpgradeableAdminAckRequired,
 			Status:  configv1.ConditionFalse,
 			Reason:  "UnableToGetClusterVersion",
 			Message: message,
@@ -384,7 +383,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 		}
 		klog.Error(message)
 		return &configv1.ClusterOperatorStatusCondition{
-			Type:    upgradeableAdminAckRequired,
+			Type:    internal.UpgradeableAdminAckRequired,
 			Status:  configv1.ConditionFalse,
 			Reason:  "UnableToAccessAdminGatesConfigMap",
 			Message: message,
@@ -400,7 +399,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 		}
 		klog.Error(message)
 		return &configv1.ClusterOperatorStatusCondition{
-			Type:    upgradeableAdminAckRequired,
+			Type:    internal.UpgradeableAdminAckRequired,
 			Status:  configv1.ConditionFalse,
 			Reason:  "UnableToAccessAdminAcksConfigMap",
 			Message: message,
@@ -421,7 +420,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 	}
 	if len(reasons) == 1 {
 		return &configv1.ClusterOperatorStatusCondition{
-			Type:    upgradeableAdminAckRequired,
+			Type:    internal.UpgradeableAdminAckRequired,
 			Status:  configv1.ConditionFalse,
 			Reason:  reason,
 			Message: messages[0],
@@ -429,7 +428,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 	} else if len(reasons) > 1 {
 		sort.Strings(messages)
 		return &configv1.ClusterOperatorStatusCondition{
-			Type:    upgradeableAdminAckRequired,
+			Type:    internal.UpgradeableAdminAckRequired,
 			Status:  configv1.ConditionFalse,
 			Reason:  "MultipleReasons",
 			Message: strings.Join(messages, " "),
@@ -531,7 +530,7 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 //
 // The cv parameter is expected to be non-nil.
 func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterVersion) time.Duration {
-	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, DesiredReleaseAccepted); cond != nil {
+	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.DesiredReleaseAccepted); cond != nil {
 		deadline := cond.LastTransitionTime.Time.Add(intervals.afterPreconditionsFailed)
 		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse && time.Now().Before(deadline) {
 			return intervals.minOnFailedPreconditions

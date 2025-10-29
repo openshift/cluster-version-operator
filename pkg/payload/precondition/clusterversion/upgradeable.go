@@ -13,6 +13,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
@@ -33,7 +34,7 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 	for _, override := range cv.Spec.Overrides {
 		if override.Unmanaged {
 			condition := configv1.ClusterOperatorStatusCondition{
-				Type:    configv1.ClusterStatusConditionType("UpgradeableClusterVersionOverrides"),
+				Type:    internal.UpgradeableClusterVersionOverrides,
 				Status:  configv1.ConditionFalse,
 				Reason:  "ClusterVersionOverridesSet",
 				Message: "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing.",
