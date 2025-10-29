@@ -331,8 +331,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							Status: configv1.ClusterOperatorStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-									{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse, Reason: "CustomReason"},
-									{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionUnknown},
+									{Type: "Custom", Status: configv1.ConditionFalse, Reason: "CustomReason"},
+									{Type: "Unknown", Status: configv1.ConditionUnknown},
 								},
 							},
 						},
@@ -719,7 +719,7 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse},
+							{Type: "Custom", Status: configv1.ConditionFalse},
 						},
 					},
 				},
@@ -728,8 +728,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionUnknown},
+							{Type: "Custom", Status: configv1.ConditionFalse},
+							{Type: "Unknown", Status: configv1.ConditionUnknown},
 						},
 					},
 				},
@@ -737,8 +737,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: "test"},
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionTrue},
-							{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionTrue},
+							{Type: "Custom", Status: configv1.ConditionTrue},
+							{Type: "Unknown", Status: configv1.ConditionTrue},
 						},
 					},
 				},

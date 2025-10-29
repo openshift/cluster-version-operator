@@ -1350,9 +1350,9 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				upgradeable: &upgradeable{
 					Conditions: []configv1.ClusterOperatorStatusCondition{
-						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
-						{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
-						{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+						{Type: "Upgradeable", Status: configv1.ConditionFalse},
+						{Type: "UpgradeableA", Status: configv1.ConditionFalse},
+						{Type: "UpgradeableB", Status: configv1.ConditionFalse},
 					},
 				},
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
@@ -1406,9 +1406,9 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: internal.ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+							{Type: "Upgradeable", Status: configv1.ConditionFalse},
+							{Type: "UpgradeableA", Status: configv1.ConditionFalse},
+							{Type: "UpgradeableB", Status: configv1.ConditionFalse},
 						},
 					},
 				})
@@ -1430,8 +1430,8 @@ func TestOperator_sync(t *testing.T) {
 				name:      "default",
 				upgradeable: &upgradeable{
 					Conditions: []configv1.ClusterOperatorStatusCondition{
-						{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
-						{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+						{Type: "Upgradeable", Status: configv1.ConditionFalse},
+						{Type: "UpgradeableB", Status: configv1.ConditionFalse},
 					},
 				},
 				client: fakeClientsetWithUpdates(&configv1.ClusterVersion{
@@ -1452,7 +1452,7 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: internal.ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
+							{Type: "UpgradeableA", Status: configv1.ConditionFalse},
 						},
 					},
 				}),
@@ -1486,8 +1486,8 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: internal.ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+							{Type: "Upgradeable", Status: configv1.ConditionFalse},
+							{Type: "UpgradeableB", Status: configv1.ConditionFalse},
 						},
 					},
 				})
@@ -1528,9 +1528,9 @@ func TestOperator_sync(t *testing.T) {
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse, Message: "Cluster version is 0.0.1-abc"},
 							{Type: internal.ClusterStatusFailing, Status: configv1.ConditionFalse},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Upgradeable"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableA"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("UpgradeableB"), Status: configv1.ConditionFalse},
+							{Type: "Upgradeable", Status: configv1.ConditionFalse},
+							{Type: "UpgradeableA", Status: configv1.ConditionFalse},
+							{Type: "UpgradeableB", Status: configv1.ConditionFalse},
 						},
 					},
 				}),
