@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"fmt"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"reflect"
 	"testing"
 	"time"
@@ -112,7 +113,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
 								{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-								{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
+								{Type: internal.ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "UpdatePayloadIntegrity", Message: "unable to apply object"},
 								{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Message: "Working towards 4.0.1"},
 								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 								{Type: "ImplicitlyEnabledCapabilities", Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -153,7 +154,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
+							{Type: internal.ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "", Message: "bad"},
 							{Type: configv1.OperatorProgressing, Status: configv1.ConditionTrue, Reason: "", Message: "Error ensuring the cluster version is up to date: bad"},
 							{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
 							{Type: "ImplicitlyEnabledCapabilities", Status: "False", Reason: "AsExpected", Message: "Capabilities match configured spec"},
@@ -252,7 +253,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:   ClusterStatusFailing,
+				Type:   internal.ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
 			},
 		},
@@ -264,7 +265,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Message: "error has happened",
 			},
@@ -283,14 +284,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorUpdating",
 				Message: "Cluster operator A is updating",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:   ClusterStatusFailing,
+				Type:   internal.ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
 			},
 			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
@@ -314,14 +315,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorUpdating",
 				Message: "Cluster operator A is updating",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionUnknown,
 				Reason:  "SlowClusterOperator",
 				Message: "waiting on co-timeout over 30 minutes which is longer than expected",
@@ -347,14 +348,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorUpdating",
 				Message: "Cluster operator A is updating",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:   ClusterStatusFailing,
+				Type:   internal.ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
 			},
 			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
@@ -379,14 +380,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			},
 			machineConfigTimeout: true,
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorUpdating",
 				Message: "Cluster operator A is updating",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionUnknown,
 				Reason:  "SlowClusterOperator",
 				Message: "waiting on machine-config over 90 minutes which is longer than expected",
@@ -422,7 +423,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: "Cluster operators A, B are not available",
@@ -452,7 +453,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is degraded",
@@ -482,14 +483,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorNotAvailable",
 				Message: "Cluster operator A is not available",
@@ -519,14 +520,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is updating versions\n* Cluster operator B is getting conscious",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:   ClusterStatusFailing,
+				Type:   internal.ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
 			},
 		},
@@ -559,14 +560,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator B is updating versions\n* Cluster operator C is degraded",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "MultipleErrors",
 				Message: "Multiple errors are preventing progress:\n* Cluster operator A is not available\n* Cluster operator C is degraded",
@@ -586,14 +587,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorsUpdating",
 				Message: "some-message",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:   ClusterStatusFailing,
+				Type:   internal.ClusterStatusFailing,
 				Status: configv1.ConditionFalse,
 			},
 			expectedProgressingCondition: &configv1.ClusterOperatorStatusCondition{
@@ -617,14 +618,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorsUpdating",
 				Message: "some-message",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionUnknown,
 				Reason:  "SlowClusterOperator",
 				Message: "waiting on co-timeout over 30 minutes which is longer than expected",
@@ -650,14 +651,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				},
 			},
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorsUpdating",
 				Message: "some-message",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionUnknown,
 				Reason:  "SlowClusterOperator",
 				Message: "waiting on co-timeout, co-bar-timeout over 30 minutes which is longer than expected",
@@ -684,14 +685,14 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 			},
 			machineConfigTimeout: true,
 			expectedConditionNotModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionTrue,
 				Reason:  "ClusterOperatorsUpdating",
 				Message: "some-message",
 			},
 			shouldModifyWhenNotReconcilingAndHistoryNotEmpty: true,
 			expectedConditionModified: &configv1.ClusterOperatorStatusCondition{
-				Type:    ClusterStatusFailing,
+				Type:    internal.ClusterStatusFailing,
 				Status:  configv1.ConditionUnknown,
 				Reason:  "SlowClusterOperator",
 				Message: "waiting on co-timeout, co-bar-timeout over 30 minutes and machine-config over 90 minutes which is longer than expected",
@@ -742,7 +743,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 					expectedCondition = tc.expectedConditionModified
 				}
 				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
-				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, ClusterStatusFailing)
+				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, internal.ClusterStatusFailing)
 				if diff := cmp.Diff(expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 					t.Errorf("unexpected condition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
 				}
