@@ -49,15 +49,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	channel := config.Spec.Channel
 	desiredArch := optr.getDesiredArchitecture(config.Spec.DesiredUpdate)
-	currentArch := runtime.GOARCH
-
-	if optr.release.Architecture == configv1.ClusterVersionArchitectureMulti {
-		currentArch = string(configv1.ClusterVersionArchitectureMulti)
-	}
-
-	if desiredArch == "" {
-		desiredArch = currentArch
-	}
+	currentArch := optr.getCurrentArchitecture()
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	optrAvailableUpdates := optr.getAvailableUpdates()
@@ -327,10 +319,17 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 }
 
 func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
-	if update != nil {
+	if update != nil && len(update.Architecture) > 0 {
 		return string(update.Architecture)
 	}
-	return ""
+	return optr.getCurrentArchitecture()
+}
+
+func (optr *Operator) getCurrentArchitecture() string {
+	if optr.release.Architecture == configv1.ClusterVersionArchitectureMulti {
+		return string(configv1.ClusterVersionArchitectureMulti)
+	}
+	return runtime.GOARCH
 }
 
 func calculateAvailableUpdatesStatus(ctx context.Context, clusterID string, transport *http.Transport, userAgent, updateService, desiredArch,
