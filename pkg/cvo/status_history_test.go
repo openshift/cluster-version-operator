@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/diff"
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -170,7 +170,7 @@ func Test_prune(t *testing.T) {
 				dumpHistory(t, h)
 			}
 			if !reflect.DeepEqual(tt.want, h) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, h))
+				t.Fatalf("%s", cmp.Diff(tt.want, h))
 			}
 		})
 	}
@@ -221,7 +221,7 @@ func Test_isTheInitialEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := isTheInitialEntry(tt.entryIdx, tt.maxHistory)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -265,7 +265,7 @@ func Test_isAFinalEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := isAFinalEntry(tt.entryIdx)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -323,7 +323,7 @@ func Test_isTheMostRecentCompletedEntry(t *testing.T) {
 			mostRecentIdx := getTheMostRecentCompletedEntryIndex(tt.history)
 			isIt := isTheMostRecentCompletedEntry(tt.entryIdx, mostRecentIdx)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -439,7 +439,7 @@ func Test_isTheFirstOrLastCompletedInAMinor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := isTheFirstOrLastCompletedInAMinor(tt.entryIdx, tt.history, tt.maxHistory)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -548,7 +548,7 @@ func Test_isPartialPortionOfMinorTransition(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := isPartialPortionOfMinorTransition(tt.entryIdx, tt.history, tt.maxHistory)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -657,7 +657,7 @@ func Test_isPartialWithinAZStream(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := isPartialWithinAZStream(tt.entryIdx, tt.history, tt.maxHistory)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -711,7 +711,7 @@ func Test_sameMinorVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := sameMinorVersion(tt.h1, tt.h2)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
@@ -770,7 +770,7 @@ func Test_sameZStreamVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			isIt := sameZStreamVersion(tt.h1, tt.h2)
 			if !reflect.DeepEqual(tt.want, isIt) {
-				t.Fatalf("%s", diff.ObjectReflectDiff(tt.want, isIt))
+				t.Fatalf("%s", cmp.Diff(tt.want, isIt))
 			}
 		})
 	}
