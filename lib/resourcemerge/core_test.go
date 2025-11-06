@@ -46,6 +46,17 @@ func TestEnsurePodSpec(t *testing.T) {
 					{Name: "test"}}},
 		},
 		{
+			name:     "hostUsers flag is set",
+			existing: corev1.PodSpec{},
+			input: corev1.PodSpec{
+				HostUsers: boolPtr(false),
+			},
+			expectedModified: true,
+			expected: corev1.PodSpec{
+				HostUsers: boolPtr(false),
+			},
+		},
+		{
 			name: "PodSecurityContext empty",
 			existing: corev1.PodSpec{
 				SecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: boolPtr(false),
