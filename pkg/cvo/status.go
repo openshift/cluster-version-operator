@@ -204,10 +204,27 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", diff.ObjectReflectDiff(original, config))
 	}
+
+	if progressing := resourcemerge.FindOperatorStatusCondition(config.Status.Conditions, configv1.OperatorProgressing); progressing != nil && progressing.Status == configv1.ConditionTrue {
+		if progressingStart.IsZero() {
+			progressingStart = time.Now()
+			klog.V(2).Infof("===debug===: progressingStart=%s", progressingStart.Format(time.RFC3339))
+		}
+		if time.Since(progressingStart) < 6*time.Minute {
+			progressing.Message = "working towards ${VERSION}: 106 of 841 done (12% complete), waiting on etcd, baremetal, insights, kube-apiserver"
+			resourcemerge.SetOperatorStatusCondition(&config.Status.Conditions, *progressing)
+			klog.V(2).Infof("===debug===: hijacked message=%s", progressing.Message)
+		} else {
+			klog.V(2).Infof("===debug===: original message=%s", progressing.Message)
+		}
+	}
+
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err
 }
+
+var progressingStart time.Time
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
