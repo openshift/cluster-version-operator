@@ -5,10 +5,12 @@ approvers:
   - DavidHurta
   - PratikMahajan
   - hongkailiu
+  - fao89
 reviewers:
   - wking
   - DavidHurta
   - hongkailiu
+  - fao89
 emeritus_approvers:
   - petr-muller
   - smarterclayton
