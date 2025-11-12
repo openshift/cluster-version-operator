@@ -32,6 +32,11 @@ After [installing-ginkgo](https://onsi.github.io/ginkgo/#installing-ginkgo):
 ```console
 $ ginkgo ./test/...
 ```
+or run a specific test
+```console
+$ ginkgo --focus "<test case name>" ./test/...
+```
+`test case name` is the text in g.It()
 
 The output looks nicer this way.
 
