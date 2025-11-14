@@ -5,7 +5,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("[Jira:Cluster Version Operator] cluster-version-operator-tests", func() {
+var _ = Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-tests`, func() {
 	It("should support passing tests", func() {
 		Expect(true).To(BeTrue())
 	})

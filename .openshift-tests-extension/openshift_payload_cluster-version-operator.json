@@ -1,6 +1,6 @@
 [
   {
-    "name": "[Jira:Cluster Version Operator] cluster-version-operator-tests should support passing tests",
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator-tests should support passing tests",
     "labels": {},
     "resources": {
       "isolation": {}
