@@ -8,5 +8,20 @@
     "source": "openshift:payload:cluster-version-operator",
     "lifecycle": "blocking",
     "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:Cluster Version Operator] The cluster version operator should not install resources annotated with release.openshift.io/delete=true",
+    "labels": {
+      "42543": {},
+      "Conformance": {},
+      "High": {},
+      "cvo": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
   }
 ]
