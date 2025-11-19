@@ -483,7 +483,7 @@ func setImplicitlyEnabledCapabilitiesCondition(cvStatus *configv1.ClusterVersion
 func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus, status LoadPayloadStatus, now metav1.Time) {
 	if status.Step == "PayloadLoaded" {
 		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-			Type:               internal.DesiredReleaseAccepted,
+			Type:               internal.ReleaseAccepted,
 			Status:             configv1.ConditionTrue,
 			Reason:             status.Step,
 			Message:            status.Message,
@@ -492,7 +492,7 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 	} else if status.Step != "" {
 		if status.Failure != nil {
 			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:               internal.DesiredReleaseAccepted,
+				Type:               internal.ReleaseAccepted,
 				Status:             configv1.ConditionFalse,
 				Reason:             status.Step,
 				Message:            status.Message,
@@ -500,7 +500,7 @@ func setDesiredReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus,
 			})
 		} else {
 			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:               internal.DesiredReleaseAccepted,
+				Type:               internal.ReleaseAccepted,
 				Status:             configv1.ConditionUnknown,
 				Reason:             status.Step,
 				Message:            status.Message,

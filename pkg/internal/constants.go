@@ -45,9 +45,9 @@ const (
 	// condition is set.
 	ClusterVersionInvalid configv1.ClusterStatusConditionType = "Invalid"
 
-	// DesiredReleaseAccepted indicates whether the requested (desired) release payload was successfully loaded
+	// ReleaseAccepted indicates whether the requested (desired) release payload was successfully loaded
 	// and no failures occurred during image verification and precondition checking.
-	DesiredReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccepted"
+	ReleaseAccepted configv1.ClusterStatusConditionType = "ReleaseAccepted"
 
 	// ImplicitlyEnabledCapabilities is True if there are enabled capabilities which the user is not currently
 	// requesting via spec.capabilities, because the cluster version operator does not support uninstalling

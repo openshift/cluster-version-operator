@@ -530,7 +530,7 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 //
 // The cv parameter is expected to be non-nil.
 func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterVersion) time.Duration {
-	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.DesiredReleaseAccepted); cond != nil {
+	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.ReleaseAccepted); cond != nil {
 		deadline := cond.LastTransitionTime.Time.Add(intervals.afterPreconditionsFailed)
 		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse && time.Now().Before(deadline) {
 			return intervals.minOnFailedPreconditions
