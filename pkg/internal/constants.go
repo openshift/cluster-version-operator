@@ -67,4 +67,7 @@ const (
 	// UpgradeableClusterVersionOverrides is False if there are overrides in the Cluster Version, and thus update to the next minor
 	// version is blocked.
 	UpgradeableClusterVersionOverrides configv1.ClusterStatusConditionType = "UpgradeableClusterVersionOverrides"
+
+	// UpgradeableUpgradeInProgress is True if an update is in progress
+	UpgradeableUpgradeInProgress configv1.ClusterStatusConditionType = "UpgradeableUpgradeInProgress"
 )
