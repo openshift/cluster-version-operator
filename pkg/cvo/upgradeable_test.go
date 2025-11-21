@@ -8,6 +8,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 func TestUpgradeableCheckIntervalsThrottlePeriod(t *testing.T) {
@@ -23,18 +25,18 @@ func TestUpgradeableCheckIntervalsThrottlePeriod(t *testing.T) {
 		},
 		{
 			name:      "passing preconditions",
-			condition: &configv1.ClusterOperatorStatusCondition{Type: DesiredReleaseAccepted, Reason: "PreconditionChecks", Status: configv1.ConditionTrue, LastTransitionTime: metav1.Now()},
+			condition: &configv1.ClusterOperatorStatusCondition{Type: internal.ReleaseAccepted, Reason: "PreconditionChecks", Status: configv1.ConditionTrue, LastTransitionTime: metav1.Now()},
 			expected:  intervals.min,
 		},
 		{
 			name:      "failing but not precondition",
-			condition: &configv1.ClusterOperatorStatusCondition{Type: DesiredReleaseAccepted, Reason: "NotPreconditionChecks", Status: configv1.ConditionFalse, LastTransitionTime: metav1.Now()},
+			condition: &configv1.ClusterOperatorStatusCondition{Type: internal.ReleaseAccepted, Reason: "NotPreconditionChecks", Status: configv1.ConditionFalse, LastTransitionTime: metav1.Now()},
 			expected:  intervals.min,
 		},
 		{
 			name: "failing preconditions but too long ago",
 			condition: &configv1.ClusterOperatorStatusCondition{
-				Type:               DesiredReleaseAccepted,
+				Type:               internal.ReleaseAccepted,
 				Reason:             "PreconditionChecks",
 				Status:             configv1.ConditionFalse,
 				LastTransitionTime: metav1.NewTime(time.Now().Add(-(intervals.afterPreconditionsFailed + time.Hour))),
@@ -43,7 +45,7 @@ func TestUpgradeableCheckIntervalsThrottlePeriod(t *testing.T) {
 		},
 		{
 			name:      "failing preconditions recently",
-			condition: &configv1.ClusterOperatorStatusCondition{Type: DesiredReleaseAccepted, Reason: "PreconditionChecks", Status: configv1.ConditionFalse, LastTransitionTime: metav1.Now()},
+			condition: &configv1.ClusterOperatorStatusCondition{Type: internal.ReleaseAccepted, Reason: "PreconditionChecks", Status: configv1.ConditionFalse, LastTransitionTime: metav1.Now()},
 			expected:  intervals.minOnFailedPreconditions,
 		},
 	}

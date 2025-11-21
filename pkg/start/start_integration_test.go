@@ -31,6 +31,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 
+	"github.com/openshift/cluster-version-operator/pkg/internal"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -605,7 +607,7 @@ func waitForUpdateAvailable(ctx context.Context, t *testing.T, client clientset.
 		verifyClusterVersionHistory(t, cv)
 
 		if !allowIncrementalFailure {
-			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, cvo.ClusterStatusFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+			if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.ClusterStatusFailing); failing != nil && failing.Status == configv1.ConditionTrue {
 				return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 			}
 		}
@@ -676,7 +678,7 @@ func waitForUpdateAvailable(ctx context.Context, t *testing.T, client clientset.
 			return false, nil
 		}
 
-		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, cvo.ClusterStatusFailing); failing != nil && failing.Status == configv1.ConditionTrue {
+		if failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.ClusterStatusFailing); failing != nil && failing.Status == configv1.ConditionTrue {
 			return false, fmt.Errorf("operator listed as failing (%s): %s", failing.Reason, failing.Message)
 		}
 

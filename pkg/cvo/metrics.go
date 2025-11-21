@@ -518,7 +518,7 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		// answers "if we are failing, are we updating or reconciling"
-		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, ClusterStatusFailing)
+		failing := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.ClusterStatusFailing)
 		if failing != nil && failing.Status == configv1.ConditionTrue {
 			if update := cv.Spec.DesiredUpdate; update != nil && update.Image != current.Image {
 				g = m.version.WithLabelValues("failure", update.Version, update.Image, completed.Version)

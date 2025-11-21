@@ -22,6 +22,8 @@ import (
 	"k8s.io/client-go/tools/record"
 
 	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 func Test_operatorMetrics_Collect(t *testing.T) {
@@ -329,8 +331,8 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							Status: configv1.ClusterOperatorStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
 									{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-									{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse, Reason: "CustomReason"},
-									{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionUnknown},
+									{Type: "Custom", Status: configv1.ConditionFalse, Reason: "CustomReason"},
+									{Type: "Unknown", Status: configv1.ConditionUnknown},
 								},
 							},
 						},
@@ -479,7 +481,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 									{State: configv1.CompletedUpdate, Version: "0.0.2", Image: "test/image:1", CompletionTime: &([]metav1.Time{{Time: time.Unix(2, 0)}}[0])},
 								},
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}, Reason: "Because stuff"},
+									{Type: internal.ClusterStatusFailing, Status: configv1.ConditionTrue, LastTransitionTime: metav1.Time{Time: time.Unix(4, 0)}, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -517,7 +519,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
-									{Type: ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "Because stuff"},
+									{Type: internal.ClusterStatusFailing, Status: configv1.ConditionTrue, Reason: "Because stuff"},
 								},
 							},
 						},
@@ -717,7 +719,7 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse},
+							{Type: "Custom", Status: configv1.ConditionFalse},
 						},
 					},
 				},
@@ -726,8 +728,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
 							{Type: configv1.OperatorAvailable, Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionFalse},
-							{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionUnknown},
+							{Type: "Custom", Status: configv1.ConditionFalse},
+							{Type: "Unknown", Status: configv1.ConditionUnknown},
 						},
 					},
 				},
@@ -735,8 +737,8 @@ func Test_operatorMetrics_CollectTransitions(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{Name: "test"},
 					Status: configv1.ClusterOperatorStatus{
 						Conditions: []configv1.ClusterOperatorStatusCondition{
-							{Type: configv1.ClusterStatusConditionType("Custom"), Status: configv1.ConditionTrue},
-							{Type: configv1.ClusterStatusConditionType("Unknown"), Status: configv1.ConditionTrue},
+							{Type: "Custom", Status: configv1.ConditionTrue},
+							{Type: "Unknown", Status: configv1.ConditionTrue},
 						},
 					},
 				},
