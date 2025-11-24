@@ -52,7 +52,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	currentArch := runtime.GOARCH
 
 	if optr.release.Architecture == configv1.ClusterVersionArchitectureMulti {
-		currentArch = "multi"
+		currentArch = string(configv1.ClusterVersionArchitectureMulti)
 	}
 
 	if desiredArch == "" {
