@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"runtime"
 	"testing"
 	"time"
@@ -47,18 +48,77 @@ func (n notFoundConfigMapLister) Get(name string) (*corev1.ConfigMap, error) {
 	return nil, k8serrors.NewNotFound(schema.GroupResource{Group: "", Resource: "configmap"}, name)
 }
 
-// osusWithSingleConditionalEdge helper returns:
-//  1. mock osus server that serves a simple conditional path between two versions.
-//  2. mock condition that always evaluates to match
-//  3. expected []ConditionalUpdate data after evaluation of the data served by mock osus server
-//     (assuming the mock condition (2) was used)
-//  4. current version of the cluster that would issue the request to the mock osus server
-func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condition, []configv1.ConditionalUpdate, string) {
-	from := "4.5.5"
-	to := "4.5.6"
-	osus := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+type release struct {
+	version string
+	image   string
+}
+
+type conditionalEdgeTestData struct {
+	from release
+	to   release
+}
+
+// newConditionalEdgeTestData constructs test data for a conditional edge between two versions.
+func newConditionalEdgeTestData(from, to string) conditionalEdgeTestData {
+	return conditionalEdgeTestData{
+		from: release{
+			version: from,
+			image:   fmt.Sprintf("payload/%s", from),
+		},
+		to: release{
+			version: to,
+			image:   fmt.Sprintf("payload/%s", to),
+		},
+	}
+}
+
+// defaultConditionalEdgeTestData returns test data for a conditional edge from 4.5.5 to 4.5.6.
+func defaultConditionalEdgeTestData() conditionalEdgeTestData {
+	return newConditionalEdgeTestData("4.5.5", "4.5.6")
+}
+
+// expectedConditionalUpdatesFor returns expected ConditionalUpdate data after evaluation
+// (assuming the returned mock condition is used) and the mock PromQL condition checker itself.
+func expectedConditionalUpdatesFor(data conditionalEdgeTestData) ([]configv1.ConditionalUpdate, *mock.Mock) {
+	return []configv1.ConditionalUpdate{
+			{
+				Release: configv1.Release{Version: data.to.version, Image: data.to.image},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{
+						URL:     "https://example.com/" + data.to.version,
+						Name:    "FourFiveSix",
+						Message: "Four Five Five is just fine",
+						MatchingRules: []configv1.ClusterCondition{
+							{
+								Type:   "PromQL",
+								PromQL: &configv1.PromQLClusterCondition{PromQL: "this is a query"},
+							},
+						},
+					},
+				},
+				Conditions: []metav1.Condition{
+					{
+						Type:               "Recommended",
+						Status:             metav1.ConditionFalse,
+						Reason:             "FourFiveSix",
+						Message:            "Four Five Five is just fine https://example.com/" + data.to.version,
+						LastTransitionTime: metav1.Now(),
+					},
+				},
+			},
+		}, &mock.Mock{
+			ValidQueue: []error{nil},
+			MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+		}
+}
+
+// newMockOSUSServer returns an OSUS server and query parameters used in the last call to the OSUS server.
+func newMockOSUSServer(data conditionalEdgeTestData) (*httptest.Server, *url.Values) {
+	var params url.Values
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		params = r.URL.Query()
 		fmt.Fprintf(w, `{
-  "nodes": [{"version": "%s", "payload": "payload/%s"}, {"version": "%s", "payload": "payload/%s"}],
+  "nodes": [{"version": "%s", "payload": "%s"}, {"version": "%s", "payload": "%s"}],
   "conditionalEdges": [
     {
       "edges": [{"from": "%s", "to": "%s"}],
@@ -73,52 +133,60 @@ func osusWithSingleConditionalEdge() (*httptest.Server, clusterconditions.Condit
     }
   ]
 }
-`, from, from, to, to, from, to, to)
-	}))
-
-	updates := []configv1.ConditionalUpdate{
-		{
-			Release: configv1.Release{Version: to, Image: "payload/" + to},
-			Risks: []configv1.ConditionalUpdateRisk{
-				{
-					URL:     "https://example.com/" + to,
-					Name:    "FourFiveSix",
-					Message: "Four Five Five is just fine",
-					MatchingRules: []configv1.ClusterCondition{
-						{
-							Type:   "PromQL",
-							PromQL: &configv1.PromQLClusterCondition{PromQL: "this is a query"},
-						},
-					},
-				},
-			},
-			Conditions: []metav1.Condition{
-				{
-					Type:               "Recommended",
-					Status:             metav1.ConditionFalse,
-					Reason:             "FourFiveSix",
-					Message:            "Four Five Five is just fine https://example.com/" + to,
-					LastTransitionTime: metav1.Now(),
-				},
-			},
-		},
-	}
-	mockPromql := &mock.Mock{
-		ValidQueue: []error{nil},
-		MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
-	}
-
-	return osus, mockPromql, updates, from
+`, data.from.version, data.from.image, data.to.version, data.to.image, data.from.version,
+			data.to.version, data.to.version)
+	})), &params
 }
 
-func newOperator(url, version string, promqlMock clusterconditions.Condition) (*availableUpdates, *Operator) {
-	currentRelease := configv1.Release{Version: version, Image: "payload/" + version}
+type testFixture struct {
+	// Mock osus server
+	osus *httptest.Server
+	// Query parameters used in the last call to the osus server
+	lastQueryParams *url.Values
+
+	// Expected updates after evaluation of the mockCondition
+	expectedConditionalUpdates []configv1.ConditionalUpdate
+	mockCondition              clusterconditions.Condition
+
+	currentRelease release
+}
+
+// osusWithSingleConditionalEdge helper returns:
+//  1. mock osus server that serves a simple conditional path between two versions.
+//  2. mock condition that always evaluates to match
+//  3. expected []ConditionalUpdate data after evaluation of the data served by mock osus server
+//     (assuming the mock condition (2) was used)
+//  4. current version of the cluster that would issue the request to the mock osus server
+//  5. current image of the cluster
+//  6. query parameters used in the last call to the osus server
+func osusWithSingleConditionalEdge(data conditionalEdgeTestData) testFixture {
+	server, lastQueryParams := newMockOSUSServer(data)
+	expectedUpdates, mockPromql := expectedConditionalUpdatesFor(data)
+	return testFixture{
+		osus:                       server,
+		lastQueryParams:            lastQueryParams,
+		expectedConditionalUpdates: expectedUpdates,
+		mockCondition:              mockPromql,
+		currentRelease: release{
+			version: data.from.version,
+			image:   data.from.image,
+		},
+	}
+}
+
+func newOperator(url string, cluster release, promqlMock clusterconditions.Condition, arch string) (*availableUpdates, *Operator) {
+	var currentReleaseArch configv1.ClusterVersionArchitecture
+	if arch == string(configv1.ClusterVersionArchitectureMulti) {
+		currentReleaseArch = configv1.ClusterVersionArchitectureMulti
+	}
+	currentRelease := configv1.Release{Version: cluster.version, Image: cluster.image, Architecture: currentReleaseArch}
+
 	registry := clusterconditions.NewConditionRegistry()
 	registry.Register("Always", &always.Always{})
 	registry.Register("PromQL", promqlMock)
 	operator := &Operator{
 		updateService:         url,
-		architecture:          "amd64",
+		architecture:          arch,
 		proxyLister:           notFoundProxyLister{},
 		cmConfigManagedLister: notFoundConfigMapLister{},
 		conditionRegistry:     registry,
@@ -126,8 +194,7 @@ func newOperator(url, version string, promqlMock clusterconditions.Condition) (*
 		release:               currentRelease,
 	}
 	availableUpdates := &availableUpdates{
-		Architecture: runtime.GOARCH,
-		Current:      configv1.Release{Version: version, Image: "payload/" + version},
+		Current: configv1.Release{Version: cluster.version, Image: cluster.image},
 	}
 	return availableUpdates, operator
 }
@@ -147,12 +214,18 @@ var availableUpdatesCmpOpts = []cmp.Option{
 }
 
 func TestSyncAvailableUpdates(t *testing.T) {
-	fakeOsus, mockPromql, expectedConditionalUpdates, version := osusWithSingleConditionalEdge()
-	defer fakeOsus.Close()
-	expectedAvailableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
-	expectedAvailableUpdates.UpdateService = fakeOsus.URL
-	expectedAvailableUpdates.ConditionalUpdates = expectedConditionalUpdates
+	fixture := osusWithSingleConditionalEdge(defaultConditionalEdgeTestData())
+	defer fixture.osus.Close()
+	expectedAvailableUpdates, optr := newOperator(
+		fixture.osus.URL,
+		fixture.currentRelease,
+		fixture.mockCondition,
+		runtime.GOARCH,
+	)
+	expectedAvailableUpdates.UpdateService = fixture.osus.URL
+	expectedAvailableUpdates.ConditionalUpdates = fixture.expectedConditionalUpdates
 	expectedAvailableUpdates.Channel = cvFixture.Spec.Channel
+	expectedAvailableUpdates.Architecture = runtime.GOARCH
 	expectedAvailableUpdates.Condition = configv1.ClusterOperatorStatusCondition{
 		Type:   configv1.RetrievedUpdates,
 		Status: configv1.ConditionTrue,
@@ -229,16 +302,22 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			fakeOsus, mockPromql, conditionalUpdates, version := osusWithSingleConditionalEdge()
-			defer fakeOsus.Close()
-			availableUpdates, optr := newOperator(fakeOsus.URL, version, mockPromql)
+			fixture := osusWithSingleConditionalEdge(defaultConditionalEdgeTestData())
+			defer fixture.osus.Close()
+			availableUpdates, optr := newOperator(
+				fixture.osus.URL,
+				fixture.currentRelease,
+				fixture.mockCondition,
+				runtime.GOARCH,
+			)
+			availableUpdates.Architecture = runtime.GOARCH
 			optr.availableUpdates = availableUpdates
-			optr.availableUpdates.ConditionalUpdates = conditionalUpdates
+			optr.availableUpdates.ConditionalUpdates = fixture.expectedConditionalUpdates
 			expectedConditions := []metav1.Condition{{}}
-			conditionalUpdates[0].Conditions[0].DeepCopyInto(&expectedConditions[0])
+			fixture.expectedConditionalUpdates[0].Conditions[0].DeepCopyInto(&expectedConditions[0])
 			cv := cvFixture.DeepCopy()
 			tc.modifyOriginalState(optr)
-			tc.modifyCV(cv, conditionalUpdates[0])
+			tc.modifyCV(cv, fixture.expectedConditionalUpdates[0])
 
 			err := optr.syncAvailableUpdates(context.Background(), cv)
 
@@ -431,6 +510,250 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
+	data := newConditionalEdgeTestData("4.5.5", "4.5.6")
+
+	// used only by relevant test cases where the evaluation of conditional updates is expected
+	expectedConditionalUpdates, _ := expectedConditionalUpdatesFor(data)
+
+	type args struct {
+		operatorArchitecture string
+		desiredUpdate        *configv1.Update
+	}
+	type expected struct {
+		arch           string
+		queryParamArch string
+
+		updates            []configv1.Release
+		conditionalUpdates []configv1.ConditionalUpdate
+	}
+	tests := []struct {
+		name     string
+		args     args
+		expected expected
+	}{
+		// -------------------------------- Valid set desiredUpdate field combinations --------------------------------
+		// Some combinations, such as all fields being set, are omitted due to them causing API validation errors;
+		// as such, they are not possible and are not explicitly tested here.
+		//
+		// ---------------- Cases where the operator is multi arch
+		{
+			name: "operator is multi, image is specified, version is specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: "Multi",
+				desiredUpdate: &configv1.Update{
+					Version: data.to.version,
+					Image:   data.to.image,
+				},
+			},
+			expected: expected{
+				arch:               "Multi",
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     "multi",
+			},
+		},
+		{
+			name: "operator is multi, image is specified, version is not specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: "Multi",
+				desiredUpdate: &configv1.Update{
+					Image: data.to.image,
+				},
+			},
+			expected: expected{
+				arch:               "Multi",
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     "multi",
+			},
+		},
+		{
+			name: "operator is multi, image is not specified, version is specified, architecture is specified",
+			args: args{
+				operatorArchitecture: "Multi",
+				desiredUpdate: &configv1.Update{
+					Architecture: "Multi",
+					Version:      data.to.version,
+				},
+			},
+			expected: expected{
+				arch:               "Multi",
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     "multi",
+			},
+		},
+		{
+			name: "operator is multi, image is not specified, version is specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: "Multi",
+				desiredUpdate: &configv1.Update{
+					Version: data.to.version,
+				},
+			},
+			expected: expected{
+				arch:               "Multi",
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     "multi",
+			},
+		},
+		// ---------------- Cases where the operator is single arch
+		{
+			name: "operator is not multi, image is specified, version is specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate: &configv1.Update{
+					Version: data.to.version,
+					Image:   data.to.image,
+				},
+			},
+			expected: expected{
+				arch:               runtime.GOARCH,
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     runtime.GOARCH,
+			},
+		},
+		{
+			name: "operator is not multi, image is specified, version is not specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate: &configv1.Update{
+					Image: data.to.image,
+				},
+			},
+			expected: expected{
+				arch:               runtime.GOARCH,
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     runtime.GOARCH,
+			},
+		},
+		{
+			name: "operator is not multi, image is not specified, version is specified, architecture is specified - migration to multi arch issued",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate: &configv1.Update{
+					// Migration to multi-arch is issued
+					Architecture: "Multi",
+					Version:      data.from.version,
+				},
+			},
+			expected: expected{
+				arch: "Multi",
+				// Migrating from single to multi architecture.
+				// Only valid update for required heterogeneous graph is heterogeneous version of current version.
+				//
+				// Note: Testing utilises an OSUS with a single conditional edge and not individual graphs for
+				// individual architectures. To bypass the need for a more extensive testing logic, which would contain
+				// different release images for the same versions, there is a present logic to test for the query parameters.
+				// If the actual provided parameters are correct, we can act as if the graph references another images.
+				//
+				// However, it will not exercise any possible "my.image == update.image" conditions.
+				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
+				queryParamArch: "multi",
+			},
+		},
+		{
+			name: "operator is not multi, image is not specified, version is specified, architecture is specified - migration && update",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate: &configv1.Update{
+					// Migration in combination with an update to a new version is issued
+					Architecture: "Multi",
+					Version:      data.to.version,
+				},
+			},
+			expected: expected{
+				arch: "Multi",
+				// The `to` version is not present in the available updates as only migration is available
+				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
+				queryParamArch: "multi",
+			},
+		},
+		{
+			name: "operator is not multi, image is not specified, version is specified, architecture is not specified",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate: &configv1.Update{
+					Version: data.to.version,
+				},
+			},
+			expected: expected{
+				arch:               runtime.GOARCH,
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     runtime.GOARCH,
+			},
+		},
+		// -------------------------------- Desired Update Is NOT set --------------------------------
+		// ---------------- The operator is multi arch
+		{
+			name: "operator is multi, desired update is not specified",
+			args: args{
+				operatorArchitecture: "Multi",
+				desiredUpdate:        nil,
+			},
+			expected: expected{
+				arch:               "Multi",
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     "multi",
+			},
+		},
+		// ---------------- The operator is single arch
+		{
+			name: "operator is not multi, desired update is not specified",
+			args: args{
+				operatorArchitecture: runtime.GOARCH,
+				desiredUpdate:        nil,
+			},
+			expected: expected{
+				arch:               runtime.GOARCH,
+				conditionalUpdates: expectedConditionalUpdates,
+				queryParamArch:     runtime.GOARCH,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixture := osusWithSingleConditionalEdge(data)
+			defer fixture.osus.Close()
+
+			expectedAvailableUpdates, optr := newOperator(
+				fixture.osus.URL,
+				fixture.currentRelease,
+				fixture.mockCondition,
+				tt.args.operatorArchitecture,
+			)
+			expectedAvailableUpdates.Architecture = tt.expected.arch
+			expectedAvailableUpdates.Updates = tt.expected.updates
+			expectedAvailableUpdates.ConditionalUpdates = tt.expected.conditionalUpdates
+			expectedAvailableUpdates.UpdateService = fixture.osus.URL
+			expectedAvailableUpdates.Channel = cvFixture.Spec.Channel
+			expectedAvailableUpdates.Condition = configv1.ClusterOperatorStatusCondition{
+				Type:   configv1.RetrievedUpdates,
+				Status: configv1.ConditionTrue,
+			}
+
+			expectedQueryParams := url.Values{
+				"arch":    {tt.expected.queryParamArch},
+				"id":      {string(cvFixture.Spec.ClusterID)},
+				"channel": {cvFixture.Spec.Channel},
+				"version": {fixture.currentRelease.version},
+			}
+
+			cv := cvFixture.DeepCopy()
+			cv.Spec.DesiredUpdate = tt.args.desiredUpdate
+			if err := optr.syncAvailableUpdates(context.Background(), cv); err != nil {
+				t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)
+			}
+
+			if diff := cmp.Diff(&expectedQueryParams, fixture.lastQueryParams); diff != "" {
+				t.Fatalf("actual query parameters differ from expected:\n%s", diff)
+			}
+
+			if diff := cmp.Diff(expectedAvailableUpdates, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
+				t.Fatalf("available updates differ from expected:\n%s", diff)
 			}
 		})
 	}
