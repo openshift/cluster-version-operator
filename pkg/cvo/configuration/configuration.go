@@ -24,6 +24,11 @@ import (
 
 const ClusterVersionOperatorConfigurationName = "cluster"
 
+type configuration struct {
+	lastObservedGeneration int64
+	desiredLogLevel        operatorv1.LogLevel
+}
+
 type ClusterVersionOperatorConfiguration struct {
 	queueKey string
 	// queue tracks checking for the CVO configuration.
@@ -37,8 +42,15 @@ type ClusterVersionOperatorConfiguration struct {
 
 	started bool
 
-	desiredLogLevel        operatorv1.LogLevel
-	lastObservedGeneration int64
+	configuration configuration
+
+	// Function to handle an update to the internal configuration.
+	//
+	// In the future, the desired configuration may be consumed via other controllers.
+	// This will require some sort of synchronization upon a configuration change.
+	// For the moment, the log level is the sole consumer of the configuration.
+	// Apply the log level directly here for simplicity for the time being.
+	handler func(configuration) error
 }
 
 func (config *ClusterVersionOperatorConfiguration) Queue() workqueue.TypedRateLimitingInterface[any] {
@@ -80,9 +92,10 @@ func NewClusterVersionOperatorConfiguration(client operatorclientset.Interface, 
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: "configuration"}),
-		client:          client.OperatorV1alpha1().ClusterVersionOperators(),
-		factory:         factory,
-		desiredLogLevel: desiredLogLevel,
+		client:        client.OperatorV1alpha1().ClusterVersionOperators(),
+		factory:       factory,
+		configuration: configuration{desiredLogLevel: desiredLogLevel},
+		handler:       func(c configuration) error { return applyLogLevel(c.desiredLogLevel) },
 	}
 }
 
@@ -142,37 +155,14 @@ func (config *ClusterVersionOperatorConfiguration) sync(ctx context.Context, des
 		}
 	}
 
-	config.lastObservedGeneration = desiredConfig.Generation
-	config.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
-	if config.desiredLogLevel == "" {
-		config.desiredLogLevel = operatorv1.Normal
+	config.configuration.lastObservedGeneration = desiredConfig.Generation
+	config.configuration.desiredLogLevel = desiredConfig.Spec.OperatorLogLevel
+	if config.configuration.desiredLogLevel == "" {
+		config.configuration.desiredLogLevel = operatorv1.Normal
 	}
 
-	currentLogLevel, notFound := loglevel.GetLogLevel()
-	if notFound {
-		klog.Warningf("The current log level could not be found; an attempt to set the log level to the desired level will be made")
-	}
-
-	if !notFound && currentLogLevel == config.desiredLogLevel {
-		klog.V(i.Debug).Infof("No need to update the current CVO log level '%s'; it is already set to the desired value", currentLogLevel)
-	} else {
-		if err := loglevel.SetLogLevel(config.desiredLogLevel); err != nil {
-			return fmt.Errorf("failed to set the log level to %q: %w", config.desiredLogLevel, err)
-		}
-
-		// E2E testing will be checking for existence or absence of these logs
-		switch config.desiredLogLevel {
-		case operatorv1.Normal:
-			klog.V(i.Normal).Infof("Successfully updated the log level from '%s' to 'Normal'", currentLogLevel)
-		case operatorv1.Debug:
-			klog.V(i.Debug).Infof("Successfully updated the log level from '%s' to 'Debug'", currentLogLevel)
-		case operatorv1.Trace:
-			klog.V(i.Trace).Infof("Successfully updated the log level from '%s' to 'Trace'", currentLogLevel)
-		case operatorv1.TraceAll:
-			klog.V(i.TraceAll).Infof("Successfully updated the log level from '%s' to 'TraceAll'", currentLogLevel)
-		default:
-			klog.Errorf("The CVO logging level has unexpected value '%s'", config.desiredLogLevel)
-		}
+	if config.handler != nil {
+		return config.handler(config.configuration)
 	}
 	return nil
 }
