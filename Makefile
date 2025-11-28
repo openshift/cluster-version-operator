@@ -1,5 +1,3 @@
-BIN_DIR?=./bin
-
 all: build
 .PHONY: all
 
@@ -49,5 +47,4 @@ verify-update: update
 
 clean:
 	rm -rf _output/
-	rm -rf bin
 .PHONY: clean
