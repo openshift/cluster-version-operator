@@ -8,6 +8,7 @@ metadata:
 roleRef:
   kind: ClusterRole
   name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
 subjects:
 - kind: ServiceAccount
   namespace: openshift-cluster-version
