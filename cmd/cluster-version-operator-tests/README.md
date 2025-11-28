@@ -4,22 +4,35 @@ It integrates [openshift-tests-extension](https://github.com/openshift-eng/opens
 cluster-version-operator which allows openshift components to contribute tests to openshift-tests' suites with
 extension binaries.
 
+## Build the executable binary
+In the root folder, run the following command to build the executable binary:
+```console
+$ make build
+```
 
 ## Run the tests locally
 
-## Using the framework
+### Using the binary
+- run a test-suite
 ```console
-$ hack/build-go.sh
-$ _output/<OS>/<ARCH>/cluster-version-operator-tests run-suite cluster-version-operator
+$ _output/<OS>/<ARCH>/cluster-version-operator-tests run-suite <test suite name>
 ```
+where test suites can be listed by `_output/<OS>/<ARCH>/cluster-version-operator-tests info`.
 
-## Using ginko-cli
+- run a single test case
+```console
+$ _output/<OS>/<ARCH>/cluster-version-operator-tests run-test <test case name>
+```
+where test names can be listed by `_output/<OS>/<ARCH>/cluster-version-operator-tests list`.
+
+### Using ginkgo-cli
 
 After [installing-ginkgo](https://onsi.github.io/ginkgo/#installing-ginkgo):
 
 ```console
 $ ginkgo ./test/...
 ```
+or run a specific test via `--focus` provided by [ginkgo-cli](https://onsi.github.io/ginkgo/#description-based-filtering).
 
 The output looks nicer this way.
 
