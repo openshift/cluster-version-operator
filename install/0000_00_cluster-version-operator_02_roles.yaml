@@ -1,18 +1,4 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cvo-featuregate-reader
-rules:
-- apiGroups:
-  - config.openshift.io
-  resources:
-  - featuregates
-  verbs:
-  - get
-  - list
-  - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: cluster-version-operator
@@ -21,7 +7,8 @@ metadata:
     include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
   kind: ClusterRole
-  name: cvo-featuregate-reader
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
 subjects:
 - kind: ServiceAccount
   namespace: openshift-cluster-version
