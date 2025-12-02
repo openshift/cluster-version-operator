@@ -12,7 +12,7 @@ require (
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20250220212757-b9c4d98a0c45
 	github.com/openshift/api v0.0.0-20251127005036-0e3c378fdedc
 	github.com/openshift/client-go v0.0.0-20251201171210-333716c1124a
-	github.com/openshift/library-go v0.0.0-20251027092748-1a3af44c9cd0
+	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
 	github.com/operator-framework/api v0.17.1
 	github.com/operator-framework/operator-lifecycle-manager v0.22.0
 	github.com/pkg/errors v0.9.1
