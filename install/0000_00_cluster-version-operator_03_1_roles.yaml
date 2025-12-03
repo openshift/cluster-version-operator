@@ -12,12 +12,12 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   namespace: openshift-cluster-version
-  name: cvo-dedicated-sa
+  name: cluster-version-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: cvo-dedicated-sa-scc-privileged-access
+  name: cluster-version-operator-scc-privileged-access
 subjects:
 - kind: ServiceAccount
   name: update-payload-dedicated-sa
