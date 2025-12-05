@@ -1,6 +1,29 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
+  name: cvo-leader-election
+rules:
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["get", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cvo-leader-election-binding
+  namespace: openshift-cluster-version
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cvo-leader-election
+subjects:
+- kind: ServiceAccount
+  name: cluster-version-operator
+  namespace: openshift-cluster-version
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
   name: cvo-required-config-reader
 rules:
 - apiGroups: ["config.openshift.io"]
