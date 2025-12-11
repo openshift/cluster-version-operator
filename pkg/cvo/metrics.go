@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
+	"k8s.io/client-go/kubernetes"
 	authenticationclientsetv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -252,27 +253,39 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 	resultChannelCount := 0
 
 	// Create a dynamic serving cert/key controller to watch for serving certificate changes from files.
-	servingCertController, err := dynamiccertificates.NewDynamicServingContentFromFiles("metrics-serving-cert", certFile, keyFile)
+	servingContentController, err := dynamiccertificates.NewDynamicServingContentFromFiles("metrics-serving-cert", certFile, keyFile)
 	if err != nil {
 		return fmt.Errorf("failed to create serving certificate controller: %w", err)
 	}
-	if err := servingCertController.RunOnce(metricsContext); err != nil {
+	if err := servingContentController.RunOnce(metricsContext); err != nil {
 		return fmt.Errorf("failed to initialize serving content controller: %w", err)
 	}
 
 	// Start the serving cert controller to begin watching the cert and key files
 	resultChannelCount++
 	go func() {
-		servingCertController.Run(metricsContext, 1)
+		servingContentController.Run(metricsContext, 1)
 		resultChannel <- asyncResult{name: "serving content controller"}
 	}()
 
-	// Create TLS config using the controllers. The config uses callbacks to dynamically
-	// fetch the latest certificates and CA bundles on each connection, so no server
-	// restart is needed when certificates change.
-	tlsConfig, err := makeTLSConfig(servingCertController)
+	// Create a dynamic CA controller to watch for client CA changes from a ConfigMap.
+	kubeClient, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		return fmt.Errorf("failed to create TLS config: %w", err)
+		return fmt.Errorf("failed to create kube client: %w", err)
+	}
+
+	clientCAController, err := dynamiccertificates.NewDynamicCAFromConfigMapController(
+		"metrics-client-ca",
+		"kube-system",
+		"extension-apiserver-authentication",
+		"client-ca-file",
+		kubeClient)
+	if err != nil {
+		return fmt.Errorf("failed to create client CA controller: %w", err)
+	}
+
+	if err := clientCAController.RunOnce(metricsContext); err != nil {
+		return fmt.Errorf("failed to initialize client CA controller: %w", err)
 	}
 
 	client, err := authenticationclientsetv1.NewForConfig(restConfig)
@@ -280,7 +293,53 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
+	// Start the client CA controller to begin watching the ConfigMap
+	resultChannelCount++
+	go func() {
+		clientCAController.Run(metricsContext, 1)
+		resultChannel <- asyncResult{name: "client CA from ConfigMap controller"}
+	}()
+
+	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
+		crypto.SecureTLSConfig(&tls.Config{
+			ClientAuth: tls.RequireAndVerifyClientCert,
+		}),
+		clientCAController,
+		servingContentController,
+		nil,
+		nil,
+	)
+	if err := servingCertController.RunOnce(); err != nil {
+		return fmt.Errorf("failed to initialize serving certificate controller: %w", err)
+	}
+
+	// Register listeners so servingCertController is notified when certificates change.
+	if clientCAController != nil {
+		clientCAController.AddListener(servingCertController)
+	}
+	servingContentController.AddListener(servingCertController)
+
+	resultChannelCount++
+	go func() {
+		servingCertController.Run(1, metricsContext.Done())
+		resultChannel <- asyncResult{name: "serving certification controller"}
+	}()
+
 	server := createHttpServer(metricsContext, client, disableMetricsAuth)
+	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
+		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
+			config, err := servingCertController.GetConfigForClient(clientHello)
+			if err != nil {
+				return nil, err
+			}
+			if config == nil {
+				// To ensure we rather safely fail connections when the desired config is nil. Safety over availability.
+				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
+				return nil, err
+			}
+			return config, nil
+		},
+	})
 
 	resultChannelCount++
 	go func() {
@@ -658,22 +717,4 @@ func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
 		return 0
 	}
 	return latest.Unix()
-}
-
-func makeTLSConfig(servingCertController dynamiccertificates.CertKeyContentProvider) (*tls.Config, error) {
-	_, err := tls.X509KeyPair(servingCertController.CurrentCertKeyContent())
-	if err != nil {
-		return nil, fmt.Errorf("failed to create X509 key pair: %w", err)
-	}
-	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
-		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			cert, err := tls.X509KeyPair(servingCertController.CurrentCertKeyContent())
-			if err != nil {
-				klog.Errorf("Failed to load current serving certificate, rejecting connection: %v", err)
-				return nil, fmt.Errorf("invalid serving certificate: %w", err)
-			}
-			return &cert, nil
-		},
-	})
-	return tlsConfig, nil
 }
