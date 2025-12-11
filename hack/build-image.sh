@@ -22,4 +22,4 @@ if [ -z ${VERSION_OVERRIDE+a} ]; then
 fi
 
 set -x
-podman build -t "cluster-version-operator:${VERSION_OVERRIDE}" -f Dockerfile --no-cache
+podman build -t "cluster-version-operator:${VERSION_OVERRIDE}" -f Dockerfile.rhel --no-cache
