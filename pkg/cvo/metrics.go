@@ -7,20 +7,16 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/client-go/kubernetes"
-	authenticationclientsetv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
@@ -127,7 +123,7 @@ type asyncResult struct {
 	error error
 }
 
-func createHttpServer(ctx context.Context, client *authenticationclientsetv1.AuthenticationV1Client, disableAuth bool) *http.Server {
+func createHttpServer(disableAuth bool) *http.Server {
 	if disableAuth {
 		handler := http.NewServeMux()
 		handler.Handle("/metrics", promhttp.Handler())
@@ -137,7 +133,7 @@ func createHttpServer(ctx context.Context, client *authenticationclientsetv1.Aut
 		return server
 	}
 
-	auth := authHandler{downstream: promhttp.Handler(), ctx: ctx, client: client.TokenReviews()}
+	auth := authHandler{downstream: promhttp.Handler()}
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", &auth)
 	server := &http.Server{
@@ -146,62 +142,32 @@ func createHttpServer(ctx context.Context, client *authenticationclientsetv1.Aut
 	return server
 }
 
-type tokenReviewInterface interface {
-	Create(ctx context.Context, tokenReview *authenticationv1.TokenReview, opts metav1.CreateOptions) (*authenticationv1.TokenReview, error)
-}
-
 type authHandler struct {
 	downstream http.Handler
-	ctx        context.Context
-	client     tokenReviewInterface
-}
-
-func (a *authHandler) authorize(token string) (bool, error) {
-	tr := &authenticationv1.TokenReview{
-		Spec: authenticationv1.TokenReviewSpec{
-			Token: token,
-		},
-	}
-	result, err := a.client.Create(a.ctx, tr, metav1.CreateOptions{})
-	if err != nil {
-		return false, fmt.Errorf("failed to check token: %w", err)
-	}
-	isAuthenticated := result.Status.Authenticated
-	isPrometheus := result.Status.User.Username == "system:serviceaccount:openshift-monitoring:prometheus-k8s"
-	if !isAuthenticated {
-		klog.V(4).Info("The token cannot be authenticated.")
-	} else if !isPrometheus {
-		klog.V(4).Infof("Access the metrics from the unexpected user %s is denied.", result.Status.User.Username)
-	}
-	return isAuthenticated && isPrometheus, nil
 }
 
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
-		return
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	if token == "" {
-		http.Error(w, "empty Bearer token", http.StatusUnauthorized)
-		return
-	}
-	if token == authHeader {
-		http.Error(w, "failed to get the Bearer token", http.StatusUnauthorized)
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		klog.V(4).Info("Client certificate required but not provided")
+		http.Error(w, "client certificate required", http.StatusUnauthorized)
 		return
 	}
 
-	authorized, err := a.authorize(token)
-	if err != nil {
-		klog.Warningf("Failed to authorize token: %v", err)
-		http.Error(w, "failed to authorize due to an internal error", http.StatusInternalServerError)
+	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
+	// that is authorized to access the metrics endpoint. This corresponds to the
+	// well-known Prometheus service account in OpenShift monitoring.
+	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
+	metricsAllowedClientCommonName := "system:serviceaccount:openshift-monitoring:prometheus-k8s"
+
+	// The first element is the leaf certificate that the connection is verified against
+	commonName := r.TLS.PeerCertificates[0].Subject.CommonName
+	if commonName != metricsAllowedClientCommonName {
+		klog.V(4).Infof("Access denied for common name: %s", commonName)
+		http.Error(w, fmt.Sprintf("unauthorized common name: %s", commonName), http.StatusForbidden)
 		return
 	}
-	if !authorized {
-		http.Error(w, "failed to authorize", http.StatusUnauthorized)
-		return
-	}
+
+	klog.V(5).Infof("Access granted for common name: %s", commonName)
 	a.downstream.ServeHTTP(w, r)
 }
 
@@ -288,11 +254,6 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return fmt.Errorf("failed to initialize client CA controller: %w", err)
 	}
 
-	client, err := authenticationclientsetv1.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create config: %w", err)
-	}
-
 	// Start the client CA controller to begin watching the ConfigMap
 	resultChannelCount++
 	go func() {
@@ -325,7 +286,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving certification controller"}
 	}()
 
-	server := createHttpServer(metricsContext, client, disableMetricsAuth)
+	server := createHttpServer(disableMetricsAuth)
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
