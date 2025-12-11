@@ -1,10 +1,11 @@
 package cvo
 
 import (
-	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -16,7 +17,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -1019,27 +1019,6 @@ func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) strin
 	return strings.Join(parts, " ")
 }
 
-type fakeClient struct {
-}
-
-func (c *fakeClient) Create(_ context.Context, tokenReview *authenticationv1.TokenReview, _ metav1.CreateOptions) (*authenticationv1.TokenReview, error) {
-	if tokenReview != nil {
-		ret := tokenReview.DeepCopy()
-		if tokenReview.Spec.Token == "good" {
-			ret.Status.Authenticated = true
-			ret.Status.User.Username = "system:serviceaccount:openshift-monitoring:prometheus-k8s"
-		}
-		if tokenReview.Spec.Token == "authenticated" {
-			ret.Status.Authenticated = true
-		}
-		if tokenReview.Spec.Token == "error" {
-			return nil, errors.New("fake error")
-		}
-		return ret, nil
-	}
-	return nil, errors.New("nil input")
-}
-
 type okHandler struct {
 }
 
@@ -1051,112 +1030,62 @@ func Test_authHandler(t *testing.T) {
 	tests := []struct {
 		name               string
 		handler            *authHandler
-		method             string
-		body               io.Reader
-		headerKey          string
-		headerValue        string
+		clientCN           string
+		provideCert        bool
 		expectedStatusCode int
 		expectedBody       string
 	}{
 		{
-			name: "good",
+			name: "allowed CN - prometheus-k8s",
 			handler: &authHandler{
-				ctx:        context.TODO(),
 				downstream: &okHandler{},
-				client:     &fakeClient{},
 			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "Bearer good",
+			clientCN:           "system:serviceaccount:openshift-monitoring:prometheus-k8s",
+			provideCert:        true,
 			expectedStatusCode: http.StatusOK,
 			expectedBody:       "ok",
 		},
 		{
-			name: "empty bearer token",
+			name: "unauthorized CN",
 			handler: &authHandler{
-				ctx:        context.TODO(),
 				downstream: &okHandler{},
-				client:     &fakeClient{},
 			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "Bearer ",
-			expectedStatusCode: 401,
-			expectedBody:       "empty Bearer token\n",
+			clientCN:           "system:serviceaccount:default:unauthorized",
+			provideCert:        true,
+			expectedStatusCode: http.StatusForbidden,
+			expectedBody:       "unauthorized common name: system:serviceaccount:default:unauthorized\n",
 		},
 		{
-			name: "authenticated",
+			name: "no client certificate",
 			handler: &authHandler{
-				ctx:        context.TODO(),
 				downstream: &okHandler{},
-				client:     &fakeClient{},
 			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "Bearer authenticated",
-			expectedStatusCode: 401,
-			expectedBody:       "failed to authorize\n",
-		},
-		{
-			name: "bad",
-			handler: &authHandler{
-				ctx:        context.TODO(),
-				downstream: &okHandler{},
-				client:     &fakeClient{},
-			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "Bearer bad",
-			expectedStatusCode: 401,
-			expectedBody:       "failed to authorize\n",
-		},
-		{
-			name: "failed to get the Authorization header",
-			handler: &authHandler{
-				ctx:        context.TODO(),
-				downstream: &okHandler{},
-				client:     &fakeClient{},
-			},
-			method:             "GET",
-			expectedStatusCode: 401,
-			expectedBody:       "failed to get the Authorization header\n",
-		},
-		{
-			name: "failed to get the Bearer token",
-			handler: &authHandler{
-				ctx:        context.TODO(),
-				downstream: &okHandler{},
-				client:     &fakeClient{},
-			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "xxx bad",
-			expectedStatusCode: 401,
-			expectedBody:       "failed to get the Bearer token\n",
-		},
-		{
-			name: "error",
-			handler: &authHandler{
-				ctx:        context.TODO(),
-				downstream: &okHandler{},
-				client:     &fakeClient{},
-			},
-			method:             "GET",
-			headerKey:          "Authorization",
-			headerValue:        "Bearer error",
-			expectedStatusCode: 500,
-			expectedBody:       "failed to authorize due to an internal error\n",
+			provideCert:        false,
+			expectedStatusCode: http.StatusUnauthorized,
+			expectedBody:       "client certificate required\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rr := httptest.NewRecorder()
 
-			req, err := http.NewRequest(tt.method, "url-not-important", tt.body)
+			req, err := http.NewRequest("GET", "url-not-important", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
-			req.Header.Set(tt.headerKey, tt.headerValue)
+
+			// Mock TLS connection state with client certificate
+			if tt.provideCert {
+				req.TLS = &tls.ConnectionState{
+					PeerCertificates: []*x509.Certificate{
+						{
+							Subject: pkix.Name{
+								CommonName: tt.clientCN,
+							},
+						},
+					},
+				}
+			}
 
 			tt.handler.ServeHTTP(rr, req)
 			if diff := cmp.Diff(tt.expectedStatusCode, rr.Code); diff != "" {
