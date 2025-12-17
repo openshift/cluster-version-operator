@@ -1,126 +1,32 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: ClusterRoleBinding
 metadata:
-  name: cvo-access-scc
+  name: cluster-version-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
-rules:
-  - apiGroups: ["security.openshift.io"]
-    resourceNames: ["hostaccess"]
-    resources: ["securitycontextconstraints"]
-    verbs: ["use"]
+subjects:
+- kind: ServiceAccount
+  name: cluster-version-operator
+  namespace: openshift-cluster-version
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin
+  apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: cvo-access-scc-binding
+  name: cluster-version-operator-payload
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cvo-access-scc
-subjects:
-  - kind: ServiceAccount
-    name: cluster-version-operator
-    namespace: openshift-cluster-version
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cvo-leader-election
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-rules:
-- apiGroups: ["coordination.k8s.io"]
-  resources: ["leases"]
-  verbs: ["get", "create", "update"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cvo-leader-election-binding
-  namespace: openshift-cluster-version
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cvo-leader-election
 subjects:
 - kind: ServiceAccount
-  name: cluster-version-operator
+  name: update-payload-dedicated-sa
   namespace: openshift-cluster-version
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cvo-required-config-reader
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-rules:
-- apiGroups: ["config.openshift.io"]
-  resources: ["featuregates", "clusteroperators", "clusterversions", "proxies", "infrastructures"]
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: cvo-configmap-reader
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-rules:
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cvo-config-configmap-binding
-  namespace: openshift-config
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cvo-configmap-reader
-subjects:
-- kind: ServiceAccount
-  name: cluster-version-operator
-  namespace: openshift-cluster-version
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: cvo-managed-configmap-binding
-  namespace: openshift-config-managed
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cvo-configmap-reader
-subjects:
-- kind: ServiceAccount
-  name: cluster-version-operator
-  namespace: openshift-cluster-version
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cvo-required-config-binding
-  annotations:
-    kubernetes.io/description: Grant the cluster-version operator featuregate specific permissions.
-    include.release.openshift.io/self-managed-high-availability: "true"
 roleRef:
   kind: ClusterRole
-  name: cvo-required-config-reader
+  name: cluster-admin
   apiGroup: rbac.authorization.k8s.io
-subjects:
-- kind: ServiceAccount
-  namespace: openshift-cluster-version
-  name: cluster-version-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -132,38 +38,7 @@ metadata:
 roleRef:
   kind: ClusterRole
   name: cluster-admin
-  apiGroup: rbac.authorization.k8s.io
 subjects:
 - kind: ServiceAccount
   namespace: openshift-cluster-version
-  name: cluster-version-operator
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cluster-version-operator-scc-privileged-access
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-subjects:
-- kind: ServiceAccount
-  name: cluster-version-operator
-  namespace: openshift-cluster-version
-roleRef:
-  kind: ClusterRole
-  name: system:openshift:scc:privileged
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: cluster-version-operator-payload-scc-privileged-access
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-subjects:
-- kind: ServiceAccount
-  name: update-payload-dedicated-sa
-  namespace: openshift-cluster-version
-roleRef:
-  kind: ClusterRole
-  name: system:openshift:scc:privileged
-  apiGroup: rbac.authorization.k8s.io
+  name: default
