@@ -10,8 +10,8 @@ require (
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20250220212757-b9c4d98a0c45
-	github.com/openshift/api v0.0.0-20251127005036-0e3c378fdedc
-	github.com/openshift/client-go v0.0.0-20251201171210-333716c1124a
+	github.com/openshift/api v0.0.0-20251214014457-bfa868a22401
+	github.com/openshift/client-go v0.0.0-20251205093018-96a6cbc1420c
 	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
 	github.com/operator-framework/api v0.17.1
 	github.com/operator-framework/operator-lifecycle-manager v0.22.0
