@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
@@ -120,6 +121,7 @@ type Operator struct {
 	cmConfigLister        listerscorev1.ConfigMapNamespaceLister
 	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister           configlistersv1.ProxyLister
+	featureGateLister     configlistersv1.FeatureGateLister
 	cacheSynced           []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
@@ -189,6 +191,10 @@ type Operator struct {
 	// featurechangestopper controller will detect when cluster feature gate config changes and shutdown the CVO.
 	enabledFeatureGates featuregates.CvoGateChecker
 
+	// featureGatesMutex protects access to enabledManifestFeatureGates
+	featureGatesMutex           sync.RWMutex
+	enabledManifestFeatureGates sets.Set[string]
+
 	clusterProfile string
 	uid            types.UID
 
@@ -213,6 +219,7 @@ func New(
 	cmConfigManagedInformer informerscorev1.ConfigMapInformer,
 	proxyInformer configinformersv1.ProxyInformer,
 	operatorInformerFactory operatorexternalversions.SharedInformerFactory,
+	featureGateInformer configinformersv1.FeatureGateInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	operatorClient operatorclientset.Interface,
@@ -225,6 +232,7 @@ func New(
 	alwaysEnableCapabilities []configv1.ClusterVersionCapability,
 	featureSet configv1.FeatureSet,
 	cvoGates featuregates.CvoGateChecker,
+	startingEnabledManifestFeatureGates sets.Set[string],
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -248,9 +256,9 @@ func New(
 		kubeClient:            kubeClient,
 		operatorClient:        operatorClient,
 		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
-		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
-		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
-		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
+		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
+		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
+		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
 		hypershift:                hypershift,
 		exclude:                   exclude,
@@ -258,8 +266,9 @@ func New(
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
-		requiredFeatureSet:  featureSet,
-		enabledFeatureGates: cvoGates,
+		requiredFeatureSet:          featureSet,
+		enabledFeatureGates:         cvoGates,
+		enabledManifestFeatureGates: startingEnabledManifestFeatureGates,
 
 		alwaysEnableCapabilities: alwaysEnableCapabilities,
 	}
@@ -276,6 +285,9 @@ func New(
 	if _, err := coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler()); err != nil {
 		return nil, err
 	}
+	if _, err := featureGateInformer.Informer().AddEventHandler(optr.featureGateEventHandler()); err != nil {
+		return nil, err
+	}
 
 	optr.coLister = coInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, coInformer.Informer().HasSynced)
@@ -286,6 +298,9 @@ func New(
 	optr.proxyLister = proxyInformer.Lister()
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
 	optr.cmConfigManagedLister = cmConfigManagedInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
+
+	optr.featureGateLister = featureGateInformer.Lister()
+	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
 
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
@@ -318,7 +333,7 @@ func (optr *Operator) LoadInitialPayload(ctx context.Context, restConfig *rest.C
 	}
 
 	update, err := payload.LoadUpdate(optr.defaultPayloadDir(), optr.release.Image, optr.exclude, string(optr.requiredFeatureSet),
-		optr.clusterProfile, configv1.KnownClusterVersionCapabilities)
+		optr.clusterProfile, configv1.KnownClusterVersionCapabilities, optr.getEnabledFeatureGates())
 
 	if err != nil {
 		return nil, fmt.Errorf("the local release contents are invalid - no current version can be determined from disk: %v", err)
@@ -779,7 +794,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	}
 
 	// inform the config sync loop about our desired state
-	status := optr.configSync.Update(ctx, config.Generation, desired, config, state)
+	status := optr.configSync.Update(ctx, config.Generation, desired, config, state, optr.getEnabledFeatureGates())
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)
@@ -1082,6 +1097,72 @@ func (optr *Operator) HTTPClient() (*http.Client, error) {
 	return &http.Client{
 		Transport: transport,
 	}, nil
+}
+
+// featureGateEventHandler handles changes to FeatureGate objects and updates the cluster feature gates
+func (optr *Operator) featureGateEventHandler() cache.ResourceEventHandler {
+	workQueueKey := optr.queueKey()
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if optr.updateEnabledFeatureGates(obj) {
+				optr.queue.Add(workQueueKey)
+			}
+		},
+		UpdateFunc: func(old, new interface{}) {
+			if optr.updateEnabledFeatureGates(new) {
+				optr.queue.Add(workQueueKey)
+			}
+		},
+	}
+}
+
+// updateEnabledFeatureGates updates the cluster feature gates based on a FeatureGate object.
+// Returns true or false based on whether or not the gates were actually updated.
+// This allows us to avoid unnecessary work if the gates have not changed.
+func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
+	featureGate, ok := obj.(*configv1.FeatureGate)
+	if !ok {
+		klog.Warningf("Expected FeatureGate object but got %T", obj)
+		return false
+	}
+
+	newGates := optr.extractEnabledGates(featureGate)
+
+	optr.featureGatesMutex.Lock()
+	defer optr.featureGatesMutex.Unlock()
+
+	// Check if gates actually changed to avoid unnecessary work
+	if !optr.enabledManifestFeatureGates.Equal(newGates) {
+
+		klog.V(2).Infof("Cluster feature gates changed from %v to %v",
+			sets.List(optr.enabledManifestFeatureGates), sets.List(newGates))
+
+		optr.enabledManifestFeatureGates = newGates
+		return true
+	}
+
+	return false
+}
+
+// getEnabledFeatureGates returns a copy of the current cluster feature gates for safe consumption
+func (optr *Operator) getEnabledFeatureGates() sets.Set[string] {
+	optr.featureGatesMutex.RLock()
+	defer optr.featureGatesMutex.RUnlock()
+
+	// Return a copy to prevent external modification
+	return optr.enabledManifestFeatureGates.Clone()
+}
+
+// extractEnabledGates extracts the list of enabled feature gates for the current cluster version
+func (optr *Operator) extractEnabledGates(featureGate *configv1.FeatureGate) sets.Set[string] {
+	// Find the feature gate details for the current loaded payload version.
+	currentVersion := optr.currentVersion().Version
+	if currentVersion == "" {
+		klog.Warningf("Payload has not been initialized yet, using the operator version %s", optr.enabledCVOFeatureGates.DesiredVersion())
+		currentVersion = optr.enabledFeatureGates.DesiredVersion()
+	}
+
+	return featuregates.ExtractEnabledGates(featureGate, currentVersion)
 }
 
 // shouldReconcileCVOConfiguration returns whether the CVO should reconcile its configuration using the API server.

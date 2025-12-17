@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
@@ -493,7 +494,7 @@ func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(message string) {
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {
 }
 
-func (r *fakeSyncRecorder) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State) *SyncWorkerStatus {
+func (r *fakeSyncRecorder) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, enabledFeatureGates sets.Set[string]) *SyncWorkerStatus {
 	r.Updates = append(r.Updates, desired)
 	return r.Returns
 }
