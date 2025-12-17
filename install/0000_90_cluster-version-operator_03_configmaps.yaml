@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-preview-created
+  namespace: openshift-cluster-version
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-gates: "Example,Example2"
+data:
+  example: "this should be created on dev-preview-only as it's annotated with Example and Example2"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tech-preview-created
+  namespace: openshift-cluster-version
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-gates: "Example,-Example2"
+data:
+  example: "this should be created on tech-preview-only as it's annotated with Example and not Example2"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: default-created
+  namespace: openshift-cluster-version
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-gates: "-Example,-Example2"
+data:
+  example: "this should be created on default-only as it's annotated with negation for Example and Example2"
