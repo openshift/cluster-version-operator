@@ -33,7 +33,7 @@ import (
 // ConfigSyncWorker abstracts how the image is synchronized to the server. Introduced for testing.
 type ConfigSyncWorker interface {
 	Start(ctx context.Context, maxWorkers int)
-	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State) *SyncWorkerStatus
+	Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion, state payload.State, enabledFeatureGates sets.Set[string]) *SyncWorkerStatus
 	StatusCh() <-chan SyncWorkerStatus
 
 	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
@@ -78,6 +78,10 @@ type SyncWork struct {
 	Attempt int
 
 	Capabilities capability.ClusterCapabilities
+
+	// EnabledFeatureGates contains the set of feature gate names that are currently enabled
+	// This is derived from the cluster's FeatureGate resource and used for manifest filtering
+	EnabledFeatureGates sets.Set[string]
 }
 
 // Empty returns true if the image is empty for this work.
@@ -126,11 +130,20 @@ type SyncWorkerStatus struct {
 	loadPayloadStatus LoadPayloadStatus
 
 	CapabilitiesStatus CapabilityStatus
+
+	// EnabledFeatureGates contains the set of feature gate names that are currently enabled
+	// and being used for manifest filtering during sync operations
+	EnabledFeatureGates sets.Set[string]
 }
 
 // DeepCopy copies the worker status.
 func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
-	return &w
+	copy := w
+
+	// Provide a proper deep copy for feature gates since this is a list.
+	copy.EnabledFeatureGates = w.EnabledFeatureGates.Clone()
+
+	return &copy
 }
 
 // SyncWorker retrieves and applies the desired image, tracking the status for the parent to
@@ -339,7 +352,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 
 		// Capability filtering is not done here since unknown capabilities are allowed
 		// during updated payload load and enablement checking only occurs during apply.
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil)
+		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil, work.EnabledFeatureGates)
 
 		if err != nil {
 			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
@@ -415,7 +428,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 		}
 		if w.payload != nil {
 			implicitlyEnabledCaps = capability.SortedList(payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
-				work.Capabilities))
+				work.Capabilities, work.EnabledFeatureGates))
 		}
 		w.payload = payloadUpdate
 		msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
@@ -458,15 +471,16 @@ func (w *SyncWorker) loadUpdatedPayload(ctx context.Context, work *SyncWork) ([]
 //
 // Acquires the SyncWorker lock, so it must not be locked when Update is called
 func (w *SyncWorker) Update(ctx context.Context, generation int64, desired configv1.Update, config *configv1.ClusterVersion,
-	state payload.State) *SyncWorkerStatus {
+	state payload.State, enabledFeatureGates sets.Set[string]) *SyncWorkerStatus {
 
 	w.lock.Lock()
 	defer w.lock.Unlock()
 
 	work := &SyncWork{
-		Generation: generation,
-		Desired:    desired,
-		Overrides:  config.Spec.Overrides,
+		Generation:          generation,
+		Desired:             desired,
+		Overrides:           config.Spec.Overrides,
+		EnabledFeatureGates: enabledFeatureGates,
 	}
 
 	var priorCaps sets.Set[configv1.ClusterVersionCapability]
@@ -490,13 +504,13 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	ensureEnabledCapabilities := append(slices.Collect(maps.Keys(priorCaps)), w.alwaysEnableCapabilities...)
 	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities)
 
-	versionEqual, overridesEqual, capabilitiesEqual :=
+	versionEqual, overridesEqual, capabilitiesEqual, featureGatesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
 
 	// needs to be set here since changes in implicitly enabled capabilities are not considered a "capabilities change"
 	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = capability.SortedList(work.Capabilities.ImplicitlyEnabled)
 
-	if versionEqual && overridesEqual && capabilitiesEqual {
+	if versionEqual && overridesEqual && capabilitiesEqual && featureGatesEqual {
 		klog.V(2).Info("Update work is equal to current target; no change required")
 
 		if !equalUpdate(w.work.Desired, w.status.loadPayloadStatus.Update) {
@@ -520,6 +534,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 			Version: work.Desired.Version,
 			Image:   work.Desired.Image,
 		}
+		// Initialize feature gates in status
+		w.status.EnabledFeatureGates = work.EnabledFeatureGates.Clone()
 	} else {
 		oldDesired = &w.work.Desired
 	}
@@ -539,7 +555,9 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		if w.work != nil {
 			w.work.Overrides = config.Spec.Overrides
 			w.work.Capabilities = work.Capabilities
+			w.work.EnabledFeatureGates = work.EnabledFeatureGates
 			w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
+			w.status.EnabledFeatureGates = work.EnabledFeatureGates.Clone()
 		}
 		return w.status.DeepCopy()
 	}
@@ -557,7 +575,8 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 	w.status.CapabilitiesStatus.ImplicitlyEnabledCaps = capability.SortedList(w.work.Capabilities.ImplicitlyEnabled)
 	w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 
-	// Update syncWorker status with architecture of newly loaded payload.
+	// Update syncWorker status with feature gates and architecture of newly loaded payload.
+	w.status.EnabledFeatureGates = w.work.EnabledFeatureGates.Clone()
 	w.status.Architecture = w.payload.Architecture
 
 	// notify the sync loop that we changed config
@@ -763,8 +782,8 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 // time work transitions from empty to not empty (as a result of someone invoking
 // Update).
 func (w *SyncWork) calculateNextFrom(desired *SyncWork) bool {
-	sameVersion, sameOverrides, sameCapabilities := equalSyncWork(w, desired, "calculating next work")
-	changed := !(sameVersion && sameOverrides && sameCapabilities)
+	sameVersion, sameOverrides, sameCapabilities, sameFeatureGates := equalSyncWork(w, desired, "calculating next work")
+	changed := !(sameVersion && sameOverrides && sameCapabilities && sameFeatureGates)
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)
@@ -820,20 +839,21 @@ func splitDigest(pullspec string) string {
 }
 
 // equalSyncWork returns indications of whether release version has changed, whether overrides have changed,
-// and whether capabilities have changed.
-func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides, equalCapabilities bool) {
+// whether capabilities have changed, and whether enabled feature gates have changed.
+func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides, equalCapabilities, equalFeatureGates bool) {
 	// if both `a` and `b` are the same then simply return true
 	if a == b {
-		return true, true, true
+		return true, true, true, true
 	}
 	// if either `a` or `b` are nil then return false
 	if a == nil || b == nil {
-		return false, false, false
+		return false, false, false, false
 	}
 
 	sameVersion := equalUpdate(a.Desired, b.Desired)
 	sameOverrides := reflect.DeepEqual(a.Overrides, b.Overrides)
 	capabilitiesError := a.Capabilities.Equal(&b.Capabilities)
+	sameFeatureGates := a.EnabledFeatureGates.Equal(b.EnabledFeatureGates)
 
 	var msgs []string
 	if !sameVersion {
@@ -845,10 +865,14 @@ func equalSyncWork(a, b *SyncWork, context string) (equalVersion, equalOverrides
 	if capabilitiesError != nil {
 		msgs = append(msgs, fmt.Sprintf("capabilities changed (%v)", capabilitiesError))
 	}
+	if !sameFeatureGates {
+		msgs = append(msgs, fmt.Sprintf("enabled feature gates changed (from %v to %v)",
+			sets.List(a.EnabledFeatureGates), sets.List(b.EnabledFeatureGates)))
+	}
 	if len(msgs) > 0 {
 		klog.V(2).Infof("Detected while %s: %s", context, strings.Join(msgs, ", "))
 	}
-	return sameVersion, sameOverrides, capabilitiesError == nil
+	return sameVersion, sameOverrides, capabilitiesError == nil, sameFeatureGates
 }
 
 // updateApplyStatus records the current status of the payload apply sync action for
@@ -1020,7 +1044,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			if task.Manifest.GVK != configv1.GroupVersion.WithKind("ClusterOperator") {
 				continue
 			}
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates); err != nil {
 				klog.V(manifestVerbosity).Infof("Skipping precreation of %s: %s", task, err)
 				continue
 			}
@@ -1040,7 +1064,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 			klog.V(manifestVerbosity).Infof("Running sync for %s", task)
 
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates); err != nil {
 				klog.V(manifestVerbosity).Infof("Skipping %s: %s", task, err)
 				continue
 			}
@@ -1117,10 +1141,10 @@ func (r *consistentReporter) Update() {
 	defer r.lock.Unlock()
 	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
-	copied := r.status
+	copied := r.status.DeepCopy()
 	copied.Done = r.done
 	copied.Total = r.total
-	r.reporter.Report(copied)
+	r.reporter.Report(*copied)
 }
 
 // Errors updates the status based on the current state of the graph runner.
@@ -1131,13 +1155,13 @@ func (r *consistentReporter) Errors(errs []error) error {
 
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	copied := r.status
+	copied := r.status.DeepCopy()
 	copied.Done = r.done
 	copied.Total = r.total
 	if err != nil {
 		copied.Failure = err
 	}
-	r.reporter.Report(copied)
+	r.reporter.Report(*copied)
 	return err
 }
 
@@ -1155,13 +1179,13 @@ func (r *consistentReporter) Complete() {
 	defer r.lock.Unlock()
 	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
 	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
-	copied := r.status
+	copied := r.status.DeepCopy()
 	copied.Completed = r.completed + 1
 	copied.Initial = false
 	copied.Reconciling = true
 	copied.Done = r.done
 	copied.Total = r.total
-	r.reporter.Report(copied)
+	r.reporter.Report(*copied)
 }
 
 func isContextError(err error) bool {

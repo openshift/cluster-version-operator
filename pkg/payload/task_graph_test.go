@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func Test_TaskGraph_Split(t *testing.T) {
@@ -487,7 +488,7 @@ func Test_TaskGraph_real(t *testing.T) {
 	if len(path) == 0 {
 		t.Skip("TEST_GRAPH_PATH unset")
 	}
-	p, err := LoadUpdate(path, "arbitrary/image:1", "", "", DefaultClusterProfile, nil)
+	p, err := LoadUpdate(path, "arbitrary/image:1", "", "", DefaultClusterProfile, nil, sets.Set[string]{})
 	if err != nil {
 		t.Fatal(err)
 	}

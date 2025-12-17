@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clientgotesting "k8s.io/client-go/testing"
@@ -255,6 +256,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:   1,
@@ -266,6 +268,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -291,6 +294,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -317,6 +321,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 					EnabledCapabilities: sortedCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -343,6 +348,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -370,6 +376,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -452,6 +459,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -478,6 +486,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -504,6 +513,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Generation:  1,
@@ -531,6 +541,7 @@ func TestCVO_StartupAndSync(t *testing.T) {
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -672,6 +683,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual: configv1.Release{
@@ -688,6 +700,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Total:       3,
@@ -715,6 +728,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Done:        1,
@@ -743,6 +757,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Initial:     true,
@@ -771,6 +786,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -860,6 +876,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -888,6 +905,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -916,6 +934,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -945,6 +964,7 @@ func TestCVO_StartupAndSyncUnverifiedPayload(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -1076,6 +1096,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual: configv1.Release{
@@ -1091,6 +1112,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Total:       3,
@@ -1117,6 +1139,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Done:        1,
@@ -1144,6 +1167,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 					KnownCapabilities:   sortedKnownCaps,
 				},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Done:        2,
@@ -1171,6 +1195,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -1258,6 +1283,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -1285,6 +1311,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -1312,6 +1339,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -1340,6 +1368,7 @@ func TestCVO_StartupAndSyncPreconditionFailing(t *testing.T) {
 				Local:              true,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -1429,6 +1458,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -1441,6 +1471,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 				Failure:            payloadErr,
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	actions = client.Actions()
@@ -1557,6 +1588,7 @@ func TestCVO_UpgradeUnverifiedPayload(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -1688,6 +1720,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -1700,6 +1733,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 				Failure:            payloadErr,
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	actions = client.Actions()
@@ -1817,6 +1851,7 @@ func TestCVO_ResetPayloadLoadStatus(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:0"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	actions = client.Actions()
@@ -2095,6 +2130,7 @@ func TestCVO_InitImplicitlyEnabledCaps(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	actions := client.Actions()
@@ -2222,6 +2258,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -2234,6 +2271,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 				Failure:            payloadErr,
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	actions = client.Actions()
@@ -2351,6 +2389,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -2436,6 +2475,7 @@ func TestCVO_UpgradeUnverifiedPayloadRetrieveOnce(t *testing.T) {
 			LastTransitionTime: time.Unix(4, 0),
 			Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 		},
+		EnabledFeatureGates: sets.New[string](),
 	},
 		finalStatusIndicatorCompleted,
 	)
@@ -2510,6 +2550,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -2522,6 +2563,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 				Failure:            &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Precondition \"TestPrecondition SuccessAfter: 3\" failed because of \"CheckFailure\": failing, attempt: 1 will succeed after 3 attempt", Name: "PreconditionCheck"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -2611,6 +2653,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Done:        1,
@@ -2635,6 +2678,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Done:        2,
@@ -2659,6 +2703,7 @@ func TestCVO_UpgradePreconditionFailing(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -2785,6 +2830,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Actual:       configv1.Release{Version: "1.0.1-abc", Image: "image/image:1"},
@@ -2797,6 +2843,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 				Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1"},
 				Failure:            &payload.UpdateError{Reason: "UpgradePreconditionCheckFailed", Message: "Multiple precondition checks failed:\n* Precondition \"PreCondition1\" failed because of \"CheckFailure\": PreCondition1 will always fail.\n* Precondition \"PreCondition2\" failed because of \"CheckFailure\": PreCondition2 will always fail.", Name: "PreconditionCheck"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 
@@ -2847,6 +2894,7 @@ func TestCVO_UpgradePreconditionFailingAcceptedRisks(t *testing.T) {
 			LastTransitionTime: time.Unix(3, 0),
 			Update:             configv1.Update{Version: "1.0.1-abc", Image: "image/image:1", Force: true},
 		},
+		EnabledFeatureGates: sets.New[string](),
 	},
 		acceptedRisksPopulated,
 	)
@@ -3151,6 +3199,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3165,6 +3214,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3189,6 +3239,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3214,6 +3265,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3239,6 +3291,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(5, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	client.ClearActions()
@@ -3282,6 +3335,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3306,6 +3360,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3331,6 +3386,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(3, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3356,6 +3412,7 @@ func TestCVO_RestartAndReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(4, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	client.ClearActions()
@@ -3453,6 +3510,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 		SyncWorkerStatus{
 			Reconciling: true,
@@ -3467,6 +3525,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(2, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	// verify we haven't observed any other events
@@ -3515,6 +3574,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	clearAllStatus(t, worker.StatusCh())
@@ -3551,6 +3611,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	clearAllStatus(t, worker.StatusCh())
@@ -3602,6 +3663,7 @@ func TestCVO_ErrorDuringReconcile(t *testing.T) {
 				LastTransitionTime: time.Unix(1, 0),
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		},
 	)
 	client.ClearActions()
@@ -3771,6 +3833,7 @@ func TestCVO_ParallelError(t *testing.T) {
 						LastTransitionTime: status.loadPayloadStatus.LastTransitionTime,
 						Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 					},
+					EnabledFeatureGates: sets.New[string](),
 				}) {
 					t.Fatalf("unexpected status: %v", status)
 				}
@@ -3807,6 +3870,7 @@ func TestCVO_ParallelError(t *testing.T) {
 				LastTransitionTime: status.loadPayloadStatus.LastTransitionTime,
 				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
 			},
+			EnabledFeatureGates: sets.New[string](),
 		}) {
 			t.Fatalf("unexpected final: %v", status)
 		}

@@ -128,7 +128,7 @@ func TestLoadUpdate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil)
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil, sets.Set[string]{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -203,7 +203,7 @@ func TestLoadUpdateArchitecture(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil)
+			got, err := LoadUpdate(tt.args.dir, tt.args.releaseImage, "exclude-test", "", DefaultClusterProfile, nil, sets.Set[string]{})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadUpdatePayload() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -365,7 +365,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			if tt.pathExt == "test10" {
 				updateMans = append(updateMans, updateMans[0])
 			}
-			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities)
+			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities, sets.Set[string]{})
 			if diff := cmp.Diff(tt.wantImplicit, caps); diff != "" {
 				t.Errorf("%s: wantImplicit differs from expected:\n%s", tt.name, diff)
 			}

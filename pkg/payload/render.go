@@ -163,7 +163,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 			for _, manifest := range manifests {
 				if !filterGroupKind.Has(manifest.GVK.GroupKind()) {
 					klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
-				} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil); err != nil {
+				} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, sets.Set[string]{} /* Empty, assuming any gated manifest will be applied later by the real CVO */); err != nil {
 					klog.Infof("excluding %s: %v", manifest.String(), err)
 				} else {
 					filteredManifests = append(filteredManifests, string(manifest.Raw))

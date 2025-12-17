@@ -48,6 +48,7 @@ func GetImplicitlyEnabledCapabilities(
 	currentPayloadManifests []manifest.Manifest,
 	manifestInclusionConfiguration InclusionConfiguration,
 	currentImplicitlyEnabled sets.Set[configv1.ClusterVersionCapability],
+	enabledFeatureGates sets.Set[string],
 ) sets.Set[configv1.ClusterVersionCapability] {
 	ret := currentImplicitlyEnabled.Clone()
 	for _, updateManifest := range updatePayloadManifests {
@@ -57,6 +58,7 @@ func GetImplicitlyEnabledCapabilities(
 			manifestInclusionConfiguration.Profile,
 			manifestInclusionConfiguration.Capabilities,
 			manifestInclusionConfiguration.Overrides,
+			enabledFeatureGates,
 			true,
 		)
 		// update manifest is enabled, no need to check
@@ -74,6 +76,7 @@ func GetImplicitlyEnabledCapabilities(
 				manifestInclusionConfiguration.Profile,
 				manifestInclusionConfiguration.Capabilities,
 				manifestInclusionConfiguration.Overrides,
+				enabledFeatureGates,
 				true,
 			); err != nil {
 				continue
