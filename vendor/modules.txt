@@ -236,7 +236,7 @@ github.com/openshift/client-go/security/clientset/versioned/fake
 github.com/openshift/client-go/security/clientset/versioned/scheme
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1
 github.com/openshift/client-go/security/clientset/versioned/typed/security/v1/fake
-# github.com/openshift/library-go v0.0.0-20260108135436-db8dbd64c462
+# github.com/openshift/library-go v0.0.0-20260121132910-dc3a1c884c04
 ## explicit; go 1.24.0
 github.com/openshift/library-go/pkg/apiserver/jsonpatch
 github.com/openshift/library-go/pkg/config/clusterstatus
