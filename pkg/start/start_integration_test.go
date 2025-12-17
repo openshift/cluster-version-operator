@@ -196,11 +196,11 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	featureset, cvoGates, startingEnabledManifestFeatureGates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
+	controllers, err := options.NewControllerContext(cb, featureset, cvoGates, startingEnabledManifestFeatureGates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,11 +341,11 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	featureset, cvoGates, startingEnabledManifestFeatureGates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
+	controllers, err := options.NewControllerContext(cb, featureset, cvoGates, startingEnabledManifestFeatureGates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -548,11 +548,11 @@ metadata:
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	featureset, cvoGates, startingEnabledManifestFeatureGates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controllers, err := options.NewControllerContext(cb, featureset, gates, clusterVersionConfigInformerFactory, configInformerFactory)
+	controllers, err := options.NewControllerContext(cb, featureset, cvoGates, startingEnabledManifestFeatureGates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		t.Fatal(err)
 	}

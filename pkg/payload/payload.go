@@ -136,7 +136,7 @@ type metadata struct {
 }
 
 func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet string, profile string,
-	knownCapabilities []configv1.ClusterVersionCapability) (*Update, error) {
+	knownCapabilities []configv1.ClusterVersionCapability, enabledFeatureGates sets.Set[string]) (*Update, error) {
 	klog.V(2).Infof("Loading updatepayload from %q", dir)
 	if err := ValidateDirectory(dir); err != nil {
 		return nil, err
@@ -211,7 +211,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			filteredMs := []manifest.Manifest{}
 
 			for _, manifest := range ms {
-				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil); err != nil {
+				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil, enabledFeatureGates); err != nil {
 					klog.V(2).Infof("excluding %s: %v\n", manifest.String(), err)
 					continue
 				}
@@ -243,13 +243,14 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 // the current payload the updated manifest's capabilities are checked to see if any must be implicitly enabled.
 // All capabilities requiring implicit enablement are returned.
 func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest, currentPayloadManifests []manifest.Manifest,
-	capabilities capability.ClusterCapabilities) sets.Set[configv1.ClusterVersionCapability] {
+	capabilities capability.ClusterCapabilities, enabledFeatureGates sets.Set[string]) sets.Set[configv1.ClusterVersionCapability] {
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
 	return localmanifest.GetImplicitlyEnabledCapabilities(
 		updatePayloadManifests,
 		currentPayloadManifests,
 		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps},
 		capabilities.ImplicitlyEnabled,
+		enabledFeatureGates,
 	)
 }
 
