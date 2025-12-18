@@ -1105,12 +1105,14 @@ func (optr *Operator) featureGateEventHandler() cache.ResourceEventHandler {
 	workQueueKey := optr.queueKey()
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			optr.updateEnabledFeatureGates(obj)
-			optr.queue.Add(workQueueKey)
+			if optr.updateEnabledFeatureGates(obj) {
+				optr.queue.Add(workQueueKey)
+			}
 		},
 		UpdateFunc: func(old, new interface{}) {
-			optr.updateEnabledFeatureGates(new)
-			optr.queue.Add(workQueueKey)
+			if optr.updateEnabledFeatureGates(new) {
+				optr.queue.Add(workQueueKey)
+			}
 		},
 	}
 }
@@ -1126,31 +1128,35 @@ func (optr *Operator) initializeFeatureGates() {
 }
 
 // updateEnabledFeatureGates updates the cluster feature gates based on a FeatureGate object
-func (optr *Operator) updateEnabledFeatureGates(obj interface{}) {
+func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
 	featureGate, ok := obj.(*configv1.FeatureGate)
 	if !ok {
 		klog.Warningf("Expected FeatureGate object but got %T", obj)
-		return
+		return false
 	}
 
 	newGates := optr.extractEnabledGates(featureGate)
 
 	// Check if gates actually changed to avoid unnecessary work
 	if !optr.enabledManifestFeatureGates.Equal(newGates) {
-		optr.featureGatesMutex.Lock()
-		defer optr.featureGatesMutex.Unlock()
+		// optr.featureGatesMutex.Lock()
+		// defer optr.featureGatesMutex.Unlock()
 
 		klog.V(2).Infof("Cluster feature gates changed from %v to %v",
 			sets.List(optr.enabledManifestFeatureGates), sets.List(newGates))
 
 		optr.enabledManifestFeatureGates = newGates
+
+		return true
 	}
+
+	return false
 }
 
 // getEnabledFeatureGates returns a copy of the current cluster feature gates for safe consumption
 func (optr *Operator) getEnabledFeatureGates() sets.Set[string] {
-	optr.featureGatesMutex.RLock()
-	defer optr.featureGatesMutex.RUnlock()
+	// optr.featureGatesMutex.RLock()
+	// defer optr.featureGatesMutex.RUnlock()
 
 	// Return a copy to prevent external modification
 	result := sets.Set[string]{}
