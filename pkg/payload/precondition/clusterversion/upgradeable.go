@@ -97,7 +97,8 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	klog.V(4).Infof("The current version is %s parsed from %s and the target version is %s parsed from %s", currentVersion.String(), cv.Status.Desired.Version, targetVersion.String(), releaseContext.DesiredVersion)
 	patchOnly := targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor
 	if targetVersion.LTE(currentVersion) || patchOnly {
-		// When Upgradeable==False, a patch level update with the same minor level is allowed unless overrides are set
+		// When Upgradeable==False, a patch level update with the same minor version is allowed unless overrides are set.
+		// However, minor or major version updates are blocked when Upgradeable==False (handled below at line 124).
 		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
 			klog.V(2).Infof("Retarget from %s to %s is blocked by %s: %s", currentVersion.String(), targetVersion.String(), condition.Reason, condition.Message)
@@ -111,7 +112,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 				// This is to generate an accepted risk for the accepting case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
 				return &precondition.Error{
 					Reason:             "MinorVersionClusterUpdateInProgress",
-					Message:            fmt.Sprintf("Retarget to %s while a minor level update from %s to %s is in progress", targetVersion, completedVersion, currentVersion),
+					Message:            fmt.Sprintf("Retarget to %s while a minor version update from %s to %s is in progress", targetVersion, completedVersion, currentVersion),
 					Name:               pf.Name(),
 					NonBlockingWarning: true,
 				}
@@ -129,7 +130,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 }
 
-// minorUpdateFrom returns the version that was installed completed if a minor level upgrade is in progress
+// minorUpdateFrom returns the version that was installed completed if a minor version upgrade is in progress
 // and the empty string otherwise
 func minorUpdateFrom(status configv1.ClusterVersionStatus, currentVersion semver.Version) string {
 	completedVersion := GetCurrentVersion(status.History)

@@ -104,7 +104,7 @@ func (optr *Operator) setUpgradeableConditions() {
 			Type:               configv1.OperatorUpgradeable,
 			Status:             configv1.ConditionFalse,
 			Reason:             "MultipleReasons",
-			Message:            fmt.Sprintf("Cluster should not be upgraded between minor versions for multiple reasons: %s\n* %s", strings.Join(reasons, ","), strings.Join(msgs, "\n* ")),
+			Message:            fmt.Sprintf("Cluster should not be upgraded between minor or major versions for multiple reasons: %s\n* %s", strings.Join(reasons, ","), strings.Join(msgs, "\n* ")),
 			LastTransitionTime: now,
 		})
 	} else {
@@ -176,7 +176,7 @@ func (optr *Operator) getUpgradeable() *upgradeable {
 }
 
 type upgradeableCheck interface {
-	// Check returns a not-nil condition that should be addressed before a minor level upgrade when the check fails.
+	// Check returns a not-nil condition that should be addressed before a minor or major version upgrade when the check fails.
 	Check() *configv1.ClusterOperatorStatusCondition
 }
 
@@ -217,14 +217,14 @@ func (check *clusterOperatorsUpgradeable) Check() *configv1.ClusterOperatorStatu
 	reason := ""
 	if len(notup) == 1 {
 		reason = notup[0].condition.Reason
-		msg = fmt.Sprintf("Cluster operator %s should not be upgraded between minor versions: %s", notup[0].name, notup[0].condition.Message)
+		msg = fmt.Sprintf("Cluster operator %s should not be upgraded between minor or major versions: %s", notup[0].name, notup[0].condition.Message)
 	} else {
 		reason = "ClusterOperatorsNotUpgradeable"
 		var msgs []string
 		for _, cond := range notup {
-			msgs = append(msgs, fmt.Sprintf("Cluster operator %s should not be upgraded between minor versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
+			msgs = append(msgs, fmt.Sprintf("Cluster operator %s should not be upgraded between minor or major versions: %s: %s", cond.name, cond.condition.Reason, cond.condition.Message))
 		}
-		msg = fmt.Sprintf("Multiple cluster operators should not be upgraded between minor versions:\n* %s", strings.Join(msgs, "\n* "))
+		msg = fmt.Sprintf("Multiple cluster operators should not be upgraded between minor or major versions:\n* %s", strings.Join(msgs, "\n* "))
 	}
 	cond.Reason = reason
 	cond.Message = msg
@@ -302,7 +302,7 @@ func (check *clusterManifestDeleteInProgressUpgradeable) Check() *configv1.Clust
 		resources := strings.Join(deletes, ",")
 		klog.V(2).Infof("Resource deletions in progress; resources=%s", resources)
 		cond.Reason = "ResourceDeletesInProgress"
-		cond.Message = fmt.Sprintf("Cluster minor level upgrades are not allowed while resource deletions are in progress; resources=%s", resources)
+		cond.Message = fmt.Sprintf("Cluster minor or major version upgrades are not allowed while resource deletions are in progress; resources=%s", resources)
 		return cond
 	}
 	return nil

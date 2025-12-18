@@ -136,7 +136,7 @@ func TestUpgradeableRun(t *testing.T) {
 			expected: &precondition.Error{
 				NonBlockingWarning: true,
 				Name:               "ClusterVersionUpgradeable",
-				Message:            "Retarget to 4.2.3 while a minor level update from 4.1.1 to 4.2.1 is in progress",
+				Message:            "Retarget to 4.2.3 while a minor version update from 4.1.1 to 4.2.1 is in progress",
 				Reason:             "MinorVersionClusterUpdateInProgress",
 			},
 		},
