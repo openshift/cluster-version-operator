@@ -191,6 +191,8 @@ type Operator struct {
 	// featurechangestopper controller will detect when cluster feature gate config changes and shutdown the CVO.
 	enabledFeatureGates featuregates.CvoGateChecker
 
+	// featureGatesMutex protects access to enabledManifestFeatureGates
+	featureGatesMutex           sync.RWMutex
 	enabledManifestFeatureGates sets.Set[string]
 
 	clusterProfile string
@@ -1115,6 +1117,9 @@ func (optr *Operator) featureGateEventHandler() cache.ResourceEventHandler {
 
 // initializeFeatureGates initializes the cluster feature gates from the current FeatureGate object
 func (optr *Operator) initializeFeatureGates() {
+	optr.featureGatesMutex.Lock()
+	defer optr.featureGatesMutex.Unlock()
+
 	optr.enabledManifestFeatureGates = sets.Set[string]{}
 
 	// Try to load initial state from the cluster FeatureGate object
@@ -1135,6 +1140,9 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) {
 
 	newGates := optr.extractEnabledGates(featureGate)
 
+	optr.featureGatesMutex.Lock()
+	defer optr.featureGatesMutex.Unlock()
+
 	// Check if gates actually changed to avoid unnecessary work
 	if !optr.enabledManifestFeatureGates.Equal(newGates) {
 		klog.V(2).Infof("Cluster feature gates changed from %v to %v",
@@ -1145,6 +1153,9 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) {
 
 // getEnabledFeatureGates returns a copy of the current cluster feature gates for safe consumption
 func (optr *Operator) getEnabledFeatureGates() sets.Set[string] {
+	optr.featureGatesMutex.RLock()
+	defer optr.featureGatesMutex.RUnlock()
+
 	// Return a copy to prevent external modification
 	result := sets.Set[string]{}
 	for gate := range optr.enabledManifestFeatureGates {
