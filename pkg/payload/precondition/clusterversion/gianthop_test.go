@@ -65,6 +65,38 @@ func TestGiantHopRun(t *testing.T) {
 			expected: "2.0.0 has a larger major version than the current target 1.0.0 (2 > 1), and only updates within the current major version are supported.",
 		},
 		{
+			name: "major version is 5.0",
+			clusterVersion: configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "5.0.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{
+						Version: "4.0.0",
+					},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "major version is 5.1",
+			clusterVersion: configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "5.1.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{
+						Version: "4.0.0",
+					},
+				},
+			},
+			expected: "5.1.0 has a larger major version than the current target 4.0.0 (5 > 4), and only updates within the current major version or to 5.0 are supported.",
+		},
+		{
 			name: "two minor versions",
 			clusterVersion: configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{

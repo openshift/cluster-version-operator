@@ -66,6 +66,16 @@ func (p *GiantHop) Run(ctx context.Context, releaseContext precondition.ReleaseC
 	}
 
 	if targetVersion.Major > currentVersion.Major {
+		if targetVersion.Major == 5 && currentVersion.Major == 4 { // TODO: temporary access from v4 to 5.0, to be reverted once we are in v5 development
+			if targetVersion.Minor == 0 {
+				return nil
+			}
+			return &precondition.Error{
+				Reason:  "MajorVersionUpdate",
+				Message: fmt.Sprintf("%s has a larger major version than the current target %s (%d > %d), and only updates within the current major version or to 5.0 are supported.", targetVersion, currentVersion, targetVersion.Major, currentVersion.Major),
+				Name:    p.Name(),
+			}
+		}
 		return &precondition.Error{
 			Reason:  "MajorVersionUpdate",
 			Message: fmt.Sprintf("%s has a larger major version than the current target %s (%d > %d), and only updates within the current major version are supported.", targetVersion, currentVersion, targetVersion.Major, currentVersion.Major),
