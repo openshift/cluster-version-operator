@@ -1117,15 +1117,10 @@ func (optr *Operator) featureGateEventHandler() cache.ResourceEventHandler {
 
 // initializeFeatureGates initializes the cluster feature gates from the current FeatureGate object
 func (optr *Operator) initializeFeatureGates() {
-	optr.featureGatesMutex.Lock()
-	defer optr.featureGatesMutex.Unlock()
-
-	optr.enabledManifestFeatureGates = sets.Set[string]{}
-
 	// Try to load initial state from the cluster FeatureGate object
 	if optr.featureGateLister != nil {
 		if featureGate, err := optr.featureGateLister.Get("cluster"); err == nil {
-			optr.enabledManifestFeatureGates = optr.extractEnabledGates(featureGate)
+			optr.updateEnabledFeatureGates(featureGate)
 		}
 	}
 }
@@ -1140,13 +1135,14 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) {
 
 	newGates := optr.extractEnabledGates(featureGate)
 
-	optr.featureGatesMutex.Lock()
-	defer optr.featureGatesMutex.Unlock()
-
 	// Check if gates actually changed to avoid unnecessary work
 	if !optr.enabledManifestFeatureGates.Equal(newGates) {
+		optr.featureGatesMutex.Lock()
+		defer optr.featureGatesMutex.Unlock()
+
 		klog.V(2).Infof("Cluster feature gates changed from %v to %v",
 			sets.List(optr.enabledManifestFeatureGates), sets.List(newGates))
+
 		optr.enabledManifestFeatureGates = newGates
 	}
 }
@@ -1169,7 +1165,7 @@ func (optr *Operator) extractEnabledGates(featureGate *configv1.FeatureGate) set
 	enabledGates := sets.Set[string]{}
 
 	// Find the feature gate details for the current cluster version
-	currentVersion := optr.release.Version
+	currentVersion := optr.enabledFeatureGates.DesiredVersion()
 	for _, details := range featureGate.Status.FeatureGates {
 		if details.Version == currentVersion {
 			for _, enabled := range details.Enabled {

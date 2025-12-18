@@ -164,6 +164,9 @@ func TestFeatureGateEventHandling(t *testing.T) {
 	// Create a simple operator with feature gate management capabilities
 	optr := &Operator{
 		release: configv1.Release{Version: "4.14.0"},
+		enabledFeatureGates: fakeRiFlags{
+			desiredVersion: "4.14.0",
+		},
 	}
 
 	// Initialize feature gates

@@ -17,6 +17,10 @@ const StubOpenShiftVersion = "0.0.1-snapshot"
 
 // CvoGateChecker allows CVO code to check which feature gates are enabled
 type CvoGateChecker interface {
+	// DesiredVersion returns the version of the CVO that is currently executing. This is used to determine
+	// the feature gates that are relevant for the current version of the CVO.
+	DesiredVersion() string
+
 	// UnknownVersion flag is set to true if CVO did not find a matching version in the FeatureGate
 	// status resource, meaning the current set of enabled and disabled feature gates is unknown for
 	// this version. This should be a temporary state (config-operator should eventually add the
@@ -49,6 +53,10 @@ type CvoGates struct {
 	unknownVersion            bool
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
+}
+
+func (c CvoGates) DesiredVersion() string {
+	return c.desiredVersion
 }
 
 func (c CvoGates) StatusReleaseArchitecture() bool {
