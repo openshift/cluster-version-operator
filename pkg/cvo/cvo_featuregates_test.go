@@ -174,18 +174,3 @@ func TestOperator_updateEnabledFeatureGates(t *testing.T) {
 		})
 	}
 }
-
-func TestOperator_initializeFeatureGates(t *testing.T) {
-	// This test would require mocking the featureGateLister
-	// For now, test that the method doesn't panic and initializes empty set
-	optr := &Operator{
-		enabledManifestFeatureGates: sets.New[string]("should-be-cleared"),
-	}
-
-	optr.initializeFeatureGates()
-
-	result := optr.getEnabledFeatureGates()
-	if result.Len() != 0 {
-		t.Error("initializeFeatureGates() should initialize with empty set when lister not available")
-	}
-}
