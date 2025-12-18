@@ -555,7 +555,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 		if w.work != nil {
 			w.work.Overrides = config.Spec.Overrides
 			w.work.Capabilities = work.Capabilities
-			w.work.EnabledFeatureGates = work.EnabledFeatureGates
+			w.work.EnabledFeatureGates = work.EnabledFeatureGates.Clone()
 			w.status.CapabilitiesStatus.Status = capability.GetCapabilitiesStatus(w.work.Capabilities)
 			w.status.EnabledFeatureGates = work.EnabledFeatureGates.Clone()
 		}
