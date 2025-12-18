@@ -647,8 +647,27 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 
 			// determine whether we need to do work
 			w.lock.Lock()
-			changed := work.calculateNextFrom(w.work)
+			changed, featureGatesChanged := work.calculateNextFrom(w.work)
+
+			if featureGatesChanged {
+				// When the feature gates change, we must reload the payload.
+				// Loading the payload fiters out files that didn't match the previous set of feature gates,
+				// this means now, additional files may match the new set of feature gates and need to be included.
+				// Some files in the current payload may no longer match the new set of feature gates and need to be excluded,
+				// though these ones are already excluded when apply calls Include on the manifests.
+				klog.V(2).Infof("Feature gates changed, loading updated payload")
+
+				// Clear the payload to force a reload.
+				w.payload = nil
+
+				_, err := w.loadUpdatedPayload(ctx, w.work)
+				if err != nil {
+					klog.Warningf("Error when attempting to load updated payload: %v.", err)
+				}
+			}
+
 			w.lock.Unlock()
+
 			if !changed && waitingToReconcile {
 				klog.V(2).Infof("No change, waiting")
 				continue
@@ -781,7 +800,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 // returns true if any changes were made. The reconciling flag is set the first
 // time work transitions from empty to not empty (as a result of someone invoking
 // Update).
-func (w *SyncWork) calculateNextFrom(desired *SyncWork) bool {
+func (w *SyncWork) calculateNextFrom(desired *SyncWork) (bool, bool) {
 	sameVersion, sameOverrides, sameCapabilities, sameFeatureGates := equalSyncWork(w, desired, "calculating next work")
 	changed := !(sameVersion && sameOverrides && sameCapabilities && sameFeatureGates)
 
@@ -803,8 +822,9 @@ func (w *SyncWork) calculateNextFrom(desired *SyncWork) bool {
 	}
 
 	w.Generation = desired.Generation
+	w.EnabledFeatureGates = desired.EnabledFeatureGates.Clone()
 
-	return changed
+	return changed, !sameFeatureGates
 }
 
 // equalUpdate returns true if two updates are semantically equivalent.
