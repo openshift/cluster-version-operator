@@ -1137,8 +1137,11 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
 
 	newGates := optr.extractEnabledGates(featureGate)
 
+	optr.featureGatesMutex.RLock()
+
 	// Check if gates actually changed to avoid unnecessary work
 	if !optr.enabledManifestFeatureGates.Equal(newGates) {
+		optr.featureGatesMutex.RUnlock()
 		optr.featureGatesMutex.Lock()
 		defer optr.featureGatesMutex.Unlock()
 
@@ -1150,6 +1153,7 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
 		return true
 	}
 
+	optr.featureGatesMutex.RUnlock()
 	return false
 }
 
