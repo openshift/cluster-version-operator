@@ -5,6 +5,8 @@ metadata:
   namespace: openshift-cluster-version
   labels:
     k8s-app: cluster-version-operator
+  annotations:
+    include.release.openshift.io/{{ .ClusterProfile }}: "true"
 spec:
   containers:
   - name: cluster-version-operator
