@@ -199,16 +199,25 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 	return lastError
 }
 
-// RunMetrics launches a server bound to listenAddress serving
-// Prometheus metrics at /metrics over HTTPS. Continues serving
-// until runContext.Done() and then attempts a clean shutdown
-// limited by shutdownContext.Done(). Assumes runContext.Done()
+type MetricsOptions struct {
+	DisableAuthentication bool
+	DisableAuthorization  bool
+}
+
+// RunMetrics launches an HTTPS server bound to listenAddress serving
+// Prometheus metrics at /metrics. If configured, enforces mTLS (mutual TLS)
+// for client authentication and uses a CN-based authorization.
+//
+// Continues serving until runContext.Done() and then attempts a clean
+// shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-// The TLS configuration automatically reloads certificates when
-// they change on disk using dynamiccertificates.
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, disableMetricsAuth bool) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, metricsOptions MetricsOptions) error {
 	if listenAddress == "" {
 		return errors.New("TLS configuration is required to serve metrics")
+	}
+
+	if metricsOptions.DisableAuthentication && !metricsOptions.DisableAuthorization {
+		return errors.New("invalid configuration: cannot enable authorization without authentication")
 	}
 
 	// Prepare synchronization for to-be created go routines
@@ -234,38 +243,51 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving content controller"}
 	}()
 
-	// Create a dynamic CA controller to watch for client CA changes from a ConfigMap.
-	kubeClient, err := kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create kube client: %w", err)
+	clientAuth := tls.NoClientCert
+	var clientCA dynamiccertificates.CAContentProvider
+	var clientCAController *dynamiccertificates.ConfigMapCAController
+	if !metricsOptions.DisableAuthentication {
+		// Create a dynamic CA controller to watch for client CA changes from a ConfigMap.
+		kubeClient, err := kubernetes.NewForConfig(restConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kube client: %w", err)
+		}
+
+		clientCAController, err = dynamiccertificates.NewDynamicCAFromConfigMapController(
+			"metrics-client-ca",
+			"kube-system",
+			"extension-apiserver-authentication",
+			"client-ca-file",
+			kubeClient)
+		if err != nil {
+			return fmt.Errorf("failed to create client CA controller: %w", err)
+		}
+
+		if err := clientCAController.RunOnce(metricsContext); err != nil {
+			return fmt.Errorf("failed to initialize client CA controller: %w", err)
+		}
+
+		// Start the client CA controller to begin watching the ConfigMap
+		resultChannelCount++
+		go func() {
+			clientCAController.Run(metricsContext, 1)
+			resultChannel <- asyncResult{name: "client CA from ConfigMap controller"}
+		}()
+
+		// Assign to interface variable to ensure proper nil handling
+		clientCA = clientCAController
+
+		// Enforce mTLS
+		clientAuth = tls.RequireAndVerifyClientCert
 	}
 
-	clientCAController, err := dynamiccertificates.NewDynamicCAFromConfigMapController(
-		"metrics-client-ca",
-		"kube-system",
-		"extension-apiserver-authentication",
-		"client-ca-file",
-		kubeClient)
-	if err != nil {
-		return fmt.Errorf("failed to create client CA controller: %w", err)
-	}
-
-	if err := clientCAController.RunOnce(metricsContext); err != nil {
-		return fmt.Errorf("failed to initialize client CA controller: %w", err)
-	}
-
-	// Start the client CA controller to begin watching the ConfigMap
-	resultChannelCount++
-	go func() {
-		clientCAController.Run(metricsContext, 1)
-		resultChannel <- asyncResult{name: "client CA from ConfigMap controller"}
-	}()
-
+	// baseTlSConfig is a template passed to servingCertController,
+	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
+	// This enables automatic certificate rotation without server restarts.
+	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
 	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
-		crypto.SecureTLSConfig(&tls.Config{
-			ClientAuth: tls.RequireAndVerifyClientCert,
-		}),
-		clientCAController,
+		baseTlSConfig,
+		clientCA,
 		servingContentController,
 		nil,
 		nil,
@@ -286,7 +308,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving certification controller"}
 	}()
 
-	server := createHttpServer(disableMetricsAuth)
+	server := createHttpServer(metricsOptions.DisableAuthorization)
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
