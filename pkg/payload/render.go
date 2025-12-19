@@ -12,7 +12,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 	"github.com/pkg/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,33 +35,9 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 		}
 	)
 
-	var requiredFeatureSet *string
-	if featureGateManifestPath != "" {
-		manifests, err := manifest.ManifestsFromFiles([]string{featureGateManifestPath})
-		if err != nil {
-			return fmt.Errorf("loading FeatureGate manifest: %w", err)
-		}
-		if len(manifests) != 1 {
-			return fmt.Errorf("FeatureGate manifest %s contains %d manifests, but expected only one", featureGateManifestPath, len(manifests))
-		}
-		featureGateManifest := manifests[0]
-		expectedGVK := schema.GroupVersionKind{Kind: "FeatureGate", Version: configv1.GroupVersion.Version, Group: config.GroupName}
-		if featureGateManifest.GVK != expectedGVK {
-			return fmt.Errorf("FeatureGate manifest %s GroupVersionKind %v, but expected %v", featureGateManifest.OriginalFilename, featureGateManifest.GVK, expectedGVK)
-		}
-		featureSet, found, err := unstructured.NestedString(featureGateManifest.Obj.Object, "spec", "featureSet")
-		if err != nil {
-			return fmt.Errorf("%s spec.featureSet lookup was not a string: %w", featureGateManifest.String(), err)
-		} else if found {
-			requiredFeatureSet = &featureSet
-			klog.Infof("--feature-gate-manifest-path=%s results in feature set %q", featureGateManifest.OriginalFilename, featureSet)
-		} else {
-			requiredFeatureSet = ptr.To[string]("")
-			klog.Infof("--feature-gate-manifest-path=%s does not set spec.featureSet, using the default feature set", featureGateManifest.OriginalFilename)
-		}
-	} else {
-		requiredFeatureSet = ptr.To[string]("")
-		klog.Info("--feature-gate-manifest-path is unset, using the default feature set")
+	requiredFeatureSet, enabledFeatureGates, err := parseFeatureGateManifest(featureGateManifestPath)
+	if err != nil {
+		return fmt.Errorf("error parsing feature gate manifest: %w", err)
 	}
 
 	tasks := []struct {
@@ -94,7 +70,7 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	}}
 	var errs []error
 	for _, task := range tasks {
-		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
+		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, enabledFeatureGates, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -106,7 +82,9 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, enabledFeatureGates sets.Set[string], clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
+	klog.Infof("Filtering manifests in %s for feature set %v, cluster profile %v and enabled feature gates %v", idir, *requiredFeatureSet, *clusterProfile, enabledFeatureGates.UnsortedList())
+
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
 	}
@@ -124,13 +102,6 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 		}
 
 		if skipFiles.Has(file.Name()) {
-			continue
-		}
-		if strings.Contains(file.Name(), "CustomNoUpgrade") || strings.Contains(file.Name(), "TechPreviewNoUpgrade") || strings.Contains(file.Name(), "DevPreviewNoUpgrade") {
-			// CustomNoUpgrade, TechPreviewNoUpgrade and DevPreviewNoUpgrade may add features to manifests like the ClusterVersion CRD,
-			// but we do not need those features during bootstrap-render time.  In those clusters, the production
-			// CVO will be along shortly to update the manifests and deliver the gated features.
-			// fixme: now that we have requiredFeatureSet, use it to do Manifest.Include() filtering here instead of making filename assumptions
 			continue
 		}
 
@@ -152,34 +123,32 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 			rraw = iraw
 		}
 
-		if len(filterGroupKind) > 0 {
-			manifests, err := manifest.ParseManifests(bytes.NewReader(rraw))
-			if err != nil {
-				errs = append(errs, fmt.Errorf("parse manifest %s from %s: %w", file.Name(), idir, err))
-				continue
-			}
+		manifests, err := manifest.ParseManifests(bytes.NewReader(rraw))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("parse manifest %s from %s: %w", file.Name(), idir, err))
+			continue
+		}
 
-			filteredManifests := make([]string, 0, len(manifests))
-			for _, manifest := range manifests {
-				if !filterGroupKind.Has(manifest.GVK.GroupKind()) {
-					klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
-				} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, sets.Set[string]{} /* Empty, assuming any gated manifest will be applied later by the real CVO */); err != nil {
-					klog.Infof("excluding %s: %v", manifest.String(), err)
-				} else {
-					filteredManifests = append(filteredManifests, string(manifest.Raw))
-					klog.Infof("including %s filtered by feature set %v and cluster profile %v", manifest.String(), requiredFeatureSet, clusterProfile)
-				}
-			}
-
-			if len(filteredManifests) == 0 {
-				continue
-			}
-
-			if len(filteredManifests) == 1 {
-				rraw = []byte(filteredManifests[0])
+		filteredManifests := make([]string, 0, len(manifests))
+		for _, manifest := range manifests {
+			if len(filterGroupKind) > 0 && !filterGroupKind.Has(manifest.GVK.GroupKind()) {
+				klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
+			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, enabledFeatureGates); err != nil {
+				klog.Infof("excluding %s: %v", manifest.String(), err)
 			} else {
-				rraw = []byte(strings.Join(filteredManifests, "\n---\n"))
+				filteredManifests = append(filteredManifests, string(manifest.Raw))
+				klog.Infof("including %s", manifest.String())
 			}
+		}
+
+		if len(filteredManifests) == 0 {
+			continue
+		}
+
+		if len(filteredManifests) == 1 {
+			rraw = []byte(filteredManifests[0])
+		} else {
+			rraw = []byte(strings.Join(filteredManifests, "\n---\n"))
 		}
 
 		opath := filepath.Join(odir, file.Name())
@@ -214,4 +183,58 @@ func renderManifest(config manifestRenderConfig, manifestBytes []byte) ([]byte, 
 	}
 
 	return buf.Bytes(), nil
+}
+
+func parseFeatureGateManifest(featureGateManifestPath string) (*string, sets.Set[string], error) {
+	if featureGateManifestPath == "" {
+		return ptr.To(""), sets.Set[string]{}, nil
+	}
+
+	manifests, err := manifest.ManifestsFromFiles([]string{featureGateManifestPath})
+	if err != nil {
+		return nil, nil, fmt.Errorf("loading FeatureGate manifest: %w", err)
+	}
+
+	if len(manifests) != 1 {
+		return nil, nil, fmt.Errorf("FeatureGate manifest %s contains %d manifests, but expected only one", featureGateManifestPath, len(manifests))
+	}
+
+	featureGateManifest := manifests[0]
+	expectedGVK := schema.GroupVersionKind{Kind: "FeatureGate", Version: configv1.GroupVersion.Version, Group: config.GroupName}
+	if featureGateManifest.GVK != expectedGVK {
+		return nil, nil, fmt.Errorf("FeatureGate manifest %s GroupVersionKind %v, but expected %v", featureGateManifest.OriginalFilename, featureGateManifest.GVK, expectedGVK)
+	}
+
+	// Convert unstructured object to structured FeatureGate
+	var featureGate configv1.FeatureGate
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(featureGateManifest.Obj.Object, &featureGate); err != nil {
+		return nil, nil, fmt.Errorf("failed to convert FeatureGate manifest %s to structured object: %w", featureGateManifest.OriginalFilename, err)
+	}
+
+	var requiredFeatureSet *string
+	if featureGate.Spec.FeatureSet != "" {
+		featureSetString := string(featureGate.Spec.FeatureSet)
+		requiredFeatureSet = &featureSetString
+		klog.Infof("--feature-gate-manifest-path=%s results in feature set %q", featureGateManifest.OriginalFilename, featureGate.Spec.FeatureSet)
+	} else {
+		requiredFeatureSet = ptr.To("")
+		klog.Infof("--feature-gate-manifest-path=%s does not set spec.featureSet, using the default feature set", featureGateManifest.OriginalFilename)
+	}
+
+	if len(featureGate.Status.FeatureGates) == 0 {
+		// In case there are no feature gates, fall back to feature set only behaviour.
+		return requiredFeatureSet, sets.Set[string]{}, nil
+	}
+
+	// A rendered manifest should only include 1 version of the enabled feature gates.
+	if len(featureGate.Status.FeatureGates) > 1 {
+		return nil, nil, fmt.Errorf("FeatureGate manifest %s contains %d feature gates, but expected exactly one", featureGateManifest.OriginalFilename, len(featureGate.Status.FeatureGates))
+	}
+
+	enabledFeatureGates := sets.Set[string]{}
+	for _, feature := range featureGate.Status.FeatureGates[0].Enabled {
+		enabledFeatureGates.Insert(string(feature.Name))
+	}
+
+	return requiredFeatureSet, enabledFeatureGates, nil
 }
