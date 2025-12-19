@@ -1,3 +1,20 @@
+// Package cincinnati provides a client for interacting with the Cincinnati update service.
+//
+// Cincinnati is the OpenShift update recommendation service that provides update graphs
+// indicating which cluster versions can safely upgrade to which target versions. The service
+// returns both unconditional update recommendations (via edges in the update graph) and
+// conditional update recommendations (via conditionalEdges with associated risks).
+//
+// The Client fetches update graphs from an upstream Cincinnati server using the Cincinnati v1
+// Graph API. It handles:
+//   - Querying for available updates based on the current cluster version, architecture, and channel
+//   - Parsing the update graph response to identify recommended next-hop updates
+//   - Processing conditional updates that may have associated risks requiring evaluation
+//   - Handling transitions between single and multi-architecture deployments
+//
+// Update graphs consist of nodes (representing cluster versions) and edges (representing
+// valid upgrade paths). Conditional edges represent upgrades that are only recommended
+// when certain risk conditions are evaluated and deemed acceptable.
 package cincinnati
 
 import (
@@ -20,29 +37,40 @@ import (
 )
 
 const (
-	// GraphMediaType is the media-type specified in the HTTP Accept header
-	// of requests sent to the Cincinnati-v1 Graph API.
+	// GraphMediaType is the media type specified in the HTTP Accept header
+	// for requests sent to the Cincinnati v1 Graph API.
 	GraphMediaType = "application/json"
 
-	// Timeout when calling upstream Cincinnati stack.
+	// getUpdatesTimeout is the maximum duration allowed for a single request
+	// to the upstream Cincinnati service.
 	getUpdatesTimeout = time.Minute * 60
 )
 
-// Client is a Cincinnati client which can be used to fetch update graphs from
-// an upstream Cincinnati stack.
+// Client is a Cincinnati client for fetching update graphs from an upstream
+// Cincinnati service. It maintains connection settings and cluster identification
+// for making requests to the update service.
 type Client struct {
-	id        uuid.UUID
+	// id is the unique cluster identifier sent with each update request.
+	id uuid.UUID
+
+	// transport configures HTTP transport settings including TLS configuration,
+	// proxy settings, and connection pooling.
 	transport *http.Transport
 
-	// userAgent configures the User-Agent header for upstream
-	// requests.  If empty, the User-Agent header will not be
-	// populated.
+	// userAgent is the User-Agent header value for upstream requests.
+	// If empty, the User-Agent header will not be set.
 	userAgent string
 
+	// conditionRegistry evaluates conditional update risks and prunes invalid
+	// matching rules before storing conditional updates.
 	conditionRegistry clusterconditions.ConditionRegistry
 }
 
-// NewClient creates a new Cincinnati client with the given client identifier.
+// NewClient creates a new Cincinnati client with the specified configuration.
+// The id parameter uniquely identifies the cluster making update requests.
+// The transport parameter configures HTTP settings including TLS and proxy configuration.
+// The userAgent parameter sets the User-Agent header for requests (optional).
+// The conditionRegistry parameter is used to evaluate and prune conditional update risks.
 func NewClient(id uuid.UUID, transport *http.Transport, userAgent string, conditionRegistry clusterconditions.ConditionRegistry) Client {
 	return Client{
 		id:                id,
@@ -52,15 +80,17 @@ func NewClient(id uuid.UUID, transport *http.Transport, userAgent string, condit
 	}
 }
 
-// Error is returned when are unable to get updates.
+// Error represents a failure when fetching updates from the Cincinnati service.
 type Error struct {
-	// Reason is the reason suggested for the ClusterOperator status condition.
+	// Reason is the machine-readable reason code for the ClusterVersion
+	// RetrievedUpdates condition (e.g., "RemoteFailed", "ResponseInvalid").
 	Reason string
 
-	// Message is the message suggested for the ClusterOperator status condition.
+	// Message is the human-readable error message for the ClusterVersion
+	// RetrievedUpdates condition.
 	Message string
 
-	// cause is the upstream error, if any, being wrapped by this error.
+	// cause is the underlying error that triggered this failure, if any.
 	cause error
 }
 
@@ -69,19 +99,35 @@ func (err *Error) Error() string {
 	return fmt.Sprintf("%s: %s", err.Reason, err.Message)
 }
 
-// GetUpdates fetches the current and next-applicable update payloads from the specified
-// upstream Cincinnati stack given the current version, desired architecture, and channel.
-// The command:
+// GetUpdates retrieves available cluster updates from the Cincinnati service.
+// It returns the current release information, a list of unconditionally recommended
+// updates, a list of conditionally recommended updates, and any error encountered.
 //
-//  1. Downloads the update graph from the requested URI for the requested desired arch and channel.
-//  2. Finds the current version entry under .nodes.
-//  3. If a transition from single to multi architecture has been requested, the only valid
-//     version is the current version so it's returned.
-//  4. Finds recommended next-hop updates by searching .edges for updates from the current
-//     version. Returns a slice of target Releases with these unconditional recommendations.
-//  5. Finds conditionally recommended next-hop updates by searching .conditionalEdges for
-//     updates from the current version.  Returns a slice of ConditionalUpdates with these
-//     conditional recommendations.
+// The method performs the following steps:
+//  1. Constructs a query to the Cincinnati service including the cluster architecture,
+//     update channel, cluster ID, and current version.
+//  2. Downloads and parses the update graph from the service.
+//  3. Locates the current version within the graph nodes.
+//  4. For single-to-multi architecture transitions, returns only the current version
+//     in multi-architecture form as the sole valid update.
+//  5. Identifies unconditional update recommendations by following edges from the
+//     current version to destination nodes.
+//  6. Identifies conditional update recommendations from conditionalEdges, filtering
+//     out duplicates and pruning invalid risk matching rules.
+//
+// Parameters:
+//   - ctx: Context for the HTTP request, allowing cancellation
+//   - uri: Base URI of the Cincinnati service
+//   - desiredArch: Target architecture for updates (e.g., "amd64", "multi")
+//   - currentArch: Current cluster architecture
+//   - channel: Update channel name (e.g., "stable-4.14", "fast-4.15")
+//   - version: Current semantic version of the cluster
+//
+// Returns:
+//   - Current release metadata from the update graph
+//   - Slice of unconditionally recommended update releases (nil if none)
+//   - Slice of conditionally recommended updates with associated risks (nil if none)
+//   - Error if the request fails or the response is invalid
 func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, currentArch, channel string,
 	version semver.Version) (configv1.Release, []configv1.Release, []configv1.ConditionalUpdate, error) {
 
@@ -283,36 +329,69 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	return current, updates, conditionalUpdates, nil
 }
 
+// graph represents the update graph structure returned by the Cincinnati service.
+// It defines all available cluster versions and the valid upgrade paths between them.
 type graph struct {
-	Nodes            []node
-	Edges            []edge
+	// Nodes contains all cluster version releases available in this channel.
+	Nodes []node
+
+	// Edges defines unconditional upgrade paths as index pairs referencing Nodes.
+	// Each edge indicates a recommended upgrade from one version to another.
+	Edges []edge
+
+	// ConditionalEdges defines upgrade paths that require risk evaluation.
+	// These upgrades are only recommended if their associated risks are acceptable.
 	ConditionalEdges []conditionalEdges `json:"conditionalEdges"`
 }
 
+// node represents a single cluster version in the update graph.
 type node struct {
-	Version  semver.Version         `json:"version"`
-	Image    string                 `json:"payload"`
+	// Version is the semantic version of this release.
+	Version semver.Version `json:"version"`
+
+	// Image is the release image pullspec (payload) for this version.
+	Image string `json:"payload"`
+
+	// Metadata contains additional release information such as URL, architecture,
+	// and supported update channels.
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// edge represents an unconditional upgrade path between two versions in the graph.
+// It is serialized as a two-element array [origin, destination] in JSON.
 type edge struct {
-	Origin      int
+	// Origin is the index of the source version node.
+	Origin int
+
+	// Destination is the index of the target version node.
 	Destination int
 }
 
+// conditionalEdge represents a single conditional upgrade path between two versions
+// identified by their version strings rather than node indices.
 type conditionalEdge struct {
+	// From is the semantic version string of the source release.
 	From string `json:"from"`
-	To   string `json:"to"`
+
+	// To is the semantic version string of the target release.
+	To string `json:"to"`
 }
 
+// conditionalEdges groups a set of conditional upgrade edges with their shared risks.
+// All edges in this group are subject to the same risk conditions.
 type conditionalEdges struct {
-	Edges []conditionalEdge                `json:"edges"`
+	// Edges contains the conditional upgrade paths sharing these risks.
+	Edges []conditionalEdge `json:"edges"`
+
+	// Risks defines the conditions that must be evaluated to determine if
+	// these conditional updates are recommended for a particular cluster.
 	Risks []configv1.ConditionalUpdateRisk `json:"risks"`
 }
 
-// UnmarshalJSON unmarshals an edge in the update graph. The edge's JSON
-// representation is a two-element array of indices, but Go's representation is
-// a struct with two elements so this custom unmarshal method is required.
+// UnmarshalJSON deserializes an edge from its JSON representation.
+// Edges are represented in JSON as two-element arrays [origin, destination],
+// but are stored in Go as a struct with named fields, requiring this custom
+// unmarshaling logic.
 func (e *edge) UnmarshalJSON(data []byte) error {
 	var fields []int
 	if err := json.Unmarshal(data, &fields); err != nil {
@@ -329,6 +408,8 @@ func (e *edge) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// convertRetrievedUpdateToRelease converts a Cincinnati graph node to a ClusterVersion Release.
+// It combines the node's version and image with metadata parsed from the node's metadata map.
 func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
 	release, err := ParseMetadata(update.Metadata)
 	release.Version = update.Version.String()
@@ -336,7 +417,14 @@ func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
 	return release, err
 }
 
-// ParseMetadata parses release metadata (URL, channels, etc.).  It does not populate the version or image properties.
+// ParseMetadata extracts release metadata from a node's metadata map.
+// It parses the release URL, architecture, and supported update channels.
+// The version and image fields are not populated by this function and must
+// be set separately by the caller.
+//
+// Returns a partially populated Release struct and an aggregated error containing
+// all parsing errors encountered. Parsing continues even after errors to extract
+// as much valid metadata as possible.
 func ParseMetadata(metadata map[string]interface{}) (configv1.Release, error) {
 	release := configv1.Release{}
 	errs := []error{}
