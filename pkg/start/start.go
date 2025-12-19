@@ -350,8 +350,11 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							disableMetricsAuth := o.HyperShift
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig, disableMetricsAuth)
+							options := cvo.MetricsOptions{
+								DisableAuthentication: o.HyperShift,
+								DisableAuthorization:  o.HyperShift,
+							}
+							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig, options)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
