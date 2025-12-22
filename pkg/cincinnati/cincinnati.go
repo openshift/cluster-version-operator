@@ -118,7 +118,7 @@ func (err *Error) Error() string {
 // Parameters:
 //   - ctx: Context for the HTTP request, allowing cancellation
 //   - uri: Base URI of the Cincinnati service
-//   - desiredArch: Target architecture for updates (e.g., "amd64", "multi")
+//   - desiredArch: Target architecture for updates (e.g., "amd64", "Multi")
 //   - currentArch: Current cluster architecture
 //   - channel: Update channel name (e.g., "stable-4.14", "fast-4.15")
 //   - version: Current semantic version of the cluster
