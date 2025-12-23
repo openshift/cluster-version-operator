@@ -2,12 +2,14 @@ package payload
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
+	"github.com/blang/semver/v4"
 	"github.com/openshift/api/config"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
@@ -40,6 +42,11 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 		return fmt.Errorf("error parsing feature gate manifest: %w", err)
 	}
 
+	payloadVersion, err := loadReleaseVersion(releaseManifestsDir)
+	if err != nil {
+		return fmt.Errorf("error loading release version: %w", err)
+	}
+
 	tasks := []struct {
 		idir            string
 		odir            string
@@ -70,7 +77,7 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	}}
 	var errs []error
 	for _, task := range tasks {
-		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, enabledFeatureGates, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
+		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, enabledFeatureGates, &clusterProfile, ptr.To(payloadVersion.Major), task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -82,8 +89,8 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, enabledFeatureGates sets.Set[string], clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
-	klog.Infof("Filtering manifests in %s for feature set %v, cluster profile %v and enabled feature gates %v", idir, *requiredFeatureSet, *clusterProfile, enabledFeatureGates.UnsortedList())
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, enabledFeatureGates sets.Set[string], clusterProfile *string, majorVersion *uint64, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
+	klog.Infof("Filtering manifests in %s for feature set %v, cluster profile %v, enabled feature gates %v, and major version %v", idir, *requiredFeatureSet, *clusterProfile, enabledFeatureGates.UnsortedList(), ptr.Deref(majorVersion, 0))
 
 	if err := os.MkdirAll(odir, 0666); err != nil {
 		return err
@@ -133,7 +140,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 		for _, manifest := range manifests {
 			if len(filterGroupKind) > 0 && !filterGroupKind.Has(manifest.GVK.GroupKind()) {
 				klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
-			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, enabledFeatureGates); err != nil {
+			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, enabledFeatureGates, majorVersion); err != nil {
 				klog.Infof("excluding %s: %v", manifest.String(), err)
 			} else {
 				filteredManifests = append(filteredManifests, string(manifest.Raw))
@@ -237,4 +244,28 @@ func parseFeatureGateManifest(featureGateManifestPath string) (*string, sets.Set
 	}
 
 	return requiredFeatureSet, enabledFeatureGates, nil
+}
+
+func loadReleaseVersion(releaseDir string) (semver.Version, error) {
+	path := filepath.Join(releaseDir, cincinnatiJSONFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return semver.Version{}, err
+	}
+
+	var metadata metadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		return semver.Version{}, fmt.Errorf("unmarshal Cincinnati metadata: %w", err)
+	}
+
+	if metadata.Version == "" {
+		return semver.Version{}, errors.New("missing required Cincinnati metadata version")
+	}
+
+	parsedVersion, err := semver.Parse(metadata.Version)
+	if err != nil {
+		return semver.Version{}, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
+	}
+
+	return parsedVersion, nil
 }

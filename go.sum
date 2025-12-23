@@ -1,7 +1,7 @@
 cel.dev/expr v0.24.0 h1:56OvJKSH3hDGL0ml5uSxZmz3/3Pq4tJ+fb1unVLAFcY=
 cel.dev/expr v0.24.0/go.mod h1:hLPLo1W4QUmuYdA72RBX06QTs6MXw941piREPl3Yfiw=
-github.com/JoelSpeed/library-go v0.0.0-20251217102247-bcd739ac7ffa h1:XI0l1W9wZLiVI/VV8nDtuX3RN7vzAKH9HnoEnCgJF/s=
-github.com/JoelSpeed/library-go v0.0.0-20251217102247-bcd739ac7ffa/go.mod h1:ErDfiIrPHH+menTP/B4LKd0nxFDdvCbTamAc6SWMIh8=
+github.com/JoelSpeed/library-go v0.0.0-20251223143639-e409b040c48b h1:3db1Pe8LH/Z+oYZJ5XC41S9WAvd5kZJJqGaH33B1xn0=
+github.com/JoelSpeed/library-go v0.0.0-20251223143639-e409b040c48b/go.mod h1:ErDfiIrPHH+menTP/B4LKd0nxFDdvCbTamAc6SWMIh8=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
