@@ -3,6 +3,7 @@ package clusterversion
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/blang/semver/v4"
@@ -108,11 +109,11 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 				Name:    pf.Name(),
 			}
 		} else {
-			if completedVersion := minorUpdateFrom(cv.Status, currentVersion); completedVersion != "" && patchOnly {
+			if completedVersion, majorOrMinor := majorOrMinorUpdateFrom(cv.Status, currentVersion); completedVersion != "" && patchOnly {
 				// This is to generate an accepted risk for the accepting case 4.y.z -> 4.y+1.z' -> 4.y+1.z''
 				return &precondition.Error{
-					Reason:             "MinorVersionClusterUpdateInProgress",
-					Message:            fmt.Sprintf("Retarget to %s while a minor version update from %s to %s is in progress", targetVersion, completedVersion, currentVersion),
+					Reason:             fmt.Sprintf("%sVersionClusterUpdateInProgress", majorOrMinor),
+					Message:            fmt.Sprintf("Retarget to %s while a %s version update from %s to %s is in progress", targetVersion, strings.ToLower(majorOrMinor), completedVersion, currentVersion),
 					Name:               pf.Name(),
 					NonBlockingWarning: true,
 				}
@@ -130,24 +131,29 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	}
 }
 
-// minorUpdateFrom returns the version that was installed completed if a minor version upgrade is in progress
-// and the empty string otherwise
-func minorUpdateFrom(status configv1.ClusterVersionStatus, currentVersion semver.Version) string {
+// majorOrMinorUpdateFrom returns the version that was installed
+// completed if a minor or major version upgrade is in progress and the
+// empty string otherwise.  It also returns "Major", "Minor", or "" to name
+// the transition.
+func majorOrMinorUpdateFrom(status configv1.ClusterVersionStatus, currentVersion semver.Version) (string, string) {
 	completedVersion := GetCurrentVersion(status.History)
 	if completedVersion == "" {
-		return ""
+		return "", ""
 	}
 	v, err := semver.Parse(completedVersion)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	if cond := resourcemerge.FindOperatorStatusCondition(status.Conditions, configv1.OperatorProgressing); cond != nil &&
-		cond.Status == configv1.ConditionTrue &&
-		v.Major == currentVersion.Major &&
-		v.Minor < currentVersion.Minor {
-		return completedVersion
+		cond.Status == configv1.ConditionTrue {
+		if v.Major < currentVersion.Major {
+			return completedVersion, "Major"
+		}
+		if v.Major == currentVersion.Major && v.Minor < currentVersion.Minor {
+			return completedVersion, "Minor"
+		}
 	}
-	return ""
+	return "", ""
 }
 
 // Name returns the name of the precondition.
