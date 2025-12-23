@@ -100,7 +100,7 @@ func TestFeatureGateManifestFiltering(t *testing.T) {
 			}
 
 			// Test the manifest inclusion logic
-			err := manifest.Include(nil, nil, nil, nil, nil, tt.enabledGates)
+			err := manifest.Include(nil, nil, nil, nil, nil, tt.enabledGates, nil)
 
 			if tt.shouldInclude {
 				if err != nil {
@@ -143,7 +143,7 @@ func TestSyncWorkIntegration(t *testing.T) {
 		Obj: testObj,
 	}
 
-	err := manifest.Include(nil, nil, nil, nil, nil, work.EnabledFeatureGates)
+	err := manifest.Include(nil, nil, nil, nil, nil, work.EnabledFeatureGates, nil)
 	if err != nil {
 		t.Errorf("Expected manifest to be included with TestGate1 enabled, got error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestSyncWorkIntegration(t *testing.T) {
 		"release.openshift.io/feature-gate": "DisabledGate",
 	})
 
-	err = manifest.Include(nil, nil, nil, nil, nil, work.EnabledFeatureGates)
+	err = manifest.Include(nil, nil, nil, nil, nil, work.EnabledFeatureGates, nil)
 	if err == nil {
 		t.Error("Expected manifest to be excluded with DisabledGate not enabled, but no error occurred")
 	}
@@ -262,7 +262,7 @@ func TestManifestFilteringExamples(t *testing.T) {
 				Obj: obj,
 			}
 
-			err := manifest.Include(nil, nil, nil, nil, nil, example.enabledGates)
+			err := manifest.Include(nil, nil, nil, nil, nil, example.enabledGates, nil)
 
 			if example.shouldInclude {
 				if err != nil {

@@ -11,7 +11,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.21.0
 	github.com/onsi/gomega v1.35.1
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20250220212757-b9c4d98a0c45
-	github.com/openshift/api v0.0.0-20260116192047-6fb7fdae95fd
+	github.com/openshift/api v0.0.0-20260126183958-606bd613f9f7
 	github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13
 	github.com/openshift/library-go v0.0.0-20260121132910-dc3a1c884c04
 	github.com/operator-framework/api v0.17.1
@@ -33,6 +33,8 @@ require (
 	k8s.io/kube-aggregator v0.34.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
+
+replace github.com/openshift/library-go => github.com/JoelSpeed/library-go v0.0.0-20260130121715-6e5ccfd0da42
 
 require (
 	cel.dev/expr v0.24.0 // indirect
