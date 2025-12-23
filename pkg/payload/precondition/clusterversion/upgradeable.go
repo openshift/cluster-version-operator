@@ -98,7 +98,7 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	patchOnly := targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor
 	if targetVersion.LTE(currentVersion) || patchOnly {
 		// When Upgradeable==False, a patch level update with the same minor version is allowed unless overrides are set.
-		// However, minor or major version updates are blocked when Upgradeable==False (handled below at line 124).
+		// However, minor or major version updates are blocked when Upgradeable==False.
 		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
 			klog.V(2).Infof("Retarget from %s to %s is blocked by %s: %s", currentVersion.String(), targetVersion.String(), condition.Reason, condition.Message)
