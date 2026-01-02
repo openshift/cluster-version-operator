@@ -16,12 +16,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cincinnati"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 const noArchitecture string = "NoArchitecture"
@@ -50,6 +52,12 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	channel := config.Spec.Channel
 	desiredArch := optr.getDesiredArchitecture(config.Spec.DesiredUpdate)
 	currentArch := optr.getCurrentArchitecture()
+	acceptRisks := sets.New[string]()
+	if config.Spec.DesiredUpdate != nil {
+		for _, risk := range config.Spec.DesiredUpdate.AcceptRisks {
+			acceptRisks.Insert(risk.Name)
+		}
+	}
 
 	// updates are only checked at most once per minimumUpdateCheckInterval or if the generation changes
 	optrAvailableUpdates := optr.getAvailableUpdates()
@@ -129,6 +137,9 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		optrAvailableUpdates.UpdateService = updateService
 		optrAvailableUpdates.Channel = channel
 		optrAvailableUpdates.Architecture = desiredArch
+		optrAvailableUpdates.ShouldReconcileAcceptRisks = optr.shouldReconcileAcceptRisks
+		optrAvailableUpdates.AcceptRisks = acceptRisks
+		optrAvailableUpdates.RiskConditions = map[string][]metav1.Condition{}
 		optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
 		optrAvailableUpdates.Condition = condition
 
@@ -167,9 +178,11 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 }
 
 type availableUpdates struct {
-	UpdateService string
-	Channel       string
-	Architecture  string
+	UpdateService              string
+	Channel                    string
+	Architecture               string
+	ShouldReconcileAcceptRisks func() bool
+	AcceptRisks                sets.Set[string]
 
 	// LastAttempt records the time of the most recent attempt at update
 	// retrieval, regardless of whether it was successful.
@@ -192,6 +205,11 @@ type availableUpdates struct {
 	ConditionRegistry  clusterconditions.ConditionRegistry
 
 	Condition configv1.ClusterOperatorStatusCondition
+
+	// RiskConditions stores the condition for every risk (name, url, message, matchingRules).
+	// The key of the risk is represented by its name which is ensured by validating our graph-data.
+	// https://github.com/openshift/cincinnati-graph-data/blob/af701850c24b4a53426c2a5400c63895fdf9de60/hack/validate-blocked-edges.py#L25C77-L25C90
+	RiskConditions map[string][]metav1.Condition
 }
 
 func (u *availableUpdates) RecentlyAttempted(interval time.Duration) bool {
@@ -291,14 +309,17 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	}
 
 	u := &availableUpdates{
-		UpdateService:          optr.availableUpdates.UpdateService,
-		Channel:                optr.availableUpdates.Channel,
-		Architecture:           optr.availableUpdates.Architecture,
-		LastAttempt:            optr.availableUpdates.LastAttempt,
-		LastSyncOrConfigChange: optr.availableUpdates.LastSyncOrConfigChange,
-		Current:                *optr.availableUpdates.Current.DeepCopy(),
-		ConditionRegistry:      optr.availableUpdates.ConditionRegistry, // intentionally not a copy, to preserve cache state
-		Condition:              optr.availableUpdates.Condition,
+		UpdateService:              optr.availableUpdates.UpdateService,
+		Channel:                    optr.availableUpdates.Channel,
+		Architecture:               optr.availableUpdates.Architecture,
+		ShouldReconcileAcceptRisks: optr.shouldReconcileAcceptRisks,
+		AcceptRisks:                optr.availableUpdates.AcceptRisks,
+		RiskConditions:             optr.availableUpdates.RiskConditions,
+		LastAttempt:                optr.availableUpdates.LastAttempt,
+		LastSyncOrConfigChange:     optr.availableUpdates.LastSyncOrConfigChange,
+		Current:                    *optr.availableUpdates.Current.DeepCopy(),
+		ConditionRegistry:          optr.availableUpdates.ConditionRegistry, // intentionally not a copy, to preserve cache state
+		Condition:                  optr.availableUpdates.Condition,
 	}
 
 	if optr.availableUpdates.Updates != nil {
@@ -427,7 +448,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		return vi.GTE(vj)
 	})
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry)
+		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry, u.AcceptRisks, u.ShouldReconcileAcceptRisks, u.RiskConditions)
 
 		if condition.Status == metav1.ConditionTrue {
 			u.addUpdate(conditionalUpdate.Release)
@@ -478,13 +499,18 @@ func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStat
 }
 
 const (
-	recommendedReasonRisksNotExposed  = "NotExposedToRisks"
-	recommendedReasonEvaluationFailed = "EvaluationFailed"
-	recommendedReasonMultiple         = "MultipleReasons"
+	recommendedReasonRisksNotExposed            = "NotExposedToRisks"
+	recommendedReasonExposedOnlyToAcceptedRisks = "ExposedOnlyToAcceptedRisks"
+	recommendedReasonEvaluationFailed           = "EvaluationFailed"
+	recommendedReasonMultiple                   = "MultipleReasons"
 
 	// recommendedReasonExposed is used instead of the original name if it does
 	// not match the pattern for a valid k8s condition reason.
 	recommendedReasonExposed = "ExposedToRisks"
+
+	riskConditionReasonEvaluationFailed = "EvaluationFailed"
+	riskConditionReasonMatch            = "Match"
+	riskConditionReasonNotMatch         = "NotMatch"
 )
 
 // Reasons follow same pattern as k8s Condition Reasons
@@ -492,19 +518,26 @@ const (
 var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
 
 func newRecommendedReason(now, want string) string {
-	switch now {
-	case recommendedReasonRisksNotExposed:
+	switch {
+	case now == recommendedReasonRisksNotExposed || now == recommendedReasonExposedOnlyToAcceptedRisks && now != want:
 		return want
-	case want:
+	case now == recommendedReasonExposedOnlyToAcceptedRisks && want == recommendedReasonRisksNotExposed || now == want:
 		return now
 	default:
 		return recommendedReasonMultiple
 	}
 }
 
-func evaluateConditionalUpdate(ctx context.Context, risks []configv1.ConditionalUpdateRisk, conditionRegistry clusterconditions.ConditionRegistry) metav1.Condition {
+func evaluateConditionalUpdate(
+	ctx context.Context,
+	risks []configv1.ConditionalUpdateRisk,
+	conditionRegistry clusterconditions.ConditionRegistry,
+	acceptRisks sets.Set[string],
+	shouldReconcileAcceptRisks func() bool,
+	riskConditions map[string][]metav1.Condition,
+) metav1.Condition {
 	recommended := metav1.Condition{
-		Type:   ConditionalUpdateConditionTypeRecommended,
+		Type:   internal.ConditionalUpdateConditionTypeRecommended,
 		Status: metav1.ConditionTrue,
 		// FIXME: ObservedGeneration?  That would capture upstream/channel, but not necessarily the currently-reconciling version.
 		Reason:  recommendedReasonRisksNotExposed,
@@ -513,18 +546,39 @@ func evaluateConditionalUpdate(ctx context.Context, risks []configv1.Conditional
 
 	var errorMessages []string
 	for _, risk := range risks {
+		riskCondition := metav1.Condition{
+			Type:   internal.ConditionalUpdateRiskConditionTypeApplies,
+			Status: metav1.ConditionFalse,
+			Reason: riskConditionReasonNotMatch,
+		}
 		if match, err := conditionRegistry.Match(ctx, risk.MatchingRules); err != nil {
+			msg := unknownExposureMessage(risk, err)
 			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionUnknown)
 			recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonEvaluationFailed)
-			errorMessages = append(errorMessages, unknownExposureMessage(risk, err))
+			errorMessages = append(errorMessages, msg)
+			riskCondition.Status = metav1.ConditionUnknown
+			riskCondition.Reason = riskConditionReasonEvaluationFailed
+			riskCondition.Message = msg
 		} else if match {
-			recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
-			wantReason := recommendedReasonExposed
-			if reasonPattern.MatchString(risk.Name) {
-				wantReason = risk.Name
+			riskCondition.Status = metav1.ConditionTrue
+			riskCondition.Reason = riskConditionReasonMatch
+			if shouldReconcileAcceptRisks() && acceptRisks.Has(risk.Name) {
+				recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionTrue)
+				recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonExposedOnlyToAcceptedRisks)
+				recommended.Message = "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins."
+				klog.V(2).Infof("Risk with name %q is accepted by the cluster admin and thus not in the evaluation of conditional update", risk.Name)
+			} else {
+				recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
+				wantReason := recommendedReasonExposed
+				if reasonPattern.MatchString(risk.Name) {
+					wantReason = risk.Name
+				}
+				recommended.Reason = newRecommendedReason(recommended.Reason, wantReason)
+				errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
 			}
-			recommended.Reason = newRecommendedReason(recommended.Reason, wantReason)
-			errorMessages = append(errorMessages, fmt.Sprintf("%s %s", risk.Message, risk.URL))
+		}
+		if _, ok := riskConditions[risk.Name]; !ok {
+			riskConditions[risk.Name] = []metav1.Condition{riskCondition}
 		}
 	}
 	if len(errorMessages) > 0 {

@@ -35,6 +35,9 @@ type CvoGateChecker interface {
 	// CVOConfiguration controls whether the CVO reconciles the ClusterVersionOperator resource that corresponds
 	// to its configuration.
 	CVOConfiguration() bool
+
+	// AcceptRisks controls whether the CVO reconciles spec.desiredUpdate.acceptRisks.
+	AcceptRisks() bool
 }
 
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
@@ -49,6 +52,7 @@ type CvoGates struct {
 	unknownVersion            bool
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
+	acceptRisks               bool
 }
 
 func (c CvoGates) StatusReleaseArchitecture() bool {
@@ -63,6 +67,10 @@ func (c CvoGates) CVOConfiguration() bool {
 	return c.cvoConfiguration
 }
 
+func (c CvoGates) AcceptRisks() bool {
+	return c.acceptRisks
+}
+
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
@@ -70,6 +78,7 @@ func DefaultCvoGates(version string) CvoGates {
 		unknownVersion:            true,
 		statusReleaseArchitecture: false,
 		cvoConfiguration:          false,
+		acceptRisks:               false,
 	}
 }
 
@@ -91,6 +100,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.statusReleaseArchitecture = true
 			case features.FeatureGateCVOConfiguration:
 				enabledGates.cvoConfiguration = true
+			case features.FeatureGateClusterUpdateAcceptRisks:
+				enabledGates.acceptRisks = true
 			}
 		}
 		for _, disabled := range g.Disabled {
@@ -99,6 +110,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.statusReleaseArchitecture = false
 			case features.FeatureGateCVOConfiguration:
 				enabledGates.cvoConfiguration = false
+			case features.FeatureGateClusterUpdateAcceptRisks:
+				enabledGates.acceptRisks = false
 			}
 		}
 	}

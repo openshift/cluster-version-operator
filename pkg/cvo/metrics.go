@@ -445,7 +445,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric, updates []configv1.ConditionalUpdate) {
 	for _, update := range updates {
 		for _, condition := range update.Conditions {
-			if condition.Type != ConditionalUpdateConditionTypeRecommended {
+			if condition.Type != internal.ConditionalUpdateConditionTypeRecommended {
 				continue
 			}
 

@@ -19,12 +19,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 // notFoundProxyLister is a stub for ProxyLister
@@ -207,6 +209,7 @@ var cvFixture = &configv1.ClusterVersion{
 }
 
 var availableUpdatesCmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks"),
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {
 		clusterconditions.ConditionRegistry
@@ -230,7 +233,9 @@ func TestSyncAvailableUpdates(t *testing.T) {
 		Type:   configv1.RetrievedUpdates,
 		Status: configv1.ConditionTrue,
 	}
+	expectedAvailableUpdates.RiskConditions = map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}}
 
+	optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
 	err := optr.syncAvailableUpdates(context.Background(), cvFixture)
 
 	if err != nil {
@@ -319,6 +324,7 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			tc.modifyOriginalState(optr)
 			tc.modifyCV(cv, fixture.expectedConditionalUpdates[0])
 
+			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
 			err := optr.syncAvailableUpdates(context.Background(), cv)
 
 			if err != nil {
@@ -345,10 +351,14 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 
 func TestEvaluateConditionalUpdate(t *testing.T) {
 	testcases := []struct {
-		name       string
-		risks      []configv1.ConditionalUpdateRisk
-		mockPromql clusterconditions.Condition
-		expected   metav1.Condition
+		name                       string
+		risks                      []configv1.ConditionalUpdateRisk
+		mockPromql                 clusterconditions.Condition
+		acceptRisks                sets.Set[string]
+		shouldReconcileAcceptRisks func() bool
+		riskConditions             map[string][]metav1.Condition
+		expected                   metav1.Condition
+		expectedRiskConditions     map[string][]metav1.Condition
 	}{
 		{
 			name: "no risks",
@@ -358,6 +368,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
 			name: "one risk that does not match",
@@ -379,6 +390,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"ShouldNotApply": {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}}},
 		},
 		{
 			name: "one risk that matches",
@@ -400,6 +412,31 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  "RiskThatApplies",
 				Message: "This is a risk! https://match.es",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
+		},
+		{
+			name: "one risk that matches and is accepted",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					URL:           "https://match.es",
+					Name:          "RiskThatApplies",
+					Message:       "This is a risk!",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+			},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
+			},
+			acceptRisks:                sets.New[string]("RiskThatApplies", "not-important"),
+			shouldReconcileAcceptRisks: func() bool { return true },
+			expected: metav1.Condition{
+				Type:    "Recommended",
+				Status:  metav1.ConditionTrue,
+				Reason:  "ExposedOnlyToAcceptedRisks",
+				Message: "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins.",
+			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "matching risk with name that cannot be used as a condition reason",
@@ -421,6 +458,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  recommendedReasonExposed,
 				Message: "This is a risk! https://match.es",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RISK-THAT-APPLIES": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "two risks that match",
@@ -432,6 +470,12 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
 				},
 				{
+					URL:           "https://doesnotmat.ch",
+					Name:          "ShouldNotApply",
+					Message:       "ShouldNotApply",
+					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+				},
+				{
 					URL:           "https://match.es/too",
 					Name:          "RiskThatAppliesToo",
 					Message:       "This is a risk too!",
@@ -440,7 +484,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			},
 			mockPromql: &mock.Mock{
 				ValidQueue: []error{nil, nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: true, Error: nil}},
+				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: nil}, {Match: true, Error: nil}},
 			},
 			expected: metav1.Condition{
 				Type:    "Recommended",
@@ -448,6 +492,9 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  recommendedReasonMultiple,
 				Message: "This is a risk! https://match.es\n\nThis is a risk too! https://match.es/too",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
+				"ShouldNotApply":     {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}},
+				"RiskThatAppliesToo": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "first risk matches, second fails to evaluate",
@@ -478,6 +525,8 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
+				"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk too!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 		},
 		{
 			name: "one risk that fails to evaluate",
@@ -501,15 +550,28 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			registry := clusterconditions.NewConditionRegistry()
 			registry.Register("PromQL", tc.mockPromql)
-			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry)
+			if tc.shouldReconcileAcceptRisks == nil {
+				tc.shouldReconcileAcceptRisks = func() bool {
+					return false
+				}
+			}
+			if tc.riskConditions == nil {
+				tc.riskConditions = map[string][]metav1.Condition{}
+			}
+			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
+			}
+
+			if diff := cmp.Diff(tc.expectedRiskConditions, tc.riskConditions); diff != "" {
+				t.Errorf("actual risk conditions differs from expected:\n%s", diff)
 			}
 		})
 	}
@@ -533,9 +595,10 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 		conditionalUpdates []configv1.ConditionalUpdate
 	}
 	tests := []struct {
-		name     string
-		args     args
-		expected expected
+		name                   string
+		args                   args
+		expected               expected
+		expectedRiskConditions map[string][]metav1.Condition
 	}{
 		// -------------------------------- Valid set desiredUpdate field combinations --------------------------------
 		// Some combinations, such as all fields being set, are omitted due to them causing API validation errors;
@@ -556,6 +619,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		{
 			name: "operator is multi, image is specified, version is not specified, architecture is not specified",
@@ -570,6 +634,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		{
 			name: "operator is multi, image is not specified, version is specified, architecture is specified",
@@ -585,6 +650,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		{
 			name: "operator is multi, image is not specified, version is specified, architecture is not specified",
@@ -599,6 +665,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		// ---------------- Cases where the operator is single arch
 		{
@@ -615,6 +682,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     runtime.GOARCH,
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		{
 			name: "operator is not multi, image is specified, version is not specified, architecture is not specified",
@@ -629,6 +697,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     runtime.GOARCH,
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		{
 			name: "operator is not multi, image is not specified, version is specified, architecture is specified - migration to multi arch issued",
@@ -654,6 +723,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
 				queryParamArch: "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
 			name: "operator is not multi, image is not specified, version is specified, architecture is specified - migration && update",
@@ -671,6 +741,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
 				queryParamArch: "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
 			name: "operator is not multi, image is not specified, version is specified, architecture is not specified",
@@ -685,6 +756,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     runtime.GOARCH,
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		// -------------------------------- Desired Update Is NOT set --------------------------------
 		// ---------------- The operator is multi arch
@@ -699,6 +771,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     "multi",
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 		// ---------------- The operator is single arch
 		{
@@ -712,6 +785,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				conditionalUpdates: expectedConditionalUpdates,
 				queryParamArch:     runtime.GOARCH,
 			},
+			expectedRiskConditions: map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}},
 		},
 	}
 	for _, tt := range tests {
@@ -734,6 +808,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				Type:   configv1.RetrievedUpdates,
 				Status: configv1.ConditionTrue,
 			}
+			expectedAvailableUpdates.RiskConditions = tt.expectedRiskConditions
 
 			expectedQueryParams := url.Values{
 				"arch":    {tt.expected.queryParamArch},
@@ -744,6 +819,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 
 			cv := cvFixture.DeepCopy()
 			cv.Spec.DesiredUpdate = tt.args.desiredUpdate
+			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
 			if err := optr.syncAvailableUpdates(context.Background(), cv); err != nil {
 				t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)
 			}

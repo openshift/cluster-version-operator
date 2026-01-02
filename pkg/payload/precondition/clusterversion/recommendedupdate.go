@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 	precondition "github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
 
@@ -51,7 +52,7 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	for _, conditionalUpdate := range clusterVersion.Status.ConditionalUpdates {
 		if conditionalUpdate.Release.Version == releaseContext.DesiredVersion {
 			for _, condition := range conditionalUpdate.Conditions {
-				if condition.Type == "Recommended" {
+				if condition.Type == internal.ConditionalUpdateConditionTypeRecommended {
 					switch condition.Status {
 					case metav1.ConditionTrue:
 						return nil
