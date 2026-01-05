@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/types"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	coreinformers "k8s.io/client-go/informers"
@@ -46,6 +47,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 const (
@@ -188,7 +190,8 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
-	startingFeatureSet, startingCvoGates, err := o.processInitialFeatureGate(ctx, configInformerFactory)
+	configClient := cb.ClientOrDie("feature-gate-migration")
+	startingFeatureSet, startingCvoGates, err := o.processInitialFeatureGate(ctx, configInformerFactory, configClient)
 	if err != nil {
 		return fmt.Errorf("error processing feature gates: %w", err)
 	}
@@ -242,7 +245,7 @@ func (o *Options) getOpenShiftVersion() string {
 	return releaseMetadata.Version
 }
 
-func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory) (configv1.FeatureSet, featuregates.CvoGates, error) {
+func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory, configClient clientset.Interface) (configv1.FeatureSet, featuregates.CvoGates, error) {
 	var startingFeatureSet configv1.FeatureSet
 	var cvoGates featuregates.CvoGates
 
@@ -266,10 +269,14 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 	gate, err := featureGates.Get("cluster")
 	switch {
 	case apierrors.IsNotFound(err):
-		// if we have no featuregates, then the cluster is using the default featureset, which is "".
-		// This excludes everything that could possibly depend on a different feature set.
-		startingFeatureSet = ""
-		klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup", startingFeatureSet)
+		// if we have no featuregates and this is an OKD build, then the cluster is using OKD featureset.
+		// The FeatureGate resource will be created by the installer.
+		if version.IsSCOS() {
+			startingFeatureSet = configv1.FeatureSet(configv1.OKD)
+			klog.Infof("FeatureGate not found in cluster, will assume OKD feature set %q at startup", startingFeatureSet)
+		} else {
+			klog.Infof("FeatureGate not found in cluster, using default feature set at startup")
+		}
 	case err != nil:
 		// This should not happen because featureGates is backed by the informer cache which successfully synced earlier
 		klog.Errorf("Failed to get FeatureGate from cluster: %v", err)
@@ -277,8 +284,37 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 	default:
 		clusterFeatureGate = gate
 		startingFeatureSet = gate.Spec.FeatureSet
-		cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
 		klog.Infof("FeatureGate found in cluster, using its feature set %q at startup", startingFeatureSet)
+
+		// Migrate from Default ("") to OKD for existing clusters during upgrade (only for OKD builds)
+		if version.IsSCOS() && (startingFeatureSet == "" || startingFeatureSet == configv1.Default) {
+			klog.Infof("Detected Default feature set, migrating to OKD feature set")
+
+			// Patch the FeatureGate to change from Default to OKD
+			patchData := []byte(fmt.Sprintf(`{"spec":{"featureSet":"%s"}}`, configv1.OKD))
+			patchedGate, patchErr := configClient.ConfigV1().FeatureGates().Patch(
+				ctx,
+				"cluster",
+				types.MergePatchType,
+				patchData,
+				metav1.PatchOptions{},
+			)
+			if patchErr != nil {
+				klog.Errorf("Failed to migrate FeatureGate from Default to OKD: %v", patchErr)
+				klog.Warningf("Continuing with Default feature set; migration will be retried on next restart")
+				// Continue with Default - don't fail startup
+			} else {
+				klog.Infof("Successfully migrated FeatureGate from Default to OKD")
+				startingFeatureSet = configv1.FeatureSet(configv1.OKD)
+				clusterFeatureGate = patchedGate
+
+				// Note: The FeatureChangeStopper will detect this change and trigger a restart
+				// This is expected and ensures CVO starts cleanly with the new feature set
+				klog.Infof("CVO will restart to apply OKD feature set changes")
+			}
+		}
+		// Compute CVO gates from the feature gate (potentially migrated)
+		cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
 	}
 
 	if cvoGates.UnknownVersion() {

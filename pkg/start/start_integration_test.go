@@ -192,7 +192,8 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	configClient := cb.ClientOrDie("feature-gate-migration")
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory, configClient)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +334,8 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	configClient := cb.ClientOrDie("feature-gate-migration")
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory, configClient)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +538,8 @@ metadata:
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := options.prepareConfigInformerFactories(cb)
-	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory)
+	configClient := cb.ClientOrDie("feature-gate-migration")
+	featureset, gates, err := options.processInitialFeatureGate(context.Background(), configInformerFactory, configClient)
 	if err != nil {
 		t.Fatal(err)
 	}

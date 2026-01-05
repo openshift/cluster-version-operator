@@ -22,9 +22,14 @@ LDFLAGS_TEST_EXTENSION+=" -X '${OPENSHIFT_TESTS_EXTENSION_MODULE}/pkg/version.Bu
 LDFLAGS_TEST_EXTENSION+=" -X '${OPENSHIFT_TESTS_EXTENSION_MODULE}/pkg/version.GitTreeState=${GIT_TREE_STATE}'"
 
 echo "Building ${REPO} cluster-version-operator-tests binary (${VERSION_OVERRIDE})"
+TAGS_FLAG=""
+if [ -n "${TAGS:-}" ]; then
+  TAGS_FLAG="-tags=${TAGS}"
+fi
 GO_COMPLIANCE_POLICY="exempt_all" CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH}   \
   go build                                                                      \
   ${GOFLAGS}                                                                    \
+  ${TAGS_FLAG}                                                                  \
   -ldflags "${LDFLAGS_TEST_EXTENSION}"                                          \
   -o "${BIN_PATH}/cluster-version-operator-tests"                               \
   "${REPO}/cmd/cluster-version-operator-tests/..."
@@ -35,4 +40,4 @@ gzip --keep --force "${BIN_PATH}/cluster-version-operator-tests"
 # Build the cluster-version-operator binary
 GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 echo "Building ${REPO} cluster-version-operator binary (${VERSION_OVERRIDE})"
-GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${GLDFLAGS}" -o ${BIN_PATH}/cluster-version-operator ${REPO}/cmd/cluster-version-operator/...
+GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} ${TAGS_FLAG} -ldflags "${GLDFLAGS}" -o ${BIN_PATH}/cluster-version-operator ${REPO}/cmd/cluster-version-operator/...
