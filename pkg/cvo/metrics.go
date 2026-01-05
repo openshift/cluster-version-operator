@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -131,46 +132,12 @@ type asyncResult struct {
 	error error
 }
 
-func createHttpServer(disableAuth bool) *http.Server {
-	if disableAuth {
-		handler := http.NewServeMux()
-		handler.Handle("/metrics", promhttp.Handler())
-		server := &http.Server{
-			Handler: handler,
-		}
-		return server
-	}
-
-	auth := authHandler{downstream: promhttp.Handler()}
+func createHttpServer() *http.Server {
 	handler := http.NewServeMux()
-	handler.Handle("/metrics", &auth)
-	server := &http.Server{
+	handler.Handle("/metrics", promhttp.Handler())
+	return &http.Server{
 		Handler: handler,
 	}
-	return server
-}
-
-type authHandler struct {
-	downstream http.Handler
-}
-
-func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
-		klog.V(4).Info("Client certificate required but not provided")
-		http.Error(w, "client certificate required", http.StatusUnauthorized)
-		return
-	}
-
-	// The first element is the leaf certificate that the connection is verified against
-	cn := r.TLS.PeerCertificates[0].Subject.CommonName
-	if cn != metricsAllowedClientCN {
-		klog.V(4).Infof("Access denied for CN: %s", cn)
-		http.Error(w, "unauthorized CN", http.StatusForbidden)
-		return
-	}
-
-	klog.V(5).Infof("Access granted for CN: %s", cn)
-	a.downstream.ServeHTTP(w, r)
 }
 
 func startListening(svr *http.Server, tlsConfig *tls.Config, lAddr string, resultChannel chan asyncResult) {
@@ -204,6 +171,20 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 type MetricsOptions struct {
 	DisableAuthentication bool
 	DisableAuthorization  bool
+}
+
+func verifyPeerCertificate(_ [][]byte, verifiedChains [][]*x509.Certificate) error {
+	if len(verifiedChains) == 0 || len(verifiedChains[0]) == 0 {
+		return errors.New("no verified client certificate")
+	}
+	// The first element of a chain is the leaf certificate
+	cn := verifiedChains[0][0].Subject.CommonName
+	if cn != metricsAllowedClientCN {
+		klog.V(4).Infof("Access denied for CN: %s", cn)
+		return errors.New("unauthorized CN")
+	}
+	klog.V(5).Infof("Access granted for CN: %s", cn)
+	return nil
 }
 
 // RunMetrics launches a server bound to listenAddress serving
@@ -288,6 +269,12 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
 	// This enables automatic certificate rotation without server restarts.
 	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
+
+	// When authorization is enabled, verify client certificate CN during TLS handshake
+	if !metricsOptions.DisableAuthorization {
+		baseTlSConfig.VerifyPeerCertificate = verifyPeerCertificate
+	}
+
 	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
 		baseTlSConfig,
 		clientCA,
@@ -311,7 +298,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving certification controller"}
 	}()
 
-	server := createHttpServer(metricsOptions.DisableAuthorization)
+	server := createHttpServer()
 
 	// GetConfigForClient returns updated certs on each handshake. If it returns nil (e.g., cert load
 	// failure), ClientAuth is used as fallback to reject connections rather than allow unauthenticated.
