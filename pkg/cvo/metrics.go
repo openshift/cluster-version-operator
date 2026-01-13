@@ -213,13 +213,15 @@ type MetricsOptions struct {
 	DisableAuthorization  bool
 }
 
-// RunMetrics launches a server bound to listenAddress serving
-// Prometheus metrics at /metrics over HTTPS. Continues serving
-// until runContext.Done() and then attempts a clean shutdown
-// limited by shutdownContext.Done(). Assumes runContext.Done()
+// RunMetrics launches an HTTPS server bound to listenAddress serving
+// Prometheus metrics at /metrics. By default, enforces mTLS (mutual TLS)
+// for client authentication and CN-based authorization (both configurable
+// via metricsOptions). Serving certificates automatically reload on disk
+// changes, and client CA automatically reloads on ConfigMap changes.
+//
+// Continues serving until runContext.Done() and then attempts a clean
+// shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-// The TLS configuration automatically reloads certificates when
-// they change on disk using dynamiccertificates.
 func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, metricsOptions MetricsOptions) error {
 	if listenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
