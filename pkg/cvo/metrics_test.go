@@ -1,9 +1,13 @@
 package cvo
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sort"
 	"strings"
 	"testing"
@@ -1015,123 +1019,81 @@ func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) strin
 	return strings.Join(parts, " ")
 }
 
-func Test_VerifyPeerCertificate(t *testing.T) {
+type okHandler struct {
+}
+
+func (h *okHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	_, _ = fmt.Fprintf(w, "ok")
+}
+
+func Test_authHandler(t *testing.T) {
 	tests := []struct {
-		name           string
-		verifiedChains [][]*x509.Certificate
-		expectError    bool
-		expectedError  string
+		name               string
+		handler            *authHandler
+		clientCN           string
+		provideCert        bool
+		expectedStatusCode int
+		expectedBody       string
 	}{
 		{
 			name: "allowed CN - prometheus-k8s",
-			verifiedChains: [][]*x509.Certificate{
-				{
-					{
-						Subject: pkix.Name{
-							CommonName: "system:serviceaccount:openshift-monitoring:prometheus-k8s",
-						},
-					},
-				},
+			handler: &authHandler{
+				downstream: &okHandler{},
 			},
-			expectError: false,
+			clientCN:           "system:serviceaccount:openshift-monitoring:prometheus-k8s",
+			provideCert:        true,
+			expectedStatusCode: http.StatusOK,
+			expectedBody:       "ok",
 		},
 		{
-			name: "unauthorized CN - different service account",
-			verifiedChains: [][]*x509.Certificate{
-				{
-					{
-						Subject: pkix.Name{
-							CommonName: "system:serviceaccount:default:unauthorized",
-						},
-					},
-				},
+			name: "unauthorized CN",
+			handler: &authHandler{
+				downstream: &okHandler{},
 			},
-			expectError:   true,
-			expectedError: "unauthorized CN",
+			clientCN:           "system:serviceaccount:default:unauthorized",
+			provideCert:        true,
+			expectedStatusCode: http.StatusForbidden,
+			expectedBody:       "unauthorized CN\n",
 		},
 		{
-			name:           "no client certificate - nil chains",
-			verifiedChains: nil,
-			expectError:    true,
-			expectedError:  "no verified client certificate",
-		},
-		{
-			name:           "no client certificate - empty chains",
-			verifiedChains: [][]*x509.Certificate{},
-			expectError:    true,
-			expectedError:  "no verified client certificate",
-		},
-		{
-			name: "multiple certificates in chain - leaf cert is authorized",
-			verifiedChains: [][]*x509.Certificate{
-				{
-					{
-						Subject: pkix.Name{
-							CommonName: "system:serviceaccount:openshift-monitoring:prometheus-k8s",
-						},
-					},
-					{
-						Subject: pkix.Name{
-							CommonName: "intermediate-ca",
-						},
-					},
-					{
-						Subject: pkix.Name{
-							CommonName: "root-ca",
-						},
-					},
-				},
+			name: "no client certificate",
+			handler: &authHandler{
+				downstream: &okHandler{},
 			},
-			expectError: false,
-		},
-		{
-			name: "multiple certificates in chain - only intermediate has authorized CN",
-			verifiedChains: [][]*x509.Certificate{
-				{
-					{
-						Subject: pkix.Name{
-							CommonName: "unauthorized-client",
-						},
-					},
-					{
-						Subject: pkix.Name{
-							CommonName: "system:serviceaccount:openshift-monitoring:prometheus-k8s",
-						},
-					},
-				},
-			},
-			expectError:   true,
-			expectedError: "unauthorized CN",
-		},
-		{
-			name: "case sensitive CN verification",
-			verifiedChains: [][]*x509.Certificate{
-				{
-					{
-						Subject: pkix.Name{
-							CommonName: "system:serviceaccount:openshift-monitoring:Prometheus-K8s",
-						},
-					},
-				},
-			},
-			expectError:   true,
-			expectedError: "unauthorized CN",
+			provideCert:        false,
+			expectedStatusCode: http.StatusUnauthorized,
+			expectedBody:       "client certificate required\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := verifyPeerCertificate(nil, tt.verifiedChains)
+			rr := httptest.NewRecorder()
 
-			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-				} else if diff := cmp.Diff(tt.expectedError, err.Error()); diff != "" {
-					t.Errorf("error differs from expected:\n%s", diff)
+			req, err := http.NewRequest("GET", "url-not-important", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Mock TLS connection state with client certificate
+			if tt.provideCert {
+				req.TLS = &tls.ConnectionState{
+					PeerCertificates: []*x509.Certificate{
+						{
+							Subject: pkix.Name{
+								CommonName: tt.clientCN,
+							},
+						},
+					},
 				}
-			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %v", err)
-				}
+			}
+
+			tt.handler.ServeHTTP(rr, req)
+			if diff := cmp.Diff(tt.expectedStatusCode, rr.Code); diff != "" {
+				t.Errorf("%s: status differs from expected:\n%s", tt.name, diff)
+			}
+
+			if diff := cmp.Diff(tt.expectedBody, rr.Body.String()); diff != "" {
+				t.Errorf("%s: body differs from expected:\n%s", tt.name, diff)
 			}
 		})
 	}
