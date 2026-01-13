@@ -349,7 +349,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		} else {
 			select {
 			case <-metricsContext.Done():
-				klog.Infof("Clean shutdown requested: %v", metricsContext.Err())
+				klog.Infof("Clean metrics shutdown requested: %v", metricsContext.Err())
 			case result := <-resultChannel:
 				resultChannelCount--
 				loopError = handleServerResult(result, loopError)
