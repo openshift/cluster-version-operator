@@ -154,6 +154,13 @@ type authHandler struct {
 	downstream http.Handler
 }
 
+// ServeHTTP performs application-level authorization by verifying the client certificate CN.
+// The TLS handshake has already authenticated the client certificate; this handler performs
+// authorization by checking the CN against the allowed value. Note that for a given TLS
+// connection, the client certificate remains constant across multiple HTTP requests (keep-alive),
+// so repeated CN checks do not increase security. However, this HTTP-layer check enables
+// returning a proper HTTP status code for authorization failures rather than rejecting
+// the connection at the TLS layer.
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
 		klog.V(4).Info("Client certificate required but not provided")
