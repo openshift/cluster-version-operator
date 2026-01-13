@@ -252,6 +252,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving content controller"}
 	}()
 
+	clientAuth := tls.NoClientCert
 	var clientCA dynamiccertificates.CAContentProvider
 	var clientCAController *dynamiccertificates.ConfigMapCAController
 	if !metricsOptions.DisableAuthentication {
@@ -284,10 +285,8 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 
 		// Assign to interface variable to ensure proper nil handling
 		clientCA = clientCAController
-	}
 
-	clientAuth := tls.NoClientCert
-	if !metricsOptions.DisableAuthentication {
+		// Enforce mTLS
 		clientAuth = tls.RequireAndVerifyClientCert
 	}
 
