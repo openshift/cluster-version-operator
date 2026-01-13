@@ -28,11 +28,11 @@ import (
 )
 
 const (
-	// metricsAllowedClientCN is the Common Name (CN) of the client certificate
+	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
 	// that is authorized to access the metrics endpoint. This corresponds to the
 	// well-known Prometheus service account in OpenShift monitoring.
 	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
-	metricsAllowedClientCN = "system:serviceaccount:openshift-monitoring:prometheus-k8s"
+	metricsAllowedClientCommonName = "system:serviceaccount:openshift-monitoring:prometheus-k8s"
 )
 
 // RegisterMetrics initializes metrics and registers them with the
@@ -169,14 +169,14 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The first element is the leaf certificate that the connection is verified against
-	cn := r.TLS.PeerCertificates[0].Subject.CommonName
-	if cn != metricsAllowedClientCN {
-		klog.V(4).Infof("Access denied for CN: %s", cn)
-		http.Error(w, "unauthorized CN", http.StatusForbidden)
+	commonName := r.TLS.PeerCertificates[0].Subject.CommonName
+	if commonName != metricsAllowedClientCommonName {
+		klog.V(4).Infof("Access denied for common name: %s", commonName)
+		http.Error(w, fmt.Sprintf("unauthorized common name: %s", commonName), http.StatusForbidden)
 		return
 	}
 
-	klog.V(5).Infof("Access granted for CN: %s", cn)
+	klog.V(5).Infof("Access granted for common name: %s", commonName)
 	a.downstream.ServeHTTP(w, r)
 }
 

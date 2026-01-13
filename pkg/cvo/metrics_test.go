@@ -1053,7 +1053,7 @@ func Test_authHandler(t *testing.T) {
 			clientCN:           "system:serviceaccount:default:unauthorized",
 			provideCert:        true,
 			expectedStatusCode: http.StatusForbidden,
-			expectedBody:       "unauthorized CN\n",
+			expectedBody:       "unauthorized common name: system:serviceaccount:default:unauthorized\n",
 		},
 		{
 			name: "no client certificate",
