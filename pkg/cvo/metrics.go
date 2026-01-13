@@ -213,7 +213,7 @@ type MetricsOptions struct {
 // occurs before or simultaneously with shutdownContext.Done().
 func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, metricsOptions MetricsOptions) error {
 	if listenAddress == "" {
-		return errors.New("TLS configuration is required to serve metrics")
+		return errors.New("listen address is required to serve metrics")
 	}
 
 	if metricsOptions.DisableAuthentication && !metricsOptions.DisableAuthorization {
