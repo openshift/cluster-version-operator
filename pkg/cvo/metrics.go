@@ -17,8 +17,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -281,6 +283,12 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		clientAuth = tls.RequireAndVerifyClientCert
 	}
 
+	// Log certificate controller events to stdout because the controller is reported to generate invalid events,
+	// which are rejected by the Kubernetes API server when used with DynamicServingContentFromFiles.
+	eventBroadcaster := record.NewBroadcaster(record.WithContext(metricsContext))
+	eventBroadcaster.StartLogging(klog.Infof)
+	defer eventBroadcaster.Shutdown()
+
 	// baseTlSConfig is a template passed to servingCertController,
 	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
 	// This enables automatic certificate rotation without server restarts.
@@ -290,7 +298,9 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		clientCA,
 		servingContentController,
 		nil,
-		nil,
+		record.NewEventRecorderAdapter(
+			eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "cluster-version-operator"}),
+		),
 	)
 	if err := servingCertController.RunOnce(); err != nil {
 		return fmt.Errorf("failed to initialize serving certificate controller: %w", err)
