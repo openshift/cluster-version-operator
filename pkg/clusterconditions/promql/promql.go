@@ -17,6 +17,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/prometheus/client_golang/api"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +28,50 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/cache"
 )
+
+var (
+	promQLEvaluations = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "cluster_operator_promql_evaluations_total",
+		Help: "Report the total number of PromQL evaluations being processed.",
+	})
+
+	promQLEvaluationErrors = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cluster_operator_promql_failed_evaluations_total",
+		Help: "Report the total number of failed PromQL evaluations by reason.",
+	}, []string{"reason"})
+
+	promQLEvaluationWarnings = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "cluster_operator_promql_evaluation_warnings_total",
+		Help: "Report the total number of PromQL warnings.",
+	})
+)
+
+const (
+	hostMissingReason         = "host missing"
+	apiErrorReason            = "API error"
+	invalidResultTypeReason   = "invalid result type"
+	invalidResultLengthReason = "invalid result length"
+	invalidResultValueReason  = "invalid result value"
+	internalReason            = "internal"
+)
+
+func init() {
+	for _, r := range []string{
+		hostMissingReason,
+		apiErrorReason,
+		invalidResultTypeReason,
+		invalidResultLengthReason,
+		invalidResultValueReason,
+		internalReason,
+	} {
+		promQLEvaluationErrors.WithLabelValues(r)
+	}
+	prometheus.MustRegister(
+		promQLEvaluations,
+		promQLEvaluationErrors,
+		promQLEvaluationWarnings,
+	)
+}
 
 // statusCodeNotImplementedForPostClient returns an empty response containing the status
 // code 501 (Not Implemented) for POST requests.
@@ -134,10 +179,13 @@ func (p *PromQL) Valid(ctx context.Context, condition *configv1.ClusterCondition
 // false when the PromQL evaluates to 0, and an error if the PromQL
 // returns no time series or returns a value besides 0 or 1.
 func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition) (bool, error) {
+	promQLEvaluations.Inc()
+
 	// Lookup the address every attempt in case the service IP changes.  This can happen when the thanos service is
 	// deleted and recreated.
 	host, err := p.Host(ctx)
 	if err != nil {
+		promQLEvaluationErrors.WithLabelValues(hostMissingReason).Inc()
 		return false, fmt.Errorf("failure determine thanos IP: %w", err)
 	}
 	p.url.Host = host
@@ -146,11 +194,13 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	if roundTripper, err := config.NewRoundTripperFromConfig(p.HTTPClientConfig, "cluster-conditions"); err == nil {
 		clientConfig.RoundTripper = roundTripper
 	} else {
+		promQLEvaluationErrors.WithLabelValues(internalReason).Inc()
 		return false, fmt.Errorf("creating PromQL round-tripper: %w", err)
 	}
 
 	promqlClient, err := api.NewClient(clientConfig)
 	if err != nil {
+		promQLEvaluationErrors.WithLabelValues(internalReason).Inc()
 		return false, fmt.Errorf("creating PromQL client: %w", err)
 	}
 
@@ -170,23 +220,28 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	klog.V(2).Infof("evaluate %s cluster condition: %q", condition.Type, condition.PromQL.PromQL)
 	result, warnings, err := v1api.Query(queryContext, condition.PromQL.PromQL, time.Now())
 	if err != nil {
+		promQLEvaluationErrors.WithLabelValues(apiErrorReason).Inc()
 		return false, fmt.Errorf("executing PromQL query: %w", err)
 	}
 
+	promQLEvaluations.Add(float64(len(warnings)))
 	for _, warning := range warnings {
 		klog.Warning(warning)
 	}
 
 	if result.Type() != model.ValVector {
+		promQLEvaluationErrors.WithLabelValues(invalidResultTypeReason).Inc()
 		return false, fmt.Errorf("invalid PromQL result type is %s, not vector", result.Type())
 	}
 
 	vector, ok := result.(model.Vector)
 	if !ok {
+		promQLEvaluationErrors.WithLabelValues(invalidResultTypeReason).Inc()
 		return false, fmt.Errorf("invalid PromQL result type is nominally %s, but fails Vector cast", result.Type())
 	}
 
 	if vector.Len() != 1 {
+		promQLEvaluationErrors.WithLabelValues(invalidResultLengthReason).Inc()
 		return false, fmt.Errorf("invalid PromQL result length must be one, but is %d", vector.Len())
 	}
 
@@ -196,5 +251,6 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	} else if sample.Value == 1 {
 		return true, nil
 	}
+	promQLEvaluationErrors.WithLabelValues(invalidResultValueReason).Inc()
 	return false, fmt.Errorf("invalid PromQL result (must be 0 or 1): %v", sample.Value)
 }
