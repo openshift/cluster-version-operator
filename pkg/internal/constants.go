@@ -56,18 +56,18 @@ const (
 	ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
 
 	// UpgradeableAdminAckRequired is False if there is API removed from the Kubernetes API server which requires admin
-	// consideration, and thus update to the next minor version is blocked.
+	// consideration, and thus update to the next minor or major version is blocked.
 	UpgradeableAdminAckRequired configv1.ClusterStatusConditionType = "UpgradeableAdminAckRequired"
-	// UpgradeableDeletesInProgress is False if deleting resources is in progress, and thus update to the next minor
+	// UpgradeableDeletesInProgress is False if deleting resources is in progress, and thus update to the next minor or major
 	// version is blocked.
 	UpgradeableDeletesInProgress configv1.ClusterStatusConditionType = "UpgradeableDeletesInProgress"
-	// UpgradeableClusterOperators is False if something is wrong with Cluster Operators, and thus update to the next minor
+	// UpgradeableClusterOperators is False if something is wrong with Cluster Operators, and thus update to the next minor or major
 	// version is blocked.
 	UpgradeableClusterOperators configv1.ClusterStatusConditionType = "UpgradeableClusterOperators"
-	// UpgradeableClusterVersionOverrides is False if there are overrides in the Cluster Version, and thus update to the next minor
+	// UpgradeableClusterVersionOverrides is False if there are overrides in the Cluster Version, and thus update to the next minor or major
 	// version is blocked.
 	UpgradeableClusterVersionOverrides configv1.ClusterStatusConditionType = "UpgradeableClusterVersionOverrides"
 
-	// UpgradeableUpgradeInProgress is True if an update is in progress
+	// UpgradeableUpgradeInProgress is True if an update is in progress.
 	UpgradeableUpgradeInProgress configv1.ClusterStatusConditionType = "UpgradeableUpgradeInProgress"
 )
