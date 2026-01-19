@@ -34,6 +34,8 @@ require (
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
 
+replace github.com/openshift/library-go => github.com/JoelSpeed/library-go v0.0.0-20251223143639-e409b040c48b
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect

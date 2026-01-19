@@ -608,6 +608,7 @@ func (o *Options) NewControllerContext(
 		openshiftConfigManagedInformerFactory.Core().V1().ConfigMaps(),
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
+		configInformerFactory.Config().V1().FeatureGates(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		operatorClient,
