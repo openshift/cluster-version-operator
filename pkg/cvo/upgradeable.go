@@ -311,7 +311,7 @@ func (check *clusterManifestDeleteInProgressUpgradeable) Check() *configv1.Clust
 func gateApplicableToCurrentVersion(gateName string, currentVersion string) (bool, error) {
 	var applicable bool
 	if ackVersion := adminAckGateRegexp.FindString(gateName); ackVersion == "" {
-		return false, fmt.Errorf("%s configmap gate name %s has invalid format; must comply with %q.",
+		return false, fmt.Errorf("%s configmap gate name %s has invalid format; must comply with %q",
 			internal.AdminGatesConfigMap, gateName, adminAckGateFmt)
 	} else {
 		parts := strings.Split(ackVersion, "-")
@@ -531,7 +531,7 @@ func (optr *Operator) adminGatesEventHandler() cache.ResourceEventHandler {
 // The cv parameter is expected to be non-nil.
 func (intervals *upgradeableCheckIntervals) throttlePeriod(cv *configv1.ClusterVersion) time.Duration {
 	if cond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, internal.ReleaseAccepted); cond != nil {
-		deadline := cond.LastTransitionTime.Time.Add(intervals.afterPreconditionsFailed)
+		deadline := cond.LastTransitionTime.Add(intervals.afterPreconditionsFailed)
 		if cond.Reason == "PreconditionChecks" && cond.Status == configv1.ConditionFalse && time.Now().Before(deadline) {
 			return intervals.minOnFailedPreconditions
 		}

@@ -179,7 +179,7 @@ func (c *Cache) calculateMostStale(now time.Time) (string, *configv1.ClusterCond
 		}
 		if thiefResult == nil ||
 			value.When.Before(thiefResult.When) || // refresh the most stale
-			(value.When == thiefResult.When && value.Access.Before(thiefResult.Access)) { // break ties in favor of the longest-queued
+			(value.When.Equal(thiefResult.When) && value.Access.Before(thiefResult.Access)) { // break ties in favor of the longest-queued
 			thiefKey = candidateKey
 			thiefResult = c.MatchResults[candidateKey]
 		}

@@ -59,7 +59,7 @@ func ensureRuleWithOperationsDefaults(required *admissionregv1.RuleWithOperation
 // field of each webhook is not managed by the CVO when the service-ca controller is
 // responsible for the fields.
 func ensureValidatingWebhookConfigurationCaBundle(required *admissionregv1.ValidatingWebhookConfiguration, existing admissionregv1.ValidatingWebhookConfiguration) {
-	if val, ok := existing.ObjectMeta.Annotations[injectCABundleAnnotation]; !ok || val != "true" {
+	if val, ok := existing.Annotations[injectCABundleAnnotation]; !ok || val != "true" {
 		return
 	}
 	if len(existing.Webhooks) == 0 {

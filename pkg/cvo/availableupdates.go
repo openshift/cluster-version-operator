@@ -492,10 +492,10 @@ const (
 var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$`)
 
 func newRecommendedReason(now, want string) string {
-	switch {
-	case now == recommendedReasonRisksNotExposed:
+	switch now {
+	case recommendedReasonRisksNotExposed:
 		return want
-	case now == want:
+	case want:
 		return now
 	default:
 		return recommendedReasonMultiple

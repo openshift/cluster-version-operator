@@ -169,7 +169,11 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("failed to delete the directory %s: %v", dir, err)
+		}
+	}()
 	if err := createContent(filepath.Join(dir, "0.0.1"), version_0_0_1, map[string]string{"NAMESPACE": ns}); err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +314,11 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("failed to delete the directory %s: %v", dir, err)
+		}
+	}()
 	if err := createContent(filepath.Join(dir, "0.0.1"), version_0_0_1, map[string]string{"NAMESPACE": ns}); err != nil {
 		t.Fatal(err)
 	}
@@ -488,7 +496,11 @@ func TestIntegrationCVO_cincinnatiRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("failed to delete the directory %s: %v", dir, err)
+		}
+	}()
 	if err := createContent(filepath.Join(dir, "0.0.1"), version_0_0_1, map[string]string{"NAMESPACE": ns}); err != nil {
 		t.Fatal(err)
 	}

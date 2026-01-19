@@ -184,7 +184,11 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	if err != nil {
 		return current, nil, nil, &Error{Reason: "RemoteFailed", Message: err.Error(), cause: err}
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			klog.Errorf("Failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return current, nil, nil, &Error{Reason: "ResponseFailed", Message: fmt.Sprintf("unexpected HTTP status: %s", resp.Status)}

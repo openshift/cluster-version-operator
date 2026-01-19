@@ -28,12 +28,12 @@ func DeleteDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGett
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.Deployments(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }
@@ -57,12 +57,12 @@ func DeleteDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.DaemonSets(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }

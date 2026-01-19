@@ -83,7 +83,7 @@ type Interface interface {
 func New(mapper *ResourceMapper, rest *rest.Config, m manifest.Manifest) (Interface, error) {
 	f, ok := mapper.gvkToNew[m.GVK]
 	if !ok {
-		return nil, fmt.Errorf("No mapping found for gvk: %v", m.GVK)
+		return nil, fmt.Errorf("no mapping found for gvk: %v", m.GVK)
 	}
 	return f(rest, m), nil
 }

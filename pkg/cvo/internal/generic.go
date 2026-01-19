@@ -33,7 +33,7 @@ func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, r
 	updateMode bool) (bool, error) {
 
 	if required.GetName() == "" {
-		return false, fmt.Errorf("Error running delete, invalid object: name cannot be empty")
+		return false, fmt.Errorf("error running delete, invalid object: name cannot be empty")
 	}
 	if delAnnoFound, err := resourcedelete.ValidDeleteAnnotation(required.GetAnnotations()); !delAnnoFound || err != nil {
 		return delAnnoFound, err
@@ -48,12 +48,12 @@ func deleteUnstructured(ctx context.Context, client dynamic.ResourceInterface, r
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.Delete(ctx, required.GetName(), metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			resourcedelete.SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }

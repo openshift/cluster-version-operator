@@ -379,7 +379,7 @@ func (g *TaskGraph) Tree() string {
 	for i, node := range g.Nodes {
 		label := make([]string, 0, len(node.Tasks))
 		for _, task := range node.Tasks {
-			label = append(label, strings.Replace(task.String(), "\"", "", -1))
+			label = append(label, strings.ReplaceAll(task.String(), "\"", ""))
 		}
 		if len(label) == 0 {
 			label = append(label, "no manifests")

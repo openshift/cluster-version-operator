@@ -440,7 +440,7 @@ func (t *testBuilder) WithModifier(m resourcebuilder.MetaV1ObjectModifierFunc) r
 }
 
 func (t *testBuilder) Do(_ context.Context) error {
-	a := t.recorder.Invoke(t.m.GVK, t.m.Obj.GetNamespace(), t.m.Obj.GetName())
+	a := t.Invoke(t.m.GVK, t.m.Obj.GetNamespace(), t.m.Obj.GetName())
 	return t.reactors[a]
 }
 
