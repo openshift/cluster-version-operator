@@ -18,15 +18,5 @@
     "source": "openshift:payload:cluster-version-operator",
     "lifecycle": "blocking",
     "environmentSelector": {}
-  },
-  {
-    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should have correct runlevel and scc",
-    "labels": {},
-    "resources": {
-      "isolation": {}
-    },
-    "source": "openshift:payload:cluster-version-operator",
-    "lifecycle": "blocking",
-    "environmentSelector": {}
   }
 ]
