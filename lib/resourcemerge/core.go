@@ -15,6 +15,7 @@ import (
 func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1.ConfigMap) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
+	mergeByteSliceMap(modified, &existing.BinaryData, required.BinaryData)
 	mergeMap(modified, &existing.Data, required.Data)
 }
 
