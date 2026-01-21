@@ -180,19 +180,22 @@ type Operator struct {
 	// to select the manifests that will be applied in the cluster. The starting value cannot be changed in the executing
 	// CVO but the featurechangestopper controller will detect a feature set change in the cluster and shutdown the CVO.
 	// Enforcing featuresets is a standard GA CVO behavior that supports the feature gating functionality across the whole
-	// cluster, as opposed to the enabledFeatureGates which controls what gated behaviors of CVO itself are enabled by
+	// cluster, as opposed to the enabledCVOFeatureGates which controls what gated behaviors of CVO itself are enabled by
 	// the cluster feature gates.
 	// See: https://github.com/openshift/enhancements/blob/master/enhancements/update/cvo-techpreview-manifests.md
 	requiredFeatureSet configv1.FeatureSet
 
-	// enabledFeatureGates is the checker for what gated CVO behaviors are enabled or disabled by specific cluster-level
+	// enabledCVOFeatureGates is the checker for what gated CVO behaviors are enabled or disabled by specific cluster-level
 	// feature gates. It allows multiplexing the cluster-level feature gates to more granular CVO-level gates. Similarly
-	// to the requiredFeatureSet, the enabledFeatureGates cannot be changed in the executing CVO but the
+	// to the requiredFeatureSet, the enabledCVOFeatureGates cannot be changed in the executing CVO but the
 	// featurechangestopper controller will detect when cluster feature gate config changes and shutdown the CVO.
-	enabledFeatureGates featuregates.CvoGateChecker
+	enabledCVOFeatureGates featuregates.CvoGateChecker
 
 	// featureGatesMutex protects access to enabledManifestFeatureGates
-	featureGatesMutex           sync.RWMutex
+	featureGatesMutex sync.RWMutex
+	// enabledManifestFeatureGates is the set of feature gates that are currently enabled for the manifests that are applied to the cluster.
+	// This is the full set of enabled feature gates extracted from the FeatureGate object.
+	// We use this set as a filter to determine which of the manifests from the payload should or should not be applied to the cluster.
 	enabledManifestFeatureGates sets.Set[string]
 
 	clusterProfile string
@@ -267,7 +270,7 @@ func New(
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
 		requiredFeatureSet:          featureSet,
-		enabledFeatureGates:         cvoGates,
+		enabledCVOFeatureGates:      cvoGates,
 		enabledManifestFeatureGates: startingEnabledManifestFeatureGates,
 
 		alwaysEnableCapabilities: alwaysEnableCapabilities,
@@ -1159,7 +1162,7 @@ func (optr *Operator) extractEnabledGates(featureGate *configv1.FeatureGate) set
 	currentVersion := optr.currentVersion().Version
 	if currentVersion == "" {
 		klog.Warningf("Payload has not been initialized yet, using the operator version %s", optr.enabledCVOFeatureGates.DesiredVersion())
-		currentVersion = optr.enabledFeatureGates.DesiredVersion()
+		currentVersion = optr.enabledCVOFeatureGates.DesiredVersion()
 	}
 
 	return featuregates.ExtractEnabledGates(featureGate, currentVersion)
@@ -1167,10 +1170,10 @@ func (optr *Operator) extractEnabledGates(featureGate *configv1.FeatureGate) set
 
 // shouldReconcileCVOConfiguration returns whether the CVO should reconcile its configuration using the API server.
 //
-// enabledFeatureGates must be initialized before the function is called.
+// enabledCVOFeatureGates must be initialized before the function is called.
 func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 	// The relevant CRD and CR are not applied in HyperShift, which configures the CVO via a configuration file
-	return optr.enabledFeatureGates.CVOConfiguration() && !optr.hypershift
+	return optr.enabledCVOFeatureGates.CVOConfiguration() && !optr.hypershift
 }
 
 // shouldReconcileAcceptRisks returns whether the CVO should reconcile spec.desiredUpdate.acceptRisks and populate the
@@ -1179,5 +1182,5 @@ func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 // enabledFeatureGates must be initialized before the function is called.
 func (optr *Operator) shouldReconcileAcceptRisks() bool {
 	// HyperShift will be supported later if needed
-	return optr.enabledFeatureGates.AcceptRisks() && !optr.hypershift
+	return optr.enabledCVOFeatureGates.AcceptRisks() && !optr.hypershift
 }
