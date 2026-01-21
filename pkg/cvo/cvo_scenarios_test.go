@@ -115,15 +115,15 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 	}
 
 	o := &Operator{
-		namespace:           "test",
-		name:                "version",
-		queue:               workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "cvo-loop-test"}),
-		client:              client,
-		enabledFeatureGates: featuregates.DefaultCvoGates("version"),
-		cvLister:            &clientCVLister{client: client},
-		exclude:             "exclude-test",
-		eventRecorder:       record.NewFakeRecorder(100),
-		clusterProfile:      payload.DefaultClusterProfile,
+		namespace:              "test",
+		name:                   "version",
+		queue:                  workqueue.NewTypedRateLimitingQueueWithConfig[any](workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "cvo-loop-test"}),
+		client:                 client,
+		enabledCVOFeatureGates: featuregates.DefaultCvoGates("version"),
+		cvLister:               &clientCVLister{client: client},
+		exclude:                "exclude-test",
+		eventRecorder:          record.NewFakeRecorder(100),
+		clusterProfile:         payload.DefaultClusterProfile,
 	}
 
 	dynamicScheme := apiruntime.NewScheme()

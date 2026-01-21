@@ -167,7 +167,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	cvUpdated := false
 	// update the config with the latest available updates
-	if updated := optr.getAvailableUpdates().NeedsUpdate(config, optr.enabledFeatureGates.StatusReleaseArchitecture()); updated != nil {
+	if updated := optr.getAvailableUpdates().NeedsUpdate(config, optr.enabledCVOFeatureGates.StatusReleaseArchitecture()); updated != nil {
 		cvUpdated = true
 		config = updated
 	}
@@ -180,7 +180,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledCVOFeatureGates, validationErrs)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))

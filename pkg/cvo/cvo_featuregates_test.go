@@ -76,7 +76,7 @@ func TestOperator_extractEnabledGates(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			optr := &Operator{
 				release: tt.release,
-				enabledFeatureGates: fakeRiFlags{
+				enabledCVOFeatureGates: fakeRiFlags{
 					desiredVersion: tt.release.Version,
 				},
 			}
@@ -150,7 +150,7 @@ func TestOperator_updateEnabledFeatureGates(t *testing.T) {
 			optr := &Operator{
 				enabledManifestFeatureGates: sets.New[string]("oldgate"),
 				release:                     configv1.Release{Version: "4.14.0"},
-				enabledFeatureGates: fakeRiFlags{
+				enabledCVOFeatureGates: fakeRiFlags{
 					desiredVersion: "4.14.0",
 				},
 			}
