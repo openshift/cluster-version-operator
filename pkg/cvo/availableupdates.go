@@ -13,6 +13,8 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
+	"github.com/prometheus-community/prom-label-proxy/injectproxy"
+	"github.com/prometheus/prometheus/model/labels"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -549,5 +551,17 @@ func injectClusterIdIntoConditionalUpdates(clusterId string, updates []configv1.
 }
 
 func injectIdIntoString(id string, promQL string) string {
-	return strings.ReplaceAll(promQL, `_id=""`, fmt.Sprintf(`_id="%s"`, id))
+	m, err := labels.NewMatcher(labels.MatchEqual, "_id", id)
+	if err != nil {
+		klog.Warningf("Failed to create matcher: %v", err)
+		return promQL
+	}
+
+	expr, err := injectproxy.NewPromQLEnforcer(false, m).Enforce(promQL)
+	if err != nil {
+		klog.Warningf("Failed to inject matcher %q in expression %q: %v", m.String(), promQL, err)
+		return promQL
+	}
+
+	return expr
 }

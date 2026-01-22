@@ -758,3 +758,56 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestInjectIdIntoString(t *testing.T) {
+	testCases := []struct {
+		name     string
+		expr     string
+		expected string
+	}{
+		{
+			name:     "scalar",
+			expr:     "1",
+			expected: "1",
+		},
+		{
+			name:     "instant vector",
+			expr:     "foo",
+			expected: `foo{_id="xxx"}`,
+		},
+		{
+			name:     "instant vector with empty _id label",
+			expr:     "foo{_id=\"\"}",
+			expected: "foo{_id=\"xxx\"}",
+		},
+		{
+			name:     "instant vector with existing _id label",
+			expr:     "foo{_id=\"yyy\"}",
+			expected: "foo{_id=\"xxx\"}",
+		},
+		{
+			name:     "complex instant vector",
+			expr:     "foo unless topk(1, bar{type=\"fred\"})",
+			expected: "foo{_id=\"xxx\"} unless topk(1, bar{_id=\"xxx\",type=\"fred\"})",
+		},
+		{
+			name:     "another complex instant vector",
+			expr:     "topk(1, group by (_id, sre) (sre:telemetry:managed_labels{sre=\"true\"}) or vector(0))",
+			expected: "topk(1, group by (_id, sre) (sre:telemetry:managed_labels{_id=\"xxx\",sre=\"true\"}) or vector(0))",
+		},
+		{
+			name:     "invalid expression",
+			expr:     `foo unless `,
+			expected: `foo unless `,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			expr := injectIdIntoString("xxx", tc.expr)
+			if tc.expected != expr {
+				t.Fatalf("expected %q, got %q", tc.expected, expr)
+			}
+		})
+	}
+}
