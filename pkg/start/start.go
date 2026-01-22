@@ -455,7 +455,7 @@ func createResourceLock(cb *ClientBuilder, namespace, name string) (resourcelock
 
 	uuid, err := uuid.NewRandom()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to generate UUID: %v", err)
+		return nil, fmt.Errorf("failed to generate UUID: %v", err)
 	}
 
 	// add a uniquifier so that two processes on the same host don't accidentally both become active

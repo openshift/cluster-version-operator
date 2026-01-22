@@ -33,7 +33,7 @@ func ensureCustomResourceDefinitionV1Defaults(required *apiextv1.CustomResourceD
 // spec.Conversion.Webhook.ClientConfig.CABundle of a CRD is not managed by the CVO when
 // the service-ca controller is responsible for the field.
 func ensureCustomResourceDefinitionV1CaBundle(required *apiextv1.CustomResourceDefinition, existing apiextv1.CustomResourceDefinition) {
-	if val, ok := existing.ObjectMeta.Annotations[injectCABundleAnnotation]; !ok || val != "true" {
+	if val, ok := existing.Annotations[injectCABundleAnnotation]; !ok || val != "true" {
 		return
 	}
 	req := required.Spec.Conversion

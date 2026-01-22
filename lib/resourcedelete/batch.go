@@ -26,11 +26,11 @@ func DeleteJobv1(ctx context.Context, client batchclientv1.JobsGetter, required 
 	}
 	deleteRequested, err := GetDeleteProgress(resource, err)
 	if err != nil {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	if !deleteRequested && updateMode {
 		if err := client.Jobs(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-			return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+			return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 		}
 		SetDeleteRequested(existing, resource)
 	}
@@ -54,11 +54,11 @@ func DeleteCronJobv1(ctx context.Context, client batchclientv1.CronJobsGetter, r
 	}
 	deleteRequested, err := GetDeleteProgress(resource, err)
 	if err != nil {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	if !deleteRequested && updateMode {
 		if err := client.CronJobs(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-			return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+			return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 		}
 		SetDeleteRequested(existing, resource)
 	}

@@ -261,7 +261,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		var err error
 		tlsConfig, err = makeTLSConfig(certFile, keyFile)
 		if err != nil {
-			return fmt.Errorf("Failed to create TLS config: %w", err)
+			return fmt.Errorf("failed to create TLS config: %w", err)
 		}
 	} else {
 		return errors.New("TLS configuration is required to serve metrics")
@@ -284,25 +284,29 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 
 	origCertChecksum, err := checksumFile(certFile)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize certificate file checksum: %w", err)
+		return fmt.Errorf("failed to initialize certificate file checksum: %w", err)
 	}
 	origKeyChecksum, err := checksumFile(keyFile)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize key file checksum: %w", err)
+		return fmt.Errorf("failed to initialize key file checksum: %w", err)
 	}
 
 	// Set up and start the file watcher.
 	watcher, err := fsnotify.NewWatcher()
 	if watcher == nil || err != nil {
-		return fmt.Errorf("Failed to create file watcher for certificate and key rotation: %w", err)
+		return fmt.Errorf("failed to create file watcher for certificate and key rotation: %w", err)
 	} else {
-		defer watcher.Close()
+		defer func() {
+			if err := watcher.Close(); err != nil {
+				klog.Errorf("Failed to close file watcher: %v", err)
+			}
+		}()
 		if err := watcher.Add(certDir); err != nil {
-			return fmt.Errorf("Failed to add %v to watcher: %w", certDir, err)
+			return fmt.Errorf("failed to add %v to watcher: %w", certDir, err)
 		}
 		if certDir != keyDir {
 			if err := watcher.Add(keyDir); err != nil {
-				return fmt.Errorf("Failed to add %v to watcher: %w", keyDir, err)
+				return fmt.Errorf("failed to add %v to watcher: %w", keyDir, err)
 			}
 		}
 	}
@@ -699,7 +703,7 @@ func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
 	if len(cv.Status.History) > 0 {
 		latest = cv.Status.History[0].StartedTime.Time
 		if t := cv.Status.History[0].CompletionTime; t != nil {
-			if t.Time.After(latest) {
+			if t.After(latest) {
 				latest = t.Time
 			}
 		}
@@ -729,21 +733,21 @@ func certsChanged(origCertChecksum []byte, origKeyChecksum []byte, certFile, key
 	}
 	keyNotEmpty, err := fileExistsAndNotEmpty(keyFile)
 	if err != nil {
-		return false, fmt.Errorf("Error checking if changed TLS key file empty/exists: %w", err)
+		return false, fmt.Errorf("error checking if changed TLS key file empty/exists: %w", err)
 	}
 	if !certNotEmpty || !keyNotEmpty {
 		// One of the files is missing despite some file event.
-		return false, fmt.Errorf("Certificate or key is missing or empty, certificates will not be rotated.")
+		return false, fmt.Errorf("certificate or key is missing or empty, certificates will not be rotated")
 	}
 
 	currentCertChecksum, err := checksumFile(certFile)
 	if err != nil {
-		return false, fmt.Errorf("Error checking certificate file checksum: %w", err)
+		return false, fmt.Errorf("error checking certificate file checksum: %w", err)
 	}
 
 	currentKeyChecksum, err := checksumFile(keyFile)
 	if err != nil {
-		return false, fmt.Errorf("Error checking key file checksum: %w", err)
+		return false, fmt.Errorf("error checking key file checksum: %w", err)
 	}
 
 	// Check if the non-empty certificate/key files have actually changed.
@@ -781,14 +785,18 @@ func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) 
 func checksumFile(fName string) ([]byte, error) {
 	file, err := os.Open(fName)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open file %v for checksum: %w", fName, err)
+		return nil, fmt.Errorf("failed to open file %v for checksum: %w", fName, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			klog.Errorf("failed to close file %s: %v", fName, err)
+		}
+	}()
 
 	hash := sha256.New()
 
 	if _, err = io.Copy(hash, file); err != nil {
-		return nil, fmt.Errorf("Failed to compute checksum for file %v: %w", fName, err)
+		return nil, fmt.Errorf("failed to compute checksum for file %v: %w", fName, err)
 	}
 
 	return hash.Sum(nil), nil

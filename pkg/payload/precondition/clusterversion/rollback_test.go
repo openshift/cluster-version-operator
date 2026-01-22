@@ -187,7 +187,7 @@ func TestRollbackRun(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			tc.clusterVersion.ObjectMeta.Name = "version"
+			tc.clusterVersion.Name = "version"
 			cvLister := fakeClusterVersionLister(t, &tc.clusterVersion)
 			instance := NewRollback(cvLister)
 

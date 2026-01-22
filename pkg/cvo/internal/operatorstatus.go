@@ -105,8 +105,9 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		b.modifier(co)
 	}
 
-	// create the object, and if we successfully created, update the status
-	if b.mode == resourcebuilder.PrecreatingMode {
+	switch b.mode {
+	case resourcebuilder.PrecreatingMode:
+		// create the object, and if we successfully created, update the status
 		clusterOperator, err := b.createClient.Create(ctx, co, metav1.CreateOptions{})
 		if err != nil {
 			if kerrors.IsAlreadyExists(err) {
@@ -122,7 +123,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 			return err
 		}
 		return nil
-	} else if b.mode == resourcebuilder.ReconcilingMode {
+	case resourcebuilder.ReconcilingMode:
 		existing, err := b.client.Get(ctx, co.Name)
 		if err != nil {
 			return err
@@ -142,6 +143,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 				return err
 			}
 		}
+	default:
 	}
 
 	err := checkOperatorHealth(ctx, b.client, co, b.mode)

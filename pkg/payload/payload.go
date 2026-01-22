@@ -292,7 +292,7 @@ func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
 	}
 
 	if imageRef.Name != release.Version {
-		return nil, fmt.Errorf("Version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
+		return nil, fmt.Errorf("version from %s (%s) differs from %s (%s)", imageReferencesFile, imageRef.Name, cincinnatiJSONFile, release.Version)
 	}
 
 	return &Update{
@@ -361,7 +361,7 @@ func loadReleaseMetadata(releaseDir string) (configv1.Release, error) {
 	}
 
 	if _, err := semver.Parse(metadata.Version); err != nil {
-		return release, fmt.Errorf("Cincinnati metadata version %q is not a valid semantic version: %v", metadata.Version, err)
+		return release, fmt.Errorf("invalid Cincinnati metadata version %q: %w", metadata.Version, err)
 	}
 
 	release, err = cincinnati.ParseMetadata(metadata.Metadata)

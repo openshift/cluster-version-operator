@@ -37,7 +37,7 @@ func ValidDeleteAnnotation(annotations map[string]string) (bool, error) {
 	if value, ok := annotations[DeleteAnnotation]; !ok {
 		return false, nil
 	} else if value != "true" {
-		return true, fmt.Errorf("Invalid delete annotation \"%s\" value: \"%s\"", DeleteAnnotation, value)
+		return true, fmt.Errorf("invalid delete annotation \"%s\" value: \"%s\"", DeleteAnnotation, value)
 	}
 	return true, nil
 }
@@ -126,7 +126,7 @@ func GetDeleteProgress(resource Resource, getError error) (bool, error) {
 		return true, nil
 	}
 	if getError != nil {
-		return false, fmt.Errorf("Cannot get %s to delete, err=%v.", resource, getError)
+		return false, fmt.Errorf("cannot get %s to delete, err=%v", resource, getError)
 	}
 	return false, nil
 }

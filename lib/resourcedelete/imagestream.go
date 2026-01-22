@@ -28,12 +28,12 @@ func DeleteImageStreamv1(ctx context.Context, client imageclientv1.ImageStreamsG
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.ImageStreams(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }

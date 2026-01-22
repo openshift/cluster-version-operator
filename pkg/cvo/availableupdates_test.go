@@ -117,7 +117,7 @@ func newMockOSUSServer(data conditionalEdgeTestData) (*httptest.Server, *url.Val
 	var params url.Values
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		params = r.URL.Query()
-		fmt.Fprintf(w, `{
+		_, _ = fmt.Fprintf(w, `{
   "nodes": [{"version": "%s", "payload": "%s"}, {"version": "%s", "payload": "%s"}],
   "conditionalEdges": [
     {

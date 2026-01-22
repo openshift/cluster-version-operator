@@ -45,7 +45,7 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 	}
 
 	if len(uris) == 0 {
-		return errors.New("ClusterVersion spec.signatureStores is an empty array.  Unset signatureStores entirely if you want to to enable the default signature stores.")
+		return errors.New("ClusterVersion spec.signatureStores is an empty array. Unset signatureStores entirely if you want to enable the default signature stores")
 	}
 
 	allDone := false
@@ -70,7 +70,7 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 	if err := store.Signatures(ctx, name, digest, wrapper); err != nil || allDone {
 		return err
 	}
-	return errors.New("ClusterVersion spec.signatureStores exhausted without finding a valid signature.")
+	return errors.New("ClusterVersion spec.signatureStores exhausted without finding a valid signature")
 }
 
 func (s *Store) refreshConfiguration(ctx context.Context) ([]*url.URL, error) {

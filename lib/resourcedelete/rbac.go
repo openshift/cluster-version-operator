@@ -28,12 +28,12 @@ func DeleteClusterRoleBindingv1(ctx context.Context, client rbacclientv1.Cluster
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.ClusterRoleBindings().Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }
@@ -57,12 +57,12 @@ func DeleteClusterRolev1(ctx context.Context, client rbacclientv1.ClusterRolesGe
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.ClusterRoles().Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }
@@ -86,12 +86,12 @@ func DeleteRoleBindingv1(ctx context.Context, client rbacclientv1.RoleBindingsGe
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.RoleBindings(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }
@@ -115,12 +115,12 @@ func DeleteRolev1(ctx context.Context, client rbacclientv1.RolesGetter, required
 		// Only request deletion when in update mode.
 		if !deleteRequested && updateMode {
 			if err := client.Roles(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{}); err != nil {
-				return true, fmt.Errorf("Delete request for %s failed, err=%v", resource, err)
+				return true, fmt.Errorf("delete request for %s failed, err=%v", resource, err)
 			}
 			SetDeleteRequested(existing, resource)
 		}
 	} else {
-		return true, fmt.Errorf("Error running delete for %s, err=%v", resource, err)
+		return true, fmt.Errorf("error running delete for %s, err=%v", resource, err)
 	}
 	return true, nil
 }

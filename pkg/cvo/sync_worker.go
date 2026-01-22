@@ -764,7 +764,7 @@ func (w *statusWrapper) Report(status SyncWorkerStatus) {
 // Update).
 func (w *SyncWork) calculateNextFrom(desired *SyncWork) bool {
 	sameVersion, sameOverrides, sameCapabilities := equalSyncWork(w, desired, "calculating next work")
-	changed := !(sameVersion && sameOverrides && sameCapabilities)
+	changed := !sameVersion || !sameOverrides || !sameCapabilities
 
 	// if this is the first time through the loop, initialize reconciling to
 	// the state Update() calculated (to allow us to start in reconciling)

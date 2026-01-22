@@ -43,7 +43,10 @@ type statusCodeNotImplementedForPostClient struct {
 func (c *statusCodeNotImplementedForPostClient) Do(ctx context.Context, req *http.Request) (*http.Response, []byte, error) {
 	if req.Method == http.MethodPost {
 		if req.Body != nil {
-			req.Body.Close() // typically, the HTTP client's transport is responsible for closing the body
+			// typically, the HTTP client's transport is responsible for closing the body
+			if err := req.Body.Close(); err != nil {
+				klog.Errorf("Failed to close request body: %v", err)
+			}
 		}
 		return &http.Response{
 			StatusCode: http.StatusNotImplemented,
@@ -191,9 +194,10 @@ func (p *PromQL) Match(ctx context.Context, condition *configv1.ClusterCondition
 	}
 
 	sample := vector[0]
-	if sample.Value == 0 {
+	switch sample.Value {
+	case 0:
 		return false, nil
-	} else if sample.Value == 1 {
+	case 1:
 		return true, nil
 	}
 	return false, fmt.Errorf("invalid PromQL result (must be 0 or 1): %v", sample.Value)

@@ -29,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/informers"
 	kfake "k8s.io/client-go/kubernetes/fake"
-	clienttesting "k8s.io/client-go/testing"
 	ktesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -2503,7 +2502,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		{
 			name: "set available updates and clear error state when success and empty",
 			handler: func(w http.ResponseWriter, req *http.Request) {
-				fmt.Fprintf(w, `
+				_, _ = fmt.Fprintf(w, `
 				{
 					"nodes": [
 						{
@@ -2571,7 +2570,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 		{
 			name: "calculate available update edges",
 			handler: func(w http.ResponseWriter, req *http.Request) {
-				fmt.Fprintf(w, `
+				_, _ = fmt.Fprintf(w, `
 				{
 					"nodes": [
 						{"version":"4.0.1",            "payload": "image/image:v4.0.1"},
@@ -3779,7 +3778,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	f := kfake.NewSimpleClientset()
 
 	// A catch-all watch reactor that allows us to inject the watcherStarted channel.
-	f.PrependWatchReactor("*", func(action clienttesting.Action) (handled bool, ret watch.Interface, err error) {
+	f.PrependWatchReactor("*", func(action ktesting.Action) (handled bool, ret watch.Interface, err error) {
 		gvr := action.GetResource()
 		ns := action.GetNamespace()
 		watch, err := f.Tracker().Watch(gvr, ns)
@@ -4007,7 +4006,7 @@ func Test_gateApplicableToCurrentVersion(t *testing.T) {
 
 func expectGet(t *testing.T, a ktesting.Action, resource, namespace, name string) {
 	t.Helper()
-	if "get" != a.GetVerb() {
+	if a.GetVerb() != "get" {
 		t.Fatalf("unexpected verb: %s", a.GetVerb())
 	}
 	switch at := a.(type) {

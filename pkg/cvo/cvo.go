@@ -617,7 +617,7 @@ func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 			oldVersion := clusterOperatorVersion(oldStruct, versionName)
 			newVersion := clusterOperatorVersion(newStruct, versionName)
 			if oldVersion != newVersion {
-				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.ObjectMeta.Name, versionName, oldVersion, newVersion)
+				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.Name, versionName, oldVersion, newVersion)
 				optr.configSync.NotifyAboutManagedResourceActivity(msg)
 				return
 			}
@@ -629,7 +629,7 @@ func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 				oldStatus := clusterOperatorConditionStatus(oldStruct, cond)
 				newStatus := clusterOperatorConditionStatus(newStruct, cond)
 				if oldStatus != newStatus {
-					msg := fmt.Sprintf("Cluster operator %s changed %s from %q to %q", newStruct.ObjectMeta.Name, cond, oldStatus, newStatus)
+					msg := fmt.Sprintf("Cluster operator %s changed %s from %q to %q", newStruct.Name, cond, oldStatus, newStatus)
 					optr.configSync.NotifyAboutManagedResourceActivity(msg)
 					return
 				}

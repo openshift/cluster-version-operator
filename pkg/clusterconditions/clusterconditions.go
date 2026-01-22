@@ -74,7 +74,7 @@ func (r *conditionRegistry) PruneInvalid(ctx context.Context, matchingRules []co
 	for _, config := range matchingRules {
 		condition, ok := r.registry[config.Type]
 		if !ok {
-			errs = append(errs, fmt.Errorf("Skipping unrecognized cluster condition type %q", config.Type))
+			errs = append(errs, fmt.Errorf("skipping unrecognized cluster condition type %q", config.Type))
 			continue
 		}
 		if err := condition.Valid(ctx, &config); err != nil {

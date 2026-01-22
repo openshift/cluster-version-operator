@@ -4009,13 +4009,13 @@ func waitForCompleted(status SyncWorkerStatus) bool {
 	return status.Completed == 1
 }
 
-func waitForStatus(t *testing.T, maxLoopCount int, timeOutSeconds time.Duration, ch <-chan SyncWorkerStatus, f func(s SyncWorkerStatus) bool) {
+func waitForStatus(t *testing.T, maxLoopCount int, d time.Duration, ch <-chan SyncWorkerStatus, f func(s SyncWorkerStatus) bool) {
 	count := 0
 	for {
 		var status SyncWorkerStatus
 		select {
 		case status = <-ch:
-		case <-time.After(timeOutSeconds * time.Second):
+		case <-time.After(d * time.Second):
 			t.Fatalf("never saw expected apply event")
 		}
 		if f(status) {
@@ -4033,13 +4033,13 @@ func verifyAllStatus(t *testing.T, ch <-chan SyncWorkerStatus, items ...SyncWork
 	verifyAllStatusOptionalDone(t, "", false, ch, items...)
 }
 
-func clearAllStatusWithWait(t *testing.T, name string, timeOutSeconds time.Duration, ch <-chan SyncWorkerStatus) {
+func clearAllStatusWithWait(t *testing.T, name string, d time.Duration, ch <-chan SyncWorkerStatus) {
 	testName := t.Name() + ":" + name
 	t.Helper()
 	t.Logf("%s: Clearing all status...", testName)
 	select {
 	case <-ch:
-	case <-time.After(timeOutSeconds * time.Second):
+	case <-time.After(d * time.Second):
 		break
 	}
 }
@@ -4194,10 +4194,7 @@ func waitForStatusCompleted(t *testing.T, worker *SyncWorker) {
 
 func clearAllStatus(t *testing.T, ch <-chan SyncWorkerStatus) {
 	count := 0
-	for {
-		if len(ch) <= 0 {
-			break
-		}
+	for len(ch) > 0 {
 		<-ch
 		t.Log("Waiting for SyncWorkerStatus to clear")
 		count++
