@@ -17,4 +17,14 @@ var (
 
 	// String is the human-friendly representation of the version.
 	String = fmt.Sprintf("ClusterVersionOperator %s", Raw)
+
+	// SCOS is a setting to enable CentOS Stream CoreOS-only modifications.
+	// This is set via the scos build tag.
+	SCOS = false
 )
+
+// IsSCOS returns true if CentOS Stream CoreOS-only modifications are enabled.
+// This is enabled via the scos build tag for OKD builds.
+func IsSCOS() bool {
+	return SCOS
+}
