@@ -1,27 +1,27 @@
 package cvo
 
 import (
-	. "github.com/onsi/ginkgo/v2" //nolint:staticcheck
-	. "github.com/onsi/gomega"    //nolint:staticcheck
+	g "github.com/onsi/ginkgo/v2"
+	o "github.com/onsi/gomega"
 
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
 )
 
-var logger = GinkgoLogr.WithName("cluster-version-operator-tests")
+var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
 
-var _ = Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-tests`, func() {
-	It("should support passing tests", func() {
-		Expect(true).To(BeTrue())
+var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-tests`, func() {
+	g.It("should support passing tests", func() {
+		o.Expect(true).To(o.BeTrue())
 	})
 
-	It("can use oc to get the version information", func() {
+	g.It("can use oc to get the version information", func() {
 		ocClient, err := oc.NewOC(logger)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ocClient).NotTo(BeNil())
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(ocClient).NotTo(o.BeNil())
 
 		output, err := ocClient.Version(ocapi.VersionOptions{Client: true})
-		Expect(err).NotTo(HaveOccurred())
-		Expect(output).To(ContainSubstring("Client Version:"))
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(output).To(o.ContainSubstring("Client Version:"))
 	})
 })
