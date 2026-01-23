@@ -296,19 +296,19 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	// cache the payload until the release image changes
 	validPayload := w.payload
 
-	previousEnabledFeatureGates := w.status.EnabledFeatureGates
-	if !work.EnabledFeatureGates.Equal(previousEnabledFeatureGates) {
+	switch {
+	case validPayload == nil:
+		klog.V(2).Info("Loading initial payload")
+	case !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}):
+		klog.V(2).Info("Loading payload due to desired image not being equal to the current one.")
+	case !work.EnabledFeatureGates.Equal(w.status.EnabledFeatureGates):
 		// When the feature gates change, we must reload the payload.
 		// Loading the payload filters out files that didn't match the previous set of feature gates,
 		// this means now, additional files may match the new set of feature gates and need to be included.
 		// Some files in the current payload may no longer match the new set of feature gates and need to be excluded,
 		// though these ones are already excluded when apply calls Include on the manifests.
-		klog.V(2).Infof("Enabled feature gates changed from %v to %v, forcing a payload refresh", previousEnabledFeatureGates, work.EnabledFeatureGates)
-		w.payload = nil
-	}
-
-	if validPayload != nil && validPayload.Release.Image == desired.Image {
-
+		klog.V(2).Infof("Enabled feature gates changed from %v to %v, forcing a payload refresh", w.status.EnabledFeatureGates, work.EnabledFeatureGates)
+	case validPayload.Release.Image == desired.Image:
 		// reset payload status to currently loaded payload if it no longer applies to desired target
 		if !reporter.ValidPayloadStatus(desired) {
 			klog.V(2).Info("Resetting payload status to currently loaded payload.")
@@ -321,144 +321,151 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 				LastTransitionTime: time.Now(),
 			})
 		}
+
 		// possibly complain here if Version, etc. diverges from the payload content
 		return implicitlyEnabledCaps, nil
-	} else if validPayload == nil || !equalUpdate(configv1.Update{Image: validPayload.Release.Image}, configv1.Update{Image: desired.Image}) {
-		cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
-		msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
+	}
+
+	// The remainder of this logic is for loading a new payload.
+	// Any filtering as to not needing to reload the payload should be done in the switch before this point.
+
+	cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
+	msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
+	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
+	reporter.ReportPayload(LoadPayloadStatus{
+		Step:               "RetrievePayload",
+		Message:            msg,
+		Update:             desired,
+		LastTransitionTime: time.Now(),
+	})
+
+	// syncPayload executes while locked, but RetrievePayload is a potentially long-running operation
+	// which does not need the lock, so holding it may block other loops (mainly the apply loop) from
+	// execution
+	w.lock.Unlock()
+	info, err := w.retriever.RetrievePayload(ctx, work.Desired)
+	w.lock.Lock()
+	if err != nil {
+		msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
+		msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
 		reporter.ReportPayload(LoadPayloadStatus{
+			Failure:            err,
 			Step:               "RetrievePayload",
 			Message:            msg,
 			Update:             desired,
+			Local:              info.Local,
 			LastTransitionTime: time.Now(),
 		})
+		return nil, err
+	}
 
-		// syncPayload executes while locked, but RetrievePayload is a potentially long-running operation
-		// which does not need the lock, so holding it may block other loops (mainly the apply loop) from
-		// execution
-		w.lock.Unlock()
-		info, err := w.retriever.RetrievePayload(ctx, work.Desired)
-		w.lock.Lock()
-		if err != nil {
-			msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
-			msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
-			reporter.ReportPayload(LoadPayloadStatus{
-				Failure:            err,
-				Step:               "RetrievePayload",
-				Message:            msg,
-				Update:             desired,
-				Local:              info.Local,
-				LastTransitionTime: time.Now(),
-			})
-			return nil, err
-		}
-		acceptedRisksMsg := ""
-		if info.VerificationError != nil {
-			acceptedRisksMsg = unwrappedErrorAggregate(info.VerificationError)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
-		}
+	acceptedRisksMsg := ""
+	if info.VerificationError != nil {
+		acceptedRisksMsg = unwrappedErrorAggregate(info.VerificationError)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
+	}
 
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
+	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
 
-		// Capability filtering is not done here since unknown capabilities are allowed
-		// during updated payload load and enablement checking only occurs during apply.
-		payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil, work.EnabledFeatureGates)
-
-		if err != nil {
-			msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
-			reporter.ReportPayload(LoadPayloadStatus{
-				Failure:            err,
-				Step:               "LoadPayload",
-				Message:            msg,
-				Verified:           info.Verified,
-				Local:              info.Local,
-				Update:             desired,
-				LastTransitionTime: time.Now(),
-			})
-			return nil, err
-		}
-
-		payloadUpdate.VerifiedImage = info.Verified
-		payloadUpdate.LoadedAt = time.Now()
-
-		if work.Desired.Version == "" {
-			work.Desired.Version = payloadUpdate.Release.Version
-			desired.Version = payloadUpdate.Release.Version
-		} else if payloadUpdate.Release.Version != work.Desired.Version {
-			err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
-			msg := fmt.Sprintf("Verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", msg)
-			reporter.ReportPayload(LoadPayloadStatus{
-				Failure:            err,
-				Step:               "VerifyPayloadVersion",
-				Message:            msg,
-				Verified:           info.Verified,
-				Local:              info.Local,
-				Update:             desired,
-				LastTransitionTime: time.Now(),
-			})
-			return nil, err
-		}
-
-		// need to make sure the payload is only set when the preconditions have been successful
-		if len(w.preconditions) == 0 {
-			klog.V(2).Info("No preconditions configured.")
-		} else if info.Local {
-			klog.V(2).Info("Skipping preconditions for a local operator image payload.")
-		} else {
-			if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
-				DesiredVersion: payloadUpdate.Release.Version,
-			}), work.Desired.Force); err != nil {
-				klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
-				if block {
-					msg := fmt.Sprintf("Preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", msg)
-					reporter.ReportPayload(LoadPayloadStatus{
-						Failure:            err,
-						Step:               "PreconditionChecks",
-						Message:            msg,
-						Verified:           info.Verified,
-						Local:              info.Local,
-						Update:             desired,
-						LastTransitionTime: time.Now(),
-					})
-					return nil, err
-				} else {
-					w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
-
-					if acceptedRisksMsg == "" {
-						acceptedRisksMsg = err.Error()
-					} else {
-						acceptedRisksMsg = fmt.Sprintf("%s\n%s", acceptedRisksMsg, err.Error())
-					}
-				}
-			}
-			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
-		}
-		if w.payload != nil {
-			implicitlyEnabledCaps = capability.SortedList(payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
-				work.Capabilities, work.EnabledFeatureGates))
-		}
-		w.payload = payloadUpdate
-		msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
-			payloadUpdate.Architecture)
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
+	// Capability filtering is not done here since unknown capabilities are allowed
+	// during updated payload load and enablement checking only occurs during apply.
+	payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil, work.EnabledFeatureGates)
+	if err != nil {
+		msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
 		reporter.ReportPayload(LoadPayloadStatus{
-			Failure:            nil,
-			Step:               "PayloadLoaded",
+			Failure:            err,
+			Step:               "LoadPayload",
 			Message:            msg,
-			AcceptedRisks:      acceptedRisksMsg,
 			Verified:           info.Verified,
 			Local:              info.Local,
 			Update:             desired,
 			LastTransitionTime: time.Now(),
 		})
-		klog.V(2).Infof("Payload loaded from %s with hash %s, architecture %s", desired.Image, payloadUpdate.ManifestHash,
-			payloadUpdate.Architecture)
+		return nil, err
 	}
+
+	payloadUpdate.VerifiedImage = info.Verified
+	payloadUpdate.LoadedAt = time.Now()
+
+	if work.Desired.Version == "" {
+		work.Desired.Version = payloadUpdate.Release.Version
+		desired.Version = payloadUpdate.Release.Version
+	} else if payloadUpdate.Release.Version != work.Desired.Version {
+		err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
+		msg := fmt.Sprintf("Verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", msg)
+		reporter.ReportPayload(LoadPayloadStatus{
+			Failure:            err,
+			Step:               "VerifyPayloadVersion",
+			Message:            msg,
+			Verified:           info.Verified,
+			Local:              info.Local,
+			Update:             desired,
+			LastTransitionTime: time.Now(),
+		})
+		return nil, err
+	}
+
+	// need to make sure the payload is only set when the preconditions have been successful
+	if len(w.preconditions) == 0 {
+		klog.V(2).Info("No preconditions configured.")
+	} else if info.Local {
+		klog.V(2).Info("Skipping preconditions for a local operator image payload.")
+	} else {
+		if block, err := precondition.Summarize(w.preconditions.RunAll(ctx, precondition.ReleaseContext{
+			DesiredVersion: payloadUpdate.Release.Version,
+		}), work.Desired.Force); err != nil {
+			klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
+			if block {
+				msg := fmt.Sprintf("Preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
+				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", msg)
+				reporter.ReportPayload(LoadPayloadStatus{
+					Failure:            err,
+					Step:               "PreconditionChecks",
+					Message:            msg,
+					Verified:           info.Verified,
+					Local:              info.Local,
+					Update:             desired,
+					LastTransitionTime: time.Now(),
+				})
+				return nil, err
+			} else {
+				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionWarn", "precondition warning for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
+
+				if acceptedRisksMsg == "" {
+					acceptedRisksMsg = err.Error()
+				} else {
+					acceptedRisksMsg = fmt.Sprintf("%s\n%s", acceptedRisksMsg, err.Error())
+				}
+			}
+		}
+		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PreconditionsPassed", "preconditions passed for payload loaded version=%q image=%q", desired.Version, desired.Image)
+	}
+
+	if w.payload != nil {
+		implicitlyEnabledCaps = capability.SortedList(payload.GetImplicitlyEnabledCapabilities(payloadUpdate.Manifests, w.payload.Manifests,
+			work.Capabilities, work.EnabledFeatureGates))
+	}
+
+	w.payload = payloadUpdate
+	msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
+		payloadUpdate.Architecture)
+	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
+	reporter.ReportPayload(LoadPayloadStatus{
+		Failure:            nil,
+		Step:               "PayloadLoaded",
+		Message:            msg,
+		AcceptedRisks:      acceptedRisksMsg,
+		Verified:           info.Verified,
+		Local:              info.Local,
+		Update:             desired,
+		LastTransitionTime: time.Now(),
+	})
+	klog.V(2).Infof("Payload loaded from %s with hash %s, architecture %s", desired.Image, payloadUpdate.ManifestHash,
+		payloadUpdate.Architecture)
+
 	return implicitlyEnabledCaps, nil
 }
 
