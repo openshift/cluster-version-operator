@@ -4045,6 +4045,350 @@ func TestCVO_VerifyUpdatingPayloadState(t *testing.T) {
 	}
 }
 
+// TestCVO_FeatureGateManifestInclusion tests that manifest inclusion changes dynamically
+// when feature gates are updated, triggering payload refresh and re-filtering of manifests.
+func TestCVO_FeatureGateManifestInclusion(t *testing.T) {
+	o, cvs, client, _, shutdownFn := setupCVOTest("testdata/featuregatetest")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+	go worker.Start(ctx, 1)
+
+	// Step 1: Start with no feature gates enabled
+	// Expected manifests: always-included (no annotation), legacy-excluded (requires -LegacyFeature, which is not enabled)
+	// NOT included: experimental-feature (requires ExperimentalFeature)
+	o.release.Image = "image/image:1"
+	o.release.Version = "1.0.0-abc"
+	desired := configv1.Release{Version: "1.0.0-abc", Image: "image/image:1"}
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "version",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+	}
+
+	// Sync with no feature gates
+	client.ClearActions()
+	err := o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for payload to load
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Actual: desired,
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "RetrievePayload",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				LastTransitionTime: time.Unix(1, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			EnabledFeatureGates: sets.New[string](),
+		},
+		SyncWorkerStatus{
+			Actual:       desired,
+			LastProgress: time.Unix(1, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(2, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			EnabledFeatureGates: sets.New[string](),
+		},
+		SyncWorkerStatus{
+			Total:       2, // only always-included and legacy-excluded
+			Initial:     true,
+			VersionHash: "YAJ_K7RyH7U=", Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(2, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(3, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+			},
+			EnabledFeatureGates: sets.New[string](),
+		},
+	)
+
+	// Wait for Step 1 to complete
+	waitForStatusCompleted(t, worker)
+
+	// Verify 2 manifests in payload
+	if worker.payload == nil {
+		t.Fatal("Expected payload to be loaded")
+	}
+	if len(worker.payload.Manifests) != 2 {
+		t.Fatalf("Expected 2 manifests (without ExperimentalFeature), got %d", len(worker.payload.Manifests))
+	}
+
+	// Step 2: Enable ExperimentalFeature gate
+	// Expected manifests: always-included, legacy-excluded, AND experimental-feature
+
+	// Clear any pending status updates from Step 1
+	clearAllStatus(t, worker.StatusCh())
+
+	o.updateEnabledFeatureGates(&configv1.FeatureGate{
+		Status: configv1.FeatureGateStatus{
+			FeatureGates: []configv1.FeatureGateDetails{
+				{
+					Version: "1.0.0-abc",
+					Enabled: []configv1.FeatureGateAttributes{
+						{Name: "ExperimentalFeature"},
+					},
+				},
+			},
+		},
+	})
+
+	// Trigger another sync - this should cause payload refresh
+	client.ClearActions()
+	err = o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify feature gates changed and payload was refreshed
+	// Note: updateLoadStatus preserves apply status fields (Done, Total, Completed, Initial, VersionHash, LastProgress)
+	// from the previous status, so these will have Step 1's completed values
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Done:         2,
+			Total:        2,
+			Completed:    1,
+			Reconciling:  true,
+			Initial:      false,
+			VersionHash:  "YAJ_K7RyH7U=",
+			Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(1, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "RetrievePayload",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				LastTransitionTime: time.Unix(1, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+			},
+			EnabledFeatureGates: sets.New[string](),
+		},
+		SyncWorkerStatus{
+			Done:         2,
+			Total:        2,
+			Completed:    1,
+			Reconciling:  true,
+			Initial:      false,
+			VersionHash:  "YAJ_K7RyH7U=",
+			Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(2, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(2, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+			},
+			EnabledFeatureGates: sets.New[string](),
+		},
+		SyncWorkerStatus{
+			Total:       3, // now includes experimental-feature
+			Initial:     false,
+			VersionHash: "yrh5CWG1KPI=", Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(3, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(3, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{},
+			},
+			EnabledFeatureGates: sets.New[string]("ExperimentalFeature"),
+		},
+	)
+
+	// Wait for Step 2 to complete
+	waitForStatusCompleted(t, worker)
+
+	// Verify 3 manifests now (experimental-feature is now included)
+	if worker.payload == nil {
+		t.Fatal("Expected payload to be loaded")
+	}
+	if len(worker.payload.Manifests) != 3 {
+		t.Fatalf("Expected 3 manifests (with ExperimentalFeature), got %d", len(worker.payload.Manifests))
+	}
+
+	// Step 3: Enable LegacyFeature gate
+	// Expected manifests: always-included, experimental-feature
+	// NOT included: legacy-excluded (requires -LegacyFeature, but LegacyFeature is now enabled)
+
+	// Clear any pending status updates from Step 2
+	clearAllStatus(t, worker.StatusCh())
+
+	o.updateEnabledFeatureGates(&configv1.FeatureGate{
+		Status: configv1.FeatureGateStatus{
+			FeatureGates: []configv1.FeatureGateDetails{
+				{
+					Version: "1.0.0-abc",
+					Enabled: []configv1.FeatureGateAttributes{
+						{Name: "ExperimentalFeature"},
+						{Name: "LegacyFeature"},
+					},
+				},
+			},
+		},
+	})
+
+	// Trigger another sync
+	client.ClearActions()
+	err = o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify feature gates changed and payload was refreshed again
+	// Note: updateLoadStatus preserves apply status fields from Step 2's completed state
+	verifyAllStatus(t, worker.StatusCh(),
+		SyncWorkerStatus{
+			Done:         3,
+			Total:        3,
+			Completed:    2,
+			Reconciling:  true,
+			Initial:      false,
+			VersionHash:  "yrh5CWG1KPI=",
+			Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(1, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "RetrievePayload",
+				Message:            "Retrieving and verifying payload version=\"1.0.0-abc\" image=\"image/image:1\"",
+				LastTransitionTime: time.Unix(1, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+			},
+			EnabledFeatureGates: sets.New[string]("ExperimentalFeature"),
+		},
+		SyncWorkerStatus{
+			Done:         3,
+			Total:        3,
+			Completed:    2,
+			Reconciling:  true,
+			Initial:      false,
+			VersionHash:  "yrh5CWG1KPI=",
+			Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(2, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(2, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+			},
+			EnabledFeatureGates: sets.New[string]("ExperimentalFeature"),
+		},
+		SyncWorkerStatus{
+			Total:       2, // legacy-excluded is now excluded
+			Initial:     false,
+			VersionHash: "ge54Uoy7v5o=", Architecture: architecture,
+			Actual: configv1.Release{
+				Version: "1.0.0-abc",
+				Image:   "image/image:1",
+				URL:     "https://example.com/v1.0.0-abc",
+			},
+			LastProgress: time.Unix(3, 0),
+			loadPayloadStatus: LoadPayloadStatus{
+				Step:               "PayloadLoaded",
+				Message:            "Payload loaded version=\"1.0.0-abc\" image=\"image/image:1\" architecture=\"" + architecture + "\"",
+				LastTransitionTime: time.Unix(3, 0),
+				Update:             configv1.Update{Version: "1.0.0-abc", Image: "image/image:1"},
+			},
+			CapabilitiesStatus: CapabilityStatus{
+				Status: configv1.ClusterVersionCapabilitiesStatus{
+					EnabledCapabilities: sortedCaps,
+					KnownCapabilities:   sortedKnownCaps,
+				},
+				ImplicitlyEnabledCaps: []configv1.ClusterVersionCapability{},
+			},
+			EnabledFeatureGates: sets.New[string]("ExperimentalFeature", "LegacyFeature"),
+		},
+	)
+
+	// Verify 2 manifests now (legacy-excluded is now filtered out)
+	if worker.payload == nil {
+		t.Fatal("Expected payload to be loaded")
+	}
+	if len(worker.payload.Manifests) != 2 {
+		t.Fatalf("Expected 2 manifests (legacy-excluded should be filtered), got %d", len(worker.payload.Manifests))
+	}
+}
+
 // verifyCVSingleUpdate ensures that the only object to be updated is a ClusterVersion type and it is updated only once
 func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
 	var count int
