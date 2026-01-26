@@ -15,6 +15,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-t
 		o.Expect(true).To(o.BeTrue())
 	})
 
+	g.It("should support passing serial tests [Serial]", func() {
+		o.Expect(true).To(o.BeTrue())
+	})
+
 	g.It("can use oc to get the version information", func() {
 		ocClient, err := oc.NewOC(logger)
 		o.Expect(err).NotTo(o.HaveOccurred())
