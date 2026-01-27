@@ -181,7 +181,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 	options := NewOptions()
 	options.Namespace = ns
 	options.Name = ns
-	options.ListenAddr = ""
+	options.MetricsOptions.ListenAddress = ""
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
@@ -322,7 +322,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	options := NewOptions()
 	options.Namespace = ns
 	options.Name = ns
-	options.ListenAddr = ""
+	options.MetricsOptions.ListenAddress = ""
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = filepath.Join(dir, "0.0.1")
@@ -525,7 +525,7 @@ metadata:
 	options := NewOptions()
 	options.Namespace = ns
 	options.Name = ns
-	options.ListenAddr = ""
+	options.MetricsOptions.ListenAddress = ""
 	options.NodeName = "test-node"
 	options.ReleaseImage = payloadImage1
 	options.PayloadOverride = payloadDir
