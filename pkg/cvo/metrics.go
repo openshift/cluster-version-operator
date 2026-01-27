@@ -1,17 +1,12 @@
 package cvo
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -23,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	authenticationclientsetv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -32,8 +28,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/library-go/pkg/crypto"
-
-	"gopkg.in/fsnotify.v1"
 )
 
 // RegisterMetrics initializes metrics and registers them with the
@@ -210,15 +204,6 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.downstream.ServeHTTP(w, r)
 }
 
-func shutdownHttpServer(parentCtx context.Context, svr *http.Server) {
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
-	klog.Info("Shutting down metrics server so it can be recreated with updated TLS configuration.")
-	if err := svr.Shutdown(ctx); err != nil {
-		klog.Errorf("Failed to gracefully shut down metrics server during restart: %v", err)
-	}
-}
-
 func startListening(svr *http.Server, tlsConfig *tls.Config, lAddr string, resultChannel chan asyncResult) {
 	tcpListener, err := net.Listen("tcp", lAddr)
 	if err != nil {
@@ -248,23 +233,46 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 }
 
 // RunMetrics launches a server bound to listenAddress serving
-// Prometheus metrics at /metrics over HTTPS.  Continues serving
+// Prometheus metrics at /metrics over HTTPS. Continues serving
 // until runContext.Done() and then attempts a clean shutdown
-// limited by shutdownContext.Done().  Assumes runContext.Done()
+// limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-// Also detects changes to metrics certificate files upon which
-// the metrics HTTP server is shutdown and recreated with a new
-// TLS configuration.
+// The TLS configuration automatically reloads certificates when
+// they change on disk using dynamiccertificates.
 func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, disableMetricsAuth bool) error {
-	var tlsConfig *tls.Config
-	if listenAddress != "" {
-		var err error
-		tlsConfig, err = makeTLSConfig(certFile, keyFile)
-		if err != nil {
-			return fmt.Errorf("failed to create TLS config: %w", err)
-		}
-	} else {
+	if listenAddress == "" {
 		return errors.New("TLS configuration is required to serve metrics")
+	}
+
+	// Prepare synchronization for to-be created go routines
+	metricsContext, metricsContextCancel := context.WithCancel(runContext)
+	defer metricsContextCancel()
+
+	resultChannel := make(chan asyncResult, 1)
+	resultChannelCount := 0
+
+	// Create a dynamic serving cert/key controller to watch for serving certificate changes from files.
+	servingCertController, err := dynamiccertificates.NewDynamicServingContentFromFiles("metrics-serving-cert", certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("failed to create serving certificate controller: %w", err)
+	}
+	if err := servingCertController.RunOnce(metricsContext); err != nil {
+		return fmt.Errorf("failed to initialize serving content controller: %w", err)
+	}
+
+	// Start the serving cert controller to begin watching the cert and key files
+	resultChannelCount++
+	go func() {
+		servingCertController.Run(metricsContext, 1)
+		resultChannel <- asyncResult{name: "serving content controller"}
+	}()
+
+	// Create TLS config using the controllers. The config uses callbacks to dynamically
+	// fetch the latest certificates and CA bundles on each connection, so no server
+	// restart is needed when certificates change.
+	tlsConfig, err := makeTLSConfig(servingCertController)
+	if err != nil {
+		return fmt.Errorf("failed to create TLS config: %w", err)
 	}
 
 	client, err := authenticationclientsetv1.NewForConfig(restConfig)
@@ -272,49 +280,18 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
-	server := createHttpServer(runContext, client, disableMetricsAuth)
+	server := createHttpServer(metricsContext, client, disableMetricsAuth)
 
-	resultChannel := make(chan asyncResult, 1)
-	resultChannelCount := 1
+	resultChannelCount++
+	go func() {
+		startListening(server, tlsConfig, listenAddress, resultChannel)
+	}()
 
-	go startListening(server, tlsConfig, listenAddress, resultChannel)
-
-	certDir := filepath.Dir(certFile)
-	keyDir := filepath.Dir(keyFile)
-
-	origCertChecksum, err := checksumFile(certFile)
-	if err != nil {
-		return fmt.Errorf("failed to initialize certificate file checksum: %w", err)
-	}
-	origKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return fmt.Errorf("failed to initialize key file checksum: %w", err)
-	}
-
-	// Set up and start the file watcher.
-	watcher, err := fsnotify.NewWatcher()
-	if watcher == nil || err != nil {
-		return fmt.Errorf("failed to create file watcher for certificate and key rotation: %w", err)
-	} else {
-		defer func() {
-			if err := watcher.Close(); err != nil {
-				klog.Errorf("Failed to close file watcher: %v", err)
-			}
-		}()
-		if err := watcher.Add(certDir); err != nil {
-			return fmt.Errorf("failed to add %v to watcher: %w", certDir, err)
-		}
-		if certDir != keyDir {
-			if err := watcher.Add(keyDir); err != nil {
-				return fmt.Errorf("failed to add %v to watcher: %w", keyDir, err)
-			}
-		}
-	}
-
+	// Wait for server to exit or shutdown signal
 	shutdown := false
-	restartServer := false
 	var loopError error
 	for resultChannelCount > 0 {
+		klog.Infof("Waiting on %d outstanding goroutines.", resultChannelCount)
 		if shutdown {
 			select {
 			case result := <-resultChannel:
@@ -326,63 +303,24 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 			}
 		} else {
 			select {
-			case <-runContext.Done(): // clean shutdown
-			case result := <-resultChannel: // crashed before a shutdown was requested or metrics server recreated
-				if restartServer {
-					klog.Info("Creating metrics server with updated TLS configuration.")
-					server = createHttpServer(runContext, client, disableMetricsAuth)
-					go startListening(server, tlsConfig, listenAddress, resultChannel)
-					restartServer = false
-					continue
-				}
+			case <-metricsContext.Done():
+				klog.Infof("Clean metrics shutdown requested: %v", metricsContext.Err())
+			case result := <-resultChannel:
 				resultChannelCount--
 				loopError = handleServerResult(result, loopError)
-			case event := <-watcher.Events:
-				if event.Op != fsnotify.Chmod && event.Op != fsnotify.Remove {
-					if changed, err := certsChanged(origCertChecksum, origKeyChecksum, certFile, keyFile); changed {
-
-						// Update file checksums with latest files.
-						//
-						if origCertChecksum, err = checksumFile(certFile); err != nil {
-							klog.Errorf("Failed to update certificate file checksum: %v", err)
-							loopError = err
-							break
-						}
-						if origKeyChecksum, err = checksumFile(keyFile); err != nil {
-							klog.Errorf("Failed to update key file checksum: %v", err)
-							loopError = err
-							break
-						}
-
-						tlsConfig, err = makeTLSConfig(certFile, keyFile)
-						if err == nil {
-							restartServer = true
-							shutdownHttpServer(shutdownContext, server)
-							continue
-						} else {
-							klog.Errorf("Failed to create TLS configuration with updated configuration: %v", err)
-							loopError = err
-						}
-					} else if err != nil {
-						klog.Errorf("%v", err)
-						loopError = err
-					} else {
-						continue
-					}
-				} else {
-					continue
-				}
-			case err = <-watcher.Errors:
-				klog.Errorf("Error from metrics server certificate file watcher: %v", err)
-				loopError = err
 			}
 			shutdown = true
 			shutdownError := server.Shutdown(shutdownContext)
-			if loopError == nil {
-				loopError = shutdownError
-			} else if shutdownError != nil { // log the error we are discarding
+			if shutdownError != nil { // log the error we are discarding
 				klog.Errorf("Failed to gracefully shut down metrics server: %v", shutdownError)
 			}
+
+			if loopError == nil {
+				loopError = shutdownError
+			}
+
+			// Request remaining go routines to shut down
+			metricsContextCancel()
 		}
 	}
 
@@ -722,95 +660,20 @@ func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
 	return latest.Unix()
 }
 
-// Determine if the certificates have changed and need to be updated.
-// If no errors occur, returns true if both files have changed and
-// neither is an empty file. Otherwise returns false and any error.
-func certsChanged(origCertChecksum []byte, origKeyChecksum []byte, certFile, keyFile string) (bool, error) {
-	// Check if both files exist.
-	certNotEmpty, err := fileExistsAndNotEmpty(certFile)
+func makeTLSConfig(servingCertController dynamiccertificates.CertKeyContentProvider) (*tls.Config, error) {
+	_, err := tls.X509KeyPair(servingCertController.CurrentCertKeyContent())
 	if err != nil {
-		return false, fmt.Errorf("Error checking if changed TLS cert file empty/exists: %w", err)
+		return nil, fmt.Errorf("failed to create X509 key pair: %w", err)
 	}
-	keyNotEmpty, err := fileExistsAndNotEmpty(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking if changed TLS key file empty/exists: %w", err)
-	}
-	if !certNotEmpty || !keyNotEmpty {
-		// One of the files is missing despite some file event.
-		return false, fmt.Errorf("certificate or key is missing or empty, certificates will not be rotated")
-	}
-
-	currentCertChecksum, err := checksumFile(certFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking certificate file checksum: %w", err)
-	}
-
-	currentKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking key file checksum: %w", err)
-	}
-
-	// Check if the non-empty certificate/key files have actually changed.
-	if !bytes.Equal(origCertChecksum, currentCertChecksum) && !bytes.Equal(origKeyChecksum, currentKeyChecksum) {
-		klog.V(2).Info("Certificate and key changed. Will recreate metrics server with updated TLS configuration.")
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) {
-	// Load the initial certificate contents.
-	certBytes, err := os.ReadFile(servingCertFile)
-	if err != nil {
-		return nil, err
-	}
-	keyBytes, err := os.ReadFile(servingKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	certificate, err := tls.X509KeyPair(certBytes, keyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return crypto.SecureTLSConfig(&tls.Config{
+	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &certificate, nil
+			cert, err := tls.X509KeyPair(servingCertController.CurrentCertKeyContent())
+			if err != nil {
+				klog.Errorf("Failed to load current serving certificate, rejecting connection: %v", err)
+				return nil, fmt.Errorf("invalid serving certificate: %w", err)
+			}
+			return &cert, nil
 		},
-	}), nil
-}
-
-// Compute the sha256 checksum for file 'fName' returning any error.
-func checksumFile(fName string) ([]byte, error) {
-	file, err := os.Open(fName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %v for checksum: %w", fName, err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			klog.Errorf("failed to close file %s: %v", fName, err)
-		}
-	}()
-
-	hash := sha256.New()
-
-	if _, err = io.Copy(hash, file); err != nil {
-		return nil, fmt.Errorf("failed to compute checksum for file %v: %w", fName, err)
-	}
-
-	return hash.Sum(nil), nil
-}
-
-// Check if a file exists and has file.Size() not equal to 0.
-// Returns any error returned by os.Stat other than os.ErrNotExist.
-func fileExistsAndNotEmpty(fName string) (bool, error) {
-	if fi, err := os.Stat(fName); err == nil {
-		return (fi.Size() != 0), nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	} else {
-		// Some other error, file may not exist.
-		return false, err
-	}
+	})
+	return tlsConfig, nil
 }
