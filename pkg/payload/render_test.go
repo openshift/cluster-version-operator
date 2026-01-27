@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	configv1 "github.com/openshift/api/config/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 func TestRenderManifest(t *testing.T) {
@@ -56,5 +58,24 @@ func TestRenderManifest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func Test_cvoKnownFeatureSets(t *testing.T) {
+	unknown := sets.New[string]()
+	known := cvoSkipFeatureSets.Clone().Insert(string(configv1.Default))
+	for _, fs := range append(configv1.AllFixedFeatureSets, configv1.CustomNoUpgrade) {
+		candidate := string(fs)
+		if !known.Has(candidate) {
+			unknown.Insert(candidate)
+		}
+	}
+	if unknown.Len() != 0 {
+		t.Errorf("found unknown feature sets [%s] not recognized by CVO. If it is a result of bump o/api e.g., "+
+			"https://github.com/openshift/cluster-version-operator/pull/1302/commits/dd3b8335f7f443b5ab6ffcfd78236832cb922753 "+
+			"and it led to failing CVO/Hypershift e2e tests, please try to fix them by pulls like "+
+			"https://github.com/openshift/hypershift/pull/7557 and "+
+			"https://github.com/openshift/cluster-version-operator/pull/1302/commits/981361e85b58ec77dada253e63f79f8ef78a8bd1. "+
+			"Otherwise, adding them to cvoSkipFeatureSets fixes this unit test", strings.Join(unknown.UnsortedList(), ", "))
 	}
 }
