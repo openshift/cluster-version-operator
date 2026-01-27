@@ -209,6 +209,11 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 }
 
 type MetricsOptions struct {
+	ListenAddress string
+
+	ServingCertFile string
+	ServingKeyFile  string
+
 	DisableAuthentication bool
 	DisableAuthorization  bool
 }
@@ -222,12 +227,12 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, metricsOptions MetricsOptions) error {
-	if listenAddress == "" {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
 
-	if metricsOptions.DisableAuthentication && !metricsOptions.DisableAuthorization {
+	if options.DisableAuthentication && !options.DisableAuthorization {
 		return errors.New("invalid configuration: cannot enable authorization without authentication")
 	}
 
@@ -239,7 +244,11 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 	resultChannelCount := 0
 
 	// Create a dynamic serving cert/key controller to watch for serving certificate changes from files.
-	servingContentController, err := dynamiccertificates.NewDynamicServingContentFromFiles("metrics-serving-cert", certFile, keyFile)
+	servingContentController, err := dynamiccertificates.NewDynamicServingContentFromFiles(
+		"metrics-serving-cert",
+		options.ServingCertFile,
+		options.ServingKeyFile,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create serving certificate controller: %w", err)
 	}
@@ -257,7 +266,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 	clientAuth := tls.NoClientCert
 	var clientCA dynamiccertificates.CAContentProvider
 	var clientCAController *dynamiccertificates.ConfigMapCAController
-	if !metricsOptions.DisableAuthentication {
+	if !options.DisableAuthentication {
 		// Create a dynamic CA controller to watch for client CA changes from a ConfigMap.
 		kubeClient, err := kubernetes.NewForConfig(restConfig)
 		if err != nil {
@@ -327,7 +336,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 		resultChannel <- asyncResult{name: "serving certification controller"}
 	}()
 
-	server := createHttpServer(metricsOptions.DisableAuthorization)
+	server := createHttpServer(options.DisableAuthorization)
 
 	// GetConfigForClient returns updated certs on each handshake. If it returns nil (e.g., cert load
 	// failure), ClientAuth is used as fallback to reject connections rather than allow unauthenticated.
@@ -338,7 +347,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 
 	resultChannelCount++
 	go func() {
-		startListening(server, tlsConfig, listenAddress, resultChannel)
+		startListening(server, tlsConfig, options.ListenAddress, resultChannel)
 	}()
 
 	// Wait for server to exit or shutdown signal
