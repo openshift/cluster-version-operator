@@ -28,6 +28,8 @@ Example:
 }
 ```
 
+More examples can be found at [fauxinnati](https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/). See [a demo](https://asciinema.org/a/hUwpV4pyhGK0k0nI68KzAO3pv) to use it as `cv.spec.upstream`. It currently does not inject real payload URLs, and thus we cannot do a cluster upgrade with it. We may modify the returned graph and host it somewhere (see the example in this page) to achieve it.
+
 ### Step-2
 
 Host the file in any location where the cluster version operator can access it.
