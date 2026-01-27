@@ -219,10 +219,8 @@ type MetricsOptions struct {
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
-// Prometheus metrics at /metrics. By default, enforces mTLS (mutual TLS)
-// for client authentication and CN-based authorization (both configurable
-// via metricsOptions). Serving certificates automatically reload on disk
-// changes, and client CA automatically reloads on ConfigMap changes.
+// Prometheus metrics at /metrics. If configured, enforces mTLS (mutual TLS)
+// for client authentication and uses a CN-based authorization.
 //
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
