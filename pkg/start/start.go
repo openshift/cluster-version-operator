@@ -351,10 +351,13 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						go func() {
 							defer utilruntime.HandleCrash()
 							options := cvo.MetricsOptions{
+								ListenAddress:         o.ListenAddr,
+								ServingCertFile:       o.ServingCertFile,
+								ServingKeyFile:        o.ServingKeyFile,
 								DisableAuthentication: o.HyperShift,
 								DisableAuthorization:  o.HyperShift,
 							}
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig, options)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, options)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
