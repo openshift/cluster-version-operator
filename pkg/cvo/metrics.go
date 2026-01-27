@@ -29,14 +29,6 @@ import (
 	"github.com/openshift/library-go/pkg/crypto"
 )
 
-const (
-	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
-	// that is authorized to access the metrics endpoint. This corresponds to the
-	// well-known Prometheus service account in OpenShift monitoring.
-	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
-	metricsAllowedClientCommonName = "system:serviceaccount:openshift-monitoring:prometheus-k8s"
-)
-
 // RegisterMetrics initializes metrics and registers them with the
 // Prometheus implementation.
 func (optr *Operator) RegisterMetrics(coInformer cache.SharedInformer) error {
@@ -169,6 +161,12 @@ func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "client certificate required", http.StatusUnauthorized)
 		return
 	}
+
+	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
+	// that is authorized to access the metrics endpoint. This corresponds to the
+	// well-known Prometheus service account in OpenShift monitoring.
+	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
+	metricsAllowedClientCommonName := "system:serviceaccount:openshift-monitoring:prometheus-k8s"
 
 	// The first element is the leaf certificate that the connection is verified against
 	commonName := r.TLS.PeerCertificates[0].Subject.CommonName
