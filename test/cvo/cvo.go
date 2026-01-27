@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
+	"github.com/openshift/cluster-version-operator/test/util"
 )
 
 var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
@@ -44,10 +45,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	g.BeforeEach(func() {
 		var err error
 		// Respects KUBECONFIG env var
-		restCfg, err = GetRestConfig()
+		restCfg, err = util.GetRestConfig()
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to load Kubernetes configuration. Please ensure KUBECONFIG environment variable is set.")
 
-		kubeClient, err = GetKubeClient(restCfg)
+		kubeClient, err = util.GetKubeClient(restCfg)
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to create Kubernetes client")
 	})
 
@@ -55,13 +56,15 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	// Refer to https://github.com/openshift/openshift-tests-private/blob/40374cf20946ff03c88712839a5626af2c88ab31/test/extended/ota/cvo/cvo.go#L1081
 	g.It("should have correct runlevel and scc", func() {
 		ctx := context.Background()
-		err := SkipIfHypershift(ctx, restCfg)
+		err := util.SkipIfHypershift(ctx, restCfg)
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
 
 		g.By("Checking that the 'openshift.io/run-level' label exists on the namespace and has the empty value")
 		ns, err := kubeClient.CoreV1().Namespaces().Get(ctx, cvoNamespace, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get namespace %s", cvoNamespace)
-		runLevel, exists := ns.ObjectMeta.Labels["openshift.io/run-level"]
+		runLevel, exists := ns.Labels["openshift.io/run-level"]
 		o.Expect(exists).To(o.BeTrue(), "The 'openshift.io/run-level' label on namespace %s does not exist", cvoNamespace)
 		o.Expect(runLevel).To(o.BeEmpty(), "Expected the 'openshift.io/run-level' label value on namespace %s has the empty value, but got %s", cvoNamespace, runLevel)
 
@@ -74,7 +77,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(podList.Items).To(o.HaveLen(1), "Expected exactly one running CVO pod, but found: %d", len(podList.Items))
 
 		cvoPod := podList.Items[0]
-		sccAnnotation := cvoPod.ObjectMeta.Annotations["openshift.io/scc"]
+		sccAnnotation := cvoPod.Annotations["openshift.io/scc"]
 		o.Expect(sccAnnotation).To(o.Equal("hostaccess"), "Expected the annotation 'openshift.io/scc annotation' on pod %s to have the value 'hostaccess', but got %s", cvoPod.Name, sccAnnotation)
 	})
 })
