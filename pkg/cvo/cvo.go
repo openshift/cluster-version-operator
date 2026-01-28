@@ -1153,11 +1153,7 @@ func (optr *Operator) getEnabledFeatureGates() sets.Set[string] {
 	defer optr.featureGatesMutex.RUnlock()
 
 	// Return a copy to prevent external modification
-	result := sets.Set[string]{}
-	for gate := range optr.enabledManifestFeatureGates {
-		result.Insert(gate)
-	}
-	return result
+	return optr.enabledManifestFeatureGates.Clone()
 }
 
 // extractEnabledGates extracts the list of enabled feature gates for the current cluster version
