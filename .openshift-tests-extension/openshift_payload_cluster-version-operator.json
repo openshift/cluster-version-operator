@@ -10,6 +10,16 @@
     "environmentSelector": {}
   },
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator-tests should support passing serial tests [Serial]",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator-tests can use oc to get the version information",
     "labels": {},
     "resources": {
