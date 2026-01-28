@@ -248,9 +248,8 @@ func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest
 	return localmanifest.GetImplicitlyEnabledCapabilities(
 		updatePayloadManifests,
 		currentPayloadManifests,
-		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps},
+		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps, EnabledFeatureGates: enabledFeatureGates},
 		capabilities.ImplicitlyEnabled,
-		enabledFeatureGates,
 	)
 }
 
