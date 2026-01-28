@@ -16,6 +16,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -2302,7 +2303,6 @@ func TestOperator_sync(t *testing.T) {
 
 func TestOperator_availableUpdatesSync(t *testing.T) {
 	id := uuid.Must(uuid.NewRandom()).String()
-
 	tests := []struct {
 		name        string
 		key         string
@@ -2363,6 +2363,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "VersionNotFound",
 					Message: `Unable to retrieve available updates: currently reconciling cluster version 4.0.1 not found in the "fast" channel`,
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2406,6 +2407,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  noChannel,
 					Message: "The update channel has not been configured.",
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2448,6 +2450,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "NoCurrentVersion",
 					Message: "The cluster version does not have a semantic version assigned and cannot calculate valid upgrades.",
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2497,6 +2500,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "ResponseFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2565,6 +2569,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2631,6 +2636,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2729,6 +2735,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "ResponseFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
+				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 	}
@@ -2781,8 +2788,8 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 			}
 
-			if !reflect.DeepEqual(optr.availableUpdates, tt.wantUpdates) {
-				t.Fatalf("unexpected: %s", cmp.Diff(tt.wantUpdates, optr.availableUpdates))
+			if diff := cmp.Diff(tt.wantUpdates, optr.availableUpdates, cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks")); diff != "" {
+				t.Fatalf("unexpected: %s", diff)
 			}
 			if (optr.queue.Len() > 0) != (optr.availableUpdates != nil) {
 				t.Fatalf("unexpected queue")

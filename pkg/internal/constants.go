@@ -70,4 +70,12 @@ const (
 
 	// UpgradeableUpgradeInProgress is True if an update is in progress.
 	UpgradeableUpgradeInProgress configv1.ClusterStatusConditionType = "UpgradeableUpgradeInProgress"
+
+	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
+	// that indicates whether the conditional update is recommended or not
+	ConditionalUpdateConditionTypeRecommended = "Recommended"
+
+	// ConditionalUpdateRiskConditionTypeApplies is a type of the condition present on a conditional update risk
+	// that indicates whether the conditional update risk applies to the cluster
+	ConditionalUpdateRiskConditionTypeApplies = "Applies"
 )
