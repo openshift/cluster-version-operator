@@ -909,6 +909,7 @@ func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 	// do not overwrite these status values which are not managed by apply
 	update.loadPayloadStatus = w.status.loadPayloadStatus
 	update.CapabilitiesStatus = w.status.CapabilitiesStatus
+	update.EnabledFeatureGates = w.status.EnabledFeatureGates.Clone()
 
 	klog.V(6).Infof("Payload apply status change %#v", update)
 	w.status = update
