@@ -126,14 +126,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 		if skipFiles.Has(file.Name()) {
 			continue
 		}
-		if strings.Contains(file.Name(), "CustomNoUpgrade") ||
-			strings.Contains(file.Name(), "TechPreviewNoUpgrade") ||
-			strings.Contains(file.Name(), "DevPreviewNoUpgrade") ||
-			strings.Contains(file.Name(), "OKD") {
-			// CustomNoUpgrade, TechPreviewNoUpgrade, DevPreviewNoUpgrade, and OKD may add features to manifests like the ClusterVersion CRD,
-			// but we do not need those features during bootstrap-render time.  In those clusters, the production
-			// CVO will be along shortly to update the manifests and deliver the gated features.
-			// fixme: now that we have requiredFeatureSet, use it to do Manifest.Include() filtering here instead of making filename assumptions
+		if skipFeatureSets(file.Name()) {
 			continue
 		}
 
@@ -197,6 +190,21 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 		return fmt.Errorf("error rendering manifests: %v", agg.Error())
 	}
 	return nil
+}
+
+// CustomNoUpgrade, TechPreviewNoUpgrade, DevPreviewNoUpgrade, and OKD may add features to manifests like the ClusterVersion CRD,
+// but we do not need those features during bootstrap-render time.  In those clusters, the production
+// CVO will be along shortly to update the manifests and deliver the gated features.
+// fixme: now that we have requiredFeatureSet, use it to do Manifest.Include() filtering here instead of making filename assumptions
+var cvoSkipFeatureSets = sets.New[string]("CustomNoUpgrade", "TechPreviewNoUpgrade", "DevPreviewNoUpgrade", "OKD")
+
+func skipFeatureSets(filename string) bool {
+	for featureSet := range cvoSkipFeatureSets {
+		if strings.HasPrefix(filename, featureSet) {
+			return true
+		}
+	}
+	return false
 }
 
 type manifestRenderConfig struct {
