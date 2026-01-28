@@ -29,13 +29,13 @@ func init() {
 		},
 	}
 
-	cmd.PersistentFlags().StringVar(&opts.ListenAddr, "listen", opts.ListenAddr, "Address to listen on for metrics")
+	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.ListenAddress, "listen", opts.MetricsOptions.ListenAddress, "Address to listen on for metrics")
 	cmd.PersistentFlags().StringVar(&opts.Kubeconfig, "kubeconfig", opts.Kubeconfig, "Kubeconfig file to access a remote cluster (testing only)")
 	cmd.PersistentFlags().StringVar(&opts.NodeName, "node-name", opts.NodeName, "kubernetes node name CVO is scheduled on.")
 	cmd.PersistentFlags().BoolVar(&opts.EnableAutoUpdate, "enable-auto-update", opts.EnableAutoUpdate, "Enables the autoupdate controller.")
 	cmd.PersistentFlags().StringVar(&opts.ReleaseImage, "release-image", opts.ReleaseImage, "The Openshift release image url.")
-	cmd.PersistentFlags().StringVar(&opts.ServingCertFile, "serving-cert-file", opts.ServingCertFile, "The X.509 certificate file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
-	cmd.PersistentFlags().StringVar(&opts.ServingKeyFile, "serving-key-file", opts.ServingKeyFile, "The X.509 key file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
+	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.ServingCertFile, "serving-cert-file", opts.MetricsOptions.ServingCertFile, "The X.509 certificate file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
+	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.ServingKeyFile, "serving-key-file", opts.MetricsOptions.ServingKeyFile, "The X.509 key file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.CABundleFile, "metrics-ca-bundle-file", opts.PromQLTarget.CABundleFile, "The service CA bundle file containing one or more X.509 certificate files for validating certificates generated from the service CA for the respective remote PromQL query service.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.BearerTokenFile, "metrics-token-file", opts.PromQLTarget.BearerTokenFile, "The bearer token file used to access the remote PromQL query service.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.KubeSvc.Namespace, "metrics-namespace", opts.PromQLTarget.KubeSvc.Namespace, "The name of the namespace where the the remote PromQL query service resides. Must be specified when --use-dns-for-services is disabled.")
