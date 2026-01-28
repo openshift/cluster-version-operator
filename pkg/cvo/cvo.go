@@ -1131,13 +1131,11 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
 
 	newGates := optr.extractEnabledGates(featureGate)
 
-	optr.featureGatesMutex.RLock()
+	optr.featureGatesMutex.Lock()
+	defer optr.featureGatesMutex.Unlock()
 
 	// Check if gates actually changed to avoid unnecessary work
 	if !optr.enabledManifestFeatureGates.Equal(newGates) {
-		optr.featureGatesMutex.RUnlock()
-		optr.featureGatesMutex.Lock()
-		defer optr.featureGatesMutex.Unlock()
 
 		klog.V(2).Infof("Cluster feature gates changed from %v to %v",
 			sets.List(optr.enabledManifestFeatureGates), sets.List(newGates))
@@ -1146,7 +1144,6 @@ func (optr *Operator) updateEnabledFeatureGates(obj interface{}) bool {
 		return true
 	}
 
-	optr.featureGatesMutex.RUnlock()
 	return false
 }
 
