@@ -19,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 
@@ -831,6 +832,58 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 			if diff := cmp.Diff(expectedAvailableUpdates, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
 				t.Fatalf("available updates differ from expected:\n%s", diff)
 			}
+		})
+	}
+}
+
+func Test_sanityCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		updates  []configv1.ConditionalUpdate
+		expected error
+	}{
+		{
+			name: "good",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
+			},
+		},
+		{
+			name: "invalid risk name",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "", URL: "some"}}},
+			},
+			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found invalid name on risk {[] some   []}")}),
+		},
+		{
+			name: "bad in one update",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskA", URL: "some"}}},
+			},
+			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
+		},
+		{
+			name: "bad in two updates",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA", URL: "some"}}},
+			},
+			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := sanityCheck(tt.updates)
+			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("sanityCheck() mismatch (-want +got):\n%s", diff)
+			}
+
 		})
 	}
 }

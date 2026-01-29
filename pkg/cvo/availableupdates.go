@@ -12,10 +12,13 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
@@ -207,8 +210,6 @@ type availableUpdates struct {
 	Condition configv1.ClusterOperatorStatusCondition
 
 	// RiskConditions stores the condition for every risk (name, url, message, matchingRules).
-	// The key of the risk is represented by its name which is ensured by validating our graph-data.
-	// https://github.com/openshift/cincinnati-graph-data/blob/af701850c24b4a53426c2a5400c63895fdf9de60/hack/validate-blocked-edges.py#L25C77-L25C90
 	RiskConditions map[string][]metav1.Condition
 }
 
@@ -447,6 +448,9 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		vj := semver.MustParse(u.ConditionalUpdates[j].Release.Version)
 		return vi.GTE(vj)
 	})
+	if err := sanityCheck(u.ConditionalUpdates); err != nil {
+		klog.Errorf("Sanity check failed which might impact risk evaluation: %v", err)
+	}
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		condition := evaluateConditionalUpdate(ctx, conditionalUpdate.Risks, u.ConditionRegistry, u.AcceptRisks, u.ShouldReconcileAcceptRisks, u.RiskConditions)
 
@@ -460,6 +464,25 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 		u.ConditionalUpdates[i].Conditions = conditionalUpdate.Conditions
 
 	}
+}
+
+func sanityCheck(updates []configv1.ConditionalUpdate) error {
+	risks := map[string]configv1.ConditionalUpdateRisk{}
+	var errs []error
+	for _, update := range updates {
+		for _, risk := range update.Risks {
+			if v, ok := risks[risk.Name]; ok {
+				if diff := cmp.Diff(v, risk, cmpopts.IgnoreFields(configv1.ConditionalUpdateRisk{}, "Conditions")); diff != "" {
+					errs = append(errs, fmt.Errorf("found collision on risk %s: %v and %v", risk.Name, v, risk))
+				}
+			} else if trimmed := strings.TrimSpace(risk.Name); trimmed == "" {
+				errs = append(errs, fmt.Errorf("found invalid name on risk %v", risk))
+			} else {
+				risks[risk.Name] = risk
+			}
+		}
+	}
+	return utilerrors.NewAggregate(errs)
 }
 
 func (u *availableUpdates) addUpdate(release configv1.Release) {
