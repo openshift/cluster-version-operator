@@ -434,7 +434,7 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
-				Reason:  "ExposedOnlyToAcceptedRisks",
+				Reason:  "AllExposedRisksAccepted",
 				Message: "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins.",
 			},
 			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},

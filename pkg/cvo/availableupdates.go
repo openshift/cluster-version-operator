@@ -522,10 +522,10 @@ func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStat
 }
 
 const (
-	recommendedReasonRisksNotExposed            = "NotExposedToRisks"
-	recommendedReasonExposedOnlyToAcceptedRisks = "ExposedOnlyToAcceptedRisks"
-	recommendedReasonEvaluationFailed           = "EvaluationFailed"
-	recommendedReasonMultiple                   = "MultipleReasons"
+	recommendedReasonRisksNotExposed         = "NotExposedToRisks"
+	recommendedReasonAllExposedRisksAccepted = "AllExposedRisksAccepted"
+	recommendedReasonEvaluationFailed        = "EvaluationFailed"
+	recommendedReasonMultiple                = "MultipleReasons"
 
 	// recommendedReasonExposed is used instead of the original name if it does
 	// not match the pattern for a valid k8s condition reason.
@@ -542,9 +542,9 @@ var reasonPattern = regexp.MustCompile(`^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
 
 func newRecommendedReason(now, want string) string {
 	switch {
-	case now == recommendedReasonRisksNotExposed || now == recommendedReasonExposedOnlyToAcceptedRisks && now != want:
+	case now == recommendedReasonRisksNotExposed || now == recommendedReasonAllExposedRisksAccepted && now != want:
 		return want
-	case now == recommendedReasonExposedOnlyToAcceptedRisks && want == recommendedReasonRisksNotExposed || now == want:
+	case now == recommendedReasonAllExposedRisksAccepted && want == recommendedReasonRisksNotExposed || now == want:
 		return now
 	default:
 		return recommendedReasonMultiple
@@ -587,7 +587,7 @@ func evaluateConditionalUpdate(
 			riskCondition.Reason = riskConditionReasonMatch
 			if shouldReconcileAcceptRisks() && acceptRisks.Has(risk.Name) {
 				recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionTrue)
-				recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonExposedOnlyToAcceptedRisks)
+				recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonAllExposedRisksAccepted)
 				recommended.Message = "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins."
 				klog.V(2).Infof("Risk with name %q is accepted by the cluster admin and thus not in the evaluation of conditional update", risk.Name)
 			} else {
