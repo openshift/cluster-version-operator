@@ -1125,15 +1125,15 @@ func Test_conditionalUpdateRisks(t *testing.T) {
 					Type:   "Applies",
 					Status: metav1.ConditionTrue,
 				},
-				}}, {Name: "Risk3",
-				Conditions: []metav1.Condition{{
-					Type:   "Applies",
-					Status: metav1.ConditionTrue,
-				},
 				}}, {Name: "Risk2",
 				Conditions: []metav1.Condition{{
 					Type:   "Applies",
 					Status: metav1.ConditionFalse,
+				},
+				}}, {Name: "Risk3",
+				Conditions: []metav1.Condition{{
+					Type:   "Applies",
+					Status: metav1.ConditionTrue,
 				},
 				}}},
 		},

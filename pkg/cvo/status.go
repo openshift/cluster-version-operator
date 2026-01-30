@@ -485,6 +485,9 @@ func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []c
 			result = append(result, risk)
 		}
 	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
 	return result
 }
 
