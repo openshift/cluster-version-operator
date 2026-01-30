@@ -4,6 +4,10 @@ package cvo
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -11,11 +15,14 @@ import (
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
-
+	"github.com/openshift/cluster-version-operator/pkg/cvo/external/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
 	"github.com/openshift/cluster-version-operator/test/util"
+	"github.com/openshift/library-go/pkg/manifest"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
@@ -84,5 +91,55 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		cvoPod := podList.Items[0]
 		sccAnnotation := cvoPod.Annotations["openshift.io/scc"]
 		o.Expect(sccAnnotation).To(o.Equal("hostaccess"), "Expected the annotation 'openshift.io/scc annotation' on pod %s to have the value 'hostaccess', but got %s", cvoPod.Name, sccAnnotation)
+	})
+
+	g.It(`should not install resources annotated with release.openshift.io/delete=true`, g.Label("Conformance", "High", "42543"), func() {
+		ctx := context.Background()
+		err := util.SkipIfHypershift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		// Initialize the ocapi.OC instance
+		g.By("Setting up oc")
+		ocClient, err := oc.NewOC(ocapi.Options{Logger: logger, Timeout: 90 * time.Second})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Extracting manifests in the release")
+		annotation := "release.openshift.io/delete"
+		tempDir, err := os.MkdirTemp("", "OTA-42543-manifest-")
+		o.Expect(err).NotTo(o.HaveOccurred(), "create temp manifest dir failed")
+		manifestDir := ocapi.ReleaseExtractOptions{To: tempDir}
+		logger.Info(fmt.Sprintf("Extract manifests to: %s", manifestDir.To))
+		defer func() { _ = os.RemoveAll(manifestDir.To) }()
+		err = ocClient.AdmReleaseExtract(manifestDir)
+		o.Expect(err).NotTo(o.HaveOccurred(), "extracting manifests failed")
+
+		files, err := os.ReadDir(manifestDir.To)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		g.By(fmt.Sprintf("Checking if getting manifests with %s on the cluster led to not-found error", annotation))
+		ignore := sets.New("release-metadata", "image-references")
+		for _, manifestFile := range files {
+			if manifestFile.IsDir() || ignore.Has(manifestFile.Name()) {
+				continue
+			}
+			filePath := filepath.Join(manifestDir.To, manifestFile.Name())
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to read manifest file")
+			manifests, err := manifest.ManifestsFromFiles([]string{filePath})
+			o.Expect(err).NotTo(o.HaveOccurred(), fmt.Sprintf("failed to parse manifest file: %s", filePath))
+
+			for _, ms := range manifests {
+				ann := ms.Obj.GetAnnotations()
+				if ann[annotation] != "true" {
+					continue
+				}
+				client, err := dynamicclient.New(restCfg, ms.GVK, ms.Obj.GetNamespace())
+				o.Expect(err).NotTo(o.HaveOccurred())
+				_, err = client.Get(ctx, ms.Obj.GetName(), metav1.GetOptions{})
+				o.Expect(apierrors.IsNotFound(err)).To(o.BeTrue(),
+					fmt.Sprintf("The deleted manifest should not be installed, but actually installed: manifest: %s %s in namespace %s from file %q, error: %v",
+						ms.GVK, ms.Obj.GetName(), ms.Obj.GetNamespace(), ms.OriginalFilename, err))
+			}
+		}
 	})
 })
