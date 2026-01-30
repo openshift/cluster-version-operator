@@ -17,8 +17,6 @@ import (
 
 var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
 
-const cvoNamespace = "openshift-cluster-version"
-
 var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-tests`, func() {
 	g.It("should support passing tests", func() {
 		o.Expect(true).To(o.BeTrue())

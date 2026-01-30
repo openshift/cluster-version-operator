@@ -1,5 +1,15 @@
 [
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with accept risks [Serial]",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator-tests should support passing tests",
     "labels": {},
     "resources": {
