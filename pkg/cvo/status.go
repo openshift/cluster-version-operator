@@ -240,9 +240,9 @@ func updateClusterVersionStatus(
 		// Here Recommended=True because admins accept risks already leads to no error.
 		if shouldReconcileAcceptRisks() && len(riskNamesForDesiredImage) > 0 {
 			if risksMsg == "" {
-				risksMsg = fmt.Sprintf("The target release %s is exposed to the risks [%s] and accepted by CVO because either the risk is considered acceptable by the cluster admin or it does not apply to the cluster.", desired.Image, strings.Join(riskNamesForDesiredImage, ","))
+				risksMsg = fmt.Sprintf("The target release %s is exposed to the risks [%s] which were all explicitly accepted by the cluster administrator.", desired.Image, strings.Join(riskNamesForDesiredImage, ","))
 			} else {
-				risksMsg = fmt.Sprintf("%s; It is exposed to the risks [%s] and accepted by CVO because either the risk is considered acceptable by the cluster admin or it does not apply to the cluster.", risksMsg, strings.Join(riskNamesForDesiredImage, ","))
+				risksMsg = fmt.Sprintf("%s; It is exposed to the risks [%s] which were all explicitly accepted by the cluster administrator.", risksMsg, strings.Join(riskNamesForDesiredImage, ","))
 			}
 		}
 	}
