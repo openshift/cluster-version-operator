@@ -290,7 +290,9 @@ func New(
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 
-	optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
+	if shouldReconcileCVOConfiguration(cvoGates, optr.hypershift) {
+		optr.configuration = configuration.NewClusterVersionOperatorConfiguration().UsingKubeAPIServer(operatorClient, operatorInformerFactory)
+	}
 
 	return optr, nil
 }
@@ -444,7 +446,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	defer optr.queue.ShutDown()
 	defer optr.availableUpdatesQueue.ShutDown()
 	defer optr.upgradeableQueue.ShutDown()
-	defer optr.configuration.Queue().ShutDown()
+	if optr.configuration != nil {
+		defer optr.configuration.Queue().ShutDown()
+	}
 	stopCh := runContext.Done()
 
 	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
@@ -455,6 +459,12 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 
 	if !cache.WaitForCacheSync(stopCh, optr.cacheSynced...) {
 		return fmt.Errorf("caches never synchronized: %w", runContext.Err())
+	}
+
+	if optr.configuration != nil {
+		if err := optr.configuration.Start(runContext); err != nil {
+			return fmt.Errorf("unable to initialize the CVO configuration controller: %v", err)
+		}
 	}
 
 	// trigger the first cluster version reconcile always
@@ -483,17 +493,13 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		resultChannel <- asyncResult{name: "available updates"}
 	}()
 
-	if optr.shouldReconcileCVOConfiguration() {
+	if optr.configuration != nil {
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
-			if err := optr.configuration.Start(runContext); err != nil {
-				utilruntime.HandleError(fmt.Errorf("unable to initialize the CVO configuration sync: %v", err))
-			} else {
-				wait.UntilWithContext(runContext, func(runContext context.Context) {
-					optr.worker(runContext, optr.configuration.Queue(), optr.configuration.Sync)
-				}, time.Second)
-			}
+			wait.UntilWithContext(runContext, func(runContext context.Context) {
+				optr.worker(runContext, optr.configuration.Queue(), optr.configuration.Sync)
+			}, time.Second)
 			resultChannel <- asyncResult{name: "cvo configuration"}
 		}()
 	} else {
@@ -569,7 +575,9 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			optr.queue.ShutDown()
 			optr.availableUpdatesQueue.ShutDown()
 			optr.upgradeableQueue.ShutDown()
-			optr.configuration.Queue().ShutDown()
+			if optr.configuration != nil {
+				optr.configuration.Queue().ShutDown()
+			}
 		}
 	}
 
@@ -1087,9 +1095,9 @@ func (optr *Operator) HTTPClient() (*http.Client, error) {
 // shouldReconcileCVOConfiguration returns whether the CVO should reconcile its configuration using the API server.
 //
 // enabledFeatureGates must be initialized before the function is called.
-func (optr *Operator) shouldReconcileCVOConfiguration() bool {
+func shouldReconcileCVOConfiguration(enabledFeatureGates featuregates.CvoGateChecker, isHypershift bool) bool {
 	// The relevant CRD and CR are not applied in HyperShift, which configures the CVO via a configuration file
-	return optr.enabledFeatureGates.CVOConfiguration() && !optr.hypershift
+	return enabledFeatureGates.CVOConfiguration() && !isHypershift
 }
 
 // shouldReconcileAcceptRisks returns whether the CVO should reconcile spec.desiredUpdate.acceptRisks and populate the
