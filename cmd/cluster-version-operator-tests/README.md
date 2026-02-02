@@ -71,3 +71,8 @@ ext.IgnoreObsoleteTests(
 // Add more removed test names below
 )
 ```
+
+## Run together with payload testing
+
+By joining CVO's test suite `openshift/cluster-version-operator/conformance/parallel` and `openshift/cluster-version-operator/conformance/serial` as children [here](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/cmd/cluster-version-operator-tests/main.go#L23-L38) and register them as extension [here](https://github.com/openshift/origin/blob/e3f443af6b2fd61a33ed8d060eb9083333ef426b/pkg/test/extensions/binary.go#L258-L261), the e2e testcases developed here in this repo will be executed in more tests than the ones defined in Presubmits for CVO's CI. For example, they will be running with [payload testing](https://docs.ci.openshift.org/docs/release-oversight/payload-testing/).
+In order to avoid breaking the OpenShift release, it is suggested to start with skipping new testcases on MicroShift, HyperShift unless they are verified. We may add them in as needed later. There are [utility functions](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/test/cvo/cvo.go#L62-L66) that help determine the cluster type.
