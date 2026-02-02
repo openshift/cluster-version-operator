@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -62,26 +61,21 @@ func newOCExecutor(oc string, timeout time.Duration, logger logr.Logger) (execut
 }
 
 // NewOCCli return a client for oc-cli.
-func NewOCCli(logger logr.Logger) (api.OC, error) {
+func NewOCCli(o api.Options) (api.OC, error) {
 	oc, err := exec.LookPath("oc")
 	if err != nil {
 		return nil, err
 	}
-	timeout := 30 * time.Second
-	timeoutStr := os.Getenv("OC_CLI_TIMEOUT")
-	if timeoutStr != "" {
-		timeout, err = time.ParseDuration(timeoutStr)
-		if err != nil {
-			return nil, err
-		}
+	if o.Timeout == 0 {
+		o.Timeout = 30 * time.Second
 	}
 
-	executor, err := newOCExecutor(oc, timeout, logger)
+	executor, err := newOCExecutor(oc, o.Timeout, o.Logger)
 	if err != nil {
 		return nil, err
 	}
 	ret := client{
-		logger:   logger,
+		logger:   o.Logger,
 		executor: executor,
 	}
 	return &ret, nil
