@@ -47,7 +47,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 										Release: configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
 										Conditions: []metav1.Condition{
 											{
-												Type:               ConditionalUpdateConditionTypeRecommended,
+												Type:               internal.ConditionalUpdateConditionTypeRecommended,
 												Status:             metav1.ConditionTrue,
 												LastTransitionTime: metav1.NewTime(time.Unix(3, 0)),
 												Reason:             "RiskDoesNotApply",
@@ -838,7 +838,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(anchorTime),
 						Reason:             "RiskApplies",
@@ -858,7 +858,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionTrue,
 						LastTransitionTime: metav1.NewTime(anchorTime),
 						Reason:             "RiskDoesNotApply",
@@ -878,7 +878,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionUnknown,
 						LastTransitionTime: metav1.NewTime(anchorTime),
 						Reason:             "EvaluationFailed",
@@ -898,7 +898,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.1", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(anchorTime),
 						Reason:             "RiskApplies",
@@ -909,7 +909,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.2", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionTrue,
 						LastTransitionTime: metav1.NewTime(anchorTime.Add(time.Minute)),
 						Reason:             "RiskDoesNotApply",
@@ -920,7 +920,7 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 					Release: configv1.Release{Version: "4.13.3", Image: "pullspec"},
 					Risks:   []configv1.ConditionalUpdateRisk{{Name: "Risk"}},
 					Conditions: []metav1.Condition{{
-						Type:               ConditionalUpdateConditionTypeRecommended,
+						Type:               internal.ConditionalUpdateConditionTypeRecommended,
 						Status:             metav1.ConditionUnknown,
 						LastTransitionTime: metav1.NewTime(anchorTime.Add(time.Minute * 2)),
 						Reason:             "EvaluationFailed",

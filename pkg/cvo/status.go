@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -29,10 +30,6 @@ import (
 )
 
 const (
-	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
-	// that indicates whether the conditional update is recommended or not
-	ConditionalUpdateConditionTypeRecommended = "Recommended"
-
 	// MaxHistory is the maximum size of ClusterVersion history. Once exceeded
 	// ClusterVersion history will be pruned. It is declared here and passed
 	// into the pruner function to allow easier testing.
@@ -40,7 +37,7 @@ const (
 )
 
 func findRecommendedCondition(conditions []metav1.Condition) *metav1.Condition {
-	return meta.FindStatusCondition(conditions, ConditionalUpdateConditionTypeRecommended)
+	return meta.FindStatusCondition(conditions, internal.ConditionalUpdateConditionTypeRecommended)
 }
 
 func mergeEqualVersions(current *configv1.UpdateHistory, desired configv1.Release) bool {
@@ -180,7 +177,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))
@@ -191,9 +188,15 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 }
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
-func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status *SyncWorkerStatus,
-	release configv1.Release, getAvailableUpdates func() *availableUpdates, enabledGates featuregates.CvoGateChecker,
-	validationErrs field.ErrorList) {
+func updateClusterVersionStatus(
+	cvStatus *configv1.ClusterVersionStatus,
+	status *SyncWorkerStatus,
+	release configv1.Release,
+	getAvailableUpdates func() *availableUpdates,
+	enabledGates featuregates.CvoGateChecker,
+	validationErrs field.ErrorList,
+	shouldReconcileAcceptRisks func() bool,
+) {
 
 	cvStatus.ObservedGeneration = status.Generation
 	if len(status.VersionHash) > 0 {
@@ -222,9 +225,26 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 		desired.Architecture = configv1.ClusterVersionArchitecture("")
 	}
 
+	var riskNamesForDesiredImage []string
+	if shouldReconcileAcceptRisks() {
+		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(cvStatus.ConditionalUpdates, getAvailableUpdates, desired.Image)
+		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates)
+	}
+
 	risksMsg := ""
 	if desired.Image == status.loadPayloadStatus.Update.Image {
 		risksMsg = status.loadPayloadStatus.AcceptedRisks
+		// Include the accepted risks from clusterversion.spec.desiredUpdate.acceptRisks that apply to the cluster
+		// Ideally this should be formed earlier like others from a condition's message.
+		// However, it is not easy to follow the tradition because the existing pattern is for the error cases.
+		// Here Recommended=True because admins accept risks already leads to no error.
+		if shouldReconcileAcceptRisks() && len(riskNamesForDesiredImage) > 0 {
+			if risksMsg == "" {
+				risksMsg = fmt.Sprintf("The target release %s is exposed to the risks [%s] which were all explicitly accepted by the cluster administrator.", desired.Image, strings.Join(riskNamesForDesiredImage, ","))
+			} else {
+				risksMsg = fmt.Sprintf("%s; It is exposed to the risks [%s] which were all explicitly accepted by the cluster administrator.", risksMsg, strings.Join(riskNamesForDesiredImage, ","))
+			}
+		}
 	}
 
 	mergeOperatorHistory(cvStatus, desired, status.Verified, now, status.Completed > 0, risksMsg, status.loadPayloadStatus.Local)
@@ -400,6 +420,75 @@ func updateClusterVersionStatus(cvStatus *configv1.ClusterVersionStatus, status 
 			LastTransitionTime: now,
 		})
 	}
+}
+
+func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []configv1.ConditionalUpdate, getAvailableUpdates func() *availableUpdates, desiredImage string) ([]configv1.ConditionalUpdate, []string) {
+	var result []configv1.ConditionalUpdate
+	var riskNamesForDesiredImage []string
+	var riskConditions map[string][]metav1.Condition
+	updates := getAvailableUpdates()
+	if updates != nil {
+		riskConditions = updates.RiskConditions
+	}
+	for _, conditionalUpdate := range conditionalUpdates {
+		riskNames := sets.New[string]()
+		var risks []configv1.ConditionalUpdateRisk
+		for _, risk := range conditionalUpdate.Risks {
+			riskNames.Insert(risk.Name)
+			riskTypesToRemove := sets.New[string]()
+			conditions, ok := riskConditions[risk.Name]
+			if !ok {
+				// This should never happen
+				conditions = []metav1.Condition{
+					{
+						Type:   internal.ConditionalUpdateRiskConditionTypeApplies,
+						Status: metav1.ConditionUnknown,
+						Reason: "InternalErrorNoConditionCollected",
+					},
+				}
+			}
+			for _, condition := range risk.Conditions {
+				if found := meta.FindStatusCondition(conditions, condition.Type); found == nil {
+					riskTypesToRemove.Insert(condition.Type)
+				}
+			}
+			for riskTypeToRemove := range riskTypesToRemove {
+				meta.RemoveStatusCondition(&risk.Conditions, riskTypeToRemove)
+			}
+			for _, condition := range conditions {
+				meta.SetStatusCondition(&risk.Conditions, condition)
+			}
+			risks = append(risks, risk)
+		}
+		if riskNames.Len() > 0 {
+			conditionalUpdate.RiskNames = sets.List[string](riskNames)
+		}
+		conditionalUpdate.Risks = risks
+
+		if desiredImage == conditionalUpdate.Release.Image {
+			riskNamesForDesiredImage = conditionalUpdate.RiskNames
+		}
+		result = append(result, conditionalUpdate)
+	}
+	return result, riskNamesForDesiredImage
+}
+
+func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []configv1.ConditionalUpdateRisk {
+	var result []configv1.ConditionalUpdateRisk
+	riskNames := sets.New[string]()
+	for _, conditionalUpdate := range conditionalUpdates {
+		for _, risk := range conditionalUpdate.Risks {
+			if riskNames.Has(risk.Name) {
+				continue
+			}
+			riskNames.Insert(risk.Name)
+			result = append(result, risk)
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].Name < result[j].Name
+	})
+	return result
 }
 
 // getReasonMessageFromError returns the reason and the message from an error.

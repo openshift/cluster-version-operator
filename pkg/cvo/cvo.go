@@ -1091,3 +1091,12 @@ func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 	// The relevant CRD and CR are not applied in HyperShift, which configures the CVO via a configuration file
 	return optr.enabledFeatureGates.CVOConfiguration() && !optr.hypershift
 }
+
+// shouldReconcileAcceptRisks returns whether the CVO should reconcile spec.desiredUpdate.acceptRisks and populate the
+// relevant fields in status.
+//
+// enabledFeatureGates must be initialized before the function is called.
+func (optr *Operator) shouldReconcileAcceptRisks() bool {
+	// HyperShift will be supported later if needed
+	return optr.enabledFeatureGates.AcceptRisks() && !optr.hypershift
+}

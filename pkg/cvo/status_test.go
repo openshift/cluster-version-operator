@@ -203,6 +203,7 @@ type fakeRiFlags struct {
 	unknownVersion            bool
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
+	acceptRisks               bool
 }
 
 func (f fakeRiFlags) UnknownVersion() bool {
@@ -215,6 +216,10 @@ func (f fakeRiFlags) StatusReleaseArchitecture() bool {
 
 func (f fakeRiFlags) CVOConfiguration() bool {
 	return f.cvoConfiguration
+}
+
+func (f fakeRiFlags) AcceptRisks() bool {
+	return f.acceptRisks
 }
 
 func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {
@@ -741,7 +746,9 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				if tc.shouldModifyWhenNotReconcilingAndHistoryNotEmpty && !c.isReconciling && !c.isHistoryEmpty {
 					expectedCondition = tc.expectedConditionModified
 				}
-				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors)
+				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors, func() bool {
+					return false
+				})
 				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, internal.ClusterStatusFailing)
 				if diff := cmp.Diff(expectedCondition, condition, ignoreLastTransitionTime); diff != "" {
 					t.Errorf("unexpected condition when Reconciling == %t && isHistoryEmpty == %t\n:%s", c.isReconciling, c.isHistoryEmpty, diff)
@@ -931,6 +938,211 @@ func Test_filterOutUpdateErrors(t *testing.T) {
 			filtered := filterOutUpdateErrors(tt.args.errs, tt.args.updateEffectType)
 			if difference := cmp.Diff(filtered, tt.want); difference != "" {
 				t.Errorf("got errors differ from expected:\n%s", difference)
+			}
+		})
+	}
+}
+
+var (
+	cu1 = configv1.ConditionalUpdate{
+		Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+		RiskNames: []string{"wrongName"},
+		Risks: []configv1.ConditionalUpdateRisk{
+			{
+				Name: "Risk1",
+				Conditions: []metav1.Condition{
+					{Type: "wrongType", Status: metav1.ConditionUnknown},
+				},
+			},
+		},
+	}
+
+	cu2 = configv1.ConditionalUpdate{
+		Release: configv1.Release{Version: "4.5.7", Image: "pullspec/4.5.7"},
+		Risks: []configv1.ConditionalUpdateRisk{
+			{
+				Name: "Risk1",
+			},
+			{
+				Name: "Risk2",
+			},
+		},
+	}
+)
+
+func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
+	tests := []struct {
+		name               string
+		conditionalUpdates []configv1.ConditionalUpdate
+		desiredImage       string
+		availableUpdates   *availableUpdates
+		expected           []configv1.ConditionalUpdate
+		expectedNames      []string
+	}{
+		{
+			name:               "nil available updates",
+			conditionalUpdates: []configv1.ConditionalUpdate{*cu1.DeepCopy()},
+			expected: []configv1.ConditionalUpdate{{
+				RiskNames: []string{"Risk1"},
+				Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{
+						Name: "Risk1", Conditions: []metav1.Condition{{
+							Type:   "Applies",
+							Status: metav1.ConditionUnknown,
+							Reason: "InternalErrorNoConditionCollected",
+						},
+						}},
+				},
+			}},
+		},
+		{
+			name:               "no risk conditions",
+			availableUpdates:   &availableUpdates{},
+			conditionalUpdates: []configv1.ConditionalUpdate{*cu1.DeepCopy()},
+			expected: []configv1.ConditionalUpdate{{
+				Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+				RiskNames: []string{"Risk1"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionUnknown,
+						Reason: "InternalErrorNoConditionCollected",
+					},
+					}}},
+			}},
+		},
+		{
+			name:               "no risk conditions but desired image matches",
+			desiredImage:       "pullspec/4.5.6",
+			availableUpdates:   &availableUpdates{},
+			conditionalUpdates: []configv1.ConditionalUpdate{*cu1.DeepCopy()},
+			expected: []configv1.ConditionalUpdate{{
+				Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+				RiskNames: []string{"Risk1"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionUnknown,
+						Reason: "InternalErrorNoConditionCollected",
+					},
+					}}},
+			}},
+			expectedNames: []string{"Risk1"},
+		},
+		{
+			name:         "basic case",
+			desiredImage: "pullspec/4.5.7",
+			availableUpdates: &availableUpdates{
+				RiskConditions: map[string][]metav1.Condition{
+					"Risk1": {{Type: "Applies", Status: metav1.ConditionTrue}},
+					"Risk2": {{Type: "Applies", Status: metav1.ConditionFalse}},
+				},
+			},
+			conditionalUpdates: []configv1.ConditionalUpdate{*cu1.DeepCopy(), *cu2.DeepCopy()},
+			expected: []configv1.ConditionalUpdate{{
+				Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+				RiskNames: []string{"Risk1"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}},
+			}, {
+				Release:   configv1.Release{Version: "4.5.7", Image: "pullspec/4.5.7"},
+				RiskNames: []string{"Risk1", "Risk2"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}, {Name: "Risk2",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionFalse,
+					},
+					}}},
+			}},
+			expectedNames: []string{"Risk1", "Risk2"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getAvailableUpdates := func() *availableUpdates {
+				return tt.availableUpdates
+			}
+			actual, actualNames := conditionalUpdateWithRiskNamesAndRiskConditions(tt.conditionalUpdates, getAvailableUpdates, tt.desiredImage)
+			if difference := cmp.Diff(tt.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); difference != "" {
+				t.Errorf("conditional updates differ from expected:\n%s", difference)
+			}
+			if difference := cmp.Diff(tt.expectedNames, actualNames); difference != "" {
+				t.Errorf("risk names differ from expected:\n%s", difference)
+			}
+		})
+	}
+}
+
+func Test_conditionalUpdateRisks(t *testing.T) {
+	tests := []struct {
+		name               string
+		conditionalUpdates []configv1.ConditionalUpdate
+		expected           []configv1.ConditionalUpdateRisk
+	}{
+		{
+			name: "basic case",
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release:   configv1.Release{Version: "4.5.6", Image: "pullspec/4.5.6"},
+				RiskNames: []string{"Risk1", "Risk3"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}, {Name: "Risk3",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}},
+			}, {
+				Release:   configv1.Release{Version: "4.5.7", Image: "pullspec/4.5.7"},
+				RiskNames: []string{"Risk1", "Risk2"},
+				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}, {Name: "Risk2",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionFalse,
+					},
+					}}},
+			}},
+			expected: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
+				Conditions: []metav1.Condition{{
+					Type:   "Applies",
+					Status: metav1.ConditionTrue,
+				},
+				}}, {Name: "Risk2",
+				Conditions: []metav1.Condition{{
+					Type:   "Applies",
+					Status: metav1.ConditionFalse,
+				},
+				}}, {Name: "Risk3",
+				Conditions: []metav1.Condition{{
+					Type:   "Applies",
+					Status: metav1.ConditionTrue,
+				},
+				}}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := conditionalUpdateRisks(tt.conditionalUpdates)
+			if difference := cmp.Diff(tt.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); difference != "" {
+				t.Errorf("actual differ from expected:\n%s", difference)
 			}
 		})
 	}
