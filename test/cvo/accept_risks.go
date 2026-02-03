@@ -11,6 +11,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
@@ -40,6 +41,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(util.SkipIfMicroshift(ctx, c)).To(o.BeNil())
 
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		if du := cv.Spec.DesiredUpdate; du != nil {
+			logger.WithValues("AcceptRisks", du.AcceptRisks).Info("Accept risks before testing")
+			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks")
+		}
 		backup = *cv.Spec.DeepCopy()
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
@@ -76,9 +81,14 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		g.By("Checking that no conditional updates are recommended")
 		var acceptRisks []configv1.AcceptRisk
+		names := sets.New[string]()
 		for _, cu := range cv.Status.ConditionalUpdates {
 			o.Expect(cu.RiskNames).NotTo(o.BeEmpty())
 			for _, name := range cu.RiskNames {
+				if names.Has(name) {
+					continue
+				}
+				names.Insert(name)
 				acceptRisks = append(acceptRisks, configv1.AcceptRisk{Name: name})
 			}
 			o.Expect(cu.Risks).NotTo(o.BeEmpty())
@@ -88,6 +98,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 
 		g.By("Accepting all risks")
+		o.Expect(acceptRisks).NotTo(o.BeEmpty())
 		if cv.Spec.DesiredUpdate == nil {
 			cv.Spec.DesiredUpdate = &configv1.Update{
 				Image:        cv.Status.Desired.Image,
