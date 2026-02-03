@@ -3,7 +3,6 @@ package cvo
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,14 +13,15 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/google/go-cmp/cmp"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/crypto"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/client-go/tools/record"
-
-	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
@@ -1019,82 +1019,297 @@ func metricParts(t *testing.T, metric prometheus.Metric, labels ...string) strin
 	return strings.Join(parts, " ")
 }
 
-type okHandler struct {
-}
-
-func (h *okHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	_, _ = fmt.Fprintf(w, "ok")
-}
-
 func Test_authHandler(t *testing.T) {
+	// Setup test certificates
+	caPEM, prometheusCert, unauthorizedCert, untrustedCert := setupTestCerts(t)
 	tests := []struct {
-		name               string
-		handler            *authHandler
-		clientCN           string
-		provideCert        bool
-		expectedStatusCode int
-		expectedBody       string
+		name           string
+		enableAuthn    bool
+		enableAuthz    bool
+		clientCN       string
+		provideCert    bool
+		provideCA      bool
+		caPEM          []byte
+		wantStatusCode int
+		wantBodyMatch  string
 	}{
+		// No security - authn and authz disabled
 		{
-			name: "allowed CN - prometheus-k8s",
-			handler: &authHandler{
-				downstream: &okHandler{},
-			},
-			clientCN:           "system:serviceaccount:openshift-monitoring:prometheus-k8s",
-			provideCert:        true,
-			expectedStatusCode: http.StatusOK,
-			expectedBody:       "ok",
+			name:           "disabled: both authn and authz disabled - client cert not provided",
+			enableAuthn:    false,
+			enableAuthz:    false,
+			provideCert:    false,
+			wantStatusCode: http.StatusOK,
+			wantBodyMatch:  "ok",
 		},
 		{
-			name: "unauthorized CN",
-			handler: &authHandler{
-				downstream: &okHandler{},
-			},
-			clientCN:           "system:serviceaccount:default:unauthorized",
-			provideCert:        true,
-			expectedStatusCode: http.StatusForbidden,
-			expectedBody:       "unauthorized common name: system:serviceaccount:default:unauthorized\n",
+			name:           "disabled: both authn and authz disabled - client cert provided",
+			enableAuthn:    false,
+			enableAuthz:    false,
+			provideCert:    true,
+			wantStatusCode: http.StatusOK,
+			wantBodyMatch:  "ok",
+		},
+
+		// Authentication only (authz disabled)
+		{
+			name:           "authn: trusted cert",
+			enableAuthn:    true,
+			enableAuthz:    false,
+			clientCN:       "system:serviceaccount:default:unauthorized",
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusOK,
+			wantBodyMatch:  "ok",
 		},
 		{
-			name: "no client certificate",
-			handler: &authHandler{
-				downstream: &okHandler{},
-			},
-			provideCert:        false,
-			expectedStatusCode: http.StatusUnauthorized,
-			expectedBody:       "client certificate required\n",
+			name:           "authn: untrusted cert",
+			enableAuthn:    true,
+			enableAuthz:    false,
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusUnauthorized,
+			wantBodyMatch:  "client certificate not trusted\n",
+		},
+		{
+			name:           "authn: no cert provided",
+			enableAuthn:    true,
+			enableAuthz:    false,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusUnauthorized,
+			wantBodyMatch:  "client certificate required\n",
+		},
+		{
+			name:           "authn: CA bundle returns nil",
+			enableAuthn:    true,
+			enableAuthz:    false,
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          nil,
+			wantStatusCode: http.StatusInternalServerError,
+			wantBodyMatch:  "internal server error\n",
+		},
+		{
+			name:           "authn: invalid CA (empty)",
+			enableAuthn:    true,
+			enableAuthz:    false,
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          []byte{},
+			wantStatusCode: http.StatusInternalServerError,
+			wantBodyMatch:  "internal server error\n",
+		},
+
+		// Authorization only (authn disabled)
+		{
+			name:           "authz: allowed CN",
+			enableAuthn:    false,
+			enableAuthz:    true,
+			clientCN:       "system:serviceaccount:openshift-monitoring:prometheus-k8s",
+			provideCert:    true,
+			wantStatusCode: http.StatusOK,
+			wantBodyMatch:  "ok",
+		},
+		{
+			name:           "authz: unauthorized CN",
+			enableAuthn:    false,
+			enableAuthz:    true,
+			clientCN:       "system:serviceaccount:default:unauthorized",
+			provideCert:    true,
+			wantStatusCode: http.StatusForbidden,
+			wantBodyMatch:  "unauthorized common name: system:serviceaccount:default:unauthorized\n",
+		},
+		{
+			name:           "authz: no cert provided",
+			enableAuthn:    false,
+			enableAuthz:    true,
+			provideCert:    false,
+			wantStatusCode: http.StatusUnauthorized,
+			wantBodyMatch:  "client certificate required\n",
+		},
+
+		// Both authentication and authorization enabled
+		{
+			name:           "both: trusted cert and authorized CN",
+			enableAuthn:    true,
+			enableAuthz:    true,
+			clientCN:       "system:serviceaccount:openshift-monitoring:prometheus-k8s",
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusOK,
+			wantBodyMatch:  "ok",
+		},
+		{
+			name:           "both: trusted cert but unauthorized CN",
+			enableAuthn:    true,
+			enableAuthz:    true,
+			clientCN:       "system:serviceaccount:default:unauthorized",
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusForbidden,
+			wantBodyMatch:  "unauthorized common name: system:serviceaccount:default:unauthorized\n",
+		},
+		{
+			name:           "both: cert not trusted by CA (authentication fails)",
+			enableAuthn:    true,
+			enableAuthz:    true,
+			clientCN:       "untrusted",
+			provideCert:    true,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusUnauthorized,
+			wantBodyMatch:  "client certificate not trusted\n",
+		},
+		{
+			name:           "both: no cert provided",
+			enableAuthn:    true,
+			enableAuthz:    true,
+			provideCert:    false,
+			provideCA:      true,
+			caPEM:          caPEM,
+			wantStatusCode: http.StatusUnauthorized,
+			wantBodyMatch:  "client certificate required\n",
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rr := httptest.NewRecorder()
-
-			req, err := http.NewRequest("GET", "url-not-important", nil)
-			if err != nil {
-				t.Fatal(err)
+			var caProvider dynamiccertificates.CAContentProvider
+			if tt.provideCA {
+				caProvider = &mockCAProvider{caPEM: tt.caPEM}
 			}
 
-			// Mock TLS connection state with client certificate
+			handler := &authHandler{
+				downstream: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					_, _ = fmt.Fprintf(w, "ok")
+				}),
+				clientCA:             caProvider,
+				enableAuthentication: tt.enableAuthn,
+				enableAuthorization:  tt.enableAuthz,
+			}
+
+			req := httptest.NewRequest("GET", "/metrics", nil)
 			if tt.provideCert {
-				req.TLS = &tls.ConnectionState{
-					PeerCertificates: []*x509.Certificate{
-						{
-							Subject: pkix.Name{
-								CommonName: tt.clientCN,
-							},
-						},
-					},
+				var cert *x509.Certificate
+				switch tt.clientCN {
+				case "system:serviceaccount:openshift-monitoring:prometheus-k8s":
+					cert = prometheusCert
+				case "system:serviceaccount:default:unauthorized":
+					cert = unauthorizedCert
+				default:
+					cert = untrustedCert
 				}
+				req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{cert}}
 			}
 
-			tt.handler.ServeHTTP(rr, req)
-			if diff := cmp.Diff(tt.expectedStatusCode, rr.Code); diff != "" {
-				t.Errorf("%s: status differs from expected:\n%s", tt.name, diff)
-			}
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
 
-			if diff := cmp.Diff(tt.expectedBody, rr.Body.String()); diff != "" {
-				t.Errorf("%s: body differs from expected:\n%s", tt.name, diff)
+			if rr.Code != tt.wantStatusCode {
+				t.Errorf("status code: got %d, want %d", rr.Code, tt.wantStatusCode)
+			}
+			if rr.Body.String() != tt.wantBodyMatch {
+				t.Errorf("body: got %q, want to contain %q", rr.Body.String(), tt.wantBodyMatch)
 			}
 		})
 	}
+}
+
+// setupTestCerts creates a test CA and multiple client certificates for testing
+func setupTestCerts(t *testing.T) (caPEM []byte, prometheusCert, unauthorizedCert, untrustedCert *x509.Certificate) {
+	t.Helper()
+
+	caConfig, err := crypto.MakeSelfSignedCAConfig("test-ca", time.Hour)
+	if err != nil {
+		t.Fatalf("failed to create CA: %v", err)
+	}
+
+	ca := &crypto.CA{
+		SerialGenerator: &crypto.RandomSerialGenerator{},
+		Config:          caConfig,
+	}
+
+	caPEM, _, err = caConfig.GetPEMBytes()
+	if err != nil {
+		t.Fatalf("failed to get CA PEM: %v", err)
+	}
+
+	// Generate cert with prometheus CN for authorization tests
+	prometheusConfig, err := ca.MakeClientCertificateForDuration(
+		&user.DefaultInfo{Name: "system:serviceaccount:openshift-monitoring:prometheus-k8s"},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("failed to create prometheus cert: %v", err)
+	}
+	prometheusCert = prometheusConfig.Certs[0]
+
+	// Generate cert with unauthorized CN
+	unauthorizedConfig, err := ca.MakeClientCertificateForDuration(
+		&user.DefaultInfo{Name: "system:serviceaccount:default:unauthorized"},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("failed to create unauthorized cert: %v", err)
+	}
+	unauthorizedCert = unauthorizedConfig.Certs[0]
+
+	// Generate cert from a different CA (untrusted) for authentication failure tests
+	untrustedCAConfig, err := crypto.MakeSelfSignedCAConfig("untrusted-ca", time.Hour)
+	if err != nil {
+		t.Fatalf("failed to create untrusted CA: %v", err)
+	}
+
+	untrustedCA := &crypto.CA{
+		SerialGenerator: &crypto.RandomSerialGenerator{},
+		Config:          untrustedCAConfig,
+	}
+
+	untrustedConfig, err := untrustedCA.MakeClientCertificateForDuration(
+		&user.DefaultInfo{Name: "system:serviceaccount:openshift-monitoring:prometheus-k8s"},
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("failed to create untrusted cert: %v", err)
+	}
+	untrustedCert = untrustedConfig.Certs[0]
+
+	return caPEM, prometheusCert, unauthorizedCert, untrustedCert
+}
+
+// mockCAProvider implements CAContentProvider for testing
+type mockCAProvider struct {
+	caPEM []byte
+}
+
+func (m *mockCAProvider) Name() string {
+	return "mock-ca-provider"
+}
+
+func (m *mockCAProvider) CurrentCABundleContent() []byte {
+	return m.caPEM
+}
+
+func (m *mockCAProvider) VerifyOptions() (x509.VerifyOptions, bool) {
+	if len(m.caPEM) == 0 {
+		return x509.VerifyOptions{}, false
+	}
+
+	certPool := x509.NewCertPool()
+	if !certPool.AppendCertsFromPEM(m.caPEM) {
+		return x509.VerifyOptions{}, false
+	}
+
+	return x509.VerifyOptions{
+		Roots:     certPool,
+		KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+	}, true
+}
+
+func (m *mockCAProvider) AddListener(_ dynamiccertificates.Listener) {
 }
