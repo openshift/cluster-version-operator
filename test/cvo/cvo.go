@@ -10,6 +10,7 @@ import (
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 
+	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
 	"github.com/openshift/cluster-version-operator/test/util"
@@ -64,14 +65,14 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
 
 		g.By("Checking that the 'openshift.io/run-level' label exists on the namespace and has the empty value")
-		ns, err := kubeClient.CoreV1().Namespaces().Get(ctx, cvoNamespace, metav1.GetOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get namespace %s", cvoNamespace)
+		ns, err := kubeClient.CoreV1().Namespaces().Get(ctx, external.DefaultCVONamespace, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get namespace %s", external.DefaultCVONamespace)
 		runLevel, exists := ns.Labels["openshift.io/run-level"]
-		o.Expect(exists).To(o.BeTrue(), "The 'openshift.io/run-level' label on namespace %s does not exist", cvoNamespace)
-		o.Expect(runLevel).To(o.BeEmpty(), "Expected the 'openshift.io/run-level' label value on namespace %s has the empty value, but got %s", cvoNamespace, runLevel)
+		o.Expect(exists).To(o.BeTrue(), "The 'openshift.io/run-level' label on namespace %s does not exist", external.DefaultCVONamespace)
+		o.Expect(runLevel).To(o.BeEmpty(), "Expected the 'openshift.io/run-level' label value on namespace %s has the empty value, but got %s", external.DefaultCVONamespace, runLevel)
 
 		g.By("Checking that the annotation 'openshift.io/scc annotation' on the CVO pod has the value hostaccess")
-		podList, err := kubeClient.CoreV1().Pods(cvoNamespace).List(ctx, metav1.ListOptions{
+		podList, err := kubeClient.CoreV1().Pods(external.DefaultCVONamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: "k8s-app=cluster-version-operator",
 			FieldSelector: "status.phase=Running",
 		})

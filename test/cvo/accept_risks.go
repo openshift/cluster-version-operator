@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
+	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
@@ -38,13 +39,13 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(util.SkipIfHypershift(ctx, c)).To(o.BeNil())
 		o.Expect(util.SkipIfMicroshift(ctx, c)).To(o.BeNil())
 
-		cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		backup = *cv.Spec.DeepCopy()
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.AfterEach(func() {
-		cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		cv.Spec = backup
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
@@ -52,7 +53,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should work with accept risks [Serial]", func() {
-		cv, err := configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Using fauxinnati as the upstream and its risks-always channel")
@@ -65,7 +66,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Checking that conditional updates shows up in status")
 		// waiting for the conditional updates to show up
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			cv, err = configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+			cv, err = configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			if len(cv.Status.ConditionalUpdates) == 0 {
 				return false, nil
@@ -81,7 +82,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 				acceptRisks = append(acceptRisks, configv1.AcceptRisk{Name: name})
 			}
 			o.Expect(cu.Risks).NotTo(o.BeEmpty())
-			recommendedCondition := meta.FindStatusCondition(cu.Conditions, conditionalUpdateConditionTypeRecommended)
+			recommendedCondition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
 			o.Expect(recommendedCondition).NotTo(o.BeNil())
 			o.Expect(recommendedCondition.Status).To(o.Equal(metav1.ConditionFalse))
 		}
@@ -102,11 +103,11 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Checking that all conditional updates are recommended")
 		// waiting for the conditional updates to show up
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			cv, err = configClient.ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+			cv, err = configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(cv.Status.ConditionalUpdates).NotTo(o.BeEmpty())
 			for _, cu := range cv.Status.ConditionalUpdates {
-				recommendedCondition := meta.FindStatusCondition(cu.Conditions, conditionalUpdateConditionTypeRecommended)
+				recommendedCondition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
 				o.Expect(recommendedCondition).NotTo(o.BeNil())
 				if recommendedCondition.Status != metav1.ConditionTrue {
 					return false, nil
