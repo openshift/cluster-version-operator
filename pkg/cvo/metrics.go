@@ -3,6 +3,7 @@ package cvo
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -125,52 +126,101 @@ type asyncResult struct {
 	error error
 }
 
-func createHttpServer(disableAuth bool) *http.Server {
-	if disableAuth {
+func createHttpServer(options MetricsOptions, clientCA dynamiccertificates.CAContentProvider) *http.Server {
+	if options.DisableAuthentication && options.DisableAuthorization {
 		handler := http.NewServeMux()
 		handler.Handle("/metrics", promhttp.Handler())
-		server := &http.Server{
-			Handler: handler,
-		}
-		return server
+		return &http.Server{Handler: handler}
 	}
 
-	auth := authHandler{downstream: promhttp.Handler()}
+	auth := authHandler{
+		downstream:           promhttp.Handler(),
+		clientCA:             clientCA,
+		enableAuthentication: !options.DisableAuthentication,
+		enableAuthorization:  !options.DisableAuthorization,
+	}
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", &auth)
-	server := &http.Server{
-		Handler: handler,
-	}
-	return server
+	return &http.Server{Handler: handler}
 }
 
 type authHandler struct {
-	downstream http.Handler
+	downstream           http.Handler
+	clientCA             dynamiccertificates.CAContentProvider
+	enableAuthentication bool
+	enableAuthorization  bool
 }
 
+// ServeHTTP performs application-level authentication and authorization.
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !a.enableAuthentication && !a.enableAuthorization {
+		a.downstream.ServeHTTP(w, r)
+		return
+	}
+
+	// Both authentication and authorization require a client certificate
 	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
 		klog.V(4).Info("Client certificate required but not provided")
 		http.Error(w, "client certificate required", http.StatusUnauthorized)
 		return
 	}
 
+	if a.enableAuthentication && !a.authenticate(w, r) {
+		return
+	}
+
+	if a.enableAuthorization && !a.authorize(w, r) {
+		return
+	}
+
+	a.downstream.ServeHTTP(w, r)
+}
+
+// authenticate verifies the client certificate chain against the configured CA.
+// Returns true if authenticated successfully, false otherwise (and writes HTTP error).
+func (a *authHandler) authenticate(w http.ResponseWriter, r *http.Request) bool {
+	opts, ok := a.clientCA.VerifyOptions()
+	if !ok {
+		klog.Error("verify options from client CA provider could not be loaded")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return false
+	}
+
+	if len(r.TLS.PeerCertificates) > 1 {
+		intermediates := x509.NewCertPool()
+		for _, cert := range r.TLS.PeerCertificates[1:] {
+			intermediates.AddCert(cert)
+		}
+		opts.Intermediates = intermediates
+	}
+
+	if _, err := r.TLS.PeerCertificates[0].Verify(opts); err != nil {
+		klog.V(4).Infof("Client certificate verification failed: %v", err)
+		http.Error(w, "client certificate not trusted", http.StatusUnauthorized)
+		return false
+	}
+
+	return true
+}
+
+// authorize verifies the client certificate CN against the allowed CN.
+// Returns true if authorized, false otherwise (and writes HTTP error).
+func (a *authHandler) authorize(w http.ResponseWriter, r *http.Request) bool {
 	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
 	// that is authorized to access the metrics endpoint. This corresponds to the
 	// well-known Prometheus service account in OpenShift monitoring.
 	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
 	metricsAllowedClientCommonName := "system:serviceaccount:openshift-monitoring:prometheus-k8s"
 
-	// The first element is the leaf certificate that the connection is verified against
 	commonName := r.TLS.PeerCertificates[0].Subject.CommonName
 	if commonName != metricsAllowedClientCommonName {
 		klog.V(4).Infof("Access denied for common name: %s", commonName)
 		http.Error(w, fmt.Sprintf("unauthorized common name: %s", commonName), http.StatusForbidden)
-		return
+		return false
 	}
 
 	klog.V(5).Infof("Access granted for common name: %s", commonName)
-	a.downstream.ServeHTTP(w, r)
+	return true
 }
 
 func startListening(svr *http.Server, tlsConfig *tls.Config, lAddr string, resultChannel chan asyncResult) {
@@ -288,8 +338,10 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 		// Assign to interface variable to ensure proper nil handling
 		clientCA = clientCAController
 
-		// Enforce mTLS
-		clientAuth = tls.RequireAndVerifyClientCert
+		// Request client certificates but don't verify at TLS layer.
+		// Verification happens in the HTTP handler, which allows returning
+		// HTTP error codes that are expected by the origin test suite, instead of TLS errors.
+		clientAuth = tls.RequestClientCert
 	}
 
 	// Log certificate controller events to stdout because the controller is reported to generate invalid events,
@@ -327,7 +379,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 		resultChannel <- asyncResult{name: "serving certification controller"}
 	}()
 
-	server := createHttpServer(options.DisableAuthorization)
+	server := createHttpServer(options, clientCA)
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
