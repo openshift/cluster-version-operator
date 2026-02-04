@@ -90,8 +90,8 @@ github.com/openshift/api v0.0.0-20260116192047-6fb7fdae95fd h1:Hpjq/55Qb0Gy65Rew
 github.com/openshift/api v0.0.0-20260116192047-6fb7fdae95fd/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13 h1:6rd4zSo2UaWQcAPZfHK9yzKVqH0BnMv1hqMzqXZyTds=
 github.com/openshift/client-go v0.0.0-20260108185524-48f4ccfc4e13/go.mod h1:YvOmPmV7wcJxpfhTDuFqqs2Xpb3M3ovsM6Qs/i2ptq4=
-github.com/openshift/library-go v0.0.0-20260108135436-db8dbd64c462 h1:zX9Od4Jg8sVmwQLwk6Vd+BX7tcyC/462FVvDdzHEPPk=
-github.com/openshift/library-go v0.0.0-20260108135436-db8dbd64c462/go.mod h1:nIzWQQE49XbiKizVnVOip9CEB7HJ0hoJwNi3g3YKnKc=
+github.com/openshift/library-go v0.0.0-20260121132910-dc3a1c884c04 h1:Fm9C8pT4l6VjpdqdhI1cBX9Y3D3S+rFxptVhCPBbMAI=
+github.com/openshift/library-go v0.0.0-20260121132910-dc3a1c884c04/go.mod h1:nIzWQQE49XbiKizVnVOip9CEB7HJ0hoJwNi3g3YKnKc=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12 h1:AKx/w1qpS8We43bsRgf8Nll3CGlDHpr/WAXvuedTNZI=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12/go.mod h1:7Du3c42kxCUegi0IImZ1wUQzMBVecgIHjR1C+NkhLQo=
 github.com/operator-framework/api v0.17.1 h1:J/6+Xj4IEV8C7hcirqUFwOiZAU3PbnJhWvB0/bB51c4=

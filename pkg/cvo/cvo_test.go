@@ -2275,7 +2275,7 @@ func TestOperator_sync(t *testing.T) {
 				optr.configSync = &fakeSyncRecorder{Returns: expectStatus}
 			}
 			optr.eventRecorder = record.NewFakeRecorder(100)
-			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
+			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 
 			ctx := context.Background()
 			err := optr.sync(ctx, optr.queueKey())

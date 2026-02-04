@@ -236,7 +236,7 @@ func TestSyncAvailableUpdates(t *testing.T) {
 	}
 	expectedAvailableUpdates.RiskConditions = map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}}
 
-	optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
+	optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 	err := optr.syncAvailableUpdates(context.Background(), cvFixture)
 
 	if err != nil {
@@ -325,7 +325,7 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			tc.modifyOriginalState(optr)
 			tc.modifyCV(cv, fixture.expectedConditionalUpdates[0])
 
-			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
+			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 			err := optr.syncAvailableUpdates(context.Background(), cv)
 
 			if err != nil {
@@ -820,7 +820,7 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 
 			cv := cvFixture.DeepCopy()
 			cv.Spec.DesiredUpdate = tt.args.desiredUpdate
-			optr.enabledFeatureGates = featuregates.DefaultCvoGates("version")
+			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 			if err := optr.syncAvailableUpdates(context.Background(), cv); err != nil {
 				t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)
 			}

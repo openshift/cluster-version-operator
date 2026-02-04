@@ -188,13 +188,13 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
-	startingFeatureSet, startingCvoGates, err := o.processInitialFeatureGate(ctx, configInformerFactory)
+	startingFeatureSet, startingCvoGates, startingEnabledManifestFeatureGates, err := o.processInitialFeatureGate(ctx, configInformerFactory)
 	if err != nil {
 		return fmt.Errorf("error processing feature gates: %w", err)
 	}
 
 	// initialize the controllers and attempt to load the payload information
-	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet, startingCvoGates, clusterVersionConfigInformerFactory, configInformerFactory)
+	controllerCtx, err := o.NewControllerContext(cb, startingFeatureSet, startingCvoGates, startingEnabledManifestFeatureGates, clusterVersionConfigInformerFactory, configInformerFactory)
 	if err != nil {
 		return err
 	}
@@ -242,9 +242,10 @@ func (o *Options) getOpenShiftVersion() string {
 	return releaseMetadata.Version
 }
 
-func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory) (configv1.FeatureSet, featuregates.CvoGates, error) {
+func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerFactory configinformers.SharedInformerFactory) (configv1.FeatureSet, featuregates.CvoGates, sets.Set[string], error) {
 	var startingFeatureSet configv1.FeatureSet
 	var cvoGates featuregates.CvoGates
+	var startingEnabledManifestFeatureGates sets.Set[string]
 
 	featureGates := configInformerFactory.Config().V1().FeatureGates().Lister()
 	configInformerFactory.Start(ctx.Done())
@@ -254,7 +255,7 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 
 	for key, synced := range configInformerFactory.WaitForCacheSync(ctx.Done()) {
 		if !synced {
-			return startingFeatureSet, cvoGates, fmt.Errorf("failed to sync %s informer cache: %w", key.String(), ctx.Err())
+			return startingFeatureSet, cvoGates, startingEnabledManifestFeatureGates, fmt.Errorf("failed to sync %s informer cache: %w", key.String(), ctx.Err())
 		}
 	}
 
@@ -268,16 +269,20 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 	case apierrors.IsNotFound(err):
 		// if we have no featuregates, then the cluster is using the default featureset, which is "".
 		// This excludes everything that could possibly depend on a different feature set.
+		// Any manifest that blocks on a feature gate will be excluded from the cluster in this case.
+		// Since manifests roll-up to the default feature set over time, this should be safe and we will bring in
+		// the additional manifests once the feature gates become available.
 		startingFeatureSet = ""
-		klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup", startingFeatureSet)
+		klog.Infof("FeatureGate not found in cluster, will assume default feature set %q at startup, all feature gates will be disabled", startingFeatureSet)
 	case err != nil:
 		// This should not happen because featureGates is backed by the informer cache which successfully synced earlier
 		klog.Errorf("Failed to get FeatureGate from cluster: %v", err)
-		return startingFeatureSet, cvoGates, fmt.Errorf("failed to get FeatureGate from informer cache: %w", err)
+		return startingFeatureSet, cvoGates, startingEnabledManifestFeatureGates, fmt.Errorf("failed to get FeatureGate from informer cache: %w", err)
 	default:
 		clusterFeatureGate = gate
 		startingFeatureSet = gate.Spec.FeatureSet
 		cvoGates = featuregates.CvoGatesFromFeatureGate(clusterFeatureGate, cvoOpenShiftVersion)
+		startingEnabledManifestFeatureGates = featuregates.ExtractEnabledGates(clusterFeatureGate, cvoOpenShiftVersion)
 		klog.Infof("FeatureGate found in cluster, using its feature set %q at startup", startingFeatureSet)
 	}
 
@@ -286,7 +291,7 @@ func (o *Options) processInitialFeatureGate(ctx context.Context, configInformerF
 	}
 	klog.Infof("CVO features for version %s enabled at startup: %+v", cvoOpenShiftVersion, cvoGates)
 
-	return startingFeatureSet, cvoGates, nil
+	return startingFeatureSet, cvoGates, startingEnabledManifestFeatureGates, nil
 }
 
 // run launches a number of goroutines to handle manifest application,
@@ -578,6 +583,7 @@ func (o *Options) NewControllerContext(
 	cb *ClientBuilder,
 	startingFeatureSet configv1.FeatureSet,
 	startingCvoGates featuregates.CvoGates,
+	startingEnabledManifestFeatureGates sets.Set[string],
 	clusterVersionConfigInformerFactory,
 	configInformerFactory configinformers.SharedInformerFactory,
 ) (*Context, error) {
@@ -608,6 +614,7 @@ func (o *Options) NewControllerContext(
 		openshiftConfigManagedInformerFactory.Core().V1().ConfigMaps(),
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
+		configInformerFactory.Config().V1().FeatureGates(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		operatorClient,
@@ -620,6 +627,7 @@ func (o *Options) NewControllerContext(
 		stringsToCapabilities(o.AlwaysEnableCapabilities),
 		startingFeatureSet,
 		startingCvoGates,
+		startingEnabledManifestFeatureGates,
 	)
 	if err != nil {
 		return nil, err

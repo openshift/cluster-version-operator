@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -30,7 +31,7 @@ func newTaskGraphCmd() *cobra.Command {
 
 func runTaskGraphCmd(cmd *cobra.Command, args []string) error {
 	manifestDir := args[0]
-	release, err := payload.LoadUpdate(manifestDir, "", "", "", payload.DefaultClusterProfile, nil)
+	release, err := payload.LoadUpdate(manifestDir, "", "", "", payload.DefaultClusterProfile, nil, sets.Set[string]{})
 	if err != nil {
 		return err
 	}

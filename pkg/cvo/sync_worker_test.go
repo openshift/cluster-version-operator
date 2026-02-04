@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -31,55 +32,55 @@ func Test_statusWrapper_ReportProgress(t *testing.T) {
 		{
 			name:     "skip updates that clear an error and are at an earlier fraction",
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
-			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, EnabledFeatureGates: sets.New[string]()},
 			want:     false,
 		},
 		{
 			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
-			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing2"}},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing2"}, EnabledFeatureGates: sets.New[string]()},
 			want:         true,
 			wantProgress: true,
 		},
 		{
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, EnabledFeatureGates: sets.New[string]()},
 			want:     true,
 		},
 		{
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, EnabledFeatureGates: sets.New[string]()},
 			want:     true,
 		},
 		{
 			previous: SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
-			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
+			next:     SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100, EnabledFeatureGates: sets.New[string]()},
 			want:     true,
 		},
 		{
 			previous:     SyncWorkerStatus{Failure: fmt.Errorf("a"), Actual: configv1.Release{Image: "testing"}, Done: 10, Total: 100},
-			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 20, Total: 100},
+			next:         SyncWorkerStatus{Failure: fmt.Errorf("b"), Actual: configv1.Release{Image: "testing"}, Done: 20, Total: 100, EnabledFeatureGates: sets.New[string]()},
 			want:         true,
 			wantProgress: true,
 		},
 		{
 			previous:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, Completed: 1},
-			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, Completed: 2},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, Completed: 2, EnabledFeatureGates: sets.New[string]()},
 			want:         true,
 			wantProgress: true,
 		},
 		{
 			previous:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing-1"}, Completed: 1},
-			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing-2"}, Completed: 1},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing-2"}, Completed: 1, EnabledFeatureGates: sets.New[string]()},
 			want:         true,
 			wantProgress: true,
 		},
 		{
 			previous: SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
-			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			next:     SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, EnabledFeatureGates: sets.New[string]()},
 			want:     true,
 		},
 		{
-			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}},
+			next:         SyncWorkerStatus{Actual: configv1.Release{Image: "testing"}, EnabledFeatureGates: sets.New[string]()},
 			want:         true,
 			wantProgress: true,
 		},

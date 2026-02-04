@@ -3,10 +3,11 @@ package cvo
 import (
 	"context"
 	"fmt"
-	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -200,10 +201,15 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 }
 
 type fakeRiFlags struct {
+	desiredVersion            string
 	unknownVersion            bool
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
+}
+
+func (f fakeRiFlags) DesiredVersion() string {
+	return f.desiredVersion
 }
 
 func (f fakeRiFlags) UnknownVersion() bool {
