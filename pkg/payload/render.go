@@ -21,7 +21,7 @@ import (
 )
 
 // Render renders critical manifests from /manifests to outputDir.
-func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile string) error {
+func Render(outputDir, releaseImage, clusterVersionManifestPath, featureGateManifestPath, clusterProfile string) error {
 	var (
 		manifestsDir        = filepath.Join(DefaultPayloadDir, CVOManifestDir)
 		releaseManifestsDir = filepath.Join(DefaultPayloadDir, ReleaseManifestDir)
@@ -34,6 +34,11 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 			ClusterProfile: clusterProfile,
 		}
 	)
+
+	overrides, err := parseClusterVersionManifest(clusterVersionManifestPath)
+	if err != nil {
+		return fmt.Errorf("error parsing cluster version manifest: %w", err)
+	}
 
 	requiredFeatureSet, enabledFeatureGates, err := parseFeatureGateManifest(featureGateManifestPath)
 	if err != nil {
@@ -70,7 +75,7 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	}}
 	var errs []error
 	for _, task := range tasks {
-		if err := renderDir(renderConfig, task.idir, task.odir, requiredFeatureSet, enabledFeatureGates, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
+		if err := renderDir(renderConfig, task.idir, task.odir, overrides, requiredFeatureSet, enabledFeatureGates, &clusterProfile, task.processTemplate, task.skipFiles, task.filterGroupKind); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -82,7 +87,7 @@ func Render(outputDir, releaseImage, featureGateManifestPath, clusterProfile str
 	return nil
 }
 
-func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFeatureSet *string, enabledFeatureGates sets.Set[string], clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
+func renderDir(renderConfig manifestRenderConfig, idir, odir string, overrides []configv1.ComponentOverride, requiredFeatureSet *string, enabledFeatureGates sets.Set[string], clusterProfile *string, processTemplate bool, skipFiles sets.Set[string], filterGroupKind sets.Set[schema.GroupKind]) error {
 	klog.Infof("Filtering manifests in %s for feature set %v, cluster profile %v and enabled feature gates %v", idir, *requiredFeatureSet, *clusterProfile, enabledFeatureGates.UnsortedList())
 
 	if err := os.MkdirAll(odir, 0666); err != nil {
@@ -133,7 +138,7 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, requiredFea
 		for _, manifest := range manifests {
 			if len(filterGroupKind) > 0 && !filterGroupKind.Has(manifest.GVK.GroupKind()) {
 				klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
-			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, nil, enabledFeatureGates); err != nil {
+			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, overrides, enabledFeatureGates); err != nil {
 				klog.Infof("excluding %s: %v", manifest.String(), err)
 			} else {
 				filteredManifests = append(filteredManifests, string(manifest.Raw))
@@ -183,6 +188,35 @@ func renderManifest(config manifestRenderConfig, manifestBytes []byte) ([]byte, 
 	}
 
 	return buf.Bytes(), nil
+}
+
+func parseClusterVersionManifest(clusterVersionManifestPath string) ([]configv1.ComponentOverride, error) {
+	if clusterVersionManifestPath == "" {
+		return nil, nil
+	}
+
+	manifests, err := manifest.ManifestsFromFiles([]string{clusterVersionManifestPath})
+	if err != nil {
+		return nil, fmt.Errorf("loading ClusterVersion manifest: %w", err)
+	}
+
+	if len(manifests) != 1 {
+		return nil, fmt.Errorf("ClusterVersion manifest %s contains %d manifests, but expected only one", clusterVersionManifestPath, len(manifests))
+	}
+
+	clusterVersionManifest := manifests[0]
+	expectedGVK := schema.GroupVersionKind{Kind: "ClusterVersion", Version: configv1.GroupVersion.Version, Group: config.GroupName}
+	if clusterVersionManifest.GVK != expectedGVK {
+		return nil, fmt.Errorf("ClusterVersion manifest %s GroupVersionKind %v, but expected %v", clusterVersionManifest.OriginalFilename, clusterVersionManifest.GVK, expectedGVK)
+	}
+
+	// Convert unstructured object to structured ClusterVersion
+	var clusterVersion configv1.ClusterVersion
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(clusterVersionManifest.Obj.Object, &clusterVersion); err != nil {
+		return nil, fmt.Errorf("failed to convert ClusterVersion manifest %s to structured object: %w", clusterVersionManifest.OriginalFilename, err)
+	}
+
+	return clusterVersion.Spec.Overrides, nil
 }
 
 func parseFeatureGateManifest(featureGateManifestPath string) (*string, sets.Set[string], error) {

@@ -19,9 +19,10 @@ var (
 	}
 
 	renderOpts struct {
-		releaseImage            string
-		featureGateManifestPath string
-		outputDir               string
+		releaseImage               string
+		clusterVersionManifestPath string
+		featureGateManifestPath    string
+		outputDir                  string
 	}
 )
 
@@ -29,6 +30,7 @@ func init() {
 	rootCmd.AddCommand(renderCmd)
 	renderCmd.PersistentFlags().StringVar(&renderOpts.outputDir, "output-dir", "", "The output directory where the manifests will be rendered.")
 	renderCmd.PersistentFlags().StringVar(&renderOpts.releaseImage, "release-image", "", "The Openshift release image url.")
+	renderCmd.PersistentFlags().StringVar(&renderOpts.clusterVersionManifestPath, "cluster-version-manifest-path", "", "ClusterVersion manifest input path.")
 	renderCmd.PersistentFlags().StringVar(&renderOpts.featureGateManifestPath, "feature-gate-manifest-path", "", "FeatureGate manifest input path.")
 }
 
@@ -42,7 +44,7 @@ func runRenderCmd(cmd *cobra.Command, args []string) {
 	if renderOpts.releaseImage == "" {
 		klog.Fatalf("missing --release-image flag, it is required")
 	}
-	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage, renderOpts.featureGateManifestPath, clusterProfile()); err != nil {
+	if err := payload.Render(renderOpts.outputDir, renderOpts.releaseImage, renderOpts.clusterVersionManifestPath, renderOpts.featureGateManifestPath, clusterProfile()); err != nil {
 		klog.Fatalf("Render command failed: %v", err)
 	}
 }
