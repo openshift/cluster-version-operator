@@ -4389,6 +4389,90 @@ func TestCVO_FeatureGateManifestInclusion(t *testing.T) {
 	}
 }
 
+// TestCVO_MajorVersionManifestFiltering tests that manifest inclusion is filtered
+// based on the major version of the release payload.
+func TestCVO_MajorVersionManifestFiltering(t *testing.T) {
+	o, cvs, _, client, shutdownFn := setupCVOTest("testdata/majorversiontest-v5")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer shutdownFn()
+	worker := o.configSync.(*SyncWorker)
+	go worker.Start(ctx, 1)
+
+	o.release.Image = "image/image:v5"
+	o.release.Version = "5.0.0-xyz"
+	uid, _ := uuid.NewRandom()
+	clusterUID := configv1.ClusterID(uid.String())
+	cvs["version"] = &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "version",
+		},
+		Spec: configv1.ClusterVersionSpec{
+			ClusterID: clusterUID,
+			Channel:   "fast",
+		},
+	}
+
+	// Execute: Sync the payload
+	err := o.sync(ctx, o.queueKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForStatusCompleted(t, worker)
+
+	// Step 1: Payload contains expected number of filtered manifests
+	if worker.payload == nil {
+		t.Fatal("Expected payload to be loaded")
+	}
+	if len(worker.payload.Manifests) != 4 {
+		t.Fatalf("Expected 4 manifests in payload, got %d", len(worker.payload.Manifests))
+	}
+
+	manifestNames := make(map[string]bool)
+	for _, m := range worker.payload.Manifests {
+		manifestNames[m.Obj.GetName()] = true
+	}
+
+	// Step 2: Expected manifests are included
+	expectedManifests := []string{"noversion", "version5only", "version4or5", "excludeversion3"}
+	for _, expected := range expectedManifests {
+		if !manifestNames[expected] {
+			t.Errorf("Expected manifest %s to be included in version 5 payload, but it was not", expected)
+		}
+	}
+
+	// Step 3: Expected manifests are not included
+	if manifestNames["version4only"] {
+		t.Error("Expected manifest version4only to be excluded from version 5 payload, but it was included")
+	}
+
+	// Step 4: Major version is parsed from release metadata
+	if worker.payload.ParsedVersion.Major != 5 {
+		t.Errorf("Expected MajorVersion to be 5, got %d", worker.payload.ParsedVersion.Major)
+	}
+
+	// Step 5: Filtered manifests were applied to cluster
+	appliedCRDs := make(map[string]bool)
+	for _, action := range client.Actions() {
+		if createAction, ok := action.(clientgotesting.CreateAction); ok {
+			obj := createAction.GetObject().(*unstructured.Unstructured)
+			appliedCRDs[obj.GetName()] = true
+		}
+	}
+
+	for _, expected := range expectedManifests {
+		if !appliedCRDs[expected] {
+			t.Errorf("Expected CRD %s to be applied, but it was not", expected)
+		}
+	}
+
+	if appliedCRDs["version4only"] {
+		t.Error("Expected CRD version4only NOT to be applied, but it was")
+	}
+}
+
 // verifyCVSingleUpdate ensures that the only object to be updated is a ClusterVersion type and it is updated only once
 func verifyCVSingleUpdate(t *testing.T, actions []clientgotesting.Action) {
 	var count int
