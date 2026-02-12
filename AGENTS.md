@@ -43,6 +43,7 @@ make update
 make verify             # Runs verify-yaml and verify-update
 make verify-yaml        # Validates YAML manifests
 make verify-update      # Ensures generated files are up-to-date
+make review-changes     # Code review for the changes
 ```
 
 ## Architecture
