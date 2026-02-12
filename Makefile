@@ -45,6 +45,10 @@ verify-update: update
 	git diff --exit-code HEAD
 .PHONY: verify-update
 
+review-changes:
+	hack/review.sh
+.PHONY: review-changes
+
 clean:
 	rm -rf _output/
 .PHONY: clean
