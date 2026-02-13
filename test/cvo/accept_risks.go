@@ -80,9 +80,12 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		})).NotTo(o.HaveOccurred(), "no conditional updates found in status")
 
 		g.By("Checking that no conditional updates are recommended")
+		conditionalUpdatesLength := len(cv.Status.ConditionalUpdates)
 		var acceptRisks []configv1.AcceptRisk
+		var releases []configv1.Release
 		names := sets.New[string]()
 		for _, cu := range cv.Status.ConditionalUpdates {
+			releases = append(releases, cu.Release)
 			o.Expect(cu.RiskNames).NotTo(o.BeEmpty())
 			for _, name := range cu.RiskNames {
 				if names.Has(name) {
@@ -112,12 +115,15 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Checking that all conditional updates are recommended")
-		// waiting for the conditional updates to show up
+		var releasesNow []configv1.Release
+		// waiting for the conditional updates to be refreshed
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			cv, err = configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			o.Expect(cv.Status.ConditionalUpdates).NotTo(o.BeEmpty())
+			releasesNow = nil
 			for _, cu := range cv.Status.ConditionalUpdates {
+				releasesNow = append(releasesNow, cu.Release)
 				recommendedCondition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
 				o.Expect(recommendedCondition).NotTo(o.BeNil())
 				if recommendedCondition.Status != metav1.ConditionTrue {
@@ -126,5 +132,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			}
 			return true, nil
 		})).NotTo(o.HaveOccurred(), "no conditional updates are recommended in status after accepting risks")
+
+		o.Expect(cv.Spec.DesiredUpdate.AcceptRisks).To(o.Equal(acceptRisks))
+		o.Expect(cv.Status.ConditionalUpdates).To(o.HaveLen(conditionalUpdatesLength))
+		o.Expect(releasesNow).To(o.Equal(releases))
 	})
 })
