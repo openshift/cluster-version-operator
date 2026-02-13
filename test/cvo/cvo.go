@@ -1,3 +1,5 @@
+// Package cvo contains end-to-end tests for the Cluster Version Operator.
+// The accept_risks test validates the feature about accept risks for conditional updates.
 package cvo
 
 import (
