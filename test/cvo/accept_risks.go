@@ -57,7 +57,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
-	g.It("should work with accept risks [Serial]", func() {
+	g.It("should work with accept risks", g.Label("Serial"), func() {
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
