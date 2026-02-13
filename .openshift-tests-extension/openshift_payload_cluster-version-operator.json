@@ -1,7 +1,9 @@
 [
   {
-    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with accept risks [Serial]",
-    "labels": {},
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with accept risks",
+    "labels": {
+      "Serial": {}
+    },
     "resources": {
       "isolation": {}
     },
