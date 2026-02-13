@@ -41,12 +41,12 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(util.SkipIfMicroshift(ctx, c)).To(o.BeNil())
 
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
 		if du := cv.Spec.DesiredUpdate; du != nil {
 			logger.WithValues("AcceptRisks", du.AcceptRisks).Info("Accept risks before testing")
 			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks")
 		}
 		backup = *cv.Spec.DeepCopy()
-		o.Expect(err).NotTo(o.HaveOccurred())
 	})
 
 	g.AfterEach(func() {
