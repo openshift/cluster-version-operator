@@ -130,4 +130,7 @@ func SkipIfNotTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config)
 	}
 }
 
-const FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
+const (
+	// fauxinnati mocks Cincinnati Update Graph Server for OpenShift
+	FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
+)
