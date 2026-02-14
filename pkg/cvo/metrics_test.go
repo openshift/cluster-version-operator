@@ -23,6 +23,7 @@ import (
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
@@ -667,6 +668,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 			tt.optr.eventRecorder = record.NewFakeRecorder(100)
 			if tt.optr.cvLister == nil {
 				tt.optr.cvLister = &cvLister{}
@@ -954,6 +956,116 @@ func TestCollectUnknownConditionalUpdates(t *testing.T) {
 
 			go func() {
 				m.collectConditionalUpdates(ch, tc.updates)
+				close(ch)
+			}()
+
+			var collected []prometheus.Metric
+			for item := range ch {
+				collected = append(collected, item)
+			}
+
+			if lenC, lenE := len(collected), len(tc.expected); lenC != lenE {
+
+				t.Fatalf("Expected %d metrics, got %d metrics\nGot metrics: %s", lenE, lenC, spew.Sdump(collected))
+			}
+			for i := range tc.expected {
+				expectMetric(t, collected[i], tc.expected[i].value, tc.expected[i].labels)
+			}
+		})
+	}
+}
+
+func Test_collectConditionalUpdateRisks(t *testing.T) {
+	type valueWithLabels struct {
+		value  float64
+		labels map[string]string
+	}
+	testCases := []struct {
+		name     string
+		risks    []configv1.ConditionalUpdateRisk
+		expected []valueWithLabels
+	}{
+		{
+			name:     "no conditional updates",
+			expected: []valueWithLabels{},
+		},
+		{
+			name: "unknown type",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					Name: "RiskX",
+					Conditions: []metav1.Condition{{
+						Type:    internal.ConditionalUpdateConditionTypeRecommended,
+						Status:  metav1.ConditionFalse,
+						Reason:  "ReasonA",
+						Message: "Risk does not apply",
+					}},
+				},
+			},
+		},
+		{
+			name: "apply false",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					Name: "RiskX",
+					Conditions: []metav1.Condition{{
+						Type:    internal.ConditionalUpdateRiskConditionTypeApplies,
+						Status:  metav1.ConditionFalse,
+						Reason:  "ReasonA",
+						Message: "Risk does not apply",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				labels: map[string]string{"name": "version", "condition": "Applies", "risk": "RiskX"},
+			}},
+		},
+		{
+			name: "apply true",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					Name: "RiskX",
+					Conditions: []metav1.Condition{{
+						Type:    internal.ConditionalUpdateRiskConditionTypeApplies,
+						Status:  metav1.ConditionTrue,
+						Reason:  "ReasonA",
+						Message: "Risk does not apply",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				value:  1,
+				labels: map[string]string{"name": "version", "condition": "Applies", "risk": "RiskX"},
+			}},
+		},
+		{
+			name: "apply unknown",
+			risks: []configv1.ConditionalUpdateRisk{
+				{
+					Name: "RiskX",
+					Conditions: []metav1.Condition{{
+						Type:    internal.ConditionalUpdateRiskConditionTypeApplies,
+						Status:  metav1.ConditionUnknown,
+						Reason:  "ReasonA",
+						Message: "Risk does not apply",
+					}},
+				},
+			},
+			expected: []valueWithLabels{{
+				labels: map[string]string{"name": "version", "condition": "Applies", "risk": "RiskX"},
+			}},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			optr := &Operator{}
+			m := newOperatorMetrics(optr)
+			ch := make(chan prometheus.Metric)
+
+			go func() {
+				m.collectConditionalUpdateRisks(ch, tc.risks)
 				close(ch)
 			}()
 
