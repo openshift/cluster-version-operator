@@ -26,8 +26,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		configClient *configv1client.ConfigV1Client
 		err          error
 
-		ctx    = context.TODO()
-		backup configv1.ClusterVersionSpec
+		ctx         = context.TODO()
+		needRecover bool
+		backup      configv1.ClusterVersionSpec
 	)
 
 	g.BeforeEach(func() {
@@ -50,11 +51,13 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.AfterEach(func() {
-		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred())
-		cv.Spec = backup
-		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred())
+		if needRecover {
+			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			cv.Spec = backup
+			_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
 	})
 
 	g.It("should work with accept risks", g.Label("Serial"), func() {
@@ -67,6 +70,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
+		needRecover = true
 
 		g.By("Checking that conditional updates shows up in status")
 		// waiting for the conditional updates to show up
