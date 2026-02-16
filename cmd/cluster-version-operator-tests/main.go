@@ -24,7 +24,7 @@ func main() {
 		Name:    "openshift/cluster-version-operator/conformance/parallel",
 		Parents: []string{"openshift/conformance/parallel"},
 		Qualifiers: []string{
-			`!(name.contains("[Serial]") || "Serial" in labels || name.contains("[Slow]"))`,
+			`!(name.contains("[Serial]") || name.contains("[Slow]"))`,
 		},
 	})
 
@@ -33,7 +33,7 @@ func main() {
 		Name:    "openshift/cluster-version-operator/conformance/serial",
 		Parents: []string{"openshift/conformance/serial"},
 		Qualifiers: []string{
-			`name.contains("[Serial]") || "Serial" in labels`,
+			`name.contains("[Serial]")`,
 		},
 	})
 

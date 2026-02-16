@@ -5,8 +5,6 @@ import (
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
-	o "github.com/onsi/gomega"
-
 	configv1 "github.com/openshift/api/config/v1"
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned"
 	corev1 "k8s.io/api/core/v1"
@@ -108,29 +106,3 @@ func GetKubeClient(restConfig *rest.Config) (kubernetes.Interface, error) {
 func GetConfigClient(restConfig *rest.Config) (clientconfigv1.Interface, error) {
 	return clientconfigv1.NewForConfig(restConfig)
 }
-
-// IsTechPreviewNoUpgrade checks if a cluster is a TechPreviewNoUpgrade cluster
-func IsTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config) bool {
-	configClient, err := GetConfigClient(restConfig)
-	o.Expect(err).NotTo(o.HaveOccurred())
-	featureGate, err := configClient.ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return false
-		}
-		o.Expect(err).NotTo(o.HaveOccurred(), "could not retrieve feature-gate: %v", err)
-	}
-	return featureGate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
-}
-
-// SkipIfNotTechPreviewNoUpgrade skips the test if a cluster is not a TechPreviewNoUpgrade cluster
-func SkipIfNotTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config) {
-	if !IsTechPreviewNoUpgrade(ctx, restConfig) {
-		g.Skip("This test is skipped because the Tech Preview NoUpgrade is not enabled")
-	}
-}
-
-const (
-	// fauxinnati mocks Cincinnati Update Graph Server for OpenShift
-	FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
-)

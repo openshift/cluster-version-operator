@@ -26,7 +26,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/capability"
-	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
@@ -330,7 +329,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	// The remainder of this logic is for loading a new payload.
 	// Any filtering as to not needing to reload the payload should be done in the switch before this point.
 
-	cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: internal.DefaultClusterVersionName, Namespace: internal.DefaultCVONamespace}
+	cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: "version", Namespace: "openshift-cluster-version"}
 	msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
 	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
 	reporter.ReportPayload(LoadPayloadStatus{
