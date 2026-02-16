@@ -212,12 +212,12 @@ var (
 					mustRegister()
 
 	FeatureGateEVPN = newFeatureGate("EVPN").
-				reportProblemsToJiraComponent("Networking/ovn-kubernetes").
-				contactPerson("jcaamano").
-				productScope(ocpSpecific).
-				enhancementPR("https://github.com/openshift/enhancements/pull/1862").
-				enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-				mustRegister()
+			reportProblemsToJiraComponent("Networking/ovn-kubernetes").
+			contactPerson("jcaamano").
+			productScope(ocpSpecific).
+			enhancementPR("https://github.com/openshift/enhancements/pull/1862").
+			enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+			mustRegister()
 
 	FeatureGateNetworkLiveMigration = newFeatureGate("NetworkLiveMigration").
 					reportProblemsToJiraComponent("Networking/ovn-kubernetes").
@@ -671,8 +671,16 @@ var (
 						contactPerson("swghosh").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1682").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						enableIn(configv1.DevPreviewNoUpgrade).
 						mustRegister()
+
+	FeatureGateKMSEncryption = newFeatureGate("KMSEncryption").
+		reportProblemsToJiraComponent("kube-apiserver").
+		contactPerson("ardaguclu").
+		productScope(ocpSpecific).
+		enhancementPR("https://github.com/openshift/enhancements/pull/1900").
+		enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+		mustRegister()
 
 	FeatureGateHighlyAvailableArbiter = newFeatureGate("HighlyAvailableArbiter").
 						reportProblemsToJiraComponent("Two Node with Arbiter").
@@ -969,4 +977,20 @@ var (
 					enhancementPR("https://github.com/openshift/enhancements/pull/1882").
 					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
+
+	FeatureGateClusterAPIControlPlaneInstall = newFeatureGate("ClusterAPIControlPlaneInstall").
+							reportProblemsToJiraComponent("Installer / openshift-installer").
+							contactPerson("patrickdillon").
+							productScope(ocpSpecific).
+							enhancementPR("https://github.com/openshift/enhancements/pull/1465").
+							enableIn(configv1.DevPreviewNoUpgrade).
+							mustRegister()
+
+	FeatureGateClusterAPIComputeInstall = newFeatureGate("ClusterAPIComputeInstall").
+						reportProblemsToJiraComponent("Installer / openshift-installer").
+						contactPerson("patrickdillon").
+						productScope(ocpSpecific).
+						enhancementPR("https://github.com/openshift/enhancements/pull/1465").
+						enableIn(configv1.DevPreviewNoUpgrade).
+						mustRegister()
 )

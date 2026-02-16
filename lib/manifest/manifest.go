@@ -36,6 +36,9 @@ type InclusionConfiguration struct {
 
 	// EnabledFeatureGates excludes manifests with a feature gate requirement when the condition is not met.
 	EnabledFeatureGates sets.Set[string]
+
+	// MajorVersion, if non-nil, excludes manifests unless they match the major version.
+	MajorVersion *uint64
 }
 
 // GetImplicitlyEnabledCapabilities returns a set of capabilities that are implicitly enabled after a cluster update.
@@ -61,6 +64,7 @@ func GetImplicitlyEnabledCapabilities(
 			manifestInclusionConfiguration.Capabilities,
 			manifestInclusionConfiguration.Overrides,
 			manifestInclusionConfiguration.EnabledFeatureGates,
+			manifestInclusionConfiguration.MajorVersion,
 			true,
 		)
 		// update manifest is enabled, no need to check
@@ -79,6 +83,7 @@ func GetImplicitlyEnabledCapabilities(
 				manifestInclusionConfiguration.Capabilities,
 				manifestInclusionConfiguration.Overrides,
 				manifestInclusionConfiguration.EnabledFeatureGates,
+				manifestInclusionConfiguration.MajorVersion,
 				true,
 			); err != nil {
 				continue

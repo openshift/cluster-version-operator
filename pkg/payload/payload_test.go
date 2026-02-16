@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -66,6 +67,7 @@ func TestLoadUpdate(t *testing.T) {
 					},
 				},
 				Architecture: architecture,
+				MajorVersion: ptr.To(uint64(1)),
 				ManifestHash: "DL-FFQ2Uem8=",
 				Manifests: []manifest.Manifest{
 					{
@@ -177,6 +179,7 @@ func TestLoadUpdateArchitecture(t *testing.T) {
 					},
 				},
 				Architecture: "Multi",
+				MajorVersion: ptr.To(uint64(1)),
 				ManifestHash: "fvnVhLw92pE=",
 				Manifests: []manifest.Manifest{
 					{
@@ -365,7 +368,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			if tt.pathExt == "test10" {
 				updateMans = append(updateMans, updateMans[0])
 			}
-			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities, sets.Set[string]{})
+			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities, sets.Set[string]{}, nil)
 			if diff := cmp.Diff(tt.wantImplicit, caps); diff != "" {
 				t.Errorf("%s: wantImplicit differs from expected:\n%s", tt.name, diff)
 			}
