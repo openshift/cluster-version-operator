@@ -525,9 +525,8 @@ func (m *operatorMetrics) collectConditionalUpdateRisks(ch chan<- prometheus.Met
 			g := m.clusterVersionRiskConditions.WithLabelValues(condition.Type, risk.Name)
 			if condition.Status == metav1.ConditionTrue {
 				g.Set(1)
-			} else {
-				g.Set(0)
 			}
+			// We do not need to do g.Set(0) as it is done when g is initialized
 			ch <- g
 		}
 	}
