@@ -994,9 +994,10 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 				Risks: []configv1.ConditionalUpdateRisk{
 					{
 						Name: "Risk1", Conditions: []metav1.Condition{{
-							Type:   "Applies",
-							Status: metav1.ConditionUnknown,
-							Reason: "InternalErrorNoConditionCollected",
+							Type:    "Applies",
+							Status:  metav1.ConditionUnknown,
+							Reason:  "InternalErrorFoundNoRiskCondition",
+							Message: "failed to find risk condition for risk Risk1",
 						},
 						}},
 				},
@@ -1011,9 +1012,10 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 				RiskNames: []string{"Risk1"},
 				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
 					Conditions: []metav1.Condition{{
-						Type:   "Applies",
-						Status: metav1.ConditionUnknown,
-						Reason: "InternalErrorNoConditionCollected",
+						Type:    "Applies",
+						Status:  metav1.ConditionUnknown,
+						Reason:  "InternalErrorFoundNoRiskCondition",
+						Message: "failed to find risk condition for risk Risk1",
 					},
 					}}},
 			}},
@@ -1028,9 +1030,10 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 				RiskNames: []string{"Risk1"},
 				Risks: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
 					Conditions: []metav1.Condition{{
-						Type:   "Applies",
-						Status: metav1.ConditionUnknown,
-						Reason: "InternalErrorNoConditionCollected",
+						Type:    "Applies",
+						Status:  metav1.ConditionUnknown,
+						Reason:  "InternalErrorFoundNoRiskCondition",
+						Message: "failed to find risk condition for risk Risk1",
 					},
 					}}},
 			}},

@@ -441,9 +441,10 @@ func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []config
 				// This should never happen
 				conditions = []metav1.Condition{
 					{
-						Type:   internal.ConditionalUpdateRiskConditionTypeApplies,
-						Status: metav1.ConditionUnknown,
-						Reason: "InternalErrorNoConditionCollected",
+						Type:    internal.ConditionalUpdateRiskConditionTypeApplies,
+						Status:  metav1.ConditionUnknown,
+						Reason:  internal.ConditionalUpdateRiskConditionReasonInternalErrorFoundNoRiskCondition,
+						Message: fmt.Sprintf("failed to find risk condition for risk %s", risk.Name),
 					},
 				}
 			}
