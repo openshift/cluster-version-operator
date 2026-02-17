@@ -106,8 +106,8 @@ penultimate completed version for 'completed'.
 		}, []string{"name", "condition", "reason"}),
 		clusterVersionRiskConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_version_risk_conditions",
-			Help: "Report the risk conditions for cluster versions. 0 is False and 1 is True.",
-		}, []string{"name", "condition", "risk"}),
+			Help: "Report the risk conditions for the cluster version. 0 is False and 1 is True.",
+		}, []string{"condition", "risk"}),
 		clusterOperatorConditionTransitions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_condition_transitions",
 			Help: "Reports the number of times that a condition on a cluster operator changes status",
@@ -493,7 +493,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.capability.WithLabelValues("").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
-	ch <- m.clusterVersionRiskConditions.WithLabelValues("", "", "").Desc()
+	ch <- m.clusterVersionRiskConditions.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
@@ -522,7 +522,7 @@ func (m *operatorMetrics) collectConditionalUpdateRisks(ch chan<- prometheus.Met
 				continue
 			}
 
-			g := m.clusterVersionRiskConditions.WithLabelValues("version", condition.Type, risk.Name)
+			g := m.clusterVersionRiskConditions.WithLabelValues(condition.Type, risk.Name)
 			if condition.Status == metav1.ConditionTrue {
 				g.Set(1)
 			} else {
