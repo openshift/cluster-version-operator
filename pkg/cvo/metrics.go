@@ -1,39 +1,33 @@
 package cvo
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
-	authenticationclientsetv1 "k8s.io/client-go/kubernetes/typed/authentication/v1"
+	"k8s.io/apiserver/pkg/server/dynamiccertificates"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/library-go/pkg/crypto"
-
-	"gopkg.in/fsnotify.v1"
 )
 
 // RegisterMetrics initializes metrics and registers them with the
@@ -132,91 +126,101 @@ type asyncResult struct {
 	error error
 }
 
-func createHttpServer(ctx context.Context, client *authenticationclientsetv1.AuthenticationV1Client, disableAuth bool) *http.Server {
-	if disableAuth {
+func createHttpServer(options MetricsOptions, clientCA dynamiccertificates.CAContentProvider) *http.Server {
+	if options.DisableAuthentication && options.DisableAuthorization {
 		handler := http.NewServeMux()
 		handler.Handle("/metrics", promhttp.Handler())
-		server := &http.Server{
-			Handler: handler,
-		}
-		return server
+		return &http.Server{Handler: handler}
 	}
 
-	auth := authHandler{downstream: promhttp.Handler(), ctx: ctx, client: client.TokenReviews()}
+	auth := authHandler{
+		downstream:           promhttp.Handler(),
+		clientCA:             clientCA,
+		enableAuthentication: !options.DisableAuthentication,
+		enableAuthorization:  !options.DisableAuthorization,
+	}
 	handler := http.NewServeMux()
 	handler.Handle("/metrics", &auth)
-	server := &http.Server{
-		Handler: handler,
-	}
-	return server
-}
-
-type tokenReviewInterface interface {
-	Create(ctx context.Context, tokenReview *authenticationv1.TokenReview, opts metav1.CreateOptions) (*authenticationv1.TokenReview, error)
+	return &http.Server{Handler: handler}
 }
 
 type authHandler struct {
-	downstream http.Handler
-	ctx        context.Context
-	client     tokenReviewInterface
+	downstream           http.Handler
+	clientCA             dynamiccertificates.CAContentProvider
+	enableAuthentication bool
+	enableAuthorization  bool
 }
 
-func (a *authHandler) authorize(token string) (bool, error) {
-	tr := &authenticationv1.TokenReview{
-		Spec: authenticationv1.TokenReviewSpec{
-			Token: token,
-		},
-	}
-	result, err := a.client.Create(a.ctx, tr, metav1.CreateOptions{})
-	if err != nil {
-		return false, fmt.Errorf("failed to check token: %w", err)
-	}
-	isAuthenticated := result.Status.Authenticated
-	isPrometheus := result.Status.User.Username == "system:serviceaccount:openshift-monitoring:prometheus-k8s"
-	if !isAuthenticated {
-		klog.V(4).Info("The token cannot be authenticated.")
-	} else if !isPrometheus {
-		klog.V(4).Infof("Access the metrics from the unexpected user %s is denied.", result.Status.User.Username)
-	}
-	return isAuthenticated && isPrometheus, nil
-}
-
+// ServeHTTP performs application-level authentication and authorization.
 func (a *authHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "failed to get the Authorization header", http.StatusUnauthorized)
-		return
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	if token == "" {
-		http.Error(w, "empty Bearer token", http.StatusUnauthorized)
-		return
-	}
-	if token == authHeader {
-		http.Error(w, "failed to get the Bearer token", http.StatusUnauthorized)
+	if !a.enableAuthentication && !a.enableAuthorization {
+		a.downstream.ServeHTTP(w, r)
 		return
 	}
 
-	authorized, err := a.authorize(token)
-	if err != nil {
-		klog.Warningf("Failed to authorize token: %v", err)
-		http.Error(w, "failed to authorize due to an internal error", http.StatusInternalServerError)
+	// Both authentication and authorization require a client certificate
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		klog.V(4).Info("Client certificate required but not provided")
+		http.Error(w, "client certificate required", http.StatusUnauthorized)
 		return
 	}
-	if !authorized {
-		http.Error(w, "failed to authorize", http.StatusUnauthorized)
+
+	if a.enableAuthentication && !a.authenticate(w, r) {
 		return
 	}
+
+	if a.enableAuthorization && !a.authorize(w, r) {
+		return
+	}
+
 	a.downstream.ServeHTTP(w, r)
 }
 
-func shutdownHttpServer(parentCtx context.Context, svr *http.Server) {
-	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Second)
-	defer cancel()
-	klog.Info("Shutting down metrics server so it can be recreated with updated TLS configuration.")
-	if err := svr.Shutdown(ctx); err != nil {
-		klog.Errorf("Failed to gracefully shut down metrics server during restart: %v", err)
+// authenticate verifies the client certificate chain against the configured CA.
+// Returns true if authenticated successfully, false otherwise (and writes HTTP error).
+func (a *authHandler) authenticate(w http.ResponseWriter, r *http.Request) bool {
+	opts, ok := a.clientCA.VerifyOptions()
+	if !ok {
+		klog.Error("verify options from client CA provider could not be loaded")
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return false
 	}
+
+	if len(r.TLS.PeerCertificates) > 1 {
+		intermediates := x509.NewCertPool()
+		for _, cert := range r.TLS.PeerCertificates[1:] {
+			intermediates.AddCert(cert)
+		}
+		opts.Intermediates = intermediates
+	}
+
+	if _, err := r.TLS.PeerCertificates[0].Verify(opts); err != nil {
+		klog.V(4).Infof("Client certificate verification failed: %v", err)
+		http.Error(w, "client certificate not trusted", http.StatusUnauthorized)
+		return false
+	}
+
+	return true
+}
+
+// authorize verifies the client certificate CN against the allowed CN.
+// Returns true if authorized, false otherwise (and writes HTTP error).
+func (a *authHandler) authorize(w http.ResponseWriter, r *http.Request) bool {
+	// metricsAllowedClientCommonName is the Common Name (CN) of the client certificate
+	// that is authorized to access the metrics endpoint. This corresponds to the
+	// well-known Prometheus service account in OpenShift monitoring.
+	// See: https://github.com/openshift/enhancements/blob/master/CONVENTIONS.md#metrics
+	metricsAllowedClientCommonName := "system:serviceaccount:openshift-monitoring:prometheus-k8s"
+
+	commonName := r.TLS.PeerCertificates[0].Subject.CommonName
+	if commonName != metricsAllowedClientCommonName {
+		klog.V(4).Infof("Access denied for common name: %s", commonName)
+		http.Error(w, fmt.Sprintf("unauthorized common name: %s", commonName), http.StatusForbidden)
+		return false
+	}
+
+	klog.V(5).Infof("Access granted for common name: %s", commonName)
+	return true
 }
 
 func startListening(svr *http.Server, tlsConfig *tls.Config, lAddr string, resultChannel chan asyncResult) {
@@ -247,74 +251,160 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 	return lastError
 }
 
-// RunMetrics launches a server bound to listenAddress serving
-// Prometheus metrics at /metrics over HTTPS.  Continues serving
-// until runContext.Done() and then attempts a clean shutdown
-// limited by shutdownContext.Done().  Assumes runContext.Done()
+type MetricsOptions struct {
+	ListenAddress string
+
+	ServingCertFile string
+	ServingKeyFile  string
+
+	DisableAuthentication bool
+	DisableAuthorization  bool
+}
+
+// RunMetrics launches an HTTPS server bound to listenAddress serving
+// Prometheus metrics at /metrics. If configured, enforces mTLS (mutual TLS)
+// for client authentication and uses a CN-based authorization.
+//
+// Continues serving until runContext.Done() and then attempts a clean
+// shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-// Also detects changes to metrics certificate files upon which
-// the metrics HTTP server is shutdown and recreated with a new
-// TLS configuration.
-func RunMetrics(runContext context.Context, shutdownContext context.Context, listenAddress, certFile, keyFile string, restConfig *rest.Config, disableMetricsAuth bool) error {
-	var tlsConfig *tls.Config
-	if listenAddress != "" {
-		var err error
-		tlsConfig, err = makeTLSConfig(certFile, keyFile)
-		if err != nil {
-			return fmt.Errorf("failed to create TLS config: %w", err)
-		}
-	} else {
-		return errors.New("TLS configuration is required to serve metrics")
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+	if options.ListenAddress == "" {
+		return errors.New("listen address is required to serve metrics")
 	}
 
-	client, err := authenticationclientsetv1.NewForConfig(restConfig)
-	if err != nil {
-		return fmt.Errorf("failed to create config: %w", err)
+	if options.DisableAuthentication && !options.DisableAuthorization {
+		return errors.New("invalid configuration: cannot enable authorization without authentication")
 	}
 
-	server := createHttpServer(runContext, client, disableMetricsAuth)
+	// Prepare synchronization for to-be created go routines
+	metricsContext, metricsContextCancel := context.WithCancel(runContext)
+	defer metricsContextCancel()
 
 	resultChannel := make(chan asyncResult, 1)
-	resultChannelCount := 1
+	resultChannelCount := 0
 
-	go startListening(server, tlsConfig, listenAddress, resultChannel)
-
-	certDir := filepath.Dir(certFile)
-	keyDir := filepath.Dir(keyFile)
-
-	origCertChecksum, err := checksumFile(certFile)
+	// Create a dynamic serving cert/key controller to watch for serving certificate changes from files.
+	servingContentController, err := dynamiccertificates.NewDynamicServingContentFromFiles(
+		"metrics-serving-cert",
+		options.ServingCertFile,
+		options.ServingKeyFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to initialize certificate file checksum: %w", err)
+		return fmt.Errorf("failed to create serving certificate controller: %w", err)
 	}
-	origKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return fmt.Errorf("failed to initialize key file checksum: %w", err)
+	if err := servingContentController.RunOnce(metricsContext); err != nil {
+		return fmt.Errorf("failed to initialize serving content controller: %w", err)
 	}
 
-	// Set up and start the file watcher.
-	watcher, err := fsnotify.NewWatcher()
-	if watcher == nil || err != nil {
-		return fmt.Errorf("failed to create file watcher for certificate and key rotation: %w", err)
-	} else {
-		defer func() {
-			if err := watcher.Close(); err != nil {
-				klog.Errorf("Failed to close file watcher: %v", err)
-			}
+	// Start the serving cert controller to begin watching the cert and key files
+	resultChannelCount++
+	go func() {
+		servingContentController.Run(metricsContext, 1)
+		resultChannel <- asyncResult{name: "serving content controller"}
+	}()
+
+	clientAuth := tls.NoClientCert
+	var clientCA dynamiccertificates.CAContentProvider
+	var clientCAController *dynamiccertificates.ConfigMapCAController
+	if !options.DisableAuthentication {
+		// Create a dynamic CA controller to watch for client CA changes from a ConfigMap.
+		kubeClient, err := kubernetes.NewForConfig(restConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kube client: %w", err)
+		}
+
+		clientCAController, err = dynamiccertificates.NewDynamicCAFromConfigMapController(
+			"metrics-client-ca",
+			"kube-system",
+			"extension-apiserver-authentication",
+			"client-ca-file",
+			kubeClient)
+		if err != nil {
+			return fmt.Errorf("failed to create client CA controller: %w", err)
+		}
+
+		if err := clientCAController.RunOnce(metricsContext); err != nil {
+			return fmt.Errorf("failed to initialize client CA controller: %w", err)
+		}
+
+		// Start the client CA controller to begin watching the ConfigMap
+		resultChannelCount++
+		go func() {
+			clientCAController.Run(metricsContext, 1)
+			resultChannel <- asyncResult{name: "client CA from ConfigMap controller"}
 		}()
-		if err := watcher.Add(certDir); err != nil {
-			return fmt.Errorf("failed to add %v to watcher: %w", certDir, err)
-		}
-		if certDir != keyDir {
-			if err := watcher.Add(keyDir); err != nil {
-				return fmt.Errorf("failed to add %v to watcher: %w", keyDir, err)
-			}
-		}
+
+		// Assign to interface variable to ensure proper nil handling
+		clientCA = clientCAController
+
+		// Request client certificates but don't verify at TLS layer.
+		// Verification happens in the HTTP handler, which allows returning
+		// HTTP error codes that are expected by the origin test suite, instead of TLS errors.
+		clientAuth = tls.RequestClientCert
 	}
 
+	// Log certificate controller events to stdout because the controller is reported to generate invalid events,
+	// which are rejected by the Kubernetes API server when used with DynamicServingContentFromFiles.
+	eventBroadcaster := record.NewBroadcaster(record.WithContext(metricsContext))
+	eventBroadcaster.StartLogging(klog.Infof)
+	defer eventBroadcaster.Shutdown()
+
+	// baseTlSConfig is a template passed to servingCertController,
+	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
+	// This enables automatic certificate rotation without server restarts.
+	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
+	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
+		baseTlSConfig,
+		clientCA,
+		servingContentController,
+		nil,
+		record.NewEventRecorderAdapter(
+			eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "cluster-version-operator"}),
+		),
+	)
+	if err := servingCertController.RunOnce(); err != nil {
+		return fmt.Errorf("failed to initialize serving certificate controller: %w", err)
+	}
+
+	// Register listeners so servingCertController is notified when certificates change.
+	if clientCAController != nil {
+		clientCAController.AddListener(servingCertController)
+	}
+	servingContentController.AddListener(servingCertController)
+
+	resultChannelCount++
+	go func() {
+		servingCertController.Run(1, metricsContext.Done())
+		resultChannel <- asyncResult{name: "serving certification controller"}
+	}()
+
+	server := createHttpServer(options, clientCA)
+	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
+		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
+			config, err := servingCertController.GetConfigForClient(clientHello)
+			if err != nil {
+				return nil, err
+			}
+			if config == nil {
+				// To ensure we rather safely fail connections when the desired config is nil. Safety over availability.
+				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
+				return nil, err
+			}
+			return config, nil
+		},
+	})
+
+	resultChannelCount++
+	go func() {
+		startListening(server, tlsConfig, options.ListenAddress, resultChannel)
+	}()
+
+	// Wait for server to exit or shutdown signal
 	shutdown := false
-	restartServer := false
 	var loopError error
 	for resultChannelCount > 0 {
+		klog.Infof("Waiting on %d outstanding goroutines.", resultChannelCount)
 		if shutdown {
 			select {
 			case result := <-resultChannel:
@@ -326,63 +416,24 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, lis
 			}
 		} else {
 			select {
-			case <-runContext.Done(): // clean shutdown
-			case result := <-resultChannel: // crashed before a shutdown was requested or metrics server recreated
-				if restartServer {
-					klog.Info("Creating metrics server with updated TLS configuration.")
-					server = createHttpServer(runContext, client, disableMetricsAuth)
-					go startListening(server, tlsConfig, listenAddress, resultChannel)
-					restartServer = false
-					continue
-				}
+			case <-metricsContext.Done():
+				klog.Infof("Clean metrics shutdown requested: %v", metricsContext.Err())
+			case result := <-resultChannel:
 				resultChannelCount--
 				loopError = handleServerResult(result, loopError)
-			case event := <-watcher.Events:
-				if event.Op != fsnotify.Chmod && event.Op != fsnotify.Remove {
-					if changed, err := certsChanged(origCertChecksum, origKeyChecksum, certFile, keyFile); changed {
-
-						// Update file checksums with latest files.
-						//
-						if origCertChecksum, err = checksumFile(certFile); err != nil {
-							klog.Errorf("Failed to update certificate file checksum: %v", err)
-							loopError = err
-							break
-						}
-						if origKeyChecksum, err = checksumFile(keyFile); err != nil {
-							klog.Errorf("Failed to update key file checksum: %v", err)
-							loopError = err
-							break
-						}
-
-						tlsConfig, err = makeTLSConfig(certFile, keyFile)
-						if err == nil {
-							restartServer = true
-							shutdownHttpServer(shutdownContext, server)
-							continue
-						} else {
-							klog.Errorf("Failed to create TLS configuration with updated configuration: %v", err)
-							loopError = err
-						}
-					} else if err != nil {
-						klog.Errorf("%v", err)
-						loopError = err
-					} else {
-						continue
-					}
-				} else {
-					continue
-				}
-			case err = <-watcher.Errors:
-				klog.Errorf("Error from metrics server certificate file watcher: %v", err)
-				loopError = err
 			}
 			shutdown = true
 			shutdownError := server.Shutdown(shutdownContext)
-			if loopError == nil {
-				loopError = shutdownError
-			} else if shutdownError != nil { // log the error we are discarding
+			if shutdownError != nil { // log the error we are discarding
 				klog.Errorf("Failed to gracefully shut down metrics server: %v", shutdownError)
 			}
+
+			if loopError == nil {
+				loopError = shutdownError
+			}
+
+			// Request remaining go routines to shut down
+			metricsContextCancel()
 		}
 	}
 
@@ -720,97 +771,4 @@ func mostRecentTimestamp(cv *configv1.ClusterVersion) int64 {
 		return 0
 	}
 	return latest.Unix()
-}
-
-// Determine if the certificates have changed and need to be updated.
-// If no errors occur, returns true if both files have changed and
-// neither is an empty file. Otherwise returns false and any error.
-func certsChanged(origCertChecksum []byte, origKeyChecksum []byte, certFile, keyFile string) (bool, error) {
-	// Check if both files exist.
-	certNotEmpty, err := fileExistsAndNotEmpty(certFile)
-	if err != nil {
-		return false, fmt.Errorf("Error checking if changed TLS cert file empty/exists: %w", err)
-	}
-	keyNotEmpty, err := fileExistsAndNotEmpty(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking if changed TLS key file empty/exists: %w", err)
-	}
-	if !certNotEmpty || !keyNotEmpty {
-		// One of the files is missing despite some file event.
-		return false, fmt.Errorf("certificate or key is missing or empty, certificates will not be rotated")
-	}
-
-	currentCertChecksum, err := checksumFile(certFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking certificate file checksum: %w", err)
-	}
-
-	currentKeyChecksum, err := checksumFile(keyFile)
-	if err != nil {
-		return false, fmt.Errorf("error checking key file checksum: %w", err)
-	}
-
-	// Check if the non-empty certificate/key files have actually changed.
-	if !bytes.Equal(origCertChecksum, currentCertChecksum) && !bytes.Equal(origKeyChecksum, currentKeyChecksum) {
-		klog.V(2).Info("Certificate and key changed. Will recreate metrics server with updated TLS configuration.")
-		return true, nil
-	}
-
-	return false, nil
-}
-
-func makeTLSConfig(servingCertFile, servingKeyFile string) (*tls.Config, error) {
-	// Load the initial certificate contents.
-	certBytes, err := os.ReadFile(servingCertFile)
-	if err != nil {
-		return nil, err
-	}
-	keyBytes, err := os.ReadFile(servingKeyFile)
-	if err != nil {
-		return nil, err
-	}
-	certificate, err := tls.X509KeyPair(certBytes, keyBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	return crypto.SecureTLSConfig(&tls.Config{
-		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-			return &certificate, nil
-		},
-	}), nil
-}
-
-// Compute the sha256 checksum for file 'fName' returning any error.
-func checksumFile(fName string) ([]byte, error) {
-	file, err := os.Open(fName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %v for checksum: %w", fName, err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			klog.Errorf("failed to close file %s: %v", fName, err)
-		}
-	}()
-
-	hash := sha256.New()
-
-	if _, err = io.Copy(hash, file); err != nil {
-		return nil, fmt.Errorf("failed to compute checksum for file %v: %w", fName, err)
-	}
-
-	return hash.Sum(nil), nil
-}
-
-// Check if a file exists and has file.Size() not equal to 0.
-// Returns any error returned by os.Stat other than os.ErrNotExist.
-func fileExistsAndNotEmpty(fName string) (bool, error) {
-	if fi, err := os.Stat(fName); err == nil {
-		return (fi.Size() != 0), nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	} else {
-		// Some other error, file may not exist.
-		return false, err
-	}
 }
