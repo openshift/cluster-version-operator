@@ -19,6 +19,8 @@ import (
 	"github.com/openshift/cluster-version-operator/test/util"
 	"github.com/openshift/library-go/pkg/manifest"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+
+	"github.com/openshift/cluster-version-operator/pkg/cvo/external/dynamicclient"
 )
 
 var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
@@ -135,7 +137,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 					continue
 				}
 				manifestFilePath := filepath.Join(manifestDir.To, manifestFile.Name())
-				err := util.GetManifestExpectNotFoundError(ms)
+				client, err := dynamicclient.New(restCfg, ms.GVK, ms.Obj.GetNamespace())
+				o.Expect(err).NotTo(o.HaveOccurred())
+				_, err = client.Get(ctx, ms.Obj.GetName(), metav1.GetOptions{})
 				o.Expect(apierrors.IsNotFound(err)).To(o.BeTrue(), fmt.Sprintf("The deleted manifest should not be installed, but actually installed: %s, manifest: %v, error: %v", manifestFilePath, string(ms.Raw), err))
 			}
 		}

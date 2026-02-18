@@ -283,7 +283,6 @@ if __name__ == '__main__':
         'github.com/openshift/api/image/v1': {'ImageStream'}, # for payload loading
         'github.com/openshift/api/security/v1': {'SecurityContextConstraints'},
         'github.com/operator-framework/api/pkg/operators/v1': {'OperatorGroup'},
-        'github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1': {'PrometheusRule', 'ServiceMonitor'},
         'k8s.io/api/admissionregistration/v1': {'ValidatingWebhookConfiguration'},
         'k8s.io/api/apps/v1': {'DaemonSet', 'Deployment'},
         'k8s.io/api/batch/v1': {'CronJob', 'Job'},

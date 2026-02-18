@@ -7,7 +7,6 @@ import (
 	imagev1 "github.com/openshift/api/image/v1"
 	securityv1 "github.com/openshift/api/security/v1"
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
-	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -43,9 +42,6 @@ func init() {
 	if err := imagev1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
-	if err := monitoringv1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
 	if err := operatorsv1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}
@@ -62,7 +58,6 @@ func init() {
 		batchv1.SchemeGroupVersion,
 		corev1.SchemeGroupVersion,
 		imagev1.SchemeGroupVersion,
-		monitoringv1.SchemeGroupVersion,
 		operatorsv1.SchemeGroupVersion,
 		rbacv1.SchemeGroupVersion,
 		securityv1.SchemeGroupVersion,
