@@ -1,7 +1,6 @@
 package cvo
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"github.com/openshift/cluster-version-operator/test/util"
 	"github.com/openshift/library-go/pkg/manifest"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/openshift/cluster-version-operator/pkg/cvo/external/dynamicclient"
 )
@@ -118,29 +118,29 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		files, err := os.ReadDir(manifestDir.To)
 		o.Expect(err).NotTo(o.HaveOccurred())
 		g.By(fmt.Sprintf("Checking if getting manifests with %s on the cluster led to not-found error", annotation))
+
+		ignore := sets.New[string]("release-metadata")
+
 		for _, manifestFile := range files {
-			filePath := filepath.Join(manifestDir.To, manifestFile.Name())
-			raw, err := os.ReadFile(filePath)
-			if err != nil {
-				o.Expect(err).NotTo(o.HaveOccurred(), "failed to read manifest file")
-			}
-			manifests, err := manifest.ParseManifests(bytes.NewReader(raw))
-			if err != nil {
-				// files like release-metadata are not manifest file, so skip them
-				logger.Error(err, "failed to parse manifest file: "+filePath)
+			if manifestFile.IsDir() || ignore.Has(manifestFile.Name()) {
 				continue
 			}
+			filePath := filepath.Join(manifestDir.To, manifestFile.Name())
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to read manifest file")
+			manifests, err := manifest.ManifestsFromFiles([]string{filePath})
+			o.Expect(err).NotTo(o.HaveOccurred(), fmt.Sprintf("failed to parse manifest file: %s", filePath))
 
 			for _, ms := range manifests {
 				ann := ms.Obj.GetAnnotations()
-				if ann == nil || ann[annotation] != "true" {
+				if ann[annotation] != "true" {
 					continue
 				}
-				manifestFilePath := filepath.Join(manifestDir.To, manifestFile.Name())
 				client, err := dynamicclient.New(restCfg, ms.GVK, ms.Obj.GetNamespace())
 				o.Expect(err).NotTo(o.HaveOccurred())
 				_, err = client.Get(ctx, ms.Obj.GetName(), metav1.GetOptions{})
-				o.Expect(apierrors.IsNotFound(err)).To(o.BeTrue(), fmt.Sprintf("The deleted manifest should not be installed, but actually installed: %s, manifest: %v, error: %v", manifestFilePath, string(ms.Raw), err))
+				o.Expect(apierrors.IsNotFound(err)).To(o.BeTrue(),
+					fmt.Sprintf("The deleted manifest should not be installed, but actually installed: manifest: %s %s in namespace %s from file %q, error: %v",
+						ms.GVK, ms.Obj.GetName(), ms.Obj.GetNamespace(), ms.OriginalFilename, err))
 			}
 		}
 	})
