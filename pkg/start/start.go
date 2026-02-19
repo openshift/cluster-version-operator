@@ -49,9 +49,6 @@ import (
 )
 
 const (
-	defaultComponentName      = "version"
-	defaultComponentNamespace = "openshift-cluster-version"
-
 	minResyncPeriod = 2 * time.Minute
 )
 
@@ -122,8 +119,8 @@ func NewOptions() *Options {
 		PromQLTarget:        defaultPromQLTarget,
 
 		// exposed only for testing
-		Namespace:       defaultEnv("CVO_NAMESPACE", defaultComponentNamespace),
-		Name:            defaultEnv("CVO_NAME", defaultComponentName),
+		Namespace:       defaultEnv("CVO_NAMESPACE", internal.DefaultCVONamespace),
+		Name:            defaultEnv("CVO_NAME", internal.DefaultClusterVersionName),
 		PayloadOverride: os.Getenv("PAYLOAD_OVERRIDE"),
 		ResyncInterval:  minResyncPeriod,
 		Exclude:         os.Getenv("EXCLUDE_MANIFESTS"),
