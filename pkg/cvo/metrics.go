@@ -58,6 +58,7 @@ type operatorMetrics struct {
 	capability                                            *prometheus.GaugeVec
 	clusterOperatorUp                                     *prometheus.GaugeVec
 	clusterOperatorConditions                             *prometheus.GaugeVec
+	clusterVersionRiskConditions                          *prometheus.GaugeVec
 	clusterOperatorConditionTransitions                   *prometheus.GaugeVec
 	clusterInstaller                                      *prometheus.GaugeVec
 	clusterVersionOperatorUpdateRetrievalTimestampSeconds *prometheus.GaugeVec
@@ -108,6 +109,10 @@ penultimate completed version for 'completed'.
 			Name: "cluster_operator_conditions",
 			Help: "Report the conditions for active cluster operators. 0 is False and 1 is True.",
 		}, []string{"name", "condition", "reason"}),
+		clusterVersionRiskConditions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "cluster_version_risk_conditions",
+			Help: "Report the risk conditions for the cluster version. 0 is False and 1 is True.",
+		}, []string{"condition", "risk"}),
 		clusterOperatorConditionTransitions: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "cluster_operator_condition_transitions",
 			Help: "Reports the number of times that a condition on a cluster operator changes status",
@@ -436,6 +441,7 @@ func (m *operatorMetrics) Describe(ch chan<- *prometheus.Desc) {
 	ch <- m.capability.WithLabelValues("").Desc()
 	ch <- m.clusterOperatorUp.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterOperatorConditions.WithLabelValues("", "", "").Desc()
+	ch <- m.clusterVersionRiskConditions.WithLabelValues("", "").Desc()
 	ch <- m.clusterOperatorConditionTransitions.WithLabelValues("", "").Desc()
 	ch <- m.clusterInstaller.WithLabelValues("", "", "").Desc()
 	ch <- m.clusterVersionOperatorUpdateRetrievalTimestampSeconds.WithLabelValues("").Desc()
@@ -453,6 +459,23 @@ func (m *operatorMetrics) collectConditionalUpdates(ch chan<- prometheus.Metric,
 			gauge := g.WithLabelValues(update.Release.Version, condition.Type, string(condition.Status), condition.Reason)
 			gauge.Set(float64(condition.LastTransitionTime.Unix()))
 			ch <- gauge
+		}
+	}
+}
+
+func (m *operatorMetrics) collectConditionalUpdateRisks(ch chan<- prometheus.Metric, risks []configv1.ConditionalUpdateRisk) {
+	for _, risk := range risks {
+		for _, condition := range risk.Conditions {
+			if condition.Type != internal.ConditionalUpdateRiskConditionTypeApplies {
+				continue
+			}
+
+			g := m.clusterVersionRiskConditions.WithLabelValues(condition.Type, risk.Name)
+			if condition.Status == metav1.ConditionTrue {
+				g.Set(1)
+			}
+			// We do not need to do g.Set(0) as it is done when g is initialized
+			ch <- g
 		}
 	}
 }
@@ -602,6 +625,9 @@ func (m *operatorMetrics) Collect(ch chan<- prometheus.Metric) {
 		}
 
 		m.collectConditionalUpdates(ch, cv.Status.ConditionalUpdates)
+		if m.optr.shouldReconcileAcceptRisks() {
+			m.collectConditionalUpdateRisks(ch, cv.Status.ConditionalUpdateRisks)
+		}
 	}
 
 	g := m.version.WithLabelValues("current", current.Version, current.Image, completed.Version)
