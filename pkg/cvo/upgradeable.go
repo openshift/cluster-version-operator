@@ -258,7 +258,7 @@ func (check *clusterVersionOverridesUpgradeable) Check() *configv1.ClusterOperat
 	}
 
 	cond.Reason = "ClusterVersionOverridesSet"
-	cond.Message = "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing."
+	cond.Message = "Disabling ownership via cluster version overrides prevents upgrades between minor or major versions. Please remove overrides before requesting a minor or major version update."
 	return cond
 }
 
