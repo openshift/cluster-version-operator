@@ -2363,7 +2363,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "VersionNotFound",
 					Message: `Unable to retrieve available updates: currently reconciling cluster version 4.0.1 not found in the "fast" channel`,
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2407,7 +2406,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  noChannel,
 					Message: "The update channel has not been configured.",
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2450,7 +2448,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "NoCurrentVersion",
 					Message: "The cluster version does not have a semantic version assigned and cannot calculate valid upgrades.",
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2500,7 +2497,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "ResponseFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2569,7 +2565,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2636,7 +2631,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Type:   configv1.RetrievedUpdates,
 					Status: configv1.ConditionTrue,
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 		{
@@ -2735,7 +2729,6 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 					Reason:  "ResponseFailed",
 					Message: "Unable to retrieve available updates: unexpected HTTP status: 500 Internal Server Error",
 				},
-				RiskConditions: map[string][]metav1.Condition{},
 			},
 		},
 	}

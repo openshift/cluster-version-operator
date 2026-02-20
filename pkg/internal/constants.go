@@ -78,4 +78,6 @@ const (
 	// ConditionalUpdateRiskConditionTypeApplies is a type of the condition present on a conditional update risk
 	// that indicates whether the conditional update risk applies to the cluster
 	ConditionalUpdateRiskConditionTypeApplies = "Applies"
+
+	ConditionalUpdateRiskConditionReasonInternalErrorFoundNoRiskCondition = "InternalErrorFoundNoRiskCondition"
 )
