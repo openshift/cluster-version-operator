@@ -14,11 +14,11 @@ spec:
   groups:
   - name: cluster-version-tech-preview
     rules:
-    - alert: RiskApplies
+    - alert: OpenShiftUpdateRiskApplies
       annotations:
         summary: The cluster has been exposed to the conditional update risk for 10 minutes.
         description: The conditional update risk {{ "{{ $labels.risk }}" }} applies to the cluster, and the cluster update to a version exposed to the risk is not recommended. For more information refer to 'oc adm upgrade'.
-        runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-monitoring-operator/RiskApplies.md
+        runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-monitoring-operator/OpenShiftUpdateRiskApplies.md
       expr: |
         max by (namespace, name, risk) (cluster_version_risk_conditions{job="cluster-version-operator", name="version", condition="Applies"} == 1)
       for: 10m
