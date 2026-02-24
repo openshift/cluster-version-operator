@@ -20,7 +20,7 @@ spec:
         description: The conditional update risk {{ "{{ $labels.risk }}" }} might apply to the cluster because of {{ "{{ $labels.reason }}" }}, and the cluster update to a version exposed to the risk is not recommended. For more information refer to 'oc adm upgrade'.
         runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-monitoring-operator/OpenShiftUpdateRiskMightApply.md
       expr: |
-        max by (namespace, risk, reason) (abs(last_over_time(cluster_version_risk_conditions{job="cluster-version-operator", condition="Applies"}[5m])) == 1)
+        max by (namespace, risk, reason) (last_over_time(cluster_version_risk_conditions{job="cluster-version-operator", condition="Applies"}[5m]) != 0)
       for: 10m
       labels:
         severity: warning
