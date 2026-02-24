@@ -1019,7 +1019,7 @@ func Test_collectConditionalUpdateRisks(t *testing.T) {
 				},
 			},
 			expected: []valueWithLabels{{
-				labels: map[string]string{"condition": "Applies", "risk": "RiskX"},
+				labels: map[string]string{"condition": "Applies", "risk": "RiskX", "reason": "ReasonA"},
 			}},
 		},
 		{
@@ -1037,7 +1037,7 @@ func Test_collectConditionalUpdateRisks(t *testing.T) {
 			},
 			expected: []valueWithLabels{{
 				value:  1,
-				labels: map[string]string{"condition": "Applies", "risk": "RiskX"},
+				labels: map[string]string{"condition": "Applies", "risk": "RiskX", "reason": "ReasonA"},
 			}},
 		},
 		{
@@ -1054,7 +1054,8 @@ func Test_collectConditionalUpdateRisks(t *testing.T) {
 				},
 			},
 			expected: []valueWithLabels{{
-				labels: map[string]string{"condition": "Applies", "risk": "RiskX"},
+				value:  -1,
+				labels: map[string]string{"condition": "Applies", "risk": "RiskX", "reason": "ReasonA"},
 			}},
 		},
 	}
