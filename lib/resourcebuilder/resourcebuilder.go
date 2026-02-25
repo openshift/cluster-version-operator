@@ -45,8 +45,8 @@ type builder struct {
 	apiregistrationClientv1       *apiregistrationclientv1.ApiregistrationV1Client
 	appsClientv1                  *appsclientv1.AppsV1Client
 	batchClientv1                 *batchclientv1.BatchV1Client
-	configClientv1                *configclientv1.ConfigV1Client
-	coreClientv1                  *coreclientv1.CoreV1Client
+	configClientv1                configclientv1.ConfigV1Interface
+	coreClientv1                  coreclientv1.CoreV1Interface
 	imageClientv1                 *imageclientv1.ImageV1Client
 	operatorsClientv1             *operatorsclientv1.OperatorsV1Client
 	rbacClientv1                  *rbacclientv1.RbacV1Client
@@ -203,6 +203,9 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
+			if err := b.modifyConfigMap(ctx, typedObject); err != nil {
+				return err
+			}
 			if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
