@@ -307,6 +307,7 @@ if __name__ == '__main__':
     modifiers = {
         ('k8s.io/api/apps/v1', 'Deployment'): 'b.modifyDeployment',
         ('k8s.io/api/apps/v1', 'DaemonSet'): 'b.modifyDaemonSet',
+        ('k8s.io/api/core/v1', 'ConfigMap'): 'b.modifyConfigMap',
     }
 
     health_checks = {
