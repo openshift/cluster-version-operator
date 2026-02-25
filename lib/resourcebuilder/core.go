@@ -53,13 +53,18 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 		// Parse YAML into RNode to preserve formatting and field order
 		rnode, err := yaml.Parse(value)
 		if err != nil {
+			klog.V(4).Infof("ConfigMap's %q entry parsing failed: %v", key, err)
 			// Not valid YAML, skip this entry
 			continue
 		}
 
 		// Check if this is a GenericOperatorConfig by checking the kind field
 		kind, err := rnode.GetString("kind")
-		if err != nil || kind != "GenericOperatorConfig" {
+		if err != nil {
+			klog.V(4).Infof("ConfigMap's %q kind accessing failed: %v", key, err)
+			continue
+		}
+		if kind != "GenericOperatorConfig" {
 			// Not a GenericOperatorConfig, skip this entry
 			continue
 		}
@@ -111,7 +116,7 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	recorder := events.NewInMemoryRecorder("configmap-tls-injection", clock.RealClock{})
 
 	// Call ObserveTLSSecurityProfile to get TLS configuration
-	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, map[string]interface{}{})
+	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, map[string]any{})
 	if len(errs) > 0 {
 		// Log errors but continue - ObserveTLSSecurityProfile is tolerant of missing config
 		for _, err := range errs {
