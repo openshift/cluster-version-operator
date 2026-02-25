@@ -206,6 +206,9 @@ func (b *builder) Do(ctx context.Context) error {
 			updatingMode); err != nil {
 			return err
 		} else if !deleteReq {
+			if err := b.modifyConfigMap(ctx, typedObject); err != nil {
+				return err
+			}
 			if _, _, err := resourceapply.ApplyConfigMapv1(ctx, b.coreClientv1, typedObject, reconcilingMode); err != nil {
 				return err
 			}
