@@ -57,13 +57,12 @@ const (
 
 // Options are the valid inputs to starting the CVO.
 type Options struct {
-	ReleaseImage    string
-	ServingCertFile string
-	ServingKeyFile  string
+	ReleaseImage string
+
+	MetricsOptions cvo.MetricsOptions
 
 	Kubeconfig string
 	NodeName   string
-	ListenAddr string
 
 	EnableAutoUpdate bool
 
@@ -116,7 +115,7 @@ func defaultEnv(name, defaultValue string) string {
 func NewOptions() *Options {
 	defaultPromQLTarget := clusterconditions.DefaultPromQLTarget()
 	return &Options{
-		ListenAddr:          "0.0.0.0:9099",
+		MetricsOptions:      cvo.MetricsOptions{ListenAddress: "0.0.0.0:9099"},
 		NodeName:            os.Getenv("NODE_NAME"),
 		PrometheusURLString: defaultPromQLTarget.URL.String(),
 		PromQLTarget:        defaultPromQLTarget,
@@ -138,10 +137,10 @@ func (o *Options) ValidateAndComplete() error {
 	if o.ReleaseImage == "" {
 		return fmt.Errorf("missing --release-image flag, it is required")
 	}
-	if o.ListenAddr != "" && o.ServingCertFile == "" {
+	if o.MetricsOptions.ListenAddress != "" && o.MetricsOptions.ServingCertFile == "" {
 		return fmt.Errorf("--listen was not set empty, so --serving-cert-file must be set")
 	}
-	if o.ListenAddr != "" && o.ServingKeyFile == "" {
+	if o.MetricsOptions.ListenAddress != "" && o.MetricsOptions.ServingKeyFile == "" {
 		return fmt.Errorf("--listen was not set empty, so --serving-key-file must be set")
 	}
 	if o.PrometheusURLString == "" {
@@ -160,6 +159,10 @@ func (o *Options) ValidateAndComplete() error {
 
 	// Inject the cluster ID into PromQL queries in HyperShift
 	o.InjectClusterIdIntoPromQL = o.HyperShift
+
+	// Temporarily disable the authentication and authorization for the metrics endpoint in HyperShift
+	o.MetricsOptions.DisableAuthorization = o.HyperShift
+	o.MetricsOptions.DisableAuthentication = o.HyperShift
 
 	if err := validateCapabilities(o.AlwaysEnableCapabilities); err != nil {
 		return fmt.Errorf("--always-enable-capabilities: %w", err)
@@ -346,12 +349,11 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 			Callbacks: leaderelection.LeaderCallbacks{
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
-					if o.ListenAddr != "" {
+					if o.MetricsOptions.ListenAddress != "" {
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							disableMetricsAuth := o.InjectClusterIdIntoPromQL // this is wired to the "--hypershift" flag, so when hypershfit is no, we disableMetricsAuth
-							err := cvo.RunMetrics(postMainContext, shutdownContext, o.ListenAddr, o.ServingCertFile, o.ServingKeyFile, restConfig, disableMetricsAuth)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, o.MetricsOptions)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
@@ -652,7 +654,7 @@ func (o *Options) NewControllerContext(
 			return nil, err
 		}
 	}
-	if o.ListenAddr != "" {
+	if o.MetricsOptions.ListenAddress != "" {
 		if err := ctx.CVO.RegisterMetrics(coInformer.Informer()); err != nil {
 			return nil, err
 		}
