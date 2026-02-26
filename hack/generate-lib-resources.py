@@ -124,7 +124,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         client_properties['{}Client{}'.format(short_name, version)] = {
             'package': package,
             'client_short_name': client_short_name,
-            'type': '*{}.{}'.format(client_short_name, client['type']),
+            'type': '{}{}.{}'.format("" if 'interface' in client and client['interface'] == True else "*", client_short_name, client['type']),
             'protobuf': client['package'].startswith('k8s.io/') and 'kube-aggregator' not in client['package'],
         }
 
@@ -292,13 +292,13 @@ if __name__ == '__main__':
     }
     clients = {
         'github.com/openshift/api/security/v1': {'package': 'github.com/openshift/client-go/security/clientset/versioned/typed/security/v1', 'type': 'SecurityV1Client'},
-        'github.com/openshift/api/config/v1': {'package': 'github.com/openshift/client-go/config/clientset/versioned/typed/config/v1', 'type': 'ConfigV1Client'},
+        'github.com/openshift/api/config/v1': {'package': 'github.com/openshift/client-go/config/clientset/versioned/typed/config/v1', 'type': 'ConfigV1Interface', 'interface': True},
         'github.com/openshift/api/image/v1': {'package': 'github.com/openshift/client-go/image/clientset/versioned/typed/image/v1', 'type': 'ImageV1Client'},
         'github.com/operator-framework/api/pkg/operators/v1': {'package': 'github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1', 'type': 'OperatorsV1Client'},
         'k8s.io/api/admissionregistration/v1': {'package': 'k8s.io/client-go/kubernetes/typed/admissionregistration/v1', 'type': 'AdmissionregistrationV1Client'},
         'k8s.io/api/apps/v1': {'package': 'k8s.io/client-go/kubernetes/typed/apps/v1', 'type': 'AppsV1Client'},
         'k8s.io/api/batch/v1': {'package': 'k8s.io/client-go/kubernetes/typed/batch/v1', 'type': 'BatchV1Client'},
-        'k8s.io/api/core/v1': {'package': 'k8s.io/client-go/kubernetes/typed/core/v1', 'type': 'CoreV1Client'},
+        'k8s.io/api/core/v1': {'package': 'k8s.io/client-go/kubernetes/typed/core/v1', 'type': 'CoreV1Interface', 'interface': True},
         'k8s.io/api/rbac/v1': {'package': 'k8s.io/client-go/kubernetes/typed/rbac/v1', 'type': 'RbacV1Client'},
         'k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1': {'package': 'k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1', 'type': 'ApiextensionsV1Client'},
         'k8s.io/kube-aggregator/pkg/apis/apiregistration/v1': {'package': 'k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1', 'type': 'ApiregistrationV1Client'},
@@ -307,6 +307,7 @@ if __name__ == '__main__':
     modifiers = {
         ('k8s.io/api/apps/v1', 'Deployment'): 'b.modifyDeployment',
         ('k8s.io/api/apps/v1', 'DaemonSet'): 'b.modifyDaemonSet',
+        ('k8s.io/api/core/v1', 'ConfigMap'): 'b.modifyConfigMap',
     }
 
     health_checks = {
