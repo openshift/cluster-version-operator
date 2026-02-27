@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"

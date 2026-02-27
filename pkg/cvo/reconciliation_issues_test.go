@@ -7,9 +7,11 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/manifest"
+
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_reconciliationIssueFromError(t *testing.T) {

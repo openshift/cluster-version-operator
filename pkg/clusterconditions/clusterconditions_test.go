@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 )

@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	batchclientv1 "k8s.io/client-go/kubernetes/typed/batch/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 // ApplyJobv1 applies the required Job to the cluster.

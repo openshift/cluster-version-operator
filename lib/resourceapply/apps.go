@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 // ApplyDeploymentv1 applies the required deployment to the cluster.

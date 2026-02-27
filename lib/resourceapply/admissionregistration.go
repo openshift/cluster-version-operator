@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	admissionregclientv1 "k8s.io/client-go/kubernetes/typed/admissionregistration/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 func ApplyValidatingWebhookConfigurationv1(ctx context.Context, client admissionregclientv1.ValidatingWebhookConfigurationsGetter, required *admissionregv1.ValidatingWebhookConfiguration, reconciling bool) (*admissionregv1.ValidatingWebhookConfiguration, bool, error) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/verify/store"
 

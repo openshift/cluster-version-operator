@@ -15,6 +15,7 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
+
 	configv1 "github.com/openshift/api/config/v1"
 	_ "k8s.io/klog/v2" // integration tests set glog flags.
 )

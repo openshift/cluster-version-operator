@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	rbacclientv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 // ApplyClusterRoleBindingv1 applies the required clusterrolebinding to the cluster.
