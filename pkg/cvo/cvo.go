@@ -43,6 +43,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/promql"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/configuration"
@@ -207,6 +208,8 @@ type Operator struct {
 
 	// configuration, if enabled, reconciles the ClusterVersionOperator configuration.
 	configuration *configuration.ClusterVersionOperatorConfiguration
+
+	AlertGetter AlertGetter
 }
 
 // New returns a new cluster version operator.
@@ -267,6 +270,7 @@ func New(
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
+		AlertGetter:               promql.NewAlertGetter(promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
 		requiredFeatureSet:          featureSet,
