@@ -25,6 +25,7 @@ spec:
   selector:
     matchLabels:
       k8s-app: cluster-version-operator
+  serviceDiscoveryRole: EndpointSlice
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
