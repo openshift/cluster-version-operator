@@ -977,6 +977,10 @@ var (
 )
 
 func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
+	t1, err := time.Parse(time.RFC3339, "2026-03-04T00:38:19.02109776Z")
+	if err != nil {
+		t.Fatalf("failed to parse time: %v", err)
+	}
 	tests := []struct {
 		name               string
 		conditionalUpdates []configv1.ConditionalUpdate
@@ -1075,13 +1079,143 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 			}},
 			expectedNames: []string{"Risk1", "Risk2"},
 		},
+		{
+			name:         "alert",
+			desiredImage: "not-important",
+			availableUpdates: &availableUpdates{
+				RiskConditions: map[string][]metav1.Condition{
+					"TestAlert": []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.1",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+				{
+					Release: configv1.Release{
+						Version: "4.21.2",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+			expected: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.1",
+					},
+					RiskNames: []string{"TestAlert"},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+				{
+					Release: configv1.Release{
+						Version: "4.21.2",
+					},
+					RiskNames: []string{"TestAlert"},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getAvailableUpdates := func() *availableUpdates {
-				return tt.availableUpdates
+			var riskConditions map[string][]metav1.Condition
+			if tt.availableUpdates != nil {
+				riskConditions = tt.availableUpdates.RiskConditions
 			}
-			actual, actualNames := conditionalUpdateWithRiskNamesAndRiskConditions(tt.conditionalUpdates, getAvailableUpdates, tt.desiredImage)
+			actual, actualNames := conditionalUpdateWithRiskNamesAndRiskConditions(tt.conditionalUpdates, riskConditions, tt.desiredImage)
 			if difference := cmp.Diff(tt.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); difference != "" {
 				t.Errorf("conditional updates differ from expected:\n%s", difference)
 			}

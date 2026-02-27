@@ -1,6 +1,10 @@
 package internal
 
 import (
+	"fmt"
+	"strings"
+
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -89,4 +93,41 @@ const (
 	ConditionalUpdateRiskConditionTypeApplies = "Applies"
 
 	ConditionalUpdateRiskConditionReasonInternalErrorFoundNoRiskCondition = "InternalErrorFoundNoRiskCondition"
+
+	AlertNamePodDisruptionBudgetLimit   = "PodDisruptionBudgetLimit"
+	AlertNamePodDisruptionBudgetAtLimit = "PodDisruptionBudgetAtLimit"
+	AlertNameKubeContainerWaiting       = "KubeContainerWaiting"
+
+	AlertNameKubeletHealthState        = "KubeletHealthState"
+	AlertNameKubeNodeNotReady          = "KubeNodeNotReady"
+	AlertNameKubeNodeReadinessFlapping = "KubeNodeReadinessFlapping"
+	AlertNameKubeNodeUnreachable       = "KubeNodeUnreachable"
+
+	AlertNameVirtHandlerDaemonSetRolloutFailing = "VirtHandlerDaemonSetRolloutFailing"
+	AlertNameVMCannotBeEvicted                  = "VMCannotBeEvicted"
 )
+
+var (
+	HavePodDisruptionBudget = sets.New[string](AlertNamePodDisruptionBudgetLimit, AlertNamePodDisruptionBudgetAtLimit)
+	HavePullWaiting         = sets.New[string](AlertNameKubeContainerWaiting)
+	HaveNodes               = sets.New[string](
+		AlertNameKubeletHealthState,
+		AlertNameKubeNodeNotReady,
+		AlertNameKubeNodeReadinessFlapping,
+		AlertNameKubeNodeUnreachable,
+	)
+)
+
+const alertConditionReasonPrefix = "Alert:"
+
+func AlertConditionReason(state string) string {
+	return fmt.Sprintf("%s%s", alertConditionReasonPrefix, state)
+}
+
+func IsAlertConditionReason(reason string) bool {
+	return strings.HasPrefix(reason, alertConditionReasonPrefix)
+}
+
+func AlertConditionMessage(alertName, severity, state, impact, details string) string {
+	return fmt.Sprintf("%s alert %s %s, %s. %s", severity, alertName, state, impact, details)
+}
