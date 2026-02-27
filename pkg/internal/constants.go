@@ -7,6 +7,15 @@ import (
 )
 
 const (
+	// DefaultCVONamespace is the default namespace for the Cluster Version Operator
+	DefaultCVONamespace = "openshift-cluster-version"
+	// DefaultClusterVersionName is the default name for the Cluster Version resource managed by the Cluster Version Operator
+	DefaultClusterVersionName = "version"
+	// DefaultDeploymentName is the default name of the deployment for the Cluster Version Operator
+	DefaultDeploymentName = "cluster-version-operator"
+	// DefaultContainerName is the default container name in the deployment for the Cluster Version Operator
+	DefaultContainerName = DefaultDeploymentName
+
 	ConfigNamespace        = "openshift-config"
 	ConfigManagedNamespace = "openshift-config-managed"
 	AdminGatesConfigMap    = "admin-gates"

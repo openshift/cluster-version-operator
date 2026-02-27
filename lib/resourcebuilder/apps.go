@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
@@ -39,7 +40,7 @@ func (b *builder) modifyDeployment(ctx context.Context, deployment *appsv1.Deplo
 	// if we detect the CVO deployment we need to replace the KUBERNETES_SERVICE_HOST env var with the internal load
 	// balancer to be resilient to kube-apiserver rollouts that cause the localhost server to become non-responsive for
 	// multiple minutes.
-	if deployment.Namespace == "openshift-cluster-version" && deployment.Name == "cluster-version-operator" {
+	if deployment.Namespace == external.DefaultCVONamespace && deployment.Name == external.DefaultDeploymentName {
 		infrastructureConfig, err := b.configClientv1.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 		// not found just means that we don't have infrastructure configuration yet, so we should tolerate not found and avoid substitution
 		if err != nil && !errors.IsNotFound(err) {
@@ -63,7 +64,7 @@ func (b *builder) modifyDeployment(ctx context.Context, deployment *appsv1.Deplo
 			}
 			err = updatePodSpecWithInternalLoadBalancerKubeService(
 				&deployment.Spec.Template.Spec,
-				[]string{"cluster-version-operator"},
+				[]string{external.DefaultContainerName},
 				lbHost,
 				lbPort,
 			)
