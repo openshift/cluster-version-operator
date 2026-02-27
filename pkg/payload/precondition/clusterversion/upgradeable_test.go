@@ -26,6 +26,7 @@ func TestUpgradeableRun(t *testing.T) {
 	tests := []struct {
 		name             string
 		upgradeable      *configv1.ConditionStatus
+		overrides        []configv1.ComponentOverride
 		completedVersion string
 		currVersion      string
 		desiredVersion   string
@@ -78,6 +79,31 @@ func TestUpgradeableRun(t *testing.T) {
 			upgradeable:    ptr(configv1.ConditionFalse),
 			currVersion:    "4.1.3",
 			desiredVersion: "4.1.4",
+		},
+		{
+			name:           "move-z, with false condition and overrides, is non-blocking warning",
+			upgradeable:    ptr(configv1.ConditionFalse),
+			currVersion:    "4.1.3",
+			desiredVersion: "4.1.4",
+			overrides: []configv1.ComponentOverride{
+				{Kind: "Deployment", Group: "apps", Namespace: "openshift-monitoring", Name: "prometheus", Unmanaged: true},
+			},
+			expected: &precondition.Error{
+				NonBlockingWarning: true,
+				Name:               "ClusterVersionUpgradeable",
+				Message:            "Retarget from 4.1.3 to 4.1.4 is not blocked by ClusterVersionOverridesSet. But the cluster-version operator is not managing these resources; they are currently the responsibility of the agent that set the overrides: Disabling ownership via cluster version overrides prevents upgrades between minor or major versions. Please remove overrides before requesting a minor or major version update.",
+				Reason:             "ClusterVersionOverridesSet",
+			},
+		},
+		{
+			name:           "move-y, with false condition and overrides, is still blocking",
+			upgradeable:    ptr(configv1.ConditionFalse),
+			currVersion:    "4.1.1",
+			desiredVersion: "4.2.1",
+			overrides: []configv1.ComponentOverride{
+				{Kind: "Deployment", Group: "apps", Namespace: "openshift-monitoring", Name: "prometheus", Unmanaged: true},
+			},
+			expected: &precondition.Error{Name: "ClusterVersionUpgradeable", Message: "set to False", Reason: "bla"},
 		},
 		{
 			name: "empty target",
@@ -166,7 +192,9 @@ func TestUpgradeableRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			clusterVersion := &configv1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{Name: "version"},
-				Spec:       configv1.ClusterVersionSpec{},
+				Spec: configv1.ClusterVersionSpec{
+					Overrides: tc.overrides,
+				},
 				Status: configv1.ClusterVersionStatus{
 					Desired: configv1.Release{Version: tc.currVersion},
 					History: []configv1.UpdateHistory{{State: configv1.CompletedUpdate, Version: tc.completedVersion}},

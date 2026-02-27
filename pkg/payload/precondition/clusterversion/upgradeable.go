@@ -38,7 +38,7 @@ func ClusterVersionOverridesCondition(cv *configv1.ClusterVersion) *configv1.Clu
 				Type:    internal.UpgradeableClusterVersionOverrides,
 				Status:  configv1.ConditionFalse,
 				Reason:  "ClusterVersionOverridesSet",
-				Message: "Disabling ownership via cluster version overrides prevents upgrades. Please remove overrides before continuing.",
+				Message: "Disabling ownership via cluster version overrides prevents upgrades between minor or major versions. Please remove overrides before requesting a minor or major version update.",
 			}
 			return &condition
 		}
@@ -98,15 +98,17 @@ func (pf *Upgradeable) Run(ctx context.Context, releaseContext precondition.Rele
 	klog.V(4).Infof("The current version is %s parsed from %s and the target version is %s parsed from %s", currentVersion.String(), cv.Status.Desired.Version, targetVersion.String(), releaseContext.DesiredVersion)
 	patchOnly := targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor
 	if targetVersion.LTE(currentVersion) || patchOnly {
-		// When Upgradeable==False, a patch level update with the same minor version is allowed unless overrides are set.
+		// When Upgradeable==False, a patch level update with the same minor version is allowed.
 		// However, minor or major version updates are blocked when Upgradeable==False.
 		// This Upgradeable precondition is only concerned about moving forward, i.e., do not care about downgrade which is taken care of by the Rollback precondition
 		if condition := ClusterVersionOverridesCondition(cv); condition != nil {
-			klog.V(2).Infof("Retarget from %s to %s is blocked by %s: %s", currentVersion.String(), targetVersion.String(), condition.Reason, condition.Message)
+			message := fmt.Sprintf("Retarget from %s to %s is not blocked by %s. But the cluster-version operator is not managing these resources; they are currently the responsibility of the agent that set the overrides: %s", currentVersion.String(), targetVersion.String(), condition.Reason, condition.Message)
+			klog.V(2).Info(message)
 			return &precondition.Error{
-				Reason:  condition.Reason,
-				Message: condition.Message,
-				Name:    pf.Name(),
+				Reason:             condition.Reason,
+				Message:            message,
+				Name:               pf.Name(),
+				NonBlockingWarning: true,
 			}
 		} else {
 			if completedVersion, majorOrMinor := majorOrMinorUpdateFrom(cv.Status, currentVersion); completedVersion != "" && patchOnly {
