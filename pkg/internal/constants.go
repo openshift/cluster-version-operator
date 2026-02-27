@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"fmt"
 	"k8s.io/klog/v2"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -90,3 +92,13 @@ const (
 
 	ConditionalUpdateRiskConditionReasonInternalErrorFoundNoRiskCondition = "InternalErrorFoundNoRiskCondition"
 )
+
+const alertConditionReasonPrefix = "Alert:"
+
+func AlertConditionReason(state string) string {
+	return fmt.Sprintf("%s%s", alertConditionReasonPrefix, state)
+}
+
+func IsAlertConditionReason(reason string) bool {
+	return strings.HasPrefix(reason, alertConditionReasonPrefix)
+}

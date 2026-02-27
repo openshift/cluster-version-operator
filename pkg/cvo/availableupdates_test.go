@@ -25,6 +25,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/openshift/cluster-version-operator/pkg/alert"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
@@ -215,6 +216,7 @@ var availableUpdatesCmpOpts = []cmp.Option{
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {
 		clusterconditions.ConditionRegistry
+		AlertGetter
 	}{}),
 }
 
@@ -945,6 +947,292 @@ func Test_loadRiskConditions(t *testing.T) {
 			actual := loadRiskConditions(context.Background(), tt.risks, tt.riskVersions, registry)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("%s: loadRiskConditions() mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+type mockAlertGetter struct {
+	ret alert.DataAndStatus
+}
+
+func (m *mockAlertGetter) Get(ctx context.Context) (*alert.DataAndStatus, error) {
+	return &m.ret, nil
+}
+
+func Test_evaluateAlertConditions(t *testing.T) {
+	t1 := time.Now()
+	t2 := time.Now().Add(-3 * time.Minute)
+	tests := []struct {
+		name               string
+		u                  *availableUpdates
+		expected           error
+		expectedAlertRisks []configv1.ConditionalUpdateRisk
+	}{
+		{
+			name: "basic case",
+			u: &availableUpdates{
+				AlertGetter: &mockAlertGetter{
+					ret: alert.DataAndStatus{
+						Data: alert.Data{
+							Alerts: []alert.Alert{
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetLimit",
+										Severity:            "critical",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "some-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/abc.md",
+									},
+									ActiveAt: t1,
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName: "not-important",
+									},
+									State: "pending",
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetAtLimit",
+										Severity:            "severity",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "some-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/bbb.md",
+									},
+									ActiveAt: t1,
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetAtLimit",
+										Severity:            "severity",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "another-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/bbb.md",
+									},
+									ActiveAt: t2,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:    "PodDisruptionBudgetAtLimit",
+					Message: "summary.",
+					URL:     "todo-url",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
+						LastTransitionTime: metav1.NewTime(t2),
+					}},
+				},
+				{
+					Name:    "PodDisruptionBudgetLimit",
+					Message: "summary.",
+					URL:     "todo-url",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert PodDisruptionBudgetLimit firing, suggesting significant cluster issues worth investigating. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/abc.md",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := tt.u.evaluateAlertRisks(context.TODO())
+			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("evaluateAlertConditions() mismatch (-want +got):\n%s", diff)
+			}
+
+			if actual == nil {
+				if diff := cmp.Diff(tt.expectedAlertRisks, tt.u.AlertRisks); diff != "" {
+					t.Errorf("AlertRisks mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+func Test_newRecommendedReason(t *testing.T) {
+	tests := []struct {
+		name     string
+		now      string
+		want     string
+		expected string
+	}{
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonMultiple",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonExposed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonMultiple",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonMultiple",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonMultiple",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := newRecommendedReason(tt.now, tt.want)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("newRecommendedReason mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -15,12 +15,14 @@ func TestRecommendedUpdate(t *testing.T) {
 
 	targetVersion := "4.3.2"
 	tests := []struct {
-		name               string
-		channel            string
-		availableUpdates   []configv1.Release
-		conditionalUpdates []configv1.ConditionalUpdate
-		conditions         []configv1.ClusterOperatorStatusCondition
-		expected           string
+		name                   string
+		channel                string
+		acceptRisks            []configv1.AcceptRisk
+		availableUpdates       []configv1.Release
+		conditionalUpdates     []configv1.ConditionalUpdate
+		conditionalUpdateRisks []configv1.ConditionalUpdateRisk
+		conditions             []configv1.ClusterOperatorStatusCondition
+		expected               string
 	}{
 		{
 			name:             "recommended",
@@ -55,6 +57,73 @@ func TestRecommendedUpdate(t *testing.T) {
 				}},
 			}},
 			expected: "Update from 4.3.0 to 4.3.2 is not recommended:\n\nFor some reason, this update is not recommended.",
+		},
+		{
+			name:        "Recommended=False and alert risk ABC is accepted",
+			acceptRisks: []configv1.AcceptRisk{{Name: "ABC"}},
+			conditionalUpdateRisks: []configv1.ConditionalUpdateRisk{{
+				Name: "ABC",
+				Conditions: []metav1.Condition{{
+					Type:    "Applies",
+					Status:  metav1.ConditionTrue,
+					Reason:  "Alert:firing",
+					Message: "message",
+				}},
+			}},
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: targetVersion},
+				Conditions: []metav1.Condition{{
+					Type:    "Recommended",
+					Status:  metav1.ConditionFalse,
+					Reason:  "FalseReason",
+					Message: "For some reason, this update is not recommended.",
+				}},
+			}},
+			expected: "Update from 4.3.0 to 4.3.2 is not recommended:\n\nFor some reason, this update is not recommended.",
+		},
+		{
+			name: "Recommended=False and bug risk ABC is not accepted",
+			conditionalUpdateRisks: []configv1.ConditionalUpdateRisk{{
+				Name: "ABC",
+				Conditions: []metav1.Condition{{
+					Type:   "Applies",
+					Status: metav1.ConditionTrue,
+					Reason: "not-alert",
+				}},
+			}},
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: targetVersion},
+				Conditions: []metav1.Condition{{
+					Type:    "Recommended",
+					Status:  metav1.ConditionFalse,
+					Reason:  "FalseReason",
+					Message: "For some reason, this update is not recommended.",
+				}},
+			}},
+			expected: "Update from 4.3.0 to 4.3.2 is not recommended:\n\nFor some reason, this update is not recommended.",
+		},
+		{
+			name:        "Recommended=False and alert risk ABC is not accepted",
+			acceptRisks: []configv1.AcceptRisk{{Name: "BBB"}},
+			conditionalUpdateRisks: []configv1.ConditionalUpdateRisk{{
+				Name: "ABC",
+				Conditions: []metav1.Condition{{
+					Type:    "Applies",
+					Status:  metav1.ConditionTrue,
+					Reason:  "Alert:firing",
+					Message: "message",
+				}},
+			}},
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: targetVersion},
+				Conditions: []metav1.Condition{{
+					Type:    "Recommended",
+					Status:  metav1.ConditionFalse,
+					Reason:  "FalseReason",
+					Message: "For some reason, this update is not recommended.",
+				}},
+			}},
+			expected: "Update from 4.3.0 to 4.3.2 is not recommended:\n\nThose alerts have to be accepted as risks before updates: ABC\nUpdate from 4.3.0 to 4.3.2 is not recommended:\n\nFor some reason, this update is not recommended.",
 		},
 		{
 			name: "Recommended=Unknown",
@@ -110,12 +179,13 @@ func TestRecommendedUpdate(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			clusterVersion := &configv1.ClusterVersion{
 				ObjectMeta: metav1.ObjectMeta{Name: "version"},
-				Spec:       configv1.ClusterVersionSpec{Channel: testCase.channel},
+				Spec:       configv1.ClusterVersionSpec{Channel: testCase.channel, DesiredUpdate: &configv1.Update{AcceptRisks: testCase.acceptRisks}},
 				Status: configv1.ClusterVersionStatus{
-					Desired:            configv1.Release{Version: "4.3.0"},
-					AvailableUpdates:   testCase.availableUpdates,
-					ConditionalUpdates: testCase.conditionalUpdates,
-					Conditions:         testCase.conditions,
+					Desired:                configv1.Release{Version: "4.3.0"},
+					AvailableUpdates:       testCase.availableUpdates,
+					ConditionalUpdates:     testCase.conditionalUpdates,
+					Conditions:             testCase.conditions,
+					ConditionalUpdateRisks: testCase.conditionalUpdateRisks,
 				},
 			}
 			cvLister := fakeClusterVersionLister(t, clusterVersion)

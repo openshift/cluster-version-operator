@@ -207,6 +207,8 @@ type Operator struct {
 
 	// configuration, if enabled, reconciles the ClusterVersionOperator configuration.
 	configuration *configuration.ClusterVersionOperatorConfiguration
+
+	AlertGetter AlertGetter
 }
 
 // New returns a new cluster version operator.
@@ -236,6 +238,7 @@ func New(
 	featureSet configv1.FeatureSet,
 	cvoGates featuregates.CvoGateChecker,
 	startingEnabledManifestFeatureGates sets.Set[string],
+	alertGetter AlertGetter,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -267,6 +270,7 @@ func New(
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
+		AlertGetter:               alertGetter,
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
 		requiredFeatureSet:          featureSet,

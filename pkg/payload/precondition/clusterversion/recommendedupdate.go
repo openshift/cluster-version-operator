@@ -3,12 +3,14 @@ package clusterversion
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -43,8 +45,39 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 			NonBlockingWarning: true,
 		}
 	}
+	unAcceptRisks := sets.New[string]()
+	acceptRisks := sets.New[string]()
+	if clusterVersion.Spec.DesiredUpdate != nil {
+		for _, r := range clusterVersion.Spec.DesiredUpdate.AcceptRisks {
+			acceptRisks.Insert(r.Name)
+		}
+	}
+	for _, risk := range clusterVersion.Status.ConditionalUpdateRisks {
+		if acceptRisks.Has(risk.Name) {
+			continue
+		}
+		if condition := meta.FindStatusCondition(risk.Conditions, internal.ConditionalUpdateRiskConditionTypeApplies); condition != nil &&
+			condition.Status == metav1.ConditionTrue &&
+			internal.IsAlertConditionReason(condition.Reason) {
+			unAcceptRisks.Insert(risk.Name)
+		}
+	}
+	var alertError *precondition.Error
+	if unAcceptRisks.Len() > 0 {
+		alertError = &precondition.Error{
+			Reason: "alertMightImpactUpdate",
+			Message: fmt.Sprintf("Update from %s to %s is not recommended:\n\n%s",
+				clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion,
+				fmt.Sprintf("Those alerts have to be accepted as risks before updates: %s", strings.Join(sets.List(unAcceptRisks), ", "))),
+			Name:               ru.Name(),
+			NonBlockingWarning: true,
+		}
+	}
 	for _, recommended := range clusterVersion.Status.AvailableUpdates {
 		if recommended.Version == releaseContext.DesiredVersion {
+			if alertError != nil {
+				return alertError
+			}
 			return nil
 		}
 	}
@@ -57,32 +90,32 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 					case metav1.ConditionTrue:
 						return nil
 					case metav1.ConditionFalse:
-						return &precondition.Error{
+						return aggregate(alertError, &precondition.Error{
 							Reason: condition.Reason,
 							Message: fmt.Sprintf("Update from %s to %s is not recommended:\n\n%s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion, condition.Message),
 							Name:               ru.Name(),
 							NonBlockingWarning: true,
-						}
+						})
 					default:
-						return &precondition.Error{
+						return aggregate(alertError, &precondition.Error{
 							Reason: condition.Reason,
 							Message: fmt.Sprintf("Update from %s to %s is %s=%s: %s: %s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion,
 								condition.Type, condition.Status, condition.Reason, condition.Message),
 							Name:               ru.Name(),
 							NonBlockingWarning: true,
-						}
+						})
 					}
 				}
 			}
-			return &precondition.Error{
+			return aggregate(alertError, &precondition.Error{
 				Reason: "UnknownConditionType",
 				Message: fmt.Sprintf("Update from %s to %s has a status.conditionalUpdates entry, but no Recommended condition.",
 					clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
 				Name:               ru.Name(),
 				NonBlockingWarning: true,
-			}
+			})
 		}
 	}
 
@@ -118,6 +151,31 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 		}
 	}
 	return nil
+}
+
+func aggregate(e1, e2 *precondition.Error) *precondition.Error {
+	if e1 == nil {
+		return e2
+	}
+	if e2 == nil {
+		return e1
+	}
+	return &precondition.Error{
+		Reason:             aggregateString(e1.Reason, e2.Reason, "|"),
+		Message:            aggregateString(e1.Message, e2.Message, "\n"),
+		Name:               aggregateString(e1.Name, e2.Name, "|"),
+		NonBlockingWarning: e1.NonBlockingWarning && e2.NonBlockingWarning,
+	}
+}
+
+func aggregateString(s1, s2, delimiter string) string {
+	if s1 == "" {
+		return s2
+	}
+	if s2 == "" {
+		return s1
+	}
+	return s1 + delimiter + s2
 }
 
 // Name returns the name of the precondition.

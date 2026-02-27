@@ -228,8 +228,15 @@ func updateClusterVersionStatus(
 
 	var riskNamesForDesiredImage []string
 	if shouldReconcileAcceptRisks() {
-		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(cvStatus.ConditionalUpdates, getAvailableUpdates, desired.Image)
-		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates)
+		updates := getAvailableUpdates()
+		var riskConditions map[string][]metav1.Condition
+		var alertRisks []configv1.ConditionalUpdateRisk
+		if updates != nil {
+			riskConditions = updates.RiskConditions
+			alertRisks = updates.AlertRisks
+		}
+		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(cvStatus.ConditionalUpdates, riskConditions, desired.Image)
+		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates, alertRisks)
 	}
 
 	risksMsg := ""
@@ -423,14 +430,9 @@ func updateClusterVersionStatus(
 	}
 }
 
-func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []configv1.ConditionalUpdate, getAvailableUpdates func() *availableUpdates, desiredImage string) ([]configv1.ConditionalUpdate, []string) {
+func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []configv1.ConditionalUpdate, riskConditions map[string][]metav1.Condition, desiredImage string) ([]configv1.ConditionalUpdate, []string) {
 	var result []configv1.ConditionalUpdate
 	var riskNamesForDesiredImage []string
-	var riskConditions map[string][]metav1.Condition
-	updates := getAvailableUpdates()
-	if updates != nil {
-		riskConditions = updates.RiskConditions
-	}
 	for _, conditionalUpdate := range conditionalUpdates {
 		riskNames := sets.New[string]()
 		var risks []configv1.ConditionalUpdateRisk
@@ -475,7 +477,7 @@ func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []config
 	return result, riskNamesForDesiredImage
 }
 
-func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []configv1.ConditionalUpdateRisk {
+func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate, alertRisks []configv1.ConditionalUpdateRisk) []configv1.ConditionalUpdateRisk {
 	var result []configv1.ConditionalUpdateRisk
 	riskNames := sets.New[string]()
 	for _, conditionalUpdate := range conditionalUpdates {
@@ -487,6 +489,7 @@ func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []c
 			result = append(result, risk)
 		}
 	}
+	result = append(result, alertRisks...)
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Name < result[j].Name
 	})

@@ -2742,6 +2742,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			optr.cvLister = &clientCVLister{client: optr.client}
 			optr.cmConfigManagedLister = &cmConfigLister{}
 			optr.eventRecorder = record.NewFakeRecorder(100)
+			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 
 			var updateServiceURI string
 			if tt.handler != nil {

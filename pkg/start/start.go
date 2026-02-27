@@ -40,6 +40,7 @@ import (
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
 
+	"github.com/openshift/cluster-version-operator/pkg/alert"
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
@@ -628,6 +629,7 @@ func (o *Options) NewControllerContext(
 		startingFeatureSet,
 		startingCvoGates,
 		startingEnabledManifestFeatureGates,
+		alert.NewAlertGetterOrDie(cb.config),
 	)
 	if err != nil {
 		return nil, err
