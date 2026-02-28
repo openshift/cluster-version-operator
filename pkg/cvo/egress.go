@@ -9,6 +9,7 @@ import (
 	"net/url"
 
 	"golang.org/x/net/http/httpproxy"
+
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/openshift/cluster-version-operator/pkg/version"

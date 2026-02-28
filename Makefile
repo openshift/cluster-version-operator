@@ -34,6 +34,12 @@ format:
 	go fmt ./...
 .PHONY: format
 
+imports:
+	which goimports || go install -mod=mod golang.org/x/tools/cmd/goimports@latest
+	go list ./... | sed "s|^github.com/openshift/cluster-version-operator/||" | xargs goimports -w -local "k8s.io,github.com/openshift"
+	go list ./... | sed "s|^github.com/openshift/cluster-version-operator/||" | xargs goimports -w -local "github.com/openshift/cluster-version-operator"
+.PHONY: imports
+
 verify: verify-yaml verify-update
 .PHONY: verify
 
@@ -41,7 +47,7 @@ verify-yaml:
 	hack/verify-yaml.sh
 .PHONY: verify-yaml
 
-verify-update: update
+verify-update: imports update
 	git diff --exit-code HEAD
 .PHONY: verify-update
 

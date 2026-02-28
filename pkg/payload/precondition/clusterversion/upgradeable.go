@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
+
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"

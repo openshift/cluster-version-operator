@@ -2,6 +2,7 @@ package resourcemerge
 
 import (
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 )
 

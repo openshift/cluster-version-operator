@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/openshift/cluster-version-operator/pkg/version"
 	"github.com/spf13/cobra"
+
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 var (

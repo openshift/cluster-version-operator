@@ -27,8 +27,9 @@ import (
 	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/library-go/pkg/verify"
+
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func (optr *Operator) defaultPayloadDir() string {

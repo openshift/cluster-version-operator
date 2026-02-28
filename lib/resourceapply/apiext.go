@@ -4,13 +4,15 @@ import (
 	"context"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )
 
 func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, required *apiextv1.CustomResourceDefinition, reconciling bool) (*apiextv1.CustomResourceDefinition, bool, error) {

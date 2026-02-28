@@ -4,9 +4,10 @@
 package resourceread
 
 import (
+	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
+
 	imagev1 "github.com/openshift/api/image/v1"
 	securityv1 "github.com/openshift/api/security/v1"
-	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
