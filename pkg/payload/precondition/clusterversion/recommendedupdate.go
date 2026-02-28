@@ -3,12 +3,14 @@ package clusterversion
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -43,9 +45,41 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 			NonBlockingWarning: true,
 		}
 	}
+	// This function should be guarded by shouldReconcileAcceptRisks()
+	// https://github.com/openshift/cluster-version-operator/blob/f4b9dfa6f6968d117b919089c6b32918f20843c9/pkg/cvo/cvo.go#L1187
+	// However, here we do not have a handler for the operator
+	// Now it is guarded by clusterVersion.Status.ConditionalUpdateRisks which is guarded by the above function
+	unAcceptRisks := sets.New[string]()
+	acceptRisks := sets.New[string]()
+	if clusterVersion.Spec.DesiredUpdate != nil {
+		for _, r := range clusterVersion.Spec.DesiredUpdate.AcceptRisks {
+			acceptRisks.Insert(r.Name)
+		}
+	}
+	for _, risk := range clusterVersion.Status.ConditionalUpdateRisks {
+		if acceptRisks.Has(risk.Name) {
+			continue
+		}
+		if condition := meta.FindStatusCondition(risk.Conditions, internal.ConditionalUpdateRiskConditionTypeApplies); condition != nil &&
+			condition.Status == metav1.ConditionTrue &&
+			internal.IsAlertConditionReason(condition.Reason) {
+			unAcceptRisks.Insert(risk.Name)
+		}
+	}
+	var alertError *precondition.Error
+	if unAcceptRisks.Len() > 0 {
+		alertError = &precondition.Error{
+			Reason: "alertMightImpactUpdate",
+			Message: fmt.Sprintf("Update from %s to %s is not recommended:\n\n%s",
+				clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion,
+				fmt.Sprintf("Those alerts have to be accepted as risks before updates: %s", strings.Join(sets.List(unAcceptRisks), ", "))),
+			Name:               ru.Name(),
+			NonBlockingWarning: true,
+		}
+	}
 	for _, recommended := range clusterVersion.Status.AvailableUpdates {
 		if recommended.Version == releaseContext.DesiredVersion {
-			return nil
+			return aggregate(alertError, nil)
 		}
 	}
 
@@ -55,45 +89,45 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 				if condition.Type == internal.ConditionalUpdateConditionTypeRecommended {
 					switch condition.Status {
 					case metav1.ConditionTrue:
-						return nil
+						return aggregate(alertError, nil)
 					case metav1.ConditionFalse:
-						return &precondition.Error{
+						return aggregate(alertError, &precondition.Error{
 							Reason: condition.Reason,
 							Message: fmt.Sprintf("Update from %s to %s is not recommended:\n\n%s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion, condition.Message),
 							Name:               ru.Name(),
 							NonBlockingWarning: true,
-						}
+						})
 					default:
-						return &precondition.Error{
+						return aggregate(alertError, &precondition.Error{
 							Reason: condition.Reason,
 							Message: fmt.Sprintf("Update from %s to %s is %s=%s: %s: %s",
 								clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion,
 								condition.Type, condition.Status, condition.Reason, condition.Message),
 							Name:               ru.Name(),
 							NonBlockingWarning: true,
-						}
+						})
 					}
 				}
 			}
-			return &precondition.Error{
+			return aggregate(alertError, &precondition.Error{
 				Reason: "UnknownConditionType",
 				Message: fmt.Sprintf("Update from %s to %s has a status.conditionalUpdates entry, but no Recommended condition.",
 					clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
 				Name:               ru.Name(),
 				NonBlockingWarning: true,
-			}
+			})
 		}
 	}
 
 	if clusterVersion.Spec.Channel == "" {
-		return &precondition.Error{
+		return aggregate(alertError, &precondition.Error{
 			Reason: "NoChannel",
 			Message: fmt.Sprintf("Configured channel is unset, so the recommended status of updating from %s to %s is unknown.",
 				clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
 			Name:               ru.Name(),
 			NonBlockingWarning: true,
-		}
+		})
 	}
 
 	reason := "UnknownUpdate"
@@ -110,14 +144,42 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	}
 
 	if msg != "" {
-		return &precondition.Error{
+		return aggregate(alertError, &precondition.Error{
 			Reason:             reason,
 			Message:            msg,
 			Name:               ru.Name(),
 			NonBlockingWarning: true,
-		}
+		})
 	}
-	return nil
+	return aggregate(alertError, nil)
+}
+
+func aggregate(e1, e2 *precondition.Error) error {
+	if e1 == nil && e2 == nil {
+		return nil
+	}
+	if e1 == nil {
+		return e2
+	}
+	if e2 == nil {
+		return e1
+	}
+	return &precondition.Error{
+		Reason:             aggregateString(e1.Reason, e2.Reason, "|"),
+		Message:            aggregateString(e1.Message, e2.Message, "\n"),
+		Name:               aggregateString(e1.Name, e2.Name, "|"),
+		NonBlockingWarning: e1.NonBlockingWarning && e2.NonBlockingWarning,
+	}
+}
+
+func aggregateString(s1, s2, delimiter string) string {
+	if s1 == "" {
+		return s2
+	}
+	if s2 == "" {
+		return s1
+	}
+	return s1 + delimiter + s2
 }
 
 // Name returns the name of the precondition.

@@ -1,6 +1,9 @@
 package internal
 
 import (
+	"fmt"
+	"strings"
+
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -87,4 +90,16 @@ const (
 	// ConditionalUpdateRiskConditionTypeApplies is a type of the condition present on a conditional update risk
 	// that indicates whether the conditional update risk applies to the cluster
 	ConditionalUpdateRiskConditionTypeApplies = "Applies"
+
+	ConditionalUpdateRiskConditionReasonInternalErrorFoundNoRiskCondition = "InternalErrorFoundNoRiskCondition"
 )
+
+const alertConditionReasonPrefix = "Alert:"
+
+func AlertConditionReason(state string) string {
+	return fmt.Sprintf("%s%s", alertConditionReasonPrefix, state)
+}
+
+func IsAlertConditionReason(reason string) bool {
+	return strings.HasPrefix(reason, alertConditionReasonPrefix)
+}

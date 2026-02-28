@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -25,6 +26,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 
+	"github.com/openshift/cluster-version-operator/pkg/alert"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
@@ -215,6 +217,7 @@ var availableUpdatesCmpOpts = []cmp.Option{
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {
 		clusterconditions.ConditionRegistry
+		AlertGetter
 	}{}),
 }
 
@@ -355,12 +358,10 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 	testcases := []struct {
 		name                       string
 		risks                      []configv1.ConditionalUpdateRisk
-		mockPromql                 clusterconditions.Condition
 		acceptRisks                sets.Set[string]
 		shouldReconcileAcceptRisks func() bool
 		riskConditions             map[string][]metav1.Condition
 		expected                   metav1.Condition
-		expectedRiskConditions     map[string][]metav1.Condition
 	}{
 		{
 			name: "no risks",
@@ -370,75 +371,47 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
-			name: "one risk that does not match",
-			risks: []configv1.ConditionalUpdateRisk{
-				{
-					URL:           "https://doesnotmat.ch",
-					Name:          "ShouldNotApply",
-					Message:       "ShouldNotApply",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
-				},
-			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil},
-				MatchQueue: []mock.MatchResult{{Match: false, Error: nil}},
-			},
+			name:           "one risk that does not match",
+			risks:          []configv1.ConditionalUpdateRisk{{Name: "ShouldNotApply"}},
+			riskConditions: map[string][]metav1.Condition{"ShouldNotApply": {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}}},
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
 				Reason:  recommendedReasonRisksNotExposed,
 				Message: "The update is recommended, because none of the conditional update risks apply to this cluster.",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"ShouldNotApply": {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}}},
 		},
 		{
 			name: "one risk that matches",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
-					URL:           "https://match.es",
-					Name:          "RiskThatApplies",
-					Message:       "This is a risk!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://match.es",
+					Name:    "RiskThatApplies",
+					Message: "This is a risk!",
 				},
 			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
-			},
+			riskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  "RiskThatApplies",
 				Message: "This is a risk! https://match.es",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
-			name: "one risk that matches and is accepted",
-			risks: []configv1.ConditionalUpdateRisk{
-				{
-					URL:           "https://match.es",
-					Name:          "RiskThatApplies",
-					Message:       "This is a risk!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
-				},
-			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
-			},
+			name:                       "one risk that matches and is accepted",
+			risks:                      []configv1.ConditionalUpdateRisk{{Name: "RiskThatApplies"}},
 			acceptRisks:                sets.New[string]("RiskThatApplies", "not-important"),
 			shouldReconcileAcceptRisks: func() bool { return true },
+			riskConditions:             map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionTrue,
 				Reason:  "AllExposedRisksAccepted",
 				Message: "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins.",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "matching risk with name that cannot be used as a condition reason",
@@ -450,74 +423,59 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
 				},
 			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}},
-			},
+			riskConditions: map[string][]metav1.Condition{"RISK-THAT-APPLIES": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  recommendedReasonExposed,
 				Message: "This is a risk! https://match.es",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RISK-THAT-APPLIES": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "two risks that match",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
-					URL:           "https://match.es",
-					Name:          "RiskThatApplies",
-					Message:       "This is a risk!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://match.es",
+					Name:    "RiskThatApplies",
+					Message: "This is a risk!",
 				},
 				{
-					URL:           "https://doesnotmat.ch",
-					Name:          "ShouldNotApply",
-					Message:       "ShouldNotApply",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://doesnotmat.ch",
+					Name:    "ShouldNotApply",
+					Message: "ShouldNotApply",
 				},
 				{
-					URL:           "https://match.es/too",
-					Name:          "RiskThatAppliesToo",
-					Message:       "This is a risk too!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://match.es/too",
+					Name:    "RiskThatAppliesToo",
+					Message: "This is a risk too!",
 				},
 			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil, nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: nil}, {Match: true, Error: nil}},
-			},
+			riskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
+				"ShouldNotApply":     {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}},
+				"RiskThatAppliesToo": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 			expected: metav1.Condition{
 				Type:    "Recommended",
 				Status:  metav1.ConditionFalse,
 				Reason:  recommendedReasonMultiple,
 				Message: "This is a risk! https://match.es\n\nThis is a risk too! https://match.es/too",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
-				"ShouldNotApply":     {{Type: "Applies", Status: metav1.ConditionFalse, Reason: "NotMatch"}},
-				"RiskThatAppliesToo": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}}},
 		},
 		{
 			name: "first risk matches, second fails to evaluate",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
-					URL:           "https://match.es",
-					Name:          "RiskThatApplies",
-					Message:       "This is a risk!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://match.es",
+					Name:    "RiskThatApplies",
+					Message: "This is a risk!",
 				},
 				{
-					URL:           "https://whokno.ws",
-					Name:          "RiskThatFailsToEvaluate",
-					Message:       "This is a risk too!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://whokno.ws",
+					Name:    "RiskThatFailsToEvaluate",
+					Message: "This is a risk too!",
 				},
 			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil, nil},
-				MatchQueue: []mock.MatchResult{{Match: true, Error: nil}, {Match: false, Error: errors.New("ERROR")}},
-			},
+			riskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
+				"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk too!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionFalse,
@@ -527,23 +485,17 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					"  RiskThatFailsToEvaluate description: This is a risk too!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatApplies": {{Type: "Applies", Status: metav1.ConditionTrue, Reason: "Match"}},
-				"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk too!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 		},
 		{
 			name: "one risk that fails to evaluate",
 			risks: []configv1.ConditionalUpdateRisk{
 				{
-					URL:           "https://whokno.ws",
-					Name:          "RiskThatFailsToEvaluate",
-					Message:       "This is a risk!",
-					MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}},
+					URL:     "https://whokno.ws",
+					Name:    "RiskThatFailsToEvaluate",
+					Message: "This is a risk!",
 				},
 			},
-			mockPromql: &mock.Mock{
-				ValidQueue: []error{nil},
-				MatchQueue: []mock.MatchResult{{Match: false, Error: errors.New("ERROR")}},
-			},
+			riskConditions: map[string][]metav1.Condition{"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 			expected: metav1.Condition{
 				Type:   "Recommended",
 				Status: metav1.ConditionUnknown,
@@ -552,13 +504,10 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 					"  RiskThatFailsToEvaluate description: This is a risk!\n" +
 					"  RiskThatFailsToEvaluate URL: https://whokno.ws",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{"RiskThatFailsToEvaluate": {{Type: "Applies", Status: metav1.ConditionUnknown, Reason: "EvaluationFailed", Message: "Could not evaluate exposure to update risk RiskThatFailsToEvaluate (ERROR)\n  RiskThatFailsToEvaluate description: This is a risk!\n  RiskThatFailsToEvaluate URL: https://whokno.ws"}}},
 		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			registry := clusterconditions.NewConditionRegistry()
-			registry.Register("PromQL", tc.mockPromql)
 			if tc.shouldReconcileAcceptRisks == nil {
 				tc.shouldReconcileAcceptRisks = func() bool {
 					return false
@@ -567,13 +516,9 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			if tc.riskConditions == nil {
 				tc.riskConditions = map[string][]metav1.Condition{}
 			}
-			actual := evaluateConditionalUpdate(context.Background(), tc.risks, registry, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
+			actual := evaluateConditionalUpdate(tc.risks, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
-			}
-
-			if diff := cmp.Diff(tc.expectedRiskConditions, tc.riskConditions); diff != "" {
-				t.Errorf("actual risk conditions differs from expected:\n%s", diff)
 			}
 		})
 	}
@@ -725,7 +670,6 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
 				queryParamArch: "multi",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
 			name: "operator is not multi, image is not specified, version is specified, architecture is specified - migration && update",
@@ -743,7 +687,6 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 				updates:        []configv1.Release{{Version: data.from.version, Image: data.from.image}},
 				queryParamArch: "multi",
 			},
-			expectedRiskConditions: map[string][]metav1.Condition{},
 		},
 		{
 			name: "operator is not multi, image is not specified, version is specified, architecture is not specified",
@@ -839,9 +782,10 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 
 func Test_sanityCheck(t *testing.T) {
 	tests := []struct {
-		name     string
-		updates  []configv1.ConditionalUpdate
-		expected error
+		name       string
+		updates    []configv1.ConditionalUpdate
+		alertRisks []configv1.ConditionalUpdateRisk
+		expected   error
 	}{
 		{
 			name: "good",
@@ -849,6 +793,7 @@ func Test_sanityCheck(t *testing.T) {
 				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
 				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
 			},
+			alertRisks: []configv1.ConditionalUpdateRisk{{Name: "SomeAlert"}},
 		},
 		{
 			name: "invalid risk name",
@@ -872,10 +817,19 @@ func Test_sanityCheck(t *testing.T) {
 			},
 			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
 		},
+		{
+			name: "alert risk and conditional update risk conflict",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
+			},
+			alertRisks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}},
+			expected:   utilerrors.NewAggregate([]error{fmt.Errorf("found alert risk and conditional update risk share the name: riskA")}),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := sanityCheck(tt.updates)
+			actual := sanityCheck(tt.updates, tt.alertRisks)
 			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
 				if x == nil || y == nil {
 					return x == nil && y == nil
@@ -885,6 +839,413 @@ func Test_sanityCheck(t *testing.T) {
 				t.Errorf("sanityCheck() mismatch (-want +got):\n%s", diff)
 			}
 
+		})
+	}
+}
+
+func Test_loadRiskVersions(t *testing.T) {
+	testcases := []struct {
+		name               string
+		conditionalUpdates []configv1.ConditionalUpdate
+		expected           map[string]riskWithVersion
+	}{
+		{
+			name: "no conditional updates",
+		},
+		{
+			name: "some conditional updates",
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{Release: configv1.Release{Version: "4.20.1"},
+					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskB"}}},
+				{Release: configv1.Release{Version: "4.20.3"},
+					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskC"}}},
+				{Release: configv1.Release{Version: "4.22.1"},
+					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskD"}, {Name: "riskB"}}},
+				{Release: configv1.Release{Version: "5.0.1"},
+					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}, {Name: "riskC"}}},
+			},
+			expected: map[string]riskWithVersion{
+				"riskA": {version: semver.MustParse("4.20.3"), risk: configv1.ConditionalUpdateRisk{Name: "riskA"}},
+				"riskB": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskB"}},
+				"riskC": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskC"}},
+				"riskD": {version: semver.MustParse("4.22.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskD"}},
+			},
+		},
+	}
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := loadRiskVersions(tt.conditionalUpdates)
+			if diff := cmp.Diff(tt.expected, actual, cmp.AllowUnexported(riskWithVersion{})); diff != "" {
+				t.Errorf("%s: loadRiskVersions() mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+func Test_risksInOrder(t *testing.T) {
+	testcases := []struct {
+		name         string
+		riskVersions map[string]riskWithVersion
+		expected     []string
+	}{
+		{
+			name: "no risks",
+		},
+		{
+			name: "some risks",
+			riskVersions: map[string]riskWithVersion{
+				"riskA": {version: semver.MustParse("4.20.3"), risk: configv1.ConditionalUpdateRisk{Name: "riskA"}},
+				"riskB": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskB"}},
+				"riskC": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskC"}},
+				"riskD": {version: semver.MustParse("4.22.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskD"}},
+			},
+			expected: []string{"riskB", "riskC", "riskD", "riskA"},
+		},
+	}
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := risksInOrder(tt.riskVersions)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("%s: risksInOrder() mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+func Test_loadRiskConditions(t *testing.T) {
+	testcases := []struct {
+		name         string
+		risks        []string
+		riskVersions map[string]riskWithVersion
+		mockPromql   clusterconditions.Condition
+		expected     map[string][]metav1.Condition
+	}{
+		{
+			name:  "basic case",
+			risks: []string{"riskB", "riskC", "riskD", "riskA"},
+			mockPromql: &mock.Mock{
+				ValidQueue: []error{nil},
+				MatchQueue: []mock.MatchResult{
+					{Error: errors.New("ERROR1")},
+					{Match: true},
+					{},
+					{Match: true},
+				}},
+			riskVersions: map[string]riskWithVersion{
+				"riskA": {version: semver.MustParse("4.20.3"), risk: configv1.ConditionalUpdateRisk{Name: "riskA", MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}}}},
+				"riskB": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskB", MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}}}},
+				"riskC": {version: semver.MustParse("5.0.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskC", MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}}}},
+				"riskD": {version: semver.MustParse("4.22.1"), risk: configv1.ConditionalUpdateRisk{Name: "riskD", MatchingRules: []configv1.ClusterCondition{{Type: "PromQL"}}}},
+			},
+			expected: map[string][]metav1.Condition{
+				"riskA": {{Type: "Applies", Status: "True", Reason: "Match"}},
+				"riskB": {
+					{
+						Type:    "Applies",
+						Status:  "Unknown",
+						Reason:  "EvaluationFailed",
+						Message: "Could not evaluate exposure to update risk riskB (ERROR1)\n  riskB description: \n  riskB URL: ",
+					},
+				},
+				"riskC": {{Type: "Applies", Status: "True", Reason: "Match"}},
+				"riskD": {{Type: "Applies", Status: "False", Reason: "NotMatch"}},
+			},
+		},
+	}
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := clusterconditions.NewConditionRegistry()
+			registry.Register("PromQL", tt.mockPromql)
+			actual := loadRiskConditions(context.Background(), tt.risks, tt.riskVersions, registry)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("%s: loadRiskConditions() mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+type mockAlertGetter struct {
+	ret alert.DataAndStatus
+}
+
+func (m *mockAlertGetter) Get(ctx context.Context) (*alert.DataAndStatus, error) {
+	return &m.ret, nil
+}
+
+func Test_evaluateAlertConditions(t *testing.T) {
+	t1 := time.Now()
+	t2 := time.Now().Add(-3 * time.Minute)
+	tests := []struct {
+		name               string
+		u                  *availableUpdates
+		expected           error
+		expectedAlertRisks []configv1.ConditionalUpdateRisk
+	}{
+		{
+			name: "basic case",
+			u: &availableUpdates{
+				AlertGetter: &mockAlertGetter{
+					ret: alert.DataAndStatus{
+						Data: alert.Data{
+							Alerts: []alert.Alert{
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetLimit",
+										Severity:            "critical",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "some-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/abc.md",
+									},
+									ActiveAt: t1,
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName: "not-important",
+									},
+									State: "pending",
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetAtLimit",
+										Severity:            "severity",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "some-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/bbb.md",
+									},
+									ActiveAt: t1,
+								},
+								{
+									Labels: alert.AlertLabels{
+										AlertName:           "PodDisruptionBudgetAtLimit",
+										Severity:            "severity",
+										Namespace:           "namespace",
+										PodDisruptionBudget: "another-pdb",
+									},
+									State: "firing",
+									Annotations: alert.AlertAnnotations{
+										Summary:     "summary",
+										Description: "description",
+										Message:     "message",
+										Runbook:     "http://runbook.example.com/runbooks/bbb.md",
+									},
+									ActiveAt: t2,
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:    "PodDisruptionBudgetAtLimit",
+					Message: "summary.",
+					URL:     "todo-url",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
+						LastTransitionTime: metav1.NewTime(t2),
+					}},
+				},
+				{
+					Name:    "PodDisruptionBudgetLimit",
+					Message: "summary.",
+					URL:     "todo-url",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert PodDisruptionBudgetLimit firing, suggesting significant cluster issues worth investigating. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/abc.md",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := tt.u.evaluateAlertRisks(context.TODO())
+			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("evaluateAlertConditions() mismatch (-want +got):\n%s", diff)
+			}
+
+			if actual == nil {
+				if diff := cmp.Diff(tt.expectedAlertRisks, tt.u.AlertRisks); diff != "" {
+					t.Errorf("AlertRisks mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+func Test_newRecommendedReason(t *testing.T) {
+	tests := []struct {
+		name     string
+		now      string
+		want     string
+		expected string
+	}{
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonMultiple",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonExposed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonMultiple",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonMultiple",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonMultiple",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := newRecommendedReason(tt.now, tt.want)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("newRecommendedReason mismatch (-want +got):\n%s", diff)
+			}
 		})
 	}
 }
