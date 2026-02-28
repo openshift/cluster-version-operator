@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/errors"
@@ -46,12 +47,12 @@ func getWithRoundTripper(ctx context.Context, roundTripper http.RoundTripper, ge
 		return nil, err
 	}
 
-	client := &http.Client{Transport: roundTripper}
+	client := &http.Client{Transport: roundTripper, Timeout: 15 * time.Second}
 	errs := make([]error, 0, len(route.Status.Ingress))
 	for _, ingress := range route.Status.Ingress {
 		uri := *baseURI
 		uri.Host = ingress.Host
-		content, err := checkedGet(uri, client)
+		content, err := checkedGet(ctx, uri, client)
 		if err == nil {
 			return content, nil
 		} else {
@@ -67,8 +68,8 @@ func getWithRoundTripper(ctx context.Context, roundTripper http.RoundTripper, ge
 
 }
 
-func checkedGet(uri url.URL, client *http.Client) ([]byte, error) {
-	req, err := http.NewRequest("GET", uri.String(), nil)
+func checkedGet(ctx context.Context, uri url.URL, client *http.Client) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", uri.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +78,9 @@ func checkedGet(uri url.URL, client *http.Client) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

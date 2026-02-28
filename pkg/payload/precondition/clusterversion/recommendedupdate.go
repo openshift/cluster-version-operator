@@ -45,6 +45,10 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 			NonBlockingWarning: true,
 		}
 	}
+	// This function should be guarded by shouldReconcileAcceptRisks()
+	// https://github.com/openshift/cluster-version-operator/blob/f4b9dfa6f6968d117b919089c6b32918f20843c9/pkg/cvo/cvo.go#L1187
+	// However, here we do not have a handler for the operator
+	// Now it is guarded by clusterVersion.Status.ConditionalUpdateRisks which is guarded by the above function
 	unAcceptRisks := sets.New[string]()
 	acceptRisks := sets.New[string]()
 	if clusterVersion.Spec.DesiredUpdate != nil {
@@ -75,10 +79,7 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	}
 	for _, recommended := range clusterVersion.Status.AvailableUpdates {
 		if recommended.Version == releaseContext.DesiredVersion {
-			if alertError != nil {
-				return alertError
-			}
-			return nil
+			return aggregate(alertError, nil)
 		}
 	}
 
@@ -88,7 +89,7 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 				if condition.Type == internal.ConditionalUpdateConditionTypeRecommended {
 					switch condition.Status {
 					case metav1.ConditionTrue:
-						return nil
+						return aggregate(alertError, nil)
 					case metav1.ConditionFalse:
 						return aggregate(alertError, &precondition.Error{
 							Reason: condition.Reason,
@@ -120,13 +121,13 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	}
 
 	if clusterVersion.Spec.Channel == "" {
-		return &precondition.Error{
+		return aggregate(alertError, &precondition.Error{
 			Reason: "NoChannel",
 			Message: fmt.Sprintf("Configured channel is unset, so the recommended status of updating from %s to %s is unknown.",
 				clusterVersion.Status.Desired.Version, releaseContext.DesiredVersion),
 			Name:               ru.Name(),
 			NonBlockingWarning: true,
-		}
+		})
 	}
 
 	reason := "UnknownUpdate"
@@ -143,17 +144,20 @@ func (ru *RecommendedUpdate) Run(ctx context.Context, releaseContext preconditio
 	}
 
 	if msg != "" {
-		return &precondition.Error{
+		return aggregate(alertError, &precondition.Error{
 			Reason:             reason,
 			Message:            msg,
 			Name:               ru.Name(),
 			NonBlockingWarning: true,
-		}
+		})
 	}
-	return nil
+	return aggregate(alertError, nil)
 }
 
-func aggregate(e1, e2 *precondition.Error) *precondition.Error {
+func aggregate(e1, e2 *precondition.Error) error {
+	if e1 == nil && e2 == nil {
+		return nil
+	}
 	if e1 == nil {
 		return e2
 	}

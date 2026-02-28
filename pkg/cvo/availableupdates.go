@@ -531,9 +531,17 @@ type AlertGetter interface {
 }
 
 func (u *availableUpdates) evaluateAlertRisks(ctx context.Context) error {
+	if u == nil || u.AlertGetter == nil {
+		u.AlertRisks = nil
+		return nil
+	}
 	alerts, err := u.AlertGetter.Get(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get alerts: %w", err)
+	}
+	if alerts == nil {
+		u.AlertRisks = nil
+		return nil
 	}
 	u.AlertRisks = alertsToRisks(alerts.Data.Alerts)
 	return nil
@@ -585,7 +593,7 @@ func alertsToRisks(alerts []alert.Alert) []configv1.ConditionalUpdateRisk {
 			if alertName == "PodDisruptionBudgetLimit" {
 				details = fmt.Sprintf("Namespace=%s, PodDisruptionBudget=%s. %s", alert.Labels.Namespace, alert.Labels.PodDisruptionBudget, details)
 			}
-			addCondition(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             fmt.Sprintf("Alert:%s", alert.State),
@@ -597,7 +605,7 @@ func alertsToRisks(alerts []alert.Alert) []configv1.ConditionalUpdateRisk {
 
 		if alertName == "PodDisruptionBudgetAtLimit" {
 			details = fmt.Sprintf("Namespace=%s, PodDisruptionBudget=%s. %s", alert.Labels.Namespace, alert.Labels.PodDisruptionBudget, details)
-			addCondition(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             internal.AlertConditionReason(alert.State),
@@ -608,7 +616,7 @@ func alertsToRisks(alerts []alert.Alert) []configv1.ConditionalUpdateRisk {
 		}
 
 		if alertName == "KubeContainerWaiting" {
-			addCondition(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             internal.AlertConditionReason(alert.State),
@@ -619,7 +627,7 @@ func alertsToRisks(alerts []alert.Alert) []configv1.ConditionalUpdateRisk {
 		}
 
 		if alertName == "KubeNodeNotReady" || alertName == "KubeNodeReadinessFlapping" || alertName == "KubeNodeUnreachable" {
-			addCondition(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             internal.AlertConditionReason(alert.State),
@@ -646,10 +654,10 @@ func alertsToRisks(alerts []alert.Alert) []configv1.ConditionalUpdateRisk {
 	return ret
 }
 
-func addCondition(risks map[string]configv1.ConditionalUpdateRisk, riskName, message, url, promQL string, condition metav1.Condition) {
+func getRisk(risks map[string]configv1.ConditionalUpdateRisk, riskName, message, url, promQL string, condition metav1.Condition) configv1.ConditionalUpdateRisk {
 	risk, ok := risks[riskName]
 	if !ok {
-		risks[riskName] = configv1.ConditionalUpdateRisk{
+		return configv1.ConditionalUpdateRisk{
 			Name:    riskName,
 			Message: message,
 			URL:     url,
@@ -663,14 +671,17 @@ func addCondition(risks map[string]configv1.ConditionalUpdateRisk, riskName, mes
 			},
 			Conditions: []metav1.Condition{condition},
 		}
-		return
 	}
 
-	risk.Conditions[0].Message = fmt.Sprintf("%s; %s", risk.Conditions[0].Message, condition.Message)
-	if risk.Conditions[0].LastTransitionTime.After(condition.LastTransitionTime.Time) {
-		risk.Conditions[0].LastTransitionTime = condition.LastTransitionTime
+	if c := meta.FindStatusCondition(risk.Conditions, condition.Type); c != nil {
+		c.Message = fmt.Sprintf("%s; %s", c.Message, condition.Message)
+		if c.LastTransitionTime.After(condition.LastTransitionTime.Time) {
+			c.LastTransitionTime = condition.LastTransitionTime
+		}
+		meta.SetStatusCondition(&risk.Conditions, *c)
 	}
 
+	return risk
 }
 
 func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
@@ -682,7 +693,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	risks := risksInOrder(riskVersions)
 	u.RiskConditions = loadRiskConditions(ctx, risks, riskVersions, u.ConditionRegistry)
 
-	if err := sanityCheck(u.ConditionalUpdates); err != nil {
+	if err := sanityCheck(u.ConditionalUpdates, u.AlertRisks); err != nil {
 		klog.Errorf("Sanity check failed which might impact risk evaluation: %v", err)
 	}
 	for i, conditionalUpdate := range u.ConditionalUpdates {
@@ -700,7 +711,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	}
 }
 
-func sanityCheck(updates []configv1.ConditionalUpdate) error {
+func sanityCheck(updates []configv1.ConditionalUpdate, alertRisks []configv1.ConditionalUpdateRisk) error {
 	risks := map[string]configv1.ConditionalUpdateRisk{}
 	var errs []error
 	for _, update := range updates {
@@ -714,6 +725,11 @@ func sanityCheck(updates []configv1.ConditionalUpdate) error {
 			} else {
 				risks[risk.Name] = risk
 			}
+		}
+	}
+	for _, alertRisk := range alertRisks {
+		if _, ok := risks[alertRisk.Name]; ok {
+			errs = append(errs, fmt.Errorf("found alert risk and conditional update risk share the name: %s", alertRisk.Name))
 		}
 	}
 	return utilerrors.NewAggregate(errs)

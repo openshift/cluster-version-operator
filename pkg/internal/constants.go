@@ -2,8 +2,9 @@ package internal
 
 import (
 	"fmt"
-	"k8s.io/klog/v2"
 	"strings"
+
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 )

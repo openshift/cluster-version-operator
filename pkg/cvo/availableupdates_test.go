@@ -14,6 +14,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -781,9 +782,10 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 
 func Test_sanityCheck(t *testing.T) {
 	tests := []struct {
-		name     string
-		updates  []configv1.ConditionalUpdate
-		expected error
+		name       string
+		updates    []configv1.ConditionalUpdate
+		alertRisks []configv1.ConditionalUpdateRisk
+		expected   error
 	}{
 		{
 			name: "good",
@@ -791,6 +793,7 @@ func Test_sanityCheck(t *testing.T) {
 				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
 				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
 			},
+			alertRisks: []configv1.ConditionalUpdateRisk{{Name: "SomeAlert"}},
 		},
 		{
 			name: "invalid risk name",
@@ -814,10 +817,19 @@ func Test_sanityCheck(t *testing.T) {
 			},
 			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
 		},
+		{
+			name: "alert risk and conditional update risk conflict",
+			updates: []configv1.ConditionalUpdate{
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
+				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
+			},
+			alertRisks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}},
+			expected:   utilerrors.NewAggregate([]error{fmt.Errorf("found alert risk and conditional update risk share the name: riskA")}),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := sanityCheck(tt.updates)
+			actual := sanityCheck(tt.updates, tt.alertRisks)
 			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
 				if x == nil || y == nil {
 					return x == nil && y == nil
