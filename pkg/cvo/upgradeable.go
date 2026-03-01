@@ -9,8 +9,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +18,9 @@ import (
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"

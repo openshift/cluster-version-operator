@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 )
 
 // ChangeStopper calls stop when the value of the featureset changes

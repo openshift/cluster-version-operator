@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"

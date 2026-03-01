@@ -19,7 +19,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
-
 	"github.com/openshift/library-go/pkg/manifest"
 
 	"github.com/openshift/cluster-version-operator/lib/capability"
