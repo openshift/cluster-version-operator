@@ -5,12 +5,12 @@ package cvo
 import (
 	"context"
 
+	g "github.com/onsi/ginkgo/v2"
+	o "github.com/onsi/gomega"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-
-	g "github.com/onsi/ginkgo/v2"
-	o "github.com/onsi/gomega"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/oc"

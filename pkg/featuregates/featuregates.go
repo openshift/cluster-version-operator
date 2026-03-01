@@ -1,10 +1,11 @@
 package featuregates
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/api/features"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 )
 
 // StubOpenShiftVersion is the default OpenShift version placeholder for the purpose of determining

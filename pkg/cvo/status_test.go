@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/cluster-version-operator/pkg/internal"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -17,12 +15,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 
-	"github.com/openshift/cluster-version-operator/pkg/payload"
-
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
 
 func Test_mergeEqualVersions(t *testing.T) {

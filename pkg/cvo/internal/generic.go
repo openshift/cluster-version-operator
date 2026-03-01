@@ -6,8 +6,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,6 +16,7 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/scheme"
 	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 )

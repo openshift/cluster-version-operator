@@ -10,14 +10,15 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
-
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
-	configv1 "github.com/openshift/api/config/v1"
 	_ "k8s.io/klog/v2" // integration tests set glog flags.
+
+	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 )
 
 func TestGetUpdates(t *testing.T) {
