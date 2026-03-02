@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	securityv1 "github.com/openshift/api/security/v1"
 	securityclientv1 "github.com/openshift/client-go/security/clientset/versioned/typed/security/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // DeleteSecurityContextConstraintsv1 checks the given resource for a valid delete annotation. If found

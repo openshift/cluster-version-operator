@@ -9,11 +9,6 @@ import (
 
 	"github.com/blang/semver/v4"
 
-	v1 "github.com/openshift/api/config/v1"
-	clientset "github.com/openshift/client-go/config/clientset/versioned"
-	"github.com/openshift/client-go/config/clientset/versioned/scheme"
-	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -24,6 +19,12 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+
+	v1 "github.com/openshift/api/config/v1"
+	clientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/client-go/config/clientset/versioned/scheme"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 )

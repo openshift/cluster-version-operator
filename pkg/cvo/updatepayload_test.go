@@ -8,12 +8,11 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	//nolint:staticcheck // verify,Verifier from openshift/library-go uses a type from this deprecated package (needs to be addressed there)
+	"golang.org/x/crypto/openpgp"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/verify/store"
-
-	//nolint:staticcheck // verify,Verifier from openshift/library-go uses a type from this deprecated package (needs to be addressed there)
-	"golang.org/x/crypto/openpgp"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )

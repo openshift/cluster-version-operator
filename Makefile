@@ -35,9 +35,8 @@ format:
 .PHONY: format
 
 imports:
-	which goimports || go install -mod=mod golang.org/x/tools/cmd/goimports@latest
-	go list ./... | sed "s|^github.com/openshift/cluster-version-operator/||" | xargs goimports -w -local "k8s.io,github.com/openshift"
-	go list ./... | sed "s|^github.com/openshift/cluster-version-operator/||" | xargs goimports -w -local "github.com/openshift/cluster-version-operator"
+	which gci || go install -mod=mod github.com/daixiang0/gci@latest
+	gci write --custom-order -s standard -s default -s "prefix(k8s.io)" -s "prefix(github.com/openshift)" -s localmodule --skip-vendor .
 .PHONY: imports
 
 verify: verify-yaml verify-update

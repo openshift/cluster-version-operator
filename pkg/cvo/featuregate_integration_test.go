@@ -3,10 +3,11 @@ package cvo
 import (
 	"testing"
 
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // TestFeatureGateManifestFiltering tests the end-to-end feature gate filtering pipeline

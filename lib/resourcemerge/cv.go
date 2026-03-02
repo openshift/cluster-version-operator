@@ -1,8 +1,9 @@
 package resourcemerge
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 func EnsureClusterVersion(modified *bool, existing *configv1.ClusterVersion, required configv1.ClusterVersion) {

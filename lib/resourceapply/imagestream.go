@@ -5,12 +5,13 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	imagev1 "github.com/openshift/api/image/v1"
-	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	imagev1 "github.com/openshift/api/image/v1"
+	imageclientv1 "github.com/openshift/client-go/image/clientset/versioned/typed/image/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )

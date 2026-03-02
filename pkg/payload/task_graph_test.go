@@ -15,9 +15,10 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func Test_TaskGraph_Split(t *testing.T) {
