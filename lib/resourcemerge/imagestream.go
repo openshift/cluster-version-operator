@@ -1,8 +1,9 @@
 package resourcemerge
 
 import (
-	imagev1 "github.com/openshift/api/image/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+
+	imagev1 "github.com/openshift/api/image/v1"
 )
 
 func EnsureImagestreamv1(modified *bool, existing *imagev1.ImageStream, required imagev1.ImageStream) {

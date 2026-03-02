@@ -10,11 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
-	"k8s.io/client-go/tools/record"
-
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/go-cmp/cmp"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -25,6 +22,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/rest"
 	clientgotesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"

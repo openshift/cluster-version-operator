@@ -10,15 +10,16 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/openshift/api/config"
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/library-go/pkg/manifest"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	"github.com/openshift/api/config"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 // Render renders critical manifests from /manifests to outputDir.

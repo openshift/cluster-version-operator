@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"net/url"
 
-	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 type Condition interface {

@@ -9,11 +9,11 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )

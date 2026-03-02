@@ -5,13 +5,14 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	configv1 "github.com/openshift/api/config/v1"
-	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
+
+	configv1 "github.com/openshift/api/config/v1"
+	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 )

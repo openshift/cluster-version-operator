@@ -6,11 +6,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	imagev1 "github.com/openshift/api/image/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	imagev1 "github.com/openshift/api/image/v1"
 )
 
 func TestEnsureImageStreamv1_ImageStreamStatus(t *testing.T) {

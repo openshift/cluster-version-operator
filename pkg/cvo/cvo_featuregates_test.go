@@ -3,8 +3,9 @@ package cvo
 import (
 	"testing"
 
-	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 func TestOperator_extractEnabledGates(t *testing.T) {

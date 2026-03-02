@@ -12,12 +12,11 @@ import (
 	"runtime"
 	"time"
 
-	"k8s.io/klog/v2"
+	"github.com/blang/semver/v4"
 
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
-
-	"github.com/blang/semver/v4"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
