@@ -158,9 +158,12 @@ func updateRNodeWithTLSSettings(rnode *yaml.RNode, minTLSVersion string, minTLSF
 		return err
 	}
 
-	if ciphersFound && len(cipherSuites) > 0 {
+	if ciphersFound {
 		currentCiphers, err := getSortedCipherSuites(servingInfo)
-		if err != nil || !slices.Equal(currentCiphers, cipherSuites) {
+		if err != nil {
+			return err
+		}
+		if !slices.Equal(currentCiphers, cipherSuites) {
 			// Create a sequence node with the cipher suites
 			seqNode := yaml.NewListRNode(cipherSuites...)
 			if err := servingInfo.PipeE(yaml.SetField("cipherSuites", seqNode)); err != nil {
@@ -170,7 +173,7 @@ func updateRNodeWithTLSSettings(rnode *yaml.RNode, minTLSVersion string, minTLSF
 	}
 
 	// Update minTLSVersion if found
-	if minTLSFound && minTLSVersion != "" {
+	if minTLSFound {
 		if err := servingInfo.PipeE(yaml.SetField("minTLSVersion", yaml.NewStringRNode(minTLSVersion))); err != nil {
 			return err
 		}
