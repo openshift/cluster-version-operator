@@ -367,20 +367,16 @@ func loadRiskConditions(ctx context.Context, risks []string, riskVersions map[st
 	return riskConditions
 }
 
-// risksInOrder returns the list of risk names sorted by the associated version
+// risksInOrder returns the list of risk names sorted by the associated version in descending order.
+// When versions match, it is sorted by the risk names in ascending order.
 func risksInOrder(riskVersions map[string]riskWithVersion) []string {
 	var ret []string
 	var temp []riskWithVersion
-	var keys []string
 	for k := range riskVersions {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
 		temp = append(temp, riskVersions[k])
 	}
 	sort.SliceStable(temp, func(i, j int) bool {
-		return temp[i].version.GT(temp[j].version)
+		return temp[i].version.GT(temp[j].version) || temp[i].version.EQ(temp[j].version) && temp[i].risk.Name < temp[j].risk.Name
 	})
 	for _, v := range temp {
 		ret = append(ret, v.risk.Name)
