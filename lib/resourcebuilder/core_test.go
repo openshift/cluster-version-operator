@@ -527,6 +527,55 @@ servingInfo:
 				}
 			},
 		},
+		{
+			name: "ConfigMap with APIServer custom profile with empty ciphers and minTLSVersion - update to empty values",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile([]string{}, "")),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				// When Custom profile has empty ciphers/minTLSVersion, it should fall back to default Intermediate profile
+				defaultTLSConfigMap := makeConfigMap(true, map[string]string{
+					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML([]string{}, ""),
+				})
+				if err := validateConfigMapsEqual(defaultTLSConfigMap, modified); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
+			name: "ConfigMap with APIServer custom profile with non-empty ciphers and empty minTLSVersion - update minTLSVersion to an empty value",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, "")),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				expectedConfigMap := makeConfigMap(true, map[string]string{
+					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites2, ""),
+				})
+				if err := validateConfigMapsEqual(expectedConfigMap, modified); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
+			name: "ConfigMap with APIServer custom profile with empty ciphers and non-empty minTLSVersion - update ciphers to an empty value",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile([]string{}, tlsVersion12)),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				expectedConfigMap := makeConfigMap(true, map[string]string{
+					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML([]string{}, tlsVersion12),
+				})
+				if err := validateConfigMapsEqual(expectedConfigMap, modified); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
