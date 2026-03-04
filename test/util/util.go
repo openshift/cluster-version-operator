@@ -2,6 +2,7 @@ package util
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
@@ -135,3 +136,27 @@ const (
 	// fauxinnati mocks Cincinnati Update Graph Server for OpenShift
 	FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
 )
+
+func accessible(url string) bool {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+	resp, err := client.Get(url)
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+	}()
+	return err == nil
+}
+
+func NetworkRestricted() bool {
+	// TODO: Use a more precise method
+	return !accessible("http://google.com")
+}
+
+func SkipIfNetworkRestricted() {
+	if NetworkRestricted() {
+		g.Skip("This test is skipped because the network is restricted")
+	}
+}
