@@ -57,6 +57,20 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to create Kubernetes client")
 	})
 
+	g.It("should have a network policy", g.Label("OCPBUGS-77762"), func() {
+		ctx := context.Background()
+		err := util.SkipIfHypershift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		g.By("Checking if the default network policy exists on the namespace")
+		if _, err := kubeClient.NetworkingV1().NetworkPolicies(external.DefaultCVONamespace).
+			Get(ctx, "default-deny", metav1.GetOptions{}); err != nil {
+			o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get the default network policy")
+		}
+	})
+
 	// Migrated from case NonHyperShiftHOST-Author:jiajliu-Low-46922-check runlevel and scc in cvo ns
 	// Refer to https://github.com/openshift/openshift-tests-private/blob/40374cf20946ff03c88712839a5626af2c88ab31/test/extended/ota/cvo/cvo.go#L1081
 	g.It("should have correct runlevel and scc", func() {
