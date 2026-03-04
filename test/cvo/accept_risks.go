@@ -6,10 +6,13 @@ import (
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	prometheusoperatorv1client "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
@@ -63,6 +66,88 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}
+	})
+
+	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), g.Label("Local"), func() {
+		// This test case relies on a public service util.FauxinnatiAPIURL
+		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
+
+		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Using fauxinnati as the upstream and its simple channel")
+		cv.Spec.Upstream = util.FauxinnatiAPIURL
+		cv.Spec.Channel = "simple"
+
+		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		needRecover = true
+
+		g.By("Create a critical alert for testing")
+		prometheusRule := &monitoringv1.PrometheusRule{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testing",
+				Namespace: external.DefaultCVONamespace,
+			},
+			Spec: monitoringv1.PrometheusRuleSpec{
+				Groups: []monitoringv1.RuleGroup{
+					{
+						Name: "test",
+						Rules: []monitoringv1.Rule{
+							{
+								Alert:       "TestAlert",
+								Annotations: map[string]string{"summary": "Test summary.", "description": "Test description."},
+								Expr: intstr.IntOrString{
+									Type:   intstr.String,
+									StrVal: `up{job="cluster-version-operator"} == 1`,
+								},
+								Labels: map[string]string{"severity": "critical", "namespace": "openshift-cluster-version", "openShiftUpdatePrecheck": "true"},
+							},
+						},
+					},
+				},
+			},
+		}
+		created, err := monitoringClient.PrometheusRules(external.DefaultCVONamespace).Create(ctx, prometheusRule, metav1.CreateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		defer func() {
+			err := monitoringClient.PrometheusRules(external.DefaultCVONamespace).Delete(ctx, created.Name, metav1.DeleteOptions{})
+			if !errors.IsNotFound(err) {
+				o.Expect(err).To(o.BeNil())
+			}
+		}()
+
+		g.By("Checking if the risk shows up in ClusterVersion's status")
+		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for _, risk := range cv.Status.ConditionalUpdateRisks {
+				if risk.Name == "TestAlert" {
+					if c := meta.FindStatusCondition(risk.Conditions, external.ConditionalUpdateRiskConditionTypeApplies); c != nil {
+						if c.Status == metav1.ConditionTrue && external.IsAlertConditionReason(c.Reason) {
+							return true, nil
+						}
+					}
+				}
+			}
+			return false, nil
+		})).NotTo(o.HaveOccurred(), "no conditional update risk from alert found in ClusterVersion's status")
+
+		g.By("Checking that no updates is recommended if alert is firing")
+		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			if len(cv.Status.AvailableUpdates) > 0 {
+				return false, nil
+			}
+			for _, cu := range cv.Status.ConditionalUpdates {
+				condition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
+				if condition == nil || condition.Status == metav1.ConditionTrue || condition.Status == metav1.ConditionUnknown {
+					return false, nil
+				}
+			}
+			return true, nil
+		})).NotTo(o.HaveOccurred(), "still recommending updates while alert is firing")
 	})
 
 	g.It("should work with accept risks", g.Label("Serial"), func() {
