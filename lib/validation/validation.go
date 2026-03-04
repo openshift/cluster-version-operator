@@ -13,7 +13,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
-func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
+func ValidateClusterVersion(config *configv1.ClusterVersion, shouldReconcileAcceptRisks bool) field.ErrorList {
 	errs := apivalidation.ValidateObjectMeta(&config.ObjectMeta, false, apivalidation.NameIsDNS1035Label, nil)
 
 	if len(config.Spec.Upstream) > 0 {
@@ -32,8 +32,12 @@ func ValidateClusterVersion(config *configv1.ClusterVersion) field.ErrorList {
 	}
 	if u := config.Spec.DesiredUpdate; u != nil {
 		switch {
-		case len(u.Architecture) == 0 && len(u.Version) == 0 && len(u.Image) == 0:
+		case !shouldReconcileAcceptRisks && len(u.AcceptRisks) > 0:
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "desiredUpdate", "acceptRisks"), "acceptRisks must not be specified"))
+		case len(u.Architecture) == 0 && len(u.Version) == 0 && len(u.Image) == 0 && !shouldReconcileAcceptRisks:
 			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate"), "must specify architecture, version, or image"))
+		case len(u.Architecture) == 0 && len(u.Version) == 0 && len(u.Image) == 0 && len(u.AcceptRisks) == 0 && shouldReconcileAcceptRisks:
+			errs = append(errs, field.Required(field.NewPath("spec", "desiredUpdate"), "must specify architecture, version, image, or acceptRisks"))
 		case len(u.Version) > 0 && !validSemVer(u.Version):
 			errs = append(errs, field.Invalid(field.NewPath("spec", "desiredUpdate", "version"), u.Version,
 				"must be a semantic version (1.2.3[-...])"))
