@@ -15,7 +15,6 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resourcesynccontroller"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -48,7 +47,6 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 	if err != nil {
 		return fmt.Errorf("unable to observe TLS configuration: %v", err)
 	}
-
 	if !minTLSFound && !ciphersFound {
 		klog.V(2).Infof("ConfigMap %s/%s: no TLS configuration found, skipping", cm.Namespace, cm.Name)
 		return nil
@@ -68,13 +66,9 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 		}
 
 		// Check if this is a GenericOperatorConfig by checking the kind field
-		kind, err := rnode.GetString("kind")
-		if err != nil {
-			klog.V(4).Infof("ConfigMap's %q kind accessing failed: %v", key, err)
-			continue
-		}
+		kind := rnode.GetKind()
 		if kind != "GenericOperatorConfig" {
-			klog.V(4).Infof("ConfigMap's %q entry is not a GenericOperatorConfig, skiping this entry", key)
+			klog.V(4).Infof("ConfigMap's %q entry is not a GenericOperatorConfig, skipping this entry", key)
 			continue
 		}
 
@@ -108,18 +102,6 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 // using ObserveTLSSecurityProfile and extracts minTLSVersion and cipherSuites.
 // minTLSVersion string, minTLSFound bool, cipherSuites []string, ciphersFound bool, err error
 func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.ConfigMap) (string, bool, []string, bool, error) {
-	// First check if the APIServer cluster resource exists
-	_, err := b.configClientv1.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			klog.V(2).Infof("ConfigMap %s/%s: APIServer cluster resource not found, skipping TLS injection", cm.Namespace, cm.Name)
-			return "", false, nil, false, nil
-		}
-		// For transient API failures (network errors, timeouts, etc.), log at higher severity
-		klog.Warningf("ConfigMap %s/%s: failed to get APIServer cluster resource (transient failure), skipping TLS injection: %v", cm.Namespace, cm.Name, err)
-		return "", false, nil, false, err
-	}
-
 	// Create a lister adapter for ObserveTLSSecurityProfile
 	lister := &apiServerListerAdapter{
 		client: b.configClientv1.APIServers(),
@@ -137,13 +119,27 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	if len(errs) > 0 {
 		// Log errors but continue - ObserveTLSSecurityProfile is tolerant of missing config
 		for _, err := range errs {
-			klog.V(2).Infof("ConfigMap %s/%s: error observing TLS profile: %v", cm.Namespace, cm.Name, err)
+			klog.Errorf("ConfigMap %s/%s: error observing TLS profile: %v", cm.Namespace, cm.Name, err)
 		}
 	}
 
 	// Extract the TLS settings from the observed config
-	minTLSVersion, minTLSFound, _ := unstructured.NestedString(observedConfig, "servingInfo", "minTLSVersion")
+	minTLSVersion, minTLSFound, err := unstructured.NestedString(observedConfig, "servingInfo", "minTLSVersion")
+	if err != nil {
+		// This error is unlikely to happen unless unstructured.NestedString is buggy.
+		// From unstructured.NestedString's description:
+		// "Returns false if value is not found and an error if not a string."
+		// The observedConfig's servingInfo.minTLSVersion is of a string type
+		return "", false, nil, false, err
+	}
 	cipherSuites, ciphersFound, _ := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites")
+	if err != nil {
+		// This error is unlikely to happen unless unstructured.NestedStringSlice is buggy
+		// From unstructured.NestedString's description:
+		// "Returns false if value is not found and an error if not a []interface{} or contains non-string items in the slice."
+		// The observedConfig's servingInfo.minTLSVersion is of a string type
+		return "", false, nil, false, err
+	}
 
 	// Sort cipher suites for consistent comparison
 	if ciphersFound && len(cipherSuites) > 0 {

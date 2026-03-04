@@ -66,10 +66,10 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 				configObjs = append(configObjs, tt.apiServer)
 				fmt.Printf("tt.apiServer: %v\n", tt.apiServer.Spec.TLSSecurityProfile.Custom.TLSProfileSpec)
 			}
-			fakeConfigClient := fakeconfigclientv1.NewSimpleClientset(configObjs...)
+			fakeConfigClient := fakeconfigclientv1.NewClientset(configObjs...)
 
 			// Create fake kubernetes client
-			fakeKubeClient := fakekubernetes.NewSimpleClientset()
+			fakeKubeClient := fakekubernetes.NewClientset()
 
 			// Marshal ConfigMap to YAML bytes
 			configMapYAML, err := yaml.Marshal(tt.configMap)
