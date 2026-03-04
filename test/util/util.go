@@ -1,7 +1,10 @@
 package util
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
@@ -10,13 +13,18 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned"
+
+	"github.com/openshift/cluster-version-operator/pkg/external"
 )
 
 // IsHypershift checks if running on a HyperShift hosted cluster
@@ -135,3 +143,72 @@ const (
 	// fauxinnati mocks Cincinnati Update Graph Server for OpenShift
 	FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
 )
+
+func accessible(ctx context.Context, restConfig *rest.Config, urls ...string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	kubeClient, err := GetKubeClient(restConfig)
+	if err != nil {
+		return false, err
+	}
+
+	pods, err := kubeClient.CoreV1().Pods(external.DefaultCVONamespace).
+		List(ctx, metav1.ListOptions{LabelSelector: labels.FormatLabels(map[string]string{"k8s-app": "cluster-version-operator"})})
+	if err != nil || len(pods.Items) == 0 {
+		return false, fmt.Errorf("could not find CVO pod: %w", err)
+	}
+	podName := pods.Items[0].Name
+	command := []string{"curl", "-sI", "--max-time", "10"}
+	command = append(command, urls...)
+
+	req := kubeClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(external.DefaultCVONamespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command: command,
+			Stdout:  true,
+			Stderr:  true,
+		}, scheme.ParameterCodec)
+	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
+
+	if err != nil {
+		return false, err
+	}
+	stdoutBuf := &bytes.Buffer{}
+	stderrBuf := &bytes.Buffer{}
+
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: stdoutBuf,
+		Stderr: stderrBuf,
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "command terminated with exit code") {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// NetworkRestricted returns true if there is a given URL
+// that is not accessible. Otherwise, false.
+func NetworkRestricted(ctx context.Context, restConfig *rest.Config, urls ...string) (bool, error) {
+	ok, err := accessible(ctx, restConfig, urls...)
+	if err != nil {
+		return false, err
+	}
+	return !ok, nil
+}
+
+func SkipIfNetworkRestricted(ctx context.Context, restConfig *rest.Config, urls ...string) error {
+	ok, err := NetworkRestricted(ctx, restConfig, urls...)
+	if err != nil {
+		return err
+	}
+	if ok {
+		g.Skip("This test is skipped because the network is restricted")
+	}
+	return nil
+}

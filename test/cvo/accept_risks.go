@@ -66,6 +66,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should work with accept risks", g.Label("Serial"), func() {
+		// This test case relies on a public service util.FauxinnatiAPIURL
+		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
+
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
