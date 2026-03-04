@@ -357,14 +357,17 @@ func TestModifyConfigMap(t *testing.T) {
 			},
 		},
 		{
-			name: "ConfigMap with annotation and Data - APIServer not found",
+			name: "ConfigMap with annotation and Data - APIServer not found - default TLS configuration expected",
 			configMap: makeConfigMap(true, map[string]string{
 				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
 			}),
 			apiServer:   nil,
 			expectError: false,
 			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
-				if err := validateConfigMapsEqual(original, modified); err != nil {
+				defaultTLSConfigMap := makeConfigMap(true, map[string]string{
+					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(defaultCipherSuites, tlsVersion12),
+				})
+				if err := validateConfigMapsEqual(defaultTLSConfigMap, modified); err != nil {
 					t.Fatalf("validation failed: %v", err)
 				}
 			},
