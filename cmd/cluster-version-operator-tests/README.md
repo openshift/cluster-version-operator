@@ -43,6 +43,48 @@ The output looks nicer this way.
 
 See [docs](https://github.com/openshift/origin/tree/main/test/extended#test-labels) for details.
 
+### Migrating from Custom Tags
+
+When migrating cvo tests from [openshift-tests-private](https://github.com/openshift/openshift-tests-private/blob/main/test/extended/ota/cvo/cvo.go) that use custom-defined tags (based on OTP naming rule), use the following mapping to align with upstream test label conventions:
+
+| Custom Tag | Action | Reason | New Label |
+|------------|--------|--------|-----------|
+| `NonPreRelease` | Drop | CI-scheduling concern, handled by job config in openshift-e2e-test, not by in-name tags | (none) |
+| `Longduration` | Replace | Upstream equivalent is `[Slow]` (test >5 min). Add `[Slow]` if not already present | `[Slow]` |
+| `ConnectedOnly` | Drop | Infrastructure constraint, not a test label. Handle via programmatic skip in test code (e.g., check connectivity and `g.Skip()`) | (runtime skip) |
+| `NonHyperShiftHOST` | Drop | Topology constraint, not a test label. Handle via programmatic skip in test code (e.g., detect HyperShift and `g.Skip()`) | (runtime skip) |
+| `[Serial]` | Keep | Standard upstream label | `[Serial]` |
+| `[Slow]` | Keep | Standard upstream label | `[Slow]` |
+| `[Disruptive]` | Keep | Standard upstream label (implies `[Serial]`) | `[Disruptive]` |
+
+**Note**:
+- For infrastructure and topology constraints like `ConnectedOnly` and `NonHyperShiftHOST`, implement runtime skips like [utility functions](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/test/cvo/cvo.go#L63-L66) to detect cluster type and skip appropriately.
+- The custom `author`, `priority`, and `caseID` fields are not migrated as they are not standard upstream labels.
+
+#### Handling Dropped Fields
+
+If we need to organize tests in ways that the standard test suites don't support, we can use Ginkgo labels to create custom test suites.
+
+To create a custom test suite based on labels:
+
+1. **Define the suite** in [main.go](main.go) by adding an `ext.AddSuite()` call with CEL qualifiers:
+   ```go
+   ext.AddSuite(extension.Suite{
+       Name:    "openshift/cluster-version-operator/characteristicA",
+       Qualifiers: []string{
+           `"characteristicA" in labels`,
+       },
+   })
+   ```
+
+2. **Label the tests** using `g.Label()` in the test definitions:
+   ```go
+   g.It("should do something", g.Label("characteristicA"), func(ctx g.SpecContext) {
+       // test code
+   })
+   ```
+
+
 ### Ownership
 
 * A `[Jira:"Component"]` tag in the test name (e.g., [Jira:"Cluster Version Operator"]) is preferred to claim the ownership of the test. The component comes from [the list of components of Jira Project OCPBUGS](https://issues.redhat.com/projects/OCPBUGS?selectedItem=com.atlassian.jira.jira-projects-plugin:components-page). See [here](https://github.com/openshift/origin/blob/6b584254d53cdd1b5cd6471b69cb7c22f3e28ecd/test/extended/apiserver/rollout.go#L36) for example.
