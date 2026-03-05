@@ -1,11 +1,15 @@
 package payload
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func TestRenderManifest(t *testing.T) {
@@ -56,5 +60,51 @@ func TestRenderManifest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func Test_cvoManifests(t *testing.T) {
+	installDir := filepath.Join("../../install")
+	files, err := os.ReadDir(installDir)
+	if err != nil {
+		t.Fatalf("failed to read directory: %v", err)
+	}
+
+	if len(files) == 0 {
+		t.Fatalf("no files found in %s", installDir)
+	}
+
+	var manifestsWithoutIncludeAnnotation []manifest.Manifest
+	const prefix = "include.release.openshift.io/"
+	for _, manifestFile := range files {
+		if manifestFile.IsDir() {
+			continue
+		}
+		filePath := filepath.Join(installDir, manifestFile.Name())
+		manifests, err := manifest.ManifestsFromFiles([]string{filePath})
+		if err != nil {
+			t.Fatalf("failed to load manifests: %v", err)
+		}
+
+		for _, m := range manifests {
+			var found bool
+			for k := range m.Obj.GetAnnotations() {
+				if strings.HasPrefix(k, prefix) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				manifestsWithoutIncludeAnnotation = append(manifestsWithoutIncludeAnnotation, m)
+			}
+		}
+	}
+
+	if len(manifestsWithoutIncludeAnnotation) > 0 {
+		var messages []string
+		for _, m := range manifestsWithoutIncludeAnnotation {
+			messages = append(messages, fmt.Sprintf("%s/%s/%s/%s", m.OriginalFilename, m.GVK, m.Obj.GetName(), m.Obj.GetNamespace()))
+		}
+		t.Fatalf("Those manifests have no annotation with prefix %q and will not beinstalled by CVO: %s", prefix, strings.Join(messages, "', '"))
 	}
 }
