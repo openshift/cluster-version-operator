@@ -7,12 +7,15 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	configv1 "github.com/openshift/api/config/v1"
-	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakekubernetes "k8s.io/client-go/kubernetes/fake"
+
+	configv1 "github.com/openshift/api/config/v1"
+	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 const (
@@ -99,8 +102,8 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 
 			// Verify the result matches expected YAML
 			modifiedYAML := appliedConfigMap.Data["config.yaml"]
-			if modifiedYAML != tt.expectYAML {
-				t.Errorf("ConfigMap YAML does not match expected.\nExpected:\n%s\nGot:\n%s", tt.expectYAML, modifiedYAML)
+			if diff := cmp.Diff(tt.expectYAML, modifiedYAML); diff != "" {
+				t.Errorf("ConfigMap YAML mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
