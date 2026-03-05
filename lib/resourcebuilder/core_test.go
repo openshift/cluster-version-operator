@@ -10,6 +10,7 @@ import (
 	"testing"
 	"text/template"
 
+	"github.com/google/go-cmp/cmp"
 	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
@@ -258,18 +259,10 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 		return fmt.Errorf("servingInfo.cipherSuites not found")
 	}
 
-	// Verify expected ciphers are present
-	for _, expectedCipher := range expectedCiphers {
-		found := false
-		for _, cipher := range cipherSuites {
-			if cipher == expectedCipher {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("expected cipher %s not found in cipherSuites: %v", expectedCipher, cipherSuites)
-		}
+	sort.Strings(expectedCiphers)
+	sort.Strings(cipherSuites)
+	if diff := cmp.Diff(expectedCiphers, cipherSuites); diff != "" {
+		return fmt.Errorf("list of ciphers mismatch (-want +got):\n%s", diff)
 	}
 
 	return nil
@@ -519,11 +512,8 @@ servingInfo:
 			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuitesReversed, configv1.VersionTLS13)),
 			expectError: false,
 			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
-				// Validate through pure string comparison
-				originalData := original.Data[genericOperatorConfigCMKey]
-				modifiedData := modified.Data[genericOperatorConfigCMKey]
-				if originalData != modifiedData {
-					t.Errorf("ConfigMap data was modified when it should not have been.\nOriginal:\n%s\nModified:\n%s", originalData, modifiedData)
+				if diff := cmp.Diff(original.Data[genericOperatorConfigCMKey], modified.Data[genericOperatorConfigCMKey]); diff != "" {
+					t.Errorf("ConfigMap YAML mismatch (-want +got):\n%s", diff)
 				}
 			},
 		},
