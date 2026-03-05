@@ -134,7 +134,7 @@ func Test_cvoManifests(t *testing.T) {
 				for _, m := range manifestsWithoutIncludeAnnotation {
 					messages = append(messages, fmt.Sprintf("%s/%s/%s/%s", m.OriginalFilename, m.GVK, m.Obj.GetName(), m.Obj.GetNamespace()))
 				}
-				t.Fatalf("Those manifests have no annotation with prefix %q and will not beinstalled by CVO: %s", prefix, strings.Join(messages, "', '"))
+				t.Fatalf("Those manifests have no annotation with prefix %q and will not be installed by CVO: %s", prefix, strings.Join(messages, ", "))
 			}
 		})
 	}
