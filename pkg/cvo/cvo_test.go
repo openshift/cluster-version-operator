@@ -3845,6 +3845,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 
 				optr.upgradeableChecks = optr.defaultUpgradeableChecks()
 				optr.eventRecorder = record.NewFakeRecorder(100)
+				optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
 
 				if tt.gateCm != nil {
 					if tt.gateCm.Name == "delete" {

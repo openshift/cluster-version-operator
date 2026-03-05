@@ -748,7 +748,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	optr.uid = original.UID
 
 	// ensure that the object we do have is valid
-	errs := validation.ValidateClusterVersion(original)
+	errs := validation.ValidateClusterVersion(original, optr.shouldReconcileAcceptRisks())
 	// for fields that have meaning that are incomplete, clear them
 	// prevents us from loading clearly malformed payloads
 	config := validation.ClearInvalidFields(original, errs)
@@ -839,7 +839,7 @@ func (optr *Operator) upgradeableSyncFunc(ignoreThrottlePeriod bool) func(_ cont
 		if err != nil {
 			return err
 		}
-		if errs := validation.ValidateClusterVersion(config); len(errs) > 0 {
+		if errs := validation.ValidateClusterVersion(config, optr.shouldReconcileAcceptRisks()); len(errs) > 0 {
 			return nil
 		}
 
