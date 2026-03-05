@@ -1,7 +1,11 @@
 package payload
 
 import (
+	"bytes"
+	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,6 +16,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/manifest"
 )
 
 func TestRenderManifest(t *testing.T) {
@@ -303,4 +308,86 @@ data:
   test: "data"`
 
 	return yaml
+}
+func Test_cvoManifests(t *testing.T) {
+	config := manifestRenderConfig{
+		ReleaseImage:   "quay.io/cvo/release:latest",
+		ClusterProfile: "some-profile",
+	}
+
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{
+			name: "install dir",
+			dir:  filepath.Join("../../install"),
+		},
+		{
+			name: "bootstrap dir",
+			dir:  filepath.Join("../../bootstrap"),
+		},
+	}
+	const prefix = "include.release.openshift.io/"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var count int
+			err := filepath.WalkDir(tt.dir, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+
+				if d.IsDir() {
+					return nil
+				}
+
+				var manifestsWithoutIncludeAnnotation []manifest.Manifest
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("failed to read manifest file: %v", err)
+				}
+				data, err = renderManifest(config, data)
+				if err != nil {
+					t.Fatalf("failed to render manifest: %v", err)
+				}
+				manifests, err := manifest.ParseManifests(bytes.NewReader(data))
+				if err != nil {
+					t.Fatalf("failed to load manifests: %v", err)
+				}
+
+				for _, m := range manifests {
+					m.OriginalFilename = path
+					var found bool
+					for k := range m.Obj.GetAnnotations() {
+						if strings.HasPrefix(k, prefix) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						manifestsWithoutIncludeAnnotation = append(manifestsWithoutIncludeAnnotation, m)
+					}
+				}
+
+				if len(manifestsWithoutIncludeAnnotation) > 0 {
+					var messages []string
+					for _, m := range manifestsWithoutIncludeAnnotation {
+						messages = append(messages, fmt.Sprintf("%s/%s/%s/%s", m.OriginalFilename, m.GVK, m.Obj.GetName(), m.Obj.GetNamespace()))
+					}
+					t.Errorf("Those manifests have no annotation with prefix %q and will not be installed by CVO: %s", prefix, strings.Join(messages, ", "))
+				}
+				count++
+				return nil
+			})
+
+			if err != nil {
+				t.Fatalf("failed to walk directory: %v", err)
+			}
+
+			if count == 0 {
+				t.Errorf("no files found in %s", tt.dir)
+			}
+
+		})
+	}
 }
