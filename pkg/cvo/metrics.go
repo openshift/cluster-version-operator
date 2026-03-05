@@ -27,6 +27,8 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	tlsprofile "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -259,6 +261,63 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 	return lastError
 }
 
+type centralTLSProfileApplier struct {
+	// applyTLSProfile is the function to apply the central TLS profile to a config
+	applyTLSProfile func(*tls.Config)
+
+	// generation is used to detect when the APIServer resource has been updated for caching
+	generation int64
+}
+
+// getCentralTLSProfileApplier fetches the central TLS profile from the APIServer resource and returns an applier.
+// On error, falls back to the cached applier or fails if no cache exists.
+func getCentralTLSProfileApplier(apiServerLister configlistersv1.APIServerLister, lastValidApplier *centralTLSProfileApplier) (*centralTLSProfileApplier, error) {
+	apiServer, err := apiServerLister.Get(tlsprofile.APIServerName)
+	if err != nil {
+		klog.Errorf("Failed to get APIServer resource: %v", err)
+		return fallbackOrFail(lastValidApplier)
+	}
+
+	// Check if the cached spec is still valid based on generation
+	if lastValidApplier != nil && lastValidApplier.generation == apiServer.Generation {
+		klog.V(4).Info("Using cached TLS apply function (generation unchanged)")
+		return lastValidApplier, nil
+	}
+
+	if !crypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+		klog.V(4).Infof("Not honoring cluster TLS profile based on adherence policy")
+		return &centralTLSProfileApplier{
+			applyTLSProfile: func(config *tls.Config) {}, // do nothing
+			generation:      apiServer.Generation,
+		}, nil
+	}
+
+	profile, err := tlsprofile.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		klog.Errorf("Failed to resolve TLS profile from APIServer: %v", err)
+		return fallbackOrFail(lastValidApplier)
+	}
+
+	applyTLSProfile, unsupportedCiphers := tlsprofile.NewTLSConfigFromProfile(profile)
+	if len(unsupportedCiphers) > 0 {
+		klog.V(4).Infof("TLS profile contains unsupported ciphers (will be ignored): %v", unsupportedCiphers)
+	}
+	klog.V(4).Infof("Applied TLS configuration: MinTLSVersion=%s, Ciphers=%v", profile.MinTLSVersion, profile.Ciphers)
+	return &centralTLSProfileApplier{
+		applyTLSProfile: applyTLSProfile,
+		generation:      apiServer.Generation,
+	}, nil
+}
+
+// fallbackOrFail returns the cached applier if available, otherwise returns an error.
+func fallbackOrFail(cached *centralTLSProfileApplier) (*centralTLSProfileApplier, error) {
+	if cached != nil {
+		klog.Warningf("Using last valid TLS profile applier")
+		return cached, nil
+	}
+	return nil, fmt.Errorf("no TLS profile applier available")
+}
+
 type MetricsOptions struct {
 	ListenAddress string
 
@@ -276,7 +335,7 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, apiServerLister configlistersv1.APIServerLister, options MetricsOptions) error {
 	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
@@ -361,6 +420,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	// baseTlSConfig is a template passed to servingCertController,
 	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
 	// This enables automatic certificate rotation without server restarts.
+	// The cluster TLS profile will be applied dynamically in GetConfigForClient.
 	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
 	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
 		baseTlSConfig,
@@ -388,6 +448,12 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	}()
 
 	server := createHttpServer(options, clientCA)
+
+	// lastApplier caches the last successfully fetched APIServer spec and its apply function.
+	// On errors, we use this cached value to maintain stability rather than
+	// constantly switching between profiles on transient errors.
+	var lastApplier *centralTLSProfileApplier
+
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
@@ -399,6 +465,15 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
 				return nil, err
 			}
+
+			// First apply central TLS profile
+			applier, err := getCentralTLSProfileApplier(apiServerLister, lastApplier)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get TLS profile for metrics server: %w", err)
+			}
+			lastApplier = applier
+			applier.applyTLSProfile(config)
+
 			return config, nil
 		},
 	})
