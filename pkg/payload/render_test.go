@@ -1,6 +1,7 @@
 package payload
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -64,47 +65,77 @@ func TestRenderManifest(t *testing.T) {
 }
 
 func Test_cvoManifests(t *testing.T) {
-	installDir := filepath.Join("../../install")
-	files, err := os.ReadDir(installDir)
-	if err != nil {
-		t.Fatalf("failed to read directory: %v", err)
+	config := manifestRenderConfig{
+		ReleaseImage:   "quay.io/cvo/release:latest",
+		ClusterProfile: "some-profile",
 	}
 
-	if len(files) == 0 {
-		t.Fatalf("no files found in %s", installDir)
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{
+			name: "install dir",
+			dir:  filepath.Join("../../install"),
+		},
+		{
+			name: "bootstrap dir",
+			dir:  filepath.Join("../../bootstrap"),
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files, err := os.ReadDir(tt.dir)
+			if err != nil {
+				t.Fatalf("failed to read directory: %v", err)
+			}
 
-	var manifestsWithoutIncludeAnnotation []manifest.Manifest
-	const prefix = "include.release.openshift.io/"
-	for _, manifestFile := range files {
-		if manifestFile.IsDir() {
-			continue
-		}
-		filePath := filepath.Join(installDir, manifestFile.Name())
-		manifests, err := manifest.ManifestsFromFiles([]string{filePath})
-		if err != nil {
-			t.Fatalf("failed to load manifests: %v", err)
-		}
+			if len(files) == 0 {
+				t.Fatalf("no files found in %s", tt.dir)
+			}
 
-		for _, m := range manifests {
-			var found bool
-			for k := range m.Obj.GetAnnotations() {
-				if strings.HasPrefix(k, prefix) {
-					found = true
-					break
+			var manifestsWithoutIncludeAnnotation []manifest.Manifest
+			const prefix = "include.release.openshift.io/"
+			for _, manifestFile := range files {
+				if manifestFile.IsDir() {
+					continue
+				}
+				filePath := filepath.Join(tt.dir, manifestFile.Name())
+				data, err := os.ReadFile(filePath)
+				if err != nil {
+					t.Fatalf("failed to read manifest file: %v", err)
+				}
+				data, err = renderManifest(config, data)
+				if err != nil {
+					t.Fatalf("failed to render manifest: %v", err)
+				}
+				manifests, err := manifest.ParseManifests(bytes.NewReader(data))
+				if err != nil {
+					t.Fatalf("failed to load manifests: %v", err)
+				}
+
+				for _, m := range manifests {
+					m.OriginalFilename = filePath
+					var found bool
+					for k := range m.Obj.GetAnnotations() {
+						if strings.HasPrefix(k, prefix) {
+							found = true
+							break
+						}
+					}
+					if !found {
+						manifestsWithoutIncludeAnnotation = append(manifestsWithoutIncludeAnnotation, m)
+					}
 				}
 			}
-			if !found {
-				manifestsWithoutIncludeAnnotation = append(manifestsWithoutIncludeAnnotation, m)
-			}
-		}
-	}
 
-	if len(manifestsWithoutIncludeAnnotation) > 0 {
-		var messages []string
-		for _, m := range manifestsWithoutIncludeAnnotation {
-			messages = append(messages, fmt.Sprintf("%s/%s/%s/%s", m.OriginalFilename, m.GVK, m.Obj.GetName(), m.Obj.GetNamespace()))
-		}
-		t.Fatalf("Those manifests have no annotation with prefix %q and will not beinstalled by CVO: %s", prefix, strings.Join(messages, "', '"))
+			if len(manifestsWithoutIncludeAnnotation) > 0 {
+				var messages []string
+				for _, m := range manifestsWithoutIncludeAnnotation {
+					messages = append(messages, fmt.Sprintf("%s/%s/%s/%s", m.OriginalFilename, m.GVK, m.Obj.GetName(), m.Obj.GetNamespace()))
+				}
+				t.Fatalf("Those manifests have no annotation with prefix %q and will not beinstalled by CVO: %s", prefix, strings.Join(messages, "', '"))
+			}
+		})
 	}
 }
