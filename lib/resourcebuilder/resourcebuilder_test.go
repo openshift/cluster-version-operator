@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
@@ -100,8 +101,8 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 
 			// Verify the result matches expected YAML
 			modifiedYAML := appliedConfigMap.Data["config.yaml"]
-			if modifiedYAML != tt.expectYAML {
-				t.Errorf("ConfigMap YAML does not match expected.\nExpected:\n%s\nGot:\n%s", tt.expectYAML, modifiedYAML)
+			if diff := cmp.Diff(tt.expectYAML, modifiedYAML); diff != "" {
+				t.Errorf("ConfigMap YAML mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
