@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,6 +27,8 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	tlsprofile "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -126,6 +129,81 @@ penultimate completed version for 'completed'.
 type asyncResult struct {
 	name  string
 	error error
+}
+
+// cachedTLSProfile holds the profile spec, apply function, and observed generation.
+// The apply function is computed once when the profile changes to avoid
+// calling NewTLSConfigFromProfile on every TLS handshake.
+// The generation is used to detect when the APIServer resource has been updated.
+type cachedTLSProfile struct {
+	spec       configv1.TLSProfileSpec
+	apply      func(*tls.Config)
+	generation int64
+}
+
+// getAPIServerTLSProfile fetches the cluster TLS profile from APIServer resource
+// and returns the updated cache. This is called on each TLS handshake.
+// On error, returns the last successfully fetched profile if available.
+// Returns an error if no valid profile has ever been fetched (fails closed for security).
+func getAPIServerTLSProfile(apiServerLister configlistersv1.APIServerLister, lastValidProfile *cachedTLSProfile) (*cachedTLSProfile, error) {
+	apiServer, err := apiServerLister.Get(tlsprofile.APIServerName)
+	if err != nil {
+		klog.Errorf("Failed to get APIServer resource: %v", err)
+		return fallbackToCached(lastValidProfile)
+	}
+
+	// Check if the cached profile is still valid based on generation
+	if lastValidProfile != nil && lastValidProfile.generation == apiServer.Generation {
+		klog.V(4).Info("Using cached TLS profile (generation unchanged)")
+		return lastValidProfile, nil
+	}
+
+	profile, err := tlsprofile.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		klog.Errorf("Failed to resolve TLS profile from APIServer: %v", err)
+		return fallbackToCached(lastValidProfile)
+	}
+
+	if lastValidProfile != nil && lastValidProfile.isEqual(&profile) {
+		klog.V(4).Info("TLS profile spec unchanged despite generation bump, updating generation")
+		return &cachedTLSProfile{
+			spec:       profile,
+			apply:      lastValidProfile.apply,
+			generation: apiServer.Generation,
+		}, nil
+	}
+
+	applyTLSProfile, unsupportedCiphers := tlsprofile.NewTLSConfigFromProfile(profile)
+	if len(unsupportedCiphers) > 0 {
+		klog.Warningf("TLS profile contains unsupported ciphers (will be ignored): %v", unsupportedCiphers)
+	}
+	klog.Infof("TLS profile changed to: MinTLSVersion=%s, Ciphers=%s", profile.MinTLSVersion, profile.Ciphers)
+	return &cachedTLSProfile{
+		spec:       profile,
+		apply:      applyTLSProfile,
+		generation: apiServer.Generation,
+	}, nil
+}
+
+// fallbackToCached returns the cached profile if available, otherwise returns an error.
+func fallbackToCached(lastValidProfile *cachedTLSProfile) (*cachedTLSProfile, error) {
+	if lastValidProfile != nil {
+		klog.Warningf("Using last valid TLS profile")
+		return lastValidProfile, nil
+	}
+	return nil, fmt.Errorf("no valid TLS profile available")
+}
+
+// isEqual checks if the cached profile matches the given profile spec.
+func (c *cachedTLSProfile) isEqual(profile *configv1.TLSProfileSpec) bool {
+	if c == nil && profile == nil {
+		return true
+	}
+	if c == nil || profile == nil {
+		return false
+	}
+	return c.spec.MinTLSVersion == profile.MinTLSVersion &&
+		slices.Equal(c.spec.Ciphers, profile.Ciphers)
 }
 
 func createHttpServer(options MetricsOptions, clientCA dynamiccertificates.CAContentProvider) *http.Server {
@@ -270,7 +348,7 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, apiServerLister configlistersv1.APIServerLister, options MetricsOptions) error {
 	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
@@ -355,6 +433,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	// baseTlSConfig is a template passed to servingCertController,
 	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
 	// This enables automatic certificate rotation without server restarts.
+	// The cluster TLS profile will be applied dynamically in GetConfigForClient.
 	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
 	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
 		baseTlSConfig,
@@ -382,6 +461,12 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	}()
 
 	server := createHttpServer(options, clientCA)
+
+	// lastValidProfile caches the last successfully fetched TLS profile and its apply function.
+	// On errors, we use this cached value to maintain stability rather than
+	// constantly switching between profiles on transient errors.
+	var lastValidProfile *cachedTLSProfile
+
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
@@ -393,6 +478,17 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
 				return nil, err
 			}
+
+			// Fetch cluster TLS profile from APIServer resource (cached via lister, O(1) lookup)
+			// and apply it to the config. This allows dynamic updates without CVO restart.
+			// Fail closed if no valid profile is available (security).
+			profile, err := getAPIServerTLSProfile(apiServerLister, lastValidProfile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get TLS profile for metrics server: %w", err)
+			}
+			lastValidProfile = profile
+			profile.apply(config)
+
 			return config, nil
 		},
 	})
