@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
@@ -67,6 +68,12 @@ func TestLoadUpdate(t *testing.T) {
 					},
 				},
 				Architecture: architecture,
+				ParsedVersion: semver.Version{
+					Major: 1,
+					Minor: 0,
+					Patch: 0,
+					Pre:   []semver.PRVersion{{VersionStr: "abc"}},
+				},
 				ManifestHash: "DL-FFQ2Uem8=",
 				Manifests: []manifest.Manifest{
 					{
@@ -178,6 +185,12 @@ func TestLoadUpdateArchitecture(t *testing.T) {
 					},
 				},
 				Architecture: "Multi",
+				ParsedVersion: semver.Version{
+					Major: 1,
+					Minor: 0,
+					Patch: 0,
+					Pre:   []semver.PRVersion{{VersionStr: "abc"}},
+				},
 				ManifestHash: "fvnVhLw92pE=",
 				Manifests: []manifest.Manifest{
 					{
@@ -366,7 +379,7 @@ func TestGetImplicitlyEnabledCapabilities(t *testing.T) {
 			if tt.pathExt == "test10" {
 				updateMans = append(updateMans, updateMans[0])
 			}
-			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities, sets.Set[string]{})
+			caps := GetImplicitlyEnabledCapabilities(updateMans, currentMans, tt.capabilities, sets.Set[string]{}, nil, nil)
 			if diff := cmp.Diff(tt.wantImplicit, caps); diff != "" {
 				t.Errorf("%s: wantImplicit differs from expected:\n%s", tt.name, diff)
 			}

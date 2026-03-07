@@ -1,0 +1,20 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: version4or5
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/major-version: "4,5"
+spec:
+  group: test.io
+  names:
+    kind: Version4Or5
+    plural: version4or5s
+  scope: Cluster
+  versions:
+  - name: v1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
