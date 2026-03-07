@@ -380,7 +380,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 		var message string
 		if apierrors.IsNotFound(err) {
 			message = fmt.Sprintf("%s configmap not found.", internal.AdminGatesConfigMap)
-		} else if err != nil {
+		} else {
 			message = fmt.Sprintf("Unable to access configmap %s, err=%v.", internal.AdminGatesConfigMap, err)
 		}
 		klog.Error(message)
@@ -396,7 +396,7 @@ func (check *clusterAdminAcksCompletedUpgradeable) Check() *configv1.ClusterOper
 		var message string
 		if apierrors.IsNotFound(err) {
 			message = fmt.Sprintf("%s configmap not found.", internal.AdminAcksConfigMap)
-		} else if err != nil {
+		} else {
 			message = fmt.Sprintf("Unable to access configmap %s, err=%v.", internal.AdminAcksConfigMap, err)
 		}
 		klog.Error(message)
