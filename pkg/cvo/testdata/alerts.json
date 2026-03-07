@@ -1,0 +1,137 @@
+{
+  "alerts": [
+    {
+      "labels": {
+        "alertname": "ClusterNotUpgradeable",
+        "condition": "Upgradeable",
+        "endpoint": "metrics",
+        "name": "version",
+        "namespace": "openshift-cluster-version",
+        "severity": "info"
+      },
+      "annotations": {
+        "description": "In most cases, you will still be able to apply patch releases. Reason MultipleReasons. For more information refer to 'oc adm upgrade' or https://console-openshift-console.apps.ci-ln-rwc3xi2-76ef8.aws-2.ci.openshift.org/settings/cluster/.",
+        "summary": "One or more cluster operators have been blocking minor or major version cluster updates for at least an hour."
+      },
+      "state": "pending",
+      "activeAt": "2026-03-04T00:06:31.900150556Z",
+      "value": "0e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "UpdateAvailable",
+        "channel": "simple",
+        "namespace": "openshift-cluster-version",
+        "severity": "info",
+        "upstream": "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
+      },
+      "annotations": {
+        "description": "For more information refer to 'oc adm upgrade' or https://console-openshift-console.apps.ci-ln-rwc3xi2-76ef8.aws-2.ci.openshift.org/settings/cluster/.",
+        "summary": "Your upstream update recommendation service recommends you update your cluster."
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:36:33.844767047Z",
+      "value": "2e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "TestAlert",
+        "container": "cluster-version-operator",
+        "endpoint": "metrics",
+        "instance": "10.0.61.171:9099",
+        "job": "cluster-version-operator",
+        "namespace": "openshift-cluster-version",
+        "openShiftUpdatePrecheck": "true",
+        "pod": "cluster-version-operator-dcb5d56cc-5jc94",
+        "service": "cluster-version-operator",
+        "severity": "critical"
+      },
+      "annotations": {
+        "description": "Test description.",
+        "summary": "Test summary."
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:38:19.02109776Z",
+      "value": "1e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "InsightsRecommendationActive",
+        "container": "insights-operator",
+        "description": "Enabling the **TechPreviewNoUpgrade** feature set on your cluster\ncan not be undone and prevents minor version updates. Please do\nnot enable this feature set on production clusters.\n",
+        "endpoint": "https",
+        "info_link": "https://console.redhat.com/openshift/insights/advisor/clusters/efe476a4-97ad-4c07-bf46-d3da03a5ff6a?first=ccx_rules_ocp.external.rules.upgrade_is_blocked_due_to_tpfg%7CTECH_PREVIEW_NO_UPGRADE_FEATURE_SET_IS_ENABLED",
+        "instance": "10.129.0.36:8443",
+        "job": "metrics",
+        "namespace": "openshift-insights",
+        "pod": "insights-operator-65f69d8d84-l6f69",
+        "service": "metrics",
+        "severity": "info",
+        "total_risk": "Important"
+      },
+      "annotations": {
+        "description": "Insights recommendation \"Enabling the **TechPreviewNoUpgrade** feature set on your cluster\ncan not be undone and prevents minor version updates. Please do\nnot enable this feature set on production clusters.\n\" with total risk \"Important\" was detected on the cluster. More information is available at https://console.redhat.com/openshift/insights/advisor/clusters/efe476a4-97ad-4c07-bf46-d3da03a5ff6a?first=ccx_rules_ocp.external.rules.upgrade_is_blocked_due_to_tpfg%7CTECH_PREVIEW_NO_UPGRADE_FEATURE_SET_IS_ENABLED.",
+        "summary": "An Insights recommendation is active for this cluster."
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:07:08.820367488Z",
+      "value": "1e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "TechPreviewNoUpgrade",
+        "container": "kube-apiserver-operator",
+        "endpoint": "https",
+        "instance": "10.129.0.11:8443",
+        "job": "kube-apiserver-operator",
+        "name": "TechPreviewNoUpgrade",
+        "namespace": "openshift-kube-apiserver-operator",
+        "pod": "kube-apiserver-operator-75c85dd77-zg8fc",
+        "service": "metrics",
+        "severity": "warning"
+      },
+      "annotations": {
+        "description": "Cluster has enabled Technology Preview features that cannot be undone and will prevent upgrades. The TechPreviewNoUpgrade feature set is not recommended on production clusters.",
+        "summary": "Cluster has enabled tech preview features that will prevent upgrades."
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:06:25.787986891Z",
+      "value": "0e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "Watchdog",
+        "namespace": "openshift-monitoring",
+        "severity": "none"
+      },
+      "annotations": {
+        "description": "This is an alert meant to ensure that the entire alerting pipeline is functional.\nThis alert is always firing, therefore it should always be firing in Alertmanager\nand always fire against a receiver. There are integrations with various notification\nmechanisms that send a notification when this alert is not firing. For example the\n\"DeadMansSnitch\" integration in PagerDuty.\n",
+        "summary": "An alert that should always be firing to certify that Alertmanager is working properly."
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:06:23.165306226Z",
+      "value": "1e+00",
+      "partialResponseStrategy": "WARN"
+    },
+    {
+      "labels": {
+        "alertname": "AlertmanagerReceiversNotConfigured",
+        "namespace": "openshift-monitoring",
+        "severity": "warning"
+      },
+      "annotations": {
+        "description": "Alerts are not configured to be sent to a notification system, meaning that you may not be notified in a timely fashion when important failures occur. Check the OpenShift documentation to learn how to configure notifications with Alertmanager.",
+        "summary": "Receivers (notification integrations) are not configured on Alertmanager"
+      },
+      "state": "firing",
+      "activeAt": "2026-03-04T00:06:46.778977652Z",
+      "value": "0e+00",
+      "partialResponseStrategy": "WARN"
+    }
+  ]
+}

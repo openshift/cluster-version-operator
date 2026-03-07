@@ -1,5 +1,18 @@
 [
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with risks from alerts",
+    "labels": {
+      "OTA-1813": {},
+      "Serial": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with accept risks",
     "labels": {
       "Serial": {}

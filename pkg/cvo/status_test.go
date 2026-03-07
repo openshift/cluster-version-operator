@@ -752,7 +752,7 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				if tc.shouldModifyWhenNotReconcilingAndHistoryNotEmpty && !c.isReconciling && !c.isHistoryEmpty {
 					expectedCondition = tc.expectedConditionModified
 				}
-				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors, func() bool {
+				updateClusterVersionStatus(context.TODO(), cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors, func() bool {
 					return false
 				})
 				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, internal.ClusterStatusFailing)
@@ -1078,10 +1078,11 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getAvailableUpdates := func() *availableUpdates {
-				return tt.availableUpdates
+			var riskConditions map[string][]metav1.Condition
+			if tt.availableUpdates != nil {
+				riskConditions = tt.availableUpdates.RiskConditions
 			}
-			actual, actualNames := conditionalUpdateWithRiskNamesAndRiskConditions(tt.conditionalUpdates, getAvailableUpdates, tt.desiredImage)
+			actual, actualNames := conditionalUpdateWithRiskNamesAndRiskConditions(tt.conditionalUpdates, riskConditions, tt.desiredImage)
 			if difference := cmp.Diff(tt.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); difference != "" {
 				t.Errorf("conditional updates differ from expected:\n%s", difference)
 			}
@@ -1093,9 +1094,11 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 }
 
 func Test_conditionalUpdateRisks(t *testing.T) {
+	t1 := time.Now()
 	tests := []struct {
 		name               string
 		conditionalUpdates []configv1.ConditionalUpdate
+		alertRisks         []configv1.ConditionalUpdateRisk
 		expected           []configv1.ConditionalUpdateRisk
 	}{
 		{
@@ -1129,27 +1132,70 @@ func Test_conditionalUpdateRisks(t *testing.T) {
 					},
 					}}},
 			}},
-			expected: []configv1.ConditionalUpdateRisk{{Name: "Risk1",
-				Conditions: []metav1.Condition{{
-					Type:   "Applies",
-					Status: metav1.ConditionTrue,
+			alertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:    "PodDisruptionBudgetAtLimit",
+					Message: "summary.",
+					URL:     "https://console.com/monitoring/alertrules/id",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
 				},
-				}}, {Name: "Risk2",
-				Conditions: []metav1.Condition{{
-					Type:   "Applies",
-					Status: metav1.ConditionFalse,
+			},
+			expected: []configv1.ConditionalUpdateRisk{
+				{
+					Name:    "PodDisruptionBudgetAtLimit",
+					Message: "summary.",
+					URL:     "https://console.com/monitoring/alertrules/id",
+					MatchingRules: []configv1.ClusterCondition{
+						{
+							Type: "PromQL",
+							PromQL: &configv1.PromQLClusterCondition{
+								PromQL: "todo-expression",
+							},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
 				},
-				}}, {Name: "Risk3",
-				Conditions: []metav1.Condition{{
-					Type:   "Applies",
-					Status: metav1.ConditionTrue,
-				},
-				}}},
+				{Name: "Risk1",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}, {Name: "Risk2",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionFalse,
+					},
+					}}, {Name: "Risk3",
+					Conditions: []metav1.Condition{{
+						Type:   "Applies",
+						Status: metav1.ConditionTrue,
+					},
+					}}},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := conditionalUpdateRisks(tt.conditionalUpdates)
+			actual := conditionalUpdateRisks(tt.conditionalUpdates, tt.alertRisks)
 			if difference := cmp.Diff(tt.expected, actual, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); difference != "" {
 				t.Errorf("actual differ from expected:\n%s", difference)
 			}
