@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -326,6 +327,53 @@ type MetricsOptions struct {
 
 	DisableAuthentication bool
 	DisableAuthorization  bool
+
+	// TLSMinVersionOverride is the minimum TLS version supported.
+	// When set, it takes precedence over the central TLS profile.
+	TLSMinVersionOverride string
+
+	// TLSCipherSuitesOverride is the list of allowed cipher suites for the server.
+	// When set, it takes precedence over the central TLS profile.
+	TLSCipherSuitesOverride []string
+}
+
+// ValidateTLSOptions validates the TLS configuration options.
+func (o *MetricsOptions) ValidateTLSOptions() error {
+	if o.TLSMinVersionOverride != "" {
+		if _, err := cliflag.TLSVersion(o.TLSMinVersionOverride); err != nil {
+			return fmt.Errorf("invalid --tls-min-version %q: %w (valid values: %v)", o.TLSMinVersionOverride, err, cliflag.TLSPossibleVersions())
+		}
+	}
+
+	if len(o.TLSCipherSuitesOverride) > 0 {
+		if _, err := cliflag.TLSCipherSuites(o.TLSCipherSuitesOverride); err != nil {
+			return fmt.Errorf("invalid --tls-cipher-suites: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// ApplyTLSOptions applies the TLS configuration options to the provided tls.Config.
+// When flags are set, they override the corresponding settings from the central TLS profile.
+func (o *MetricsOptions) ApplyTLSOptions(config *tls.Config) error {
+	if o.TLSMinVersionOverride != "" {
+		minVersion, err := cliflag.TLSVersion(o.TLSMinVersionOverride)
+		if err != nil {
+			return fmt.Errorf("invalid --tls-min-version %q: %w", o.TLSMinVersionOverride, err)
+		}
+		config.MinVersion = minVersion
+	}
+
+	if len(o.TLSCipherSuitesOverride) > 0 {
+		cipherSuites, err := cliflag.TLSCipherSuites(o.TLSCipherSuitesOverride)
+		if err != nil {
+			return fmt.Errorf("invalid --tls-cipher-suites: %w", err)
+		}
+		config.CipherSuites = cipherSuites
+	}
+
+	return nil
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
@@ -342,6 +390,17 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 
 	if options.DisableAuthentication && !options.DisableAuthorization {
 		return errors.New("invalid configuration: cannot enable authorization without authentication")
+	}
+
+	if err := options.ValidateTLSOptions(); err != nil {
+		return fmt.Errorf("invalid TLS configuration: %w", err)
+	}
+
+	if options.TLSMinVersionOverride != "" {
+		klog.Infof("TLS min version flag set to %s, will override central TLS profile", options.TLSMinVersionOverride)
+	}
+	if len(options.TLSCipherSuitesOverride) > 0 {
+		klog.Infof("TLS cipher suites flag set to %v, will override central TLS profile", options.TLSCipherSuitesOverride)
 	}
 
 	// Prepare synchronization for to-be created go routines
@@ -473,6 +532,11 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 			}
 			lastApplier = applier
 			applier.applyTLSProfile(config)
+
+			// Then apply flag-based overrides
+			if err := options.ApplyTLSOptions(config); err != nil {
+				return nil, fmt.Errorf("failed to apply TLS options: %w", err)
+			}
 
 			return config, nil
 		},
