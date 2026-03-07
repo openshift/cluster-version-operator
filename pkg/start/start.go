@@ -162,6 +162,9 @@ func (o *Options) ValidateAndComplete() error {
 	o.MetricsOptions.DisableAuthorization = o.HyperShift
 	o.MetricsOptions.DisableAuthentication = o.HyperShift
 
+	// Continue functioning the same way in HyperShift, as the CVO is in the management cluster
+	o.MetricsOptions.RespectCentralTLSProfile = !o.HyperShift
+
 	if err := validateCapabilities(o.AlwaysEnableCapabilities); err != nil {
 		return fmt.Errorf("--always-enable-capabilities: %w", err)
 	}

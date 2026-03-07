@@ -339,6 +339,8 @@ type MetricsOptions struct {
 
 	DisableAuthentication bool
 	DisableAuthorization  bool
+
+	RespectCentralTLSProfile bool
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
@@ -479,15 +481,14 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				return nil, err
 			}
 
-			// Fetch cluster TLS profile from APIServer resource (cached via lister, O(1) lookup)
-			// and apply it to the config. This allows dynamic updates without CVO restart.
-			// Fail closed if no valid profile is available (security).
-			profile, err := getAPIServerTLSProfile(apiServerLister, lastValidProfile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get TLS profile for metrics server: %w", err)
+			if options.RespectCentralTLSProfile {
+				profile, err := getAPIServerTLSProfile(apiServerLister, lastValidProfile)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get TLS profile for metrics server: %w", err)
+				}
+				lastValidProfile = profile
+				profile.apply(config)
 			}
-			lastValidProfile = profile
-			profile.apply(config)
 
 			return config, nil
 		},
