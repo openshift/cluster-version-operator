@@ -154,7 +154,7 @@ func getAPIServerTLSProfile(apiServerLister configlistersv1.APIServerLister, las
 
 	// Check if the cached profile is still valid based on generation
 	if lastValidProfile != nil && lastValidProfile.generation == apiServer.Generation {
-		klog.V(4).Info("Using cached TLS profile (generation unchanged)")
+		klog.V(2).Info("Using cached TLS profile (generation unchanged)")
 		return lastValidProfile, nil
 	}
 
@@ -165,7 +165,7 @@ func getAPIServerTLSProfile(apiServerLister configlistersv1.APIServerLister, las
 	}
 
 	if lastValidProfile != nil && lastValidProfile.isEqual(&profile) {
-		klog.V(4).Info("TLS profile spec unchanged despite generation bump, updating generation")
+		klog.V(2).Info("TLS profile spec unchanged despite generation bump, updating generation")
 		return &cachedTLSProfile{
 			spec:       profile,
 			apply:      lastValidProfile.apply,
