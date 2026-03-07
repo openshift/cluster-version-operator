@@ -42,6 +42,18 @@
     "environmentSelector": {}
   },
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should have a network policy",
+    "labels": {
+      "OCPBUGS-77762": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should have correct runlevel and scc",
     "labels": {},
     "resources": {
