@@ -42,6 +42,7 @@ func mergeMap(modified *bool, existing *map[string]string, required map[string]s
 	for k, v := range required {
 		if existingV, ok := (*existing)[k]; !ok || v != existingV {
 			*modified = true
+			klog.V(2).Infof("mergeMap update %q from %q to %q (new key? %t  New value? %t)", k, existingV, v, ok, v != existingV)
 			(*existing)[k] = v
 		}
 	}
