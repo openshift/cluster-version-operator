@@ -11,13 +11,14 @@ metadata:
     include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   endpoints:
-  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-    interval: 30s
+  - interval: 30s
     port: metrics
     scheme: https
     tlsConfig:
       caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
       serverName: cluster-version-operator.openshift-cluster-version.svc
+      certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
+      keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
   namespaceSelector:
     matchNames:
     - openshift-cluster-version
