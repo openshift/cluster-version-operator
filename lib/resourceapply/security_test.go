@@ -154,7 +154,7 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			newClient := securityfake.NewSimpleClientset()
+			newClient := securityfake.NewClientset()
 			// We cannot simply initialize the client because initialization is broken for SCC
 			// https://github.com/openshift/client-go/issues/244
 			if tc.existing != nil {
@@ -176,16 +176,46 @@ func TestApplySecurityContextConstraintsv1(t *testing.T) {
 				t.Fatalf("expected no error, got %v", err)
 			}
 
-			if diff := cmp.Diff(tc.expectedAPICalls, newClient.Actions()); diff != "" {
+			if diff := cmp.Diff(tc.expectedAPICalls, clearManagedFields(newClient.Actions())); diff != "" {
 				t.Errorf("API calls differ from expected:\n%s", diff)
 			}
 
 			if tc.expectedModified != modified {
 				t.Errorf("expected modified %v, got %v", tc.expectedModified, modified)
 			}
+
+			if actual != nil {
+				// The client sets managed fields, but we don't want to test that
+				// so clear them here as they aren't present in the `expected` SCC.
+				actual.ManagedFields = nil
+			}
+
 			if diff := cmp.Diff(tc.expected(), actual); diff != "" {
 				t.Errorf("SCC differs from expected:\n%s", diff)
 			}
 		})
 	}
+}
+
+// clearManagedFields clears the managed fields from the update actions
+// as they aren't present in the `expected` actions.
+// We don't want to test that this metadata is set by the client.
+func clearManagedFields(actions []kubetesting.Action) []kubetesting.Action {
+	for i := range actions {
+		updateAction, ok := actions[i].(kubetesting.UpdateActionImpl)
+		if !ok {
+			continue
+		}
+
+		metaObj, ok := updateAction.Object.(metav1.Object)
+		if !ok {
+			continue
+		}
+
+		metaObj.SetManagedFields(nil)
+
+		actions[i] = updateAction
+	}
+
+	return actions
 }

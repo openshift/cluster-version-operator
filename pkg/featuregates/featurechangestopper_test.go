@@ -99,7 +99,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				tt.startingCvoFeatureGates = CvoGates{unknownVersion: true}
 			}
 
-			client := fakeconfigv1client.NewSimpleClientset(fg)
+			client := fakeconfigv1client.NewClientset(fg)
 
 			informerFactory := configv1informer.NewSharedInformerFactory(client, 0)
 			c, err := NewChangeStopper(informerFactory.Config().V1().FeatureGates(), tt.startingRequiredFeatureSet, tt.startingCvoFeatureGates)
