@@ -7,15 +7,19 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 )
 
 // EnsureConfigMap ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureConfigMap(modified *bool, existing *corev1.ConfigMap, required corev1.ConfigMap) {
+	klog.V(2).Infof("EnsureConfigMap %s/%s (%t)", required.Namespace, required.Name, *modified)
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	klog.V(2).Infof("EnsureConfigMap after EnsureObjectMeta %s/%s (%t)", required.Namespace, required.Name, *modified)
 
 	mergeMap(modified, &existing.Data, required.Data)
+	klog.V(2).Infof("EnsureConfigMap after Data %s/%s (%t)", required.Namespace, required.Name, *modified)
 }
 
 // EnsureServiceAccount ensures that the existing matches the required.
