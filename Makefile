@@ -53,3 +53,10 @@ verify-update: imports update
 clean:
 	rm -rf _output/
 .PHONY: clean
+
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+GOLANGCI_LINT = go run -mod=vendor ${PROJECT_DIR}/vendor/github.com/golangci/golangci-lint/v2/cmd/golangci-lint
+
+.PHONY: lint
+lint:
+	${GOLANGCI_LINT} run ./...
