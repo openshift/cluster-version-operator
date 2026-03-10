@@ -61,6 +61,7 @@ func GetImplicitlyEnabledCapabilities(
 			manifestInclusionConfiguration.Capabilities,
 			manifestInclusionConfiguration.Overrides,
 			manifestInclusionConfiguration.EnabledFeatureGates,
+			nil,
 			true,
 		)
 		// update manifest is enabled, no need to check
@@ -79,6 +80,7 @@ func GetImplicitlyEnabledCapabilities(
 				manifestInclusionConfiguration.Capabilities,
 				manifestInclusionConfiguration.Overrides,
 				manifestInclusionConfiguration.EnabledFeatureGates,
+				nil,
 				true,
 			); err != nil {
 				continue

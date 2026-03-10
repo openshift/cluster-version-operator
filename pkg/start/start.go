@@ -162,6 +162,9 @@ func (o *Options) ValidateAndComplete() error {
 	o.MetricsOptions.DisableAuthorization = o.HyperShift
 	o.MetricsOptions.DisableAuthentication = o.HyperShift
 
+	// Continue functioning the same way in HyperShift, as the CVO is in the management cluster
+	o.MetricsOptions.RespectCentralTLSProfile = !o.HyperShift
+
 	if err := validateCapabilities(o.AlwaysEnableCapabilities); err != nil {
 		return fmt.Errorf("--always-enable-capabilities: %w", err)
 	}
@@ -356,7 +359,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, o.MetricsOptions)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, controllerCtx.CVO.APIServerLister(), o.MetricsOptions)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
@@ -615,6 +618,7 @@ func (o *Options) NewControllerContext(
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		configInformerFactory.Config().V1().FeatureGates(),
+		configInformerFactory.Config().V1().APIServers(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		operatorClient,
