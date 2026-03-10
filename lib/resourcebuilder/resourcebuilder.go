@@ -43,17 +43,17 @@ type builder struct {
 	mode     Mode
 	modifier MetaV1ObjectModifierFunc
 
-	admissionregistrationClientv1 *admissionregistrationclientv1.AdmissionregistrationV1Client
-	apiextensionsClientv1         *apiextensionsclientv1.ApiextensionsV1Client
-	apiregistrationClientv1       *apiregistrationclientv1.ApiregistrationV1Client
-	appsClientv1                  *appsclientv1.AppsV1Client
-	batchClientv1                 *batchclientv1.BatchV1Client
-	configClientv1                *configclientv1.ConfigV1Client
-	coreClientv1                  *coreclientv1.CoreV1Client
-	imageClientv1                 *imageclientv1.ImageV1Client
-	operatorsClientv1             *operatorsclientv1.OperatorsV1Client
-	rbacClientv1                  *rbacclientv1.RbacV1Client
-	securityClientv1              *securityclientv1.SecurityV1Client
+	admissionregistrationClientv1 admissionregistrationclientv1.AdmissionregistrationV1Interface
+	apiextensionsClientv1         apiextensionsclientv1.ApiextensionsV1Interface
+	apiregistrationClientv1       apiregistrationclientv1.ApiregistrationV1Interface
+	appsClientv1                  appsclientv1.AppsV1Interface
+	batchClientv1                 batchclientv1.BatchV1Interface
+	configClientv1                configclientv1.ConfigV1Interface
+	coreClientv1                  coreclientv1.CoreV1Interface
+	imageClientv1                 imageclientv1.ImageV1Interface
+	operatorsClientv1             operatorsclientv1.OperatorsV1Interface
+	rbacClientv1                  rbacclientv1.RbacV1Interface
+	securityClientv1              securityclientv1.SecurityV1Interface
 }
 
 func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
