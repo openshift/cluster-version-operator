@@ -108,11 +108,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Accepting all risks")
 		o.Expect(acceptRisks).NotTo(o.BeEmpty())
 		if cv.Spec.DesiredUpdate == nil {
-			cv.Spec.DesiredUpdate = &configv1.Update{
-				Image:        cv.Status.Desired.Image,
-				Version:      cv.Status.Desired.Version,
-				Architecture: cv.Status.Desired.Architecture,
-			}
+			cv.Spec.DesiredUpdate = &configv1.Update{}
 		}
 		cv.Spec.DesiredUpdate.AcceptRisks = acceptRisks
 
