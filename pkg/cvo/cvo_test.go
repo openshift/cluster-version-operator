@@ -503,7 +503,7 @@ func TestOperator_sync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -560,7 +560,7 @@ func TestOperator_sync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -4224,7 +4224,7 @@ func Test_loadReleaseVerifierFromConfigMap(t *testing.T) {
 			tt.update.Manifests = ms
 		}
 		t.Run(tt.name, func(t *testing.T) {
-			f := kfake.NewSimpleClientset()
+			f := kfake.NewClientset()
 			got, store, err := loadConfigMapVerifierDataFromUpdate(tt.update, sigstore.DefaultClient, f.CoreV1(), &serial.Store{})
 			if err == nil {
 				if tt.expectedError != "" {
