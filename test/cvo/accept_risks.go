@@ -6,6 +6,7 @@ import (
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
+	prometheusoperatorv1client "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,9 +24,10 @@ import (
 var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`, func() {
 
 	var (
-		c            *rest.Config
-		configClient *configv1client.ConfigV1Client
-		err          error
+		c                *rest.Config
+		configClient     *configv1client.ConfigV1Client
+		monitoringClient *prometheusoperatorv1client.MonitoringV1Client
+		err              error
 
 		ctx         = context.TODO()
 		needRecover bool
@@ -36,6 +38,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		c, err = util.GetRestConfig()
 		o.Expect(err).To(o.BeNil())
 		configClient, err = configv1client.NewForConfig(c)
+		o.Expect(err).To(o.BeNil())
+		monitoringClient, err = prometheusoperatorv1client.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
 
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
@@ -137,5 +141,12 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(cv.Spec.DesiredUpdate.AcceptRisks).To(o.Equal(acceptRisks))
 		o.Expect(cv.Status.ConditionalUpdates).To(o.HaveLen(conditionalUpdatesLength))
 		o.Expect(releasesNow).To(o.Equal(releases))
+	})
+
+	g.It("should install prometheus rules correctly", func() {
+		_, err = monitoringClient.PrometheusRules(external.DefaultCVONamespace).Get(ctx, "cluster-version-operator-accept-risks", metav1.GetOptions{})
+		if err != nil {
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
 	})
 })

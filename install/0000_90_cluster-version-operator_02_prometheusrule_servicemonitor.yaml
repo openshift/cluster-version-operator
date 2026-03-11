@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    k8s-app: cluster-version-operator
+  name: cluster-version-operator-accept-risks
+  namespace: openshift-cluster-version
+  annotations:
+    kubernetes.io/description: Alerting rules for the feature gate ClusterUpdateAcceptRisks.
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-gate: "ClusterUpdateAcceptRisks"
+spec:
+  groups:
+  - name: cluster-version-tech-preview
+    rules:
+    - alert: OpenShiftUpdateRiskMightApply
+      annotations:
+        summary: The cluster might have been exposed to the conditional update risk for 10 minutes.
+        description: The conditional update risk {{ "{{ $labels.risk }}" }} might apply to the cluster because of {{ "{{ $labels.reason }}" }}, and the cluster update to a version exposed to the risk is not recommended. For more information refer to 'oc adm upgrade'.
+        runbook_url: https://github.com/openshift/runbooks/blob/master/alerts/cluster-version-operator/OpenShiftUpdateRiskMightApply.md
+      expr: |
+        max by (namespace, risk, reason) (last_over_time(cluster_version_risk_conditions{job="cluster-version-operator", condition="Applies"}[5m]) != 0)
+      for: 10m
+      labels:
+        severity: warning
