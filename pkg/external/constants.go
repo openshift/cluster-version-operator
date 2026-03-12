@@ -1,8 +1,6 @@
 package external
 
-import (
-	"github.com/openshift/cluster-version-operator/pkg/internal"
-)
+import "github.com/openshift/cluster-version-operator/pkg/internal"
 
 // The constants defined here are used by the components, e.g., e2e tests that have no access
 // to github.com/openshift/cluster-version-operator/pkg/internal

@@ -100,6 +100,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 				break
 			}
 		}
+		// If risks from alerts, conditional updates might be stale for maximally 2 x minimumUpdateCheckInterval
 		if !needsConditionalUpdateEval {
 			klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 			return nil
@@ -161,11 +162,6 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		}
 	}
 
-	if optrAvailableUpdates.ShouldReconcileAcceptRisks() {
-		if err := optrAvailableUpdates.evaluateAlertRisks(ctx); err != nil {
-			klog.Errorf("Failed to evaluate alert conditions: %v", err)
-		}
-	}
 	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
 
 	queueKey := optr.queueKey()
@@ -221,9 +217,6 @@ type availableUpdates struct {
 	RiskConditions map[string][]metav1.Condition
 
 	AlertGetter AlertGetter
-
-	// AlertRisks stores the condition for every alert that might have impact on cluster update
-	AlertRisks []configv1.ConditionalUpdateRisk
 }
 
 func (u *availableUpdates) RecentlyAttempted(interval time.Duration) bool {
@@ -329,7 +322,6 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 		ShouldReconcileAcceptRisks: optr.shouldReconcileAcceptRisks,
 		AcceptRisks:                optr.availableUpdates.AcceptRisks,
 		RiskConditions:             optr.availableUpdates.RiskConditions,
-		AlertRisks:                 optr.availableUpdates.AlertRisks,
 		AlertGetter:                optr.availableUpdates.AlertGetter,
 		LastAttempt:                optr.availableUpdates.LastAttempt,
 		LastSyncOrConfigChange:     optr.availableUpdates.LastSyncOrConfigChange,
@@ -527,18 +519,15 @@ type AlertGetter interface {
 	Get(ctx context.Context) (prometheusv1.AlertsResult, error)
 }
 
-func (u *availableUpdates) evaluateAlertRisks(ctx context.Context) error {
+func (u *availableUpdates) evaluateAlertRisks(ctx context.Context) ([]configv1.ConditionalUpdateRisk, error) {
 	if u == nil || u.AlertGetter == nil {
-		u.AlertRisks = nil
-		return nil
+		return nil, nil
 	}
 	alertsResult, err := u.AlertGetter.Get(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get alerts: %w", err)
+		return nil, fmt.Errorf("failed to get alerts: %w", err)
 	}
-
-	u.AlertRisks = alertsToRisks(alertsResult.Alerts)
-	return nil
+	return alertsToRisks(alertsResult.Alerts), nil
 }
 
 func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk {
@@ -576,22 +565,21 @@ func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk
 		}
 
 		var runbook string
+		alertURL := "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound"
 		if runbook = string(alert.Annotations["runbook"]); runbook == "" {
 			runbook = "<alert does not have a runbook_url annotation>"
+		} else {
+			alertURL = runbook
 		}
 
 		details := fmt.Sprintf("%s%s %s", summary, description, runbook)
-
-		// TODO (hongkliu):
-		alertURL := "https://console.com/monitoring/alertrules/id"
-		alertPromQL := "todo-expression"
 
 		severity := string(alert.Labels["severity"])
 		if severity == "critical" {
 			if alertName == internal.AlertNamePodDisruptionBudgetLimit {
 				details = fmt.Sprintf("Namespace=%s, PodDisruptionBudget=%s. %s", alert.Labels["namespace"], alert.Labels["poddisruptionbudget"], details)
 			}
-			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             fmt.Sprintf("Alert:%s", alert.State),
@@ -603,7 +591,7 @@ func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk
 
 		if alertName == internal.AlertNamePodDisruptionBudgetAtLimit {
 			details = fmt.Sprintf("Namespace=%s, PodDisruptionBudget=%s. %s", alert.Labels["namespace"], alert.Labels["poddisruptionbudget"], details)
-			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             internal.AlertConditionReason(string(alert.State)),
@@ -617,7 +605,7 @@ func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk
 			internal.HaveNodes.Has(alertName) ||
 			alertName == internal.AlertNameVirtHandlerDaemonSetRolloutFailing ||
 			alertName == internal.AlertNameVMCannotBeEvicted {
-			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             internal.AlertConditionReason(string(alert.State)),
@@ -629,7 +617,7 @@ func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk
 
 		updatePrecheck := string(alert.Labels["openShiftUpdatePrecheck"])
 		if updatePrecheck == "true" {
-			risks[alertName] = getRisk(risks, alertName, summary, alertURL, alertPromQL, metav1.Condition{
+			risks[alertName] = getRisk(risks, alertName, summary, alertURL, metav1.Condition{
 				Type:               internal.ConditionalUpdateRiskConditionTypeApplies,
 				Status:             metav1.ConditionTrue,
 				Reason:             fmt.Sprintf("Alert:%s", alert.State),
@@ -657,22 +645,16 @@ func alertsToRisks(alerts []prometheusv1.Alert) []configv1.ConditionalUpdateRisk
 	return ret
 }
 
-func getRisk(risks map[string]configv1.ConditionalUpdateRisk, riskName, message, url, promQL string, condition metav1.Condition) configv1.ConditionalUpdateRisk {
+func getRisk(risks map[string]configv1.ConditionalUpdateRisk, riskName, message, url string, condition metav1.Condition) configv1.ConditionalUpdateRisk {
 	risk, ok := risks[riskName]
 	if !ok {
 		return configv1.ConditionalUpdateRisk{
 			Name:    riskName,
 			Message: message,
 			URL:     url,
-			MatchingRules: []configv1.ClusterCondition{
-				{
-					Type: "PromQL",
-					PromQL: &configv1.PromQLClusterCondition{
-						PromQL: promQL,
-					},
-				},
-			},
-			Conditions: []metav1.Condition{condition},
+			// Always as the alert is firing
+			MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+			Conditions:    []metav1.Condition{condition},
 		}
 	}
 
@@ -696,9 +678,21 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	risks := risksInOrder(riskVersions)
 	u.RiskConditions = loadRiskConditions(ctx, risks, riskVersions, u.ConditionRegistry)
 
-	if err := sanityCheck(u.ConditionalUpdates, u.AlertRisks); err != nil {
+	var alertRisks []configv1.ConditionalUpdateRisk
+	if u.ShouldReconcileAcceptRisks() {
+		if evaluated, err := u.evaluateAlertRisks(ctx); err != nil {
+			klog.Errorf("Failed to evaluate alert conditions: %v", err)
+		} else {
+			alertRisks = evaluated
+		}
+
+	}
+	u.attachAlertRisksToUpdates(alertRisks)
+
+	if err := sanityCheck(u.ConditionalUpdates); err != nil {
 		klog.Errorf("Sanity check failed which might impact risk evaluation: %v", err)
 	}
+
 	for i, conditionalUpdate := range u.ConditionalUpdates {
 		condition := evaluateConditionalUpdate(conditionalUpdate.Risks, u.AcceptRisks, u.ShouldReconcileAcceptRisks, u.RiskConditions)
 
@@ -714,7 +708,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	}
 }
 
-func sanityCheck(updates []configv1.ConditionalUpdate, alertRisks []configv1.ConditionalUpdateRisk) error {
+func sanityCheck(updates []configv1.ConditionalUpdate) error {
 	risks := map[string]configv1.ConditionalUpdateRisk{}
 	var errs []error
 	for _, update := range updates {
@@ -728,11 +722,6 @@ func sanityCheck(updates []configv1.ConditionalUpdate, alertRisks []configv1.Con
 			} else {
 				risks[risk.Name] = risk
 			}
-		}
-	}
-	for _, alertRisk := range alertRisks {
-		if _, ok := risks[alertRisk.Name]; ok {
-			errs = append(errs, fmt.Errorf("found alert risk and conditional update risk share the name: %s", alertRisk.Name))
 		}
 	}
 	return utilerrors.NewAggregate(errs)
@@ -754,6 +743,45 @@ func (u *availableUpdates) removeUpdate(image string) {
 			u.Updates = append(u.Updates[:i], u.Updates[i+1:]...)
 		}
 	}
+}
+
+func (u *availableUpdates) attachAlertRisksToUpdates(alertRisks []configv1.ConditionalUpdateRisk) {
+	if u == nil || len(alertRisks) == 0 {
+		return
+	}
+	if u.RiskConditions == nil {
+		u.RiskConditions = map[string][]metav1.Condition{}
+	}
+	for _, alertRisk := range alertRisks {
+		u.RiskConditions[alertRisk.Name] = alertRisk.Conditions
+	}
+	var conditionalUpdates []configv1.ConditionalUpdate
+	for _, update := range u.Updates {
+		conditionalUpdates = append(conditionalUpdates, configv1.ConditionalUpdate{
+			Release: update,
+			Risks:   alertRisks,
+		})
+	}
+	u.Updates = nil
+	for _, conditionalUpdate := range u.ConditionalUpdates {
+		for _, alertRisk := range alertRisks {
+			var found bool
+			for _, risk := range conditionalUpdate.Risks {
+				if alertRisk.Name == risk.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				conditionalUpdate.Risks = append(conditionalUpdate.Risks, alertRisk)
+			}
+		}
+		conditionalUpdates = append(conditionalUpdates, conditionalUpdate)
+	}
+	sort.Slice(conditionalUpdates, func(i, j int) bool {
+		return conditionalUpdates[i].Release.Version < conditionalUpdates[j].Release.Version
+	})
+	u.ConditionalUpdates = conditionalUpdates
 }
 
 func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) string {
@@ -779,7 +807,6 @@ const (
 	recommendedReasonAllExposedRisksAccepted = "AllExposedRisksAccepted"
 	recommendedReasonEvaluationFailed        = "EvaluationFailed"
 	recommendedReasonMultiple                = "MultipleReasons"
-	//recommendedReasonAlertFiring             = "AlertFiring"
 
 	// recommendedReasonExposed is used instead of the original name if it does
 	// not match the pattern for a valid k8s condition reason.

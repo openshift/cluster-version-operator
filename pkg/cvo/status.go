@@ -177,7 +177,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(ctx, &config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledCVOFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
+	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledCVOFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))
@@ -189,7 +189,6 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(
-	ctx context.Context,
 	cvStatus *configv1.ClusterVersionStatus,
 	status *SyncWorkerStatus,
 	release configv1.Release,
@@ -230,16 +229,16 @@ func updateClusterVersionStatus(
 	if shouldReconcileAcceptRisks() {
 		updates := getAvailableUpdates()
 		var riskConditions map[string][]metav1.Condition
-		var alertRisks []configv1.ConditionalUpdateRisk
+		conditionalUpdates := cvStatus.ConditionalUpdates
 		if updates != nil {
+			// updates.Updates may become updates.ConditionalUpdates if some alert becomes a risk
+			// Here we use the refreshed ones to generate cvStatus
 			riskConditions = updates.RiskConditions
-			alertRisks = updates.AlertRisks
-			if err := updates.evaluateAlertRisks(ctx); err != nil {
-				klog.Errorf("Failed to evaluate alert conditions: %v", err)
-			}
+			conditionalUpdates = updates.ConditionalUpdates
+			cvStatus.AvailableUpdates = updates.Updates
 		}
-		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(cvStatus.ConditionalUpdates, riskConditions, desired.Image)
-		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates, alertRisks)
+		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates, riskConditions, desired.Image)
+		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates)
 	}
 
 	risksMsg := ""
@@ -480,8 +479,7 @@ func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []config
 	return result, riskNamesForDesiredImage
 }
 
-func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate, alertRisks []configv1.ConditionalUpdateRisk) []configv1.ConditionalUpdateRisk {
-	klog.V(2).Infof("Got %d alert risks", len(alertRisks))
+func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []configv1.ConditionalUpdateRisk {
 	var result []configv1.ConditionalUpdateRisk
 	riskNames := sets.New[string]()
 	for _, conditionalUpdate := range conditionalUpdates {
@@ -493,7 +491,6 @@ func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate, ale
 			result = append(result, risk)
 		}
 	}
-	result = append(result, alertRisks...)
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Name < result[j].Name
 	})
