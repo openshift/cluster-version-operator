@@ -2,8 +2,8 @@ package resourcebuilder
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"slices"
 	"sort"
 
 	"sigs.k8s.io/kustomize/kyaml/yaml"
@@ -17,6 +17,7 @@ import (
 	"k8s.io/utils/clock"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
@@ -29,6 +30,16 @@ const (
 	ConfigMapInjectTLSAnnotation = "config.openshift.io/inject-tls"
 )
 
+type optional[T any] struct {
+	value T
+	found bool
+}
+
+type tlsConfig struct {
+	minTLSVersion optional[string]
+	cipherSuites  optional[[]string]
+}
+
 func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) error {
 	// Check for TLS injection annotation
 	if value, ok := cm.Annotations[ConfigMapInjectTLSAnnotation]; !ok || value != "true" {
@@ -39,21 +50,26 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 
 	// Empty data, nothing to inject into
 	if cm.Data == nil {
-		klog.V(2).Infof("ConfigMap %s/%s has empty data, skipping", cm.Namespace, cm.Name)
+		klog.V(2).Infof("ConfigMap %s/%s has empty data, skipping TLS profile injection", cm.Namespace, cm.Name)
 		return nil
 	}
 
 	// Observe TLS configuration from APIServer
-	minTLSVersion, minTLSFound, cipherSuites, ciphersFound, err := b.observeTLSConfiguration(ctx, cm)
+	tlsConf, err := b.observeTLSConfiguration(ctx, cm)
 	if err != nil {
 		return fmt.Errorf("unable to observe TLS configuration: %v", err)
 	}
-	if !minTLSFound && !ciphersFound {
-		klog.V(2).Infof("ConfigMap %s/%s: no TLS configuration found, skipping", cm.Namespace, cm.Name)
-		return nil
-	}
 
-	klog.V(4).Infof("Observing minTLSVersion=%v, cipherSuites=%v", minTLSVersion, cipherSuites)
+	minTLSLog := "<not found>"
+	if tlsConf.minTLSVersion.found {
+		minTLSLog = tlsConf.minTLSVersion.value
+	}
+	cipherSuitesLog := "<not found>"
+	if tlsConf.cipherSuites.found {
+		cipherSuitesLog = fmt.Sprintf("%v", tlsConf.cipherSuites.value)
+	}
+	klog.V(4).Infof("ConfigMap %s/%s: observed minTLSVersion=%v, cipherSuites=%v",
+		cm.Namespace, cm.Name, minTLSLog, cipherSuitesLog)
 
 	// Process each data entry that contains GenericOperatorConfig
 	for key, value := range cm.Data {
@@ -66,43 +82,35 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 			continue
 		}
 
-		// Check if this is a GenericOperatorConfig by checking the kind field
-		kind := rnode.GetKind()
-		if kind != "GenericOperatorConfig" {
-			klog.V(4).Infof("ConfigMap's %q entry is not a GenericOperatorConfig, skipping this entry", key)
+		// Check if this is a supported GenericOperatorConfig kind
+		if rnode.GetKind() != "GenericOperatorConfig" || rnode.GetApiVersion() != operatorv1alpha1.GroupVersion.String() {
+			klog.V(4).Infof("ConfigMap's %q entry is not a supported GenericOperatorConfig, skipping this entry", key)
 			continue
 		}
 
 		klog.V(2).Infof("ConfigMap %s/%s processing GenericOperatorConfig in key %s", cm.Namespace, cm.Name, key)
 
 		// Inject TLS settings into the GenericOperatorConfig while preserving structure
-		if err := updateRNodeWithTLSSettings(rnode, minTLSVersion, minTLSFound, cipherSuites, ciphersFound); err != nil {
-			klog.V(4).Infof("Error injecting the TLS configuration: %v", err)
-			return err
+		if err := updateRNodeWithTLSSettings(rnode, tlsConf); err != nil {
+			return fmt.Errorf("failed to inject the TLS configuration: %v", err)
 		}
 
 		// Marshal the modified RNode back to YAML
 		modifiedYAML, err := rnode.String()
 		if err != nil {
-			klog.V(4).Infof("Error marshalling the modified ConfigMap back to YAML: %v", err)
-			return err
+			return fmt.Errorf("failed to marshall the modified ConfigMap back to YAML: %v", err)
 		}
 
 		// Update the ConfigMap data entry with the modified YAML
 		cm.Data[key] = modifiedYAML
-		klog.V(2).Infof("ConfigMap %s/%s updated GenericOperatorConfig in key %s with %d ciphers and minTLSVersion=%s",
-			cm.Namespace, cm.Name, key, len(cipherSuites), minTLSVersion)
+		klog.V(2).Infof("ConfigMap %s/%s updated GenericOperatorConfig with TLS profile in key %s", cm.Namespace, cm.Name, key)
 	}
-
-	klog.V(2).Infof("APIServer config available for ConfigMap %s/%s TLS injection", cm.Namespace, cm.Name)
-
 	return nil
 }
 
 // observeTLSConfiguration retrieves TLS configuration from the APIServer cluster CR
 // using ObserveTLSSecurityProfile and extracts minTLSVersion and cipherSuites.
-// minTLSVersion string, minTLSFound bool, cipherSuites []string, ciphersFound bool, err error
-func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.ConfigMap) (string, bool, []string, bool, error) {
+func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.ConfigMap) (*tlsConfig, error) {
 	// Create a lister adapter for ObserveTLSSecurityProfile
 	lister := &apiServerListerAdapter{
 		client: b.configClientv1.APIServers(),
@@ -118,100 +126,62 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	// Call ObserveTLSSecurityProfile to get TLS configuration
 	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, map[string]any{})
 	if len(errs) > 0 {
-		// Log errors but continue - ObserveTLSSecurityProfile is tolerant of missing config
-		for _, err := range errs {
-			klog.Errorf("ConfigMap %s/%s: error observing TLS profile: %v", cm.Namespace, cm.Name, err)
-		}
+		return nil, fmt.Errorf("error observing TLS profile for ConfigMap %s/%s: %w", cm.Namespace, cm.Name, errors.Join(errs...))
 	}
 
-	// Extract the TLS settings from the observed config
-	minTLSVersion, minTLSFound, err := unstructured.NestedString(observedConfig, "servingInfo", "minTLSVersion")
-	if err != nil {
-		// This error is unlikely to happen unless unstructured.NestedString is buggy.
-		// From unstructured.NestedString's description:
-		// "Returns false if value is not found and an error if not a string."
-		// The observedConfig's servingInfo.minTLSVersion is of a string type
-		return "", false, nil, false, err
-	}
-	cipherSuites, ciphersFound, _ := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites")
-	if err != nil {
-		// This error is unlikely to happen unless unstructured.NestedStringSlice is buggy
-		// From unstructured.NestedString's description:
-		// "Returns false if value is not found and an error if not a []interface{} or contains non-string items in the slice."
-		// The observedConfig's servingInfo.minTLSVersion is of a string type
-		return "", false, nil, false, err
+	config := &tlsConfig{}
+
+	// Extract minTLSVersion from the observed config
+	if minTLSVersion, minTLSFound, err := unstructured.NestedString(observedConfig, "servingInfo", "minTLSVersion"); err != nil {
+		return nil, err
+	} else if minTLSFound {
+		config.minTLSVersion = optional[string]{value: minTLSVersion, found: true}
 	}
 
-	// Sort cipher suites for consistent comparison
-	if ciphersFound && len(cipherSuites) > 0 {
+	// Extract cipherSuites from the observed config
+	if cipherSuites, ciphersFound, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites"); err != nil {
+		return nil, err
+	} else if ciphersFound {
+		// Sort cipher suites for consistent ordering
 		sort.Strings(cipherSuites)
+		config.cipherSuites = optional[[]string]{value: cipherSuites, found: true}
 	}
 
-	return minTLSVersion, minTLSFound, cipherSuites, ciphersFound, nil
+	return config, nil
 }
 
-// updateRNodeWithTLSSettings injects TLS settings into a GenericOperatorConfig RNode while preserving structure
-// cipherSuites is expected to be sorted
-func updateRNodeWithTLSSettings(rnode *yaml.RNode, minTLSVersion string, minTLSFound bool, cipherSuites []string, ciphersFound bool) error {
+// updateRNodeWithTLSSettings injects TLS settings into a GenericOperatorConfig RNode while preserving structure.
+// If a field in tlsConf is not found, the corresponding field will be deleted from the RNode.
+func updateRNodeWithTLSSettings(rnode *yaml.RNode, tlsConf *tlsConfig) error {
 	servingInfo, err := rnode.Pipe(yaml.LookupCreate(yaml.MappingNode, "servingInfo"))
 	if err != nil {
 		return err
 	}
 
-	if ciphersFound {
-		currentCiphers, err := getSortedCipherSuites(servingInfo)
-		if err != nil {
+	// Handle cipherSuites field
+	if tlsConf.cipherSuites.found {
+		seqNode := yaml.NewListRNode(tlsConf.cipherSuites.value...)
+		if err := servingInfo.PipeE(yaml.SetField("cipherSuites", seqNode)); err != nil {
 			return err
 		}
-		if !slices.Equal(currentCiphers, cipherSuites) {
-			// Create a sequence node with the cipher suites
-			seqNode := yaml.NewListRNode(cipherSuites...)
-			if err := servingInfo.PipeE(yaml.SetField("cipherSuites", seqNode)); err != nil {
-				return err
-			}
+	} else {
+		if err := servingInfo.PipeE(yaml.Clear("cipherSuites")); err != nil {
+			return err
 		}
 	}
 
-	// Update minTLSVersion if found
-	if minTLSFound {
-		if err := servingInfo.PipeE(yaml.SetField("minTLSVersion", yaml.NewStringRNode(minTLSVersion))); err != nil {
+	// Handle minTLSVersion field
+	if tlsConf.minTLSVersion.found {
+		if err := servingInfo.PipeE(yaml.SetField("minTLSVersion", yaml.NewStringRNode(tlsConf.minTLSVersion.value))); err != nil {
+			return err
+		}
+	} else {
+		if err := servingInfo.PipeE(yaml.Clear("minTLSVersion")); err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-// getSortedCipherSuites extracts and sorts the cipherSuites string slice from a servingInfo RNode
-func getSortedCipherSuites(servingInfo *yaml.RNode) ([]string, error) {
-	ciphersNode, err := servingInfo.Pipe(yaml.Lookup("cipherSuites"))
-	if err != nil || ciphersNode == nil {
-		return nil, err
-	}
-
-	elements, err := ciphersNode.Elements()
-	if err != nil {
-		return nil, err
-	}
-
-	var ciphers []string
-	for _, elem := range elements {
-		// For scalar nodes, access the value directly without YAML serialization
-		// This avoids the trailing newline that String() (which uses yaml.Encode) adds
-		if elem.YNode().Kind == yaml.ScalarNode {
-			value := elem.YNode().Value
-			// Skip empty values
-			if value == "" {
-				continue
-			}
-			ciphers = append(ciphers, value)
-		}
-	}
-
-	// Sort cipher suites for consistent comparison
-	sort.Strings(ciphers)
-
-	return ciphers, nil
 }
 
 // apiServerListerAdapter adapts a client interface to the lister interface
