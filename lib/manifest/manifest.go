@@ -36,6 +36,9 @@ type InclusionConfiguration struct {
 
 	// EnabledFeatureGates excludes manifests with a feature gate requirement when the condition is not met.
 	EnabledFeatureGates sets.Set[string]
+
+	// MajorVersion, if non-nil, excludes manifests unless they match the major version.
+	MajorVersion *uint64
 }
 
 // GetImplicitlyEnabledCapabilities returns a set of capabilities that are implicitly enabled after a cluster update.
@@ -49,18 +52,20 @@ type InclusionConfiguration struct {
 func GetImplicitlyEnabledCapabilities(
 	updatePayloadManifests []manifest.Manifest,
 	currentPayloadManifests []manifest.Manifest,
-	manifestInclusionConfiguration InclusionConfiguration,
+	updateManifestInclusionConfiguration InclusionConfiguration,
+	currentManifestInclusionConfiguration InclusionConfiguration,
 	currentImplicitlyEnabled sets.Set[configv1.ClusterVersionCapability],
 ) sets.Set[configv1.ClusterVersionCapability] {
 	ret := currentImplicitlyEnabled.Clone()
 	for _, updateManifest := range updatePayloadManifests {
 		updateManErr := updateManifest.IncludeAllowUnknownCapabilities(
-			manifestInclusionConfiguration.ExcludeIdentifier,
-			manifestInclusionConfiguration.RequiredFeatureSet,
-			manifestInclusionConfiguration.Profile,
-			manifestInclusionConfiguration.Capabilities,
-			manifestInclusionConfiguration.Overrides,
-			manifestInclusionConfiguration.EnabledFeatureGates,
+			updateManifestInclusionConfiguration.ExcludeIdentifier,
+			updateManifestInclusionConfiguration.RequiredFeatureSet,
+			updateManifestInclusionConfiguration.Profile,
+			updateManifestInclusionConfiguration.Capabilities,
+			updateManifestInclusionConfiguration.Overrides,
+			updateManifestInclusionConfiguration.EnabledFeatureGates,
+			updateManifestInclusionConfiguration.MajorVersion,
 			true,
 		)
 		// update manifest is enabled, no need to check
@@ -73,12 +78,13 @@ func GetImplicitlyEnabledCapabilities(
 			}
 			// current manifest is disabled, no need to check
 			if err := currentManifest.IncludeAllowUnknownCapabilities(
-				manifestInclusionConfiguration.ExcludeIdentifier,
-				manifestInclusionConfiguration.RequiredFeatureSet,
-				manifestInclusionConfiguration.Profile,
-				manifestInclusionConfiguration.Capabilities,
-				manifestInclusionConfiguration.Overrides,
-				manifestInclusionConfiguration.EnabledFeatureGates,
+				currentManifestInclusionConfiguration.ExcludeIdentifier,
+				currentManifestInclusionConfiguration.RequiredFeatureSet,
+				currentManifestInclusionConfiguration.Profile,
+				currentManifestInclusionConfiguration.Capabilities,
+				currentManifestInclusionConfiguration.Overrides,
+				currentManifestInclusionConfiguration.EnabledFeatureGates,
+				currentManifestInclusionConfiguration.MajorVersion,
 				true,
 			); err != nil {
 				continue
@@ -86,7 +92,7 @@ func GetImplicitlyEnabledCapabilities(
 			newImplicitlyEnabled := sets.New[configv1.ClusterVersionCapability](updateManifest.GetManifestCapabilities()...).
 				Difference(sets.New[configv1.ClusterVersionCapability](currentManifest.GetManifestCapabilities()...)).
 				Difference(currentImplicitlyEnabled).
-				Difference(sets.New[configv1.ClusterVersionCapability](manifestInclusionConfiguration.Capabilities.EnabledCapabilities...))
+				Difference(sets.New[configv1.ClusterVersionCapability](currentManifestInclusionConfiguration.Capabilities.EnabledCapabilities...))
 			ret = ret.Union(newImplicitlyEnabled)
 			if newImplicitlyEnabled.Len() > 0 {
 				klog.V(2).Infof("%s has changed and is now part of one or more disabled capabilities. The following capabilities will be implicitly enabled: %s",

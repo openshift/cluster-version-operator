@@ -140,7 +140,7 @@ func TestUpgradeInProgressUpgradeable(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			client := fake.NewSimpleClientset(tc.cv)
+			client := fake.NewClientset(tc.cv)
 			unit := upgradeInProgressUpgradeable{name: "unit-test", cvLister: &clientCVLister{client: client}}
 			actual := unit.Check()
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {

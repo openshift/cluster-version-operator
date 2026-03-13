@@ -1,0 +1,9 @@
+{
+  "kind": "cincinnati-metadata-v0",
+  "version": "5.0.0-xyz",
+  "previous": [],
+  "metadata": {
+    "description": "",
+    "url": "https://example.com/v5.0.0-xyz"
+  }
+}
