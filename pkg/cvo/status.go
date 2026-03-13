@@ -227,7 +227,17 @@ func updateClusterVersionStatus(
 
 	var riskNamesForDesiredImage []string
 	if shouldReconcileAcceptRisks() {
-		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(cvStatus.ConditionalUpdates, getAvailableUpdates, desired.Image)
+		updates := getAvailableUpdates()
+		var riskConditions map[string][]metav1.Condition
+		conditionalUpdates := cvStatus.ConditionalUpdates
+		if updates != nil {
+			// updates.Updates may become updates.ConditionalUpdates if some alert becomes a risk
+			// Here we use the refreshed ones to generate cvStatus
+			riskConditions = updates.RiskConditions
+			conditionalUpdates = updates.ConditionalUpdates
+			cvStatus.AvailableUpdates = updates.Updates
+		}
+		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates, riskConditions, desired.Image)
 		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates)
 	}
 
@@ -422,14 +432,9 @@ func updateClusterVersionStatus(
 	}
 }
 
-func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []configv1.ConditionalUpdate, getAvailableUpdates func() *availableUpdates, desiredImage string) ([]configv1.ConditionalUpdate, []string) {
+func conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates []configv1.ConditionalUpdate, riskConditions map[string][]metav1.Condition, desiredImage string) ([]configv1.ConditionalUpdate, []string) {
 	var result []configv1.ConditionalUpdate
 	var riskNamesForDesiredImage []string
-	var riskConditions map[string][]metav1.Condition
-	updates := getAvailableUpdates()
-	if updates != nil {
-		riskConditions = updates.RiskConditions
-	}
 	for _, conditionalUpdate := range conditionalUpdates {
 		riskNames := sets.New[string]()
 		var risks []configv1.ConditionalUpdateRisk
@@ -489,6 +494,7 @@ func conditionalUpdateRisks(conditionalUpdates []configv1.ConditionalUpdate) []c
 	sort.Slice(result, func(i, j int) bool {
 		return result[i].Name < result[j].Name
 	})
+	klog.V(2).Infof("Got %d conditional update risks", len(result))
 	return result
 }
 

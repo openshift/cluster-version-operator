@@ -2,11 +2,14 @@ package cvo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -14,6 +17,8 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -216,6 +221,7 @@ var availableUpdatesCmpOpts = []cmp.Option{
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {
 		clusterconditions.ConditionRegistry
+		AlertGetter
 	}{}),
 }
 
@@ -946,6 +952,580 @@ func Test_loadRiskConditions(t *testing.T) {
 			actual := loadRiskConditions(context.Background(), tt.risks, tt.riskVersions, registry)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("%s: loadRiskConditions() mismatch (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+type mockAlertGetter struct {
+	ret      prometheusv1.AlertsResult
+	jsonFile string
+}
+
+func (m *mockAlertGetter) Get(_ context.Context) (prometheusv1.AlertsResult, error) {
+	var ret prometheusv1.AlertsResult
+	if m.jsonFile != "" {
+		data, err := os.ReadFile(m.jsonFile)
+		if err != nil {
+			return ret, err
+		}
+		err = json.Unmarshal(data, &ret)
+		if err != nil {
+			return ret, err
+		}
+		return ret, nil
+	}
+	return m.ret, nil
+}
+
+func Test_evaluateAlertConditions(t *testing.T) {
+	t1 := time.Now()
+	t2 := time.Now().Add(-3 * time.Minute)
+	t3, err := time.Parse(time.RFC3339, "2026-03-04T00:38:19.02109776Z")
+	if err != nil {
+		t.Fatalf("failed to parse time: %v", err)
+	}
+	tests := []struct {
+		name               string
+		u                  *availableUpdates
+		expectedErr        error
+		expectedAlertRisks []configv1.ConditionalUpdateRisk
+	}{
+		{
+			name: "basic case",
+			u: &availableUpdates{
+				AlertGetter: &mockAlertGetter{
+					ret: prometheusv1.AlertsResult{
+						Alerts: []prometheusv1.Alert{
+							{
+								Labels: map[model.LabelName]model.LabelValue{
+									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetLimit"),
+									model.LabelName("severity"):            model.LabelValue("critical"),
+									model.LabelName("namespace"):           model.LabelValue("namespace"),
+									model.LabelName("poddisruptionbudget"): model.LabelValue("some-pdb"),
+								},
+								State: prometheusv1.AlertStateFiring,
+								Annotations: map[model.LabelName]model.LabelValue{
+									model.LabelName("summary"):     model.LabelValue("summary"),
+									model.LabelName("description"): model.LabelValue("description"),
+									model.LabelName("message"):     model.LabelValue("message"),
+									model.LabelName("runbook"):     model.LabelValue("http://runbook.example.com/runbooks/abc.md"),
+								},
+								ActiveAt: t1,
+							},
+							{
+								Labels: map[model.LabelName]model.LabelValue{
+									model.LabelName("alertname"): model.LabelValue("not-important"),
+								},
+								State: prometheusv1.AlertStatePending,
+							},
+							{
+								Labels: map[model.LabelName]model.LabelValue{
+									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetAtLimit"),
+									model.LabelName("severity"):            model.LabelValue("severity"),
+									model.LabelName("namespace"):           model.LabelValue("namespace"),
+									model.LabelName("poddisruptionbudget"): model.LabelValue("some-pdb"),
+								},
+								State: prometheusv1.AlertStateFiring,
+								Annotations: map[model.LabelName]model.LabelValue{
+									model.LabelName("summary"):     model.LabelValue("summary"),
+									model.LabelName("description"): model.LabelValue("description"),
+									model.LabelName("message"):     model.LabelValue("message"),
+									model.LabelName("runbook"):     model.LabelValue("http://runbook.example.com/runbooks/bbb.md"),
+								},
+								ActiveAt: t1,
+							},
+							{
+								Labels: map[model.LabelName]model.LabelValue{
+									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetAtLimit"),
+									model.LabelName("severity"):            model.LabelValue("severity"),
+									model.LabelName("namespace"):           model.LabelValue("namespace"),
+									model.LabelName("poddisruptionbudget"): model.LabelValue("another-pdb"),
+								},
+								State: prometheusv1.AlertStateFiring,
+								Annotations: map[model.LabelName]model.LabelValue{
+									model.LabelName("summary"):     model.LabelValue("summary"),
+									model.LabelName("description"): model.LabelValue("description"),
+									model.LabelName("message"):     model.LabelValue("message"),
+									model.LabelName("runbook"):     model.LabelValue("http://runbook.example.com/runbooks/bbb.md"),
+								},
+								ActiveAt: t2,
+							},
+						},
+					},
+				},
+			},
+			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:          "PodDisruptionBudgetAtLimit",
+					Message:       "summary.",
+					URL:           "http://runbook.example.com/runbooks/bbb.md",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
+						LastTransitionTime: metav1.NewTime(t2),
+					}},
+				},
+				{
+					Name:          "PodDisruptionBudgetLimit",
+					Message:       "summary.",
+					URL:           "http://runbook.example.com/runbooks/abc.md",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert PodDisruptionBudgetLimit firing, suggesting significant cluster issues worth investigating. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/abc.md",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+		},
+		{
+			name: "from file",
+			u: &availableUpdates{
+				AlertGetter: &mockAlertGetter{
+					jsonFile: filepath.Join("testdata", "alerts.json"),
+				},
+			},
+			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:          "TestAlert",
+					Message:       "Test summary.",
+					URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+						LastTransitionTime: metav1.NewTime(t3),
+					}},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual, actualError := tt.u.evaluateAlertRisks(context.TODO())
+			if diff := cmp.Diff(tt.expectedErr, actualError, cmp.Comparer(func(x, y error) bool {
+				if x == nil || y == nil {
+					return x == nil && y == nil
+				}
+				return x.Error() == y.Error()
+			})); diff != "" {
+				t.Errorf("error mismatch (-want +got):\n%s", diff)
+			}
+
+			if actualError == nil {
+				if diff := cmp.Diff(tt.expectedAlertRisks, actual); diff != "" {
+					t.Errorf("AlertRisks mismatch (-want +got):\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+func Test_newRecommendedReason(t *testing.T) {
+	tests := []struct {
+		name     string
+		now      string
+		want     string
+		expected string
+	}{
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonMultiple",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonRisksNotExposed to recommendedReasonExposed",
+			now:      recommendedReasonRisksNotExposed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonAllExposedRisksAccepted,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonMultiple",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonAllExposedRisksAccepted to recommendedReasonExposed",
+			now:      recommendedReasonAllExposedRisksAccepted,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonEvaluationFailed,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonMultiple",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonEvaluationFailed to recommendedReasonExposed",
+			now:      recommendedReasonEvaluationFailed,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonMultiple to recommendedReasonExposed",
+			now:      recommendedReasonMultiple,
+			want:     recommendedReasonExposed,
+			expected: recommendedReasonMultiple,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonRisksNotExposed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonRisksNotExposed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonAllExposedRisksAccepted",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonAllExposedRisksAccepted,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonEvaluationFailed",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonEvaluationFailed,
+			expected: recommendedReasonExposed,
+		},
+		{
+			name:     "recommendedReasonExposed to recommendedReasonMultiple",
+			now:      recommendedReasonExposed,
+			want:     recommendedReasonMultiple,
+			expected: recommendedReasonMultiple,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := newRecommendedReason(tt.now, tt.want)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("newRecommendedReason mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func Test_attachAlertRisksToUpdates(t *testing.T) {
+	now := metav1.Now()
+	tests := []struct {
+		name                     string
+		alertRisks               []configv1.ConditionalUpdateRisk
+		updates                  []configv1.Release
+		conditionUpdates         []configv1.ConditionalUpdate
+		expected                 []configv1.Release
+		expectedConditionUpdates []configv1.ConditionalUpdate
+		expectedRiskConditions   map[string][]metav1.Condition
+	}{
+		{
+			name: "no alert risks",
+		},
+		{
+			name: "basic case",
+			alertRisks: []configv1.ConditionalUpdateRisk{
+				{
+					Name:          "TestAlert",
+					Message:       "Test summary.",
+					URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+						LastTransitionTime: now,
+					}},
+				},
+			},
+			updates: []configv1.Release{
+				{
+					Version: "4.21.1",
+				},
+				{
+					Version: "4.21.2",
+				},
+			},
+			conditionUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.3",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name: "Risk1",
+						},
+					},
+				},
+			},
+			expectedConditionUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.1",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: now,
+							}},
+						},
+					},
+				},
+				{
+					Release: configv1.Release{
+						Version: "4.21.2",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: now,
+							}},
+						},
+					},
+				},
+				{
+					Release: configv1.Release{
+						Version: "4.21.3",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name: "Risk1",
+						},
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: now,
+							}},
+						},
+					},
+				},
+			},
+			expectedRiskConditions: map[string][]metav1.Condition{
+				"TestAlert": []metav1.Condition{{
+					Type:               "Applies",
+					Status:             "True",
+					Reason:             "Alert:firing",
+					Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+					LastTransitionTime: now,
+				}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &availableUpdates{Updates: tt.updates, ConditionalUpdates: tt.conditionUpdates}
+			u.attachAlertRisksToUpdates(tt.alertRisks)
+			// attaching is idempotent
+			u.attachAlertRisksToUpdates(tt.alertRisks)
+			if diff := cmp.Diff(tt.expected, u.Updates); diff != "" {
+				t.Errorf("available updates mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.expectedConditionUpdates, u.ConditionalUpdates); diff != "" {
+				t.Errorf("conditional updates mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.expectedRiskConditions, u.RiskConditions); diff != "" {
+				t.Errorf("risk conditions mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func Test_evaluateConditionalUpdates(t *testing.T) {
+	t1, err := time.Parse(time.RFC3339, "2026-03-04T00:38:19.02109776Z")
+	if err != nil {
+		t.Fatalf("failed to parse time: %v", err)
+	}
+
+	conditionRegistry := clusterconditions.NewConditionRegistry()
+	conditionRegistry.Register("Always", &always.Always{})
+
+	tests := []struct {
+		name                       string
+		shouldReconcileAcceptRisks func() bool
+		updates                    []configv1.Release
+		conditionUpdates           []configv1.ConditionalUpdate
+		expected                   []configv1.Release
+		expectedConditionUpdates   []configv1.ConditionalUpdate
+		expectedRiskConditions     map[string][]metav1.Condition
+	}{
+		{
+			name:                       "basic case",
+			shouldReconcileAcceptRisks: func() bool { return true },
+			updates: []configv1.Release{
+				{
+					Version: "4.21.1",
+				},
+				{
+					Version: "4.21.2",
+				},
+			},
+			expectedConditionUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.1",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+				{
+					Release: configv1.Release{
+						Version: "4.21.2",
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:          "TestAlert",
+							Message:       "Test summary.",
+							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+							Conditions: []metav1.Condition{{
+								Type:               "Applies",
+								Status:             "True",
+								Reason:             "Alert:firing",
+								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+								LastTransitionTime: metav1.NewTime(t1),
+							}},
+						},
+					},
+					Conditions: []metav1.Condition{{
+						Type:               "Recommended",
+						Status:             "False",
+						Reason:             "TestAlert",
+						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				},
+			},
+			expectedRiskConditions: map[string][]metav1.Condition{
+				"TestAlert": []metav1.Condition{{
+					Type:               "Applies",
+					Status:             "True",
+					Reason:             "Alert:firing",
+					Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+					LastTransitionTime: metav1.NewTime(t1),
+				}},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u := &availableUpdates{Updates: tt.updates,
+				ConditionalUpdates:         tt.conditionUpdates,
+				ShouldReconcileAcceptRisks: tt.shouldReconcileAcceptRisks,
+				ConditionRegistry:          conditionRegistry,
+				AlertGetter:                &mockAlertGetter{jsonFile: filepath.Join("testdata", "alerts.json")},
+			}
+			u.evaluateConditionalUpdates(context.TODO())
+			if diff := cmp.Diff(tt.expected, u.Updates); diff != "" {
+				t.Errorf("available updates mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.expectedConditionUpdates, u.ConditionalUpdates, cmpopts.IgnoreFields(metav1.Condition{}, "LastTransitionTime")); diff != "" {
+				t.Errorf("conditional updates mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.expectedRiskConditions, u.RiskConditions); diff != "" {
+				t.Errorf("risk conditions mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

@@ -18,4 +18,13 @@ const (
 	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
 	// that indicates whether the conditional update is recommended or not
 	ConditionalUpdateConditionTypeRecommended = internal.ConditionalUpdateConditionTypeRecommended
+
+	// ConditionalUpdateRiskConditionTypeApplies is a type of the condition present on a conditional update risk
+	// that indicates whether the conditional update risk applies to the cluster
+	ConditionalUpdateRiskConditionTypeApplies = internal.ConditionalUpdateRiskConditionTypeApplies
 )
+
+// IsAlertConditionReason checks if the given reason is legit for a condition of a risk from an alert that applies
+func IsAlertConditionReason(reason string) bool {
+	return internal.IsAlertConditionReason(reason)
+}
