@@ -4,14 +4,18 @@ package cvo
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
@@ -98,5 +102,82 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		cvoPod := podList.Items[0]
 		sccAnnotation := cvoPod.Annotations["openshift.io/scc"]
 		o.Expect(sccAnnotation).To(o.Equal("hostaccess"), "Expected the annotation 'openshift.io/scc annotation' on pod %s to have the value 'hostaccess', but got %s", cvoPod.Name, sccAnnotation)
+	})
+
+	// Migrated from case Author:jiajliu-Medium-53906-The architecture info in clusterversion's status should be correct
+	// Refer to https://github.com/jiajliu/openshift-tests-private/blob/1ac5f94ee596419194ff7b0070732cb7930fe39e/test/extended/ota/cvo/cvo.go#L1775
+	g.It("should have correct architecture info in clusterversion status", func() {
+		const heterogeneousArchKeyword = "multi"
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		err := util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		g.By("Getting release architecture from release info")
+		ocClient, err := oc.NewOC(ocapi.Options{
+			Logger:  logger,
+			Timeout: 2 * time.Minute,
+		})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to create oc client")
+		releaseInfoJSON, err := ocClient.AdmReleaseInfo(ocapi.ReleaseInfoOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get release info")
+
+		// Extract architecture from release info: metadata.metadata."release.openshift.io/architecture"
+		// Valid payloads:
+		// - Stable single-arch: metadata.metadata exists but without "release.openshift.io/architecture"
+		// - Stable multi-arch: metadata.metadata."release.openshift.io/architecture" = "multi"
+		// - Nightly single-arch: metadata.metadata not exists
+		// - Nightly multi-arch: metadata.metadata."release.openshift.io/architecture" = "multi"
+		var releaseInfo struct {
+			Metadata *struct {
+				Metadata map[string]string `json:"metadata"`
+			} `json:"metadata"`
+		}
+		o.Expect(json.Unmarshal([]byte(releaseInfoJSON), &releaseInfo)).To(o.Succeed(), "Failed to unmarshal release info JSON")
+		if releaseInfo.Metadata == nil {
+			g.Skip("Release info missing top-level 'metadata' field, cannot determine payload architecture type")
+		}
+
+		releaseArch := releaseInfo.Metadata.Metadata["release.openshift.io/architecture"]
+		logger.Info("Release architecture from release info", "architecture", releaseArch)
+		if releaseArch != "" && releaseArch != heterogeneousArchKeyword {
+			g.Skip("Unknown architecture value in release info: " + releaseArch)
+		}
+
+		g.By("Check the arch info in ClusterVersion status is expected")
+		configClient, err := util.GetConfigClient(restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to create config client")
+		cv, err := configClient.ConfigV1().ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get ClusterVersion")
+		releaseAcceptedCond := resourcemerge.FindOperatorStatusCondition(cv.Status.Conditions, "ReleaseAccepted")
+		o.Expect(releaseAcceptedCond).NotTo(o.BeNil(), "ReleaseAccepted condition not found in ClusterVersion status")
+		cvArchInfo := releaseAcceptedCond.Message
+		logger.Info("ClusterVersion ReleaseAccepted message", "message", cvArchInfo)
+
+		if releaseArch == "" {
+			// For non-heterogeneous payload, the architecture info in ClusterVersion status should be consistent with node architectures
+			g.By("Verifying all nodes have the same architecture")
+			nodes, err := kubeClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred(), "Failed to list nodes")
+			o.Expect(nodes.Items).NotTo(o.BeEmpty(), "No nodes found in cluster")
+
+			nodeArchs := sets.New[string]()
+			for _, node := range nodes.Items {
+				nodeArchs.Insert(node.Status.NodeInfo.Architecture)
+			}
+			logger.Info("Node architectures found", "architectures", sets.List(nodeArchs))
+			o.Expect(nodeArchs).To(o.HaveLen(1), "Expected all nodes to have the same architecture in non-heterogeneous cluster, but found: %v", sets.List(nodeArchs))
+
+			expectedArch := sets.List(nodeArchs)[0]
+			g.By("Verifying ClusterVersion status architecture matches node architecture")
+			o.Expect(cvArchInfo).To(o.ContainSubstring(expectedArch), "ClusterVersion ReleaseAccepted message should contain node architecture %q, but got: %s", expectedArch, cvArchInfo)
+		} else {
+			// For heterogeneous payload, the architecture info in ClusterVersion status should be Multi
+			g.By("Verifying ClusterVersion status architecture includes architecture=\"Multi\"")
+			expectedArchMsg := `architecture="Multi"`
+			o.Expect(cvArchInfo).To(o.ContainSubstring(expectedArchMsg), "ClusterVersion ReleaseAccepted message should contain %q for heterogeneous payload, but got: %s", expectedArchMsg, cvArchInfo)
+		}
 	})
 })
