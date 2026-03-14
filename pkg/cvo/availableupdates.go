@@ -99,6 +99,9 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 				break
 			}
 		}
+		if !acceptRisks.Equal(optrAvailableUpdates.AcceptRisks) {
+			needsConditionalUpdateEval = true
+		}
 		if !needsConditionalUpdateEval {
 			klog.V(2).Infof("Available updates were recently retrieved, with less than %s elapsed since %s, will try later.", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 			return nil
@@ -142,8 +145,6 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		optrAvailableUpdates.UpdateService = updateService
 		optrAvailableUpdates.Channel = channel
 		optrAvailableUpdates.Architecture = desiredArch
-		optrAvailableUpdates.ShouldReconcileAcceptRisks = optr.shouldReconcileAcceptRisks
-		optrAvailableUpdates.AcceptRisks = acceptRisks
 		optrAvailableUpdates.ConditionRegistry = optr.conditionRegistry
 		optrAvailableUpdates.Condition = condition
 
@@ -159,6 +160,8 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		}
 	}
 
+	optrAvailableUpdates.AcceptRisks = acceptRisks
+	optrAvailableUpdates.ShouldReconcileAcceptRisks = optr.shouldReconcileAcceptRisks
 	optrAvailableUpdates.evaluateConditionalUpdates(ctx)
 
 	queueKey := optr.queueKey()
