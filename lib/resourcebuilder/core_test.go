@@ -11,7 +11,8 @@ import (
 	"text/template"
 
 	"github.com/google/go-cmp/cmp"
-	"sigs.k8s.io/yaml"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
+	k8syaml "sigs.k8s.io/yaml"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -213,7 +214,7 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 
 	// Parse YAML into unstructured map
 	var obj map[string]interface{}
-	if err := yaml.Unmarshal([]byte(configYAML), &obj); err != nil {
+	if err := k8syaml.Unmarshal([]byte(configYAML), &obj); err != nil {
 		return fmt.Errorf("failed to unmarshal %s: %v", fieldName, err)
 	}
 
@@ -598,6 +599,233 @@ servingInfo:
 			// Run custom validation
 			if tt.validateConfigMap != nil {
 				tt.validateConfigMap(t, originalConfigMap, tt.configMap)
+			}
+		})
+	}
+}
+
+func TestUpdateRNodeWithTLSSettings(t *testing.T) {
+	tests := []struct {
+		name         string
+		inputYAML    string
+		tlsConf      *tlsConfig
+		expectedYAML string
+		expectError  bool
+	}{
+		{
+			name: "Delete both cipherSuites and minTLSVersion when not found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  certFile: /var/serving-cert/tls.crt
+  keyFile: /var/serving-cert/tls.key
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  minTLSVersion: VersionTLS12
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{found: false},
+				cipherSuites:  optional[[]string]{found: false},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  certFile: /var/serving-cert/tls.crt
+  keyFile: /var/serving-cert/tls.key
+`,
+		},
+		{
+			name: "Delete only cipherSuites when not found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  minTLSVersion: VersionTLS12
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "VersionTLS13", found: true},
+				cipherSuites:  optional[[]string]{found: false},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  minTLSVersion: VersionTLS13
+`,
+		},
+		{
+			name: "Delete only minTLSVersion when not found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  minTLSVersion: VersionTLS12
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{found: false},
+				cipherSuites:  optional[[]string]{value: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256"}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_RSA_WITH_AES_128_GCM_SHA256
+`,
+		},
+		{
+			name: "Set both fields when found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "VersionTLS13", found: true},
+				cipherSuites:  optional[[]string]{value: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256", "TLS_RSA_WITH_AES_256_GCM_SHA384"}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_RSA_WITH_AES_256_GCM_SHA384
+  minTLSVersion: VersionTLS13
+`,
+		},
+		{
+			name: "Set empty string for minTLSVersion when found but empty",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  minTLSVersion: VersionTLS12
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "", found: true},
+				cipherSuites:  optional[[]string]{value: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256"}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  minTLSVersion: ""
+  cipherSuites:
+  - TLS_RSA_WITH_AES_128_GCM_SHA256
+`,
+		},
+		{
+			name: "Set empty slice for cipherSuites when found but empty",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "VersionTLS13", found: true},
+				cipherSuites:  optional[[]string]{value: []string{}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites: []
+  minTLSVersion: VersionTLS13
+`,
+		},
+		{
+			name: "Set both fields to empty values when found but empty",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  minTLSVersion: VersionTLS12
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "", found: true},
+				cipherSuites:  optional[[]string]{value: []string{}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites: []
+  minTLSVersion: ""
+`,
+		},
+		{
+			name: "Minimal config with only kind and apiVersion - nothing found - no fields added",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{found: false},
+				cipherSuites:  optional[[]string]{found: false},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo: {}
+`,
+		},
+		{
+			name: "Minimal config with only kind and apiVersion - everything found - fields added",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+`,
+			tlsConf: &tlsConfig{
+				minTLSVersion: optional[string]{value: "VersionTLS13", found: true},
+				cipherSuites:  optional[[]string]{value: []string{"TLS_RSA_WITH_AES_128_GCM_SHA256", "TLS_RSA_WITH_AES_256_GCM_SHA384"}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  cipherSuites:
+  - TLS_RSA_WITH_AES_128_GCM_SHA256
+  - TLS_RSA_WITH_AES_256_GCM_SHA384
+  minTLSVersion: VersionTLS13
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Parse input YAML
+			rnode, err := yaml.Parse(tt.inputYAML)
+			if err != nil {
+				t.Fatalf("failed to parse input YAML: %v", err)
+			}
+
+			// Call updateRNodeWithTLSSettings
+			err = updateRNodeWithTLSSettings(rnode, tt.tlsConf)
+
+			// Check error expectation
+			if (err != nil) != tt.expectError {
+				t.Errorf("updateRNodeWithTLSSettings() error = %v, expectError %v", err, tt.expectError)
+				return
+			}
+
+			if err == nil {
+				// Convert back to YAML string
+				resultYAML, err := rnode.String()
+				if err != nil {
+					t.Fatalf("failed to convert rnode to string: %v", err)
+				}
+
+				// Compare YAML output
+				if resultYAML != tt.expectedYAML {
+					t.Errorf("YAML mismatch.\nExpected:\n%s\nGot:\n%s", tt.expectedYAML, resultYAML)
+				}
 			}
 		})
 	}
