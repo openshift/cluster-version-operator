@@ -10,5 +10,7 @@ COPY --from=builder /tmp/build/cluster-version-operator /tmp/build/cluster-versi
 COPY install /manifests
 COPY vendor/github.com/openshift/api/config/v1/zz_generated.crd-manifests/0000_00_cluster-version-operator_* /manifests/
 COPY vendor/github.com/openshift/api/operator/v1alpha1/zz_generated.crd-manifests/0000_00_cluster-version-operator_* /manifests/
+RUN echo '# include.release.openshift.io/bootstrap-cluster-version-operator: hypershift' >>/manifests/0000_00_cluster-version-operator_01_clusterversions-Default.crd.yaml && \
+  echo '# include.release.openshift.io/bootstrap-cluster-version-operator: hypershift' >>/manifests/0000_00_cluster-version-operator_01_clusteroperators.crd.yaml
 COPY bootstrap /bootstrap
 ENTRYPOINT ["/usr/bin/cluster-version-operator"]
