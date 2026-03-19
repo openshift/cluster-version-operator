@@ -1067,7 +1067,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			if task.Manifest.GVK != configv1.GroupVersion.WithKind("ClusterOperator") {
 				continue
 			}
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates, nil); err != nil {
 				klog.V(manifestVerbosity).Infof("Skipping precreation of %s: %s", task, err)
 				continue
 			}
@@ -1087,7 +1087,7 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 
 			klog.V(manifestVerbosity).Infof("Running sync for %s", task)
 
-			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates); err != nil {
+			if err := task.Manifest.Include(nil, nil, nil, &capabilities, work.Overrides, work.EnabledFeatureGates, nil); err != nil {
 				klog.V(manifestVerbosity).Infof("Skipping %s: %s", task, err)
 				continue
 			}

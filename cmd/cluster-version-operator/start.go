@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/cluster-version-operator/pkg/start"
@@ -37,6 +39,8 @@ func init() {
 	cmd.PersistentFlags().StringVar(&opts.ReleaseImage, "release-image", opts.ReleaseImage, "The Openshift release image url.")
 	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.ServingCertFile, "serving-cert-file", opts.MetricsOptions.ServingCertFile, "The X.509 certificate file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
 	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.ServingKeyFile, "serving-key-file", opts.MetricsOptions.ServingKeyFile, "The X.509 key file for serving metrics over HTTPS.  You must set both --serving-cert-file and --serving-key-file unless you set --listen empty.")
+	cmd.PersistentFlags().StringVar(&opts.MetricsOptions.TLSMinVersionOverride, "tls-min-version", opts.MetricsOptions.TLSMinVersionOverride, "Minimum TLS version supported. When set, overrides the value from the central TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
+	cmd.PersistentFlags().StringSliceVar(&opts.MetricsOptions.TLSCipherSuitesOverride, "tls-cipher-suites", opts.MetricsOptions.TLSCipherSuitesOverride, "Comma-separated list of cipher suites for the server. When set, overrides the value from the central TLS profile. Accepts the cipher suite names defined by Go's crypto/tls package.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.CABundleFile, "metrics-ca-bundle-file", opts.PromQLTarget.CABundleFile, "The service CA bundle file containing one or more X.509 certificate files for validating certificates generated from the service CA for the respective remote PromQL query service.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.BearerTokenFile, "metrics-token-file", opts.PromQLTarget.BearerTokenFile, "The bearer token file used to access the remote PromQL query service.")
 	cmd.PersistentFlags().StringVar(&opts.PromQLTarget.KubeSvc.Namespace, "metrics-namespace", opts.PromQLTarget.KubeSvc.Namespace, "The name of the namespace where the the remote PromQL query service resides. Must be specified when --use-dns-for-services is disabled.")
