@@ -86,5 +86,21 @@
     "source": "openshift:payload:cluster-version-operator",
     "lifecycle": "blocking",
     "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator cvo drops invalid conditional edges",
+    "labels": {
+      "46422": {},
+      "ConnectedOnly": {},
+      "Lifecycle:informing": {},
+      "Low": {},
+      "Serial": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "informing",
+    "environmentSelector": {}
   }
 ]
