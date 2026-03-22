@@ -17,6 +17,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
 	imagev1 "github.com/openshift/api/image/v1"
@@ -109,7 +110,8 @@ type Update struct {
 
 	ImageRef *imagev1.ImageStream
 
-	Architecture string
+	Architecture  string
+	ParsedVersion semver.Version
 
 	// manifestHash is a hash of the manifests included in this payload
 	ManifestHash string
@@ -211,7 +213,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			filteredMs := []manifest.Manifest{}
 
 			for _, manifest := range ms {
-				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil, enabledFeatureGates); err != nil {
+				if err := manifest.Include(&excludeIdentifier, &requiredFeatureSet, &profile, onlyKnownCaps, nil, enabledFeatureGates, ptr.To(payload.ParsedVersion.Major)); err != nil {
 					klog.V(2).Infof("excluding %s: %v\n", manifest.String(), err)
 					continue
 				}
@@ -243,12 +245,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 // the current payload the updated manifest's capabilities are checked to see if any must be implicitly enabled.
 // All capabilities requiring implicit enablement are returned.
 func GetImplicitlyEnabledCapabilities(updatePayloadManifests []manifest.Manifest, currentPayloadManifests []manifest.Manifest,
-	capabilities capability.ClusterCapabilities, enabledFeatureGates sets.Set[string]) sets.Set[configv1.ClusterVersionCapability] {
+	capabilities capability.ClusterCapabilities, enabledFeatureGates sets.Set[string], updateMajorVersion, currentMajorVersion *uint64) sets.Set[configv1.ClusterVersionCapability] {
 	clusterCaps := capability.GetCapabilitiesStatus(capabilities)
 	return localmanifest.GetImplicitlyEnabledCapabilities(
 		updatePayloadManifests,
 		currentPayloadManifests,
-		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps, EnabledFeatureGates: enabledFeatureGates},
+		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps, EnabledFeatureGates: enabledFeatureGates, MajorVersion: updateMajorVersion},
+		localmanifest.InclusionConfiguration{Capabilities: &clusterCaps, EnabledFeatureGates: enabledFeatureGates, MajorVersion: currentMajorVersion},
 		capabilities.ImplicitlyEnabled,
 	)
 }
@@ -284,6 +287,11 @@ func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
 		klog.V(2).Infof("Architecture from %s (%s) retrieved from runtime: %q", cincinnatiJSONFile, release.Version, arch)
 	}
 
+	parsedVersion, err := semver.Parse(release.Version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse release version %s: %w", release.Version, err)
+	}
+
 	release.Image = releaseImage
 
 	imageRef, err := loadImageReferences(releaseDir)
@@ -296,9 +304,10 @@ func loadPayloadMetadata(releaseDir, releaseImage string) (*Update, error) {
 	}
 
 	return &Update{
-		Release:      release,
-		ImageRef:     imageRef,
-		Architecture: arch,
+		Release:       release,
+		ImageRef:      imageRef,
+		Architecture:  arch,
+		ParsedVersion: parsedVersion,
 	}, nil
 }
 

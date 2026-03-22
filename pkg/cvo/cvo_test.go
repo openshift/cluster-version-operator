@@ -433,7 +433,7 @@ func TestOperator_sync(t *testing.T) {
 						VersionHash: "foo",
 					},
 				},
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2036,7 +2036,7 @@ func TestOperator_sync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:       "default",
@@ -2321,7 +2321,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client:    fake.NewSimpleClientset(),
+				client:    fake.NewClientset(),
 			},
 		},
 		{
@@ -2337,7 +2337,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2380,7 +2380,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2422,7 +2422,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2465,7 +2465,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2528,7 +2528,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2595,7 +2595,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2655,7 +2655,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:       "default",
@@ -2696,7 +2696,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2832,7 +2832,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client:    fake.NewSimpleClientset(),
+				client:    fake.NewClientset(),
 			},
 			cm: corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{Name: "admin-gates",
@@ -2847,7 +2847,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2890,7 +2890,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -2943,7 +2943,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3004,7 +3004,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3068,7 +3068,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3134,7 +3134,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3213,7 +3213,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3247,7 +3247,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3283,7 +3283,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3331,7 +3331,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3375,7 +3375,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3419,7 +3419,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3463,7 +3463,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3507,7 +3507,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3552,7 +3552,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3593,7 +3593,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3643,7 +3643,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3688,7 +3688,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3737,7 +3737,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 				},
 				namespace: "test",
 				name:      "default",
-				client: fake.NewSimpleClientset(
+				client: fake.NewClientset(
 					&configv1.ClusterVersion{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "default",
@@ -3776,7 +3776,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	watcherStarted := make(chan struct{})
-	f := kfake.NewSimpleClientset()
+	f := kfake.NewClientset()
 
 	// A catch-all watch reactor that allows us to inject the watcherStarted channel.
 	f.PrependWatchReactor("*", func(action ktesting.Action) (handled bool, ret watch.Interface, err error) {
