@@ -55,6 +55,10 @@ func (optr *Operator) getTransport() (*http.Transport, error) {
 // getProxyConfig returns a proxy configuration.  It can be nil if
 // does not exist or there is an error.
 func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
+	if optr.hypershift {
+		return nil, nil
+	}
+
 	proxy, err := optr.proxyLister.Get("cluster")
 
 	if apierrors.IsNotFound(err) {
