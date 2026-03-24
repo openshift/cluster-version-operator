@@ -82,9 +82,12 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 			continue
 		}
 
-		// Check if this is a supported GenericOperatorConfig kind
-		if rnode.GetKind() != "GenericOperatorConfig" || rnode.GetApiVersion() != operatorv1alpha1.GroupVersion.String() {
-			klog.V(4).Infof("ConfigMap's %q entry is not a supported GenericOperatorConfig, skipping this entry", key)
+		// Check if this is a supported config kind
+		switch {
+		case rnode.GetKind() == "GenericOperatorConfig" && rnode.GetApiVersion() == operatorv1alpha1.GroupVersion.String():
+		case rnode.GetKind() == "GenericControllerConfig" && rnode.GetApiVersion() == configv1.GroupVersion.String():
+		default:
+			klog.V(4).Infof("ConfigMap's %q entry is not a supported config type. Only GenericOperatorConfig (%v) and GenericControllerConfig (%v) are. Skipping this entry", key, operatorv1alpha1.GroupVersion.String(), configv1.GroupVersion.String())
 			continue
 		}
 
