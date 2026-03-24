@@ -75,4 +75,13 @@ ext.IgnoreObsoleteTests(
 ## Run together with payload testing
 
 By joining CVO's test suite `openshift/cluster-version-operator/conformance/parallel` and `openshift/cluster-version-operator/conformance/serial` as children [here](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/cmd/cluster-version-operator-tests/main.go#L23-L38) and register them as extension [here](https://github.com/openshift/origin/blob/e3f443af6b2fd61a33ed8d060eb9083333ef426b/pkg/test/extensions/binary.go#L258-L261), the e2e testcases developed here in this repo will be executed in more tests than the ones defined in Presubmits for CVO's CI. For example, they will be running with [payload testing](https://docs.ci.openshift.org/docs/release-oversight/payload-testing/).
-In order to avoid breaking the OpenShift release, it is suggested to start with skipping new testcases on MicroShift, HyperShift unless they are verified. We may add them in as needed later. There are [utility functions](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/test/cvo/cvo.go#L62-L66) that help determine the cluster type.
+In order to avoid breaking the OpenShift release, it is suggested to start with skipping new testcases on MicroShift, HyperShift etc. unless they are verified. We may add them in as needed later. There are [utility functions](https://github.com/openshift/cluster-version-operator/blob/f25054a5800a34e3fd596b5d9a2c6c1bb5f5f628/test/cvo/cvo.go#L62-L66) that help determine the cluster type.
+
+If a test case blocks the release, a bug will be created or the pull that introduced the test case will be reverted.
+
+A safer way of writing up a new test case is to mark the case "informing" by `ote.Informing()` as suggested in "Integration Guide for OpenShift Tests Extension". See [this test case](https://github.com/openshift/origin/blob/1de454be0003ce4c8a44cbb5cf757553adbecd8e/test/extended/extension/extension.go#L14) as an example. As a result, any failure of the case does not lead to any job failure. We may remove the label when the stats collected in [Sippy](https://sippy.dptools.openshift.org/sippy-ng) are satisfying after a couple of weeks.
+
+Another option that predates "informing" is to flake the case. They are handed by different API for extended tests and monitor tests.
+
+* `result.Flakef` for extended tests: [Example](https://github.com/openshift/origin/blob/1cf8ad269c33807063ef050ed3a65d6e8d9b2539/test/extended/pods/systemd.go#L36).
+* append a success to test case: [Example](https://github.com/openshift/origin/blob/223dd4de5d1733cc07ff2bd8d4e1c751d8f86ef3/pkg/monitortests/clusterversionoperator/legacycvomonitortests/operators.go#L574-L586).
