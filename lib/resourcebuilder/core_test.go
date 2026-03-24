@@ -20,15 +20,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/crypto"
 )
 
-// makeGenericOperatorConfigYAML generates a GenericOperatorConfig YAML string
-// with the specified servingInfo fields.
-func makeGenericOperatorConfigYAML(cipherSuites []string, minTLSVersion string) string {
-	const tmpl = `apiVersion: operator.openshift.io/v1alpha1
-kind: GenericOperatorConfig
+// makeGenericConfigYAML generates a generic config YAML string with the specified servingInfo fields.
+func makeGenericConfigYAML(apiVersion, kind string, cipherSuites []string, minTLSVersion string) string {
+	const tmpl = `apiVersion: {{ .APIVersion }}
+kind: {{ .Kind }}
 servingInfo:
   bindAddress: 0.0.0.0:8443
   bindNetwork: tcp4
@@ -50,6 +50,8 @@ servingInfo:
 `
 
 	data := map[string]interface{}{
+		"APIVersion":    apiVersion,
+		"Kind":          kind,
 		"CipherSuites":  cipherSuites,
 		"MinTLSVersion": minTLSVersion,
 	}
@@ -63,6 +65,18 @@ servingInfo:
 	return buf.String()
 }
 
+// makeGenericOperatorConfigYAML generates a GenericOperatorConfig YAML string
+// with the specified servingInfo fields.
+func makeGenericOperatorConfigYAML(cipherSuites []string, minTLSVersion string) string {
+	return makeGenericConfigYAML(operatorv1alpha1.GroupVersion.String(), "GenericOperatorConfig", cipherSuites, minTLSVersion)
+}
+
+// makeGenericControllerConfigYAML generates a GenericControllerConfig YAML string
+// with the specified servingInfo fields.
+func makeGenericControllerConfigYAML(cipherSuites []string, minTLSVersion string) string {
+	return makeGenericConfigYAML(configv1.GroupVersion.String(), "GenericControllerConfig", cipherSuites, minTLSVersion)
+}
+
 func getDefaultCipherSuitesSorted() []string {
 	cipherSuites := crypto.CipherSuitesToNamesOrDie(crypto.DefaultCiphers())
 	sort.Strings(cipherSuites)
@@ -74,12 +88,14 @@ const (
 	tlsVersion12 = "VersionTLS12"
 	tlsVersion13 = "VersionTLS13"
 
-	genericOperatorConfigCMKey  = "config.yaml"
-	genericOperatorConfigCMKey2 = "operator-config.yaml"
-	someKey1                    = "plain-text"
-	someKey2                    = "another-value"
-	someValue1                  = "just some plain text"
-	someValue2                  = "12345"
+	genericOperatorConfigCMKey    = "config.yaml"
+	genericOperatorConfigCMKey2   = "operator-config.yaml"
+	genericControllerConfigCMKey  = "controller-config.yaml"
+	genericControllerConfigCMKey2 = "controller-config2.yaml"
+	someKey1                      = "plain-text"
+	someKey2                      = "another-value"
+	someValue1                    = "just some plain text"
+	someValue2                    = "12345"
 )
 
 var (
@@ -204,8 +220,8 @@ func validateConfigMapsEqual(original, modified *corev1.ConfigMap) error {
 	return nil
 }
 
-// validateGenericOperatorConfigTLSInjected validates that TLS settings were injected into GenericOperatorConfig
-func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldName string, expectedCiphers []string, expectedMinTLSVersion string) error {
+// validateGenericConfigTLSInjected validates that TLS settings were injected into a generic config
+func validateGenericConfigTLSInjected(modified *corev1.ConfigMap, fieldName string, expectedKind, expectedAPIVersion string, expectedCiphers []string, expectedMinTLSVersion string) error {
 	// Verify the field is still present
 	configYAML, ok := modified.Data[fieldName]
 	if !ok {
@@ -218,13 +234,13 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 		return fmt.Errorf("failed to unmarshal %s: %v", fieldName, err)
 	}
 
-	// Verify it is a GenericOperatorConfig
+	// Verify kind
 	kind, found, err := unstructured.NestedString(obj, "kind")
 	if err != nil {
 		return fmt.Errorf("failed to get kind field: %v", err)
 	}
-	if !found || kind != "GenericOperatorConfig" {
-		return fmt.Errorf("expected kind GenericOperatorConfig, got %s", kind)
+	if !found || kind != expectedKind {
+		return fmt.Errorf("expected kind %s, got %s", expectedKind, kind)
 	}
 
 	// Verify apiVersion
@@ -232,11 +248,11 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 	if err != nil {
 		return fmt.Errorf("failed to get apiVersion field: %v", err)
 	}
-	if !found || apiVersion != "operator.openshift.io/v1alpha1" {
-		return fmt.Errorf("expected apiVersion operator.openshift.io/v1alpha1, got %s", apiVersion)
+	if !found || apiVersion != expectedAPIVersion {
+		return fmt.Errorf("expected apiVersion %s, got %s", expectedAPIVersion, apiVersion)
 	}
 
-	// Verify minTLSVersion was injected (should be VersionTLS13 from APIServer)
+	// Verify minTLSVersion was injected
 	minTLSVersion, found, err := unstructured.NestedString(obj, "servingInfo", "minTLSVersion")
 	if err != nil {
 		return fmt.Errorf("failed to get servingInfo.minTLSVersion: %v", err)
@@ -248,10 +264,7 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 		return fmt.Errorf("expected minTLSVersion %s, got %s", expectedMinTLSVersion, minTLSVersion)
 	}
 
-	// Verify TLS cipher suites were injected from APIServer
-	// The APIServer TLSSecurityProfile has these ciphers which get converted to IANA format:
-	// ECDHE-ECDSA-AES128-GCM-SHA256 -> TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-	// ECDHE-RSA-AES128-GCM-SHA256 -> TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+	// Verify TLS cipher suites were injected
 	cipherSuites, found, err := unstructured.NestedStringSlice(obj, "servingInfo", "cipherSuites")
 	if err != nil {
 		return fmt.Errorf("failed to get servingInfo.cipherSuites: %v", err)
@@ -267,6 +280,16 @@ func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldN
 	}
 
 	return nil
+}
+
+// validateGenericOperatorConfigTLSInjected validates that TLS settings were injected into GenericOperatorConfig
+func validateGenericOperatorConfigTLSInjected(modified *corev1.ConfigMap, fieldName string, expectedCiphers []string, expectedMinTLSVersion string) error {
+	return validateGenericConfigTLSInjected(modified, fieldName, "GenericOperatorConfig", operatorv1alpha1.GroupVersion.String(), expectedCiphers, expectedMinTLSVersion)
+}
+
+// validateGenericControllerConfigTLSInjected validates that TLS settings were injected into GenericControllerConfig
+func validateGenericControllerConfigTLSInjected(modified *corev1.ConfigMap, fieldName string, expectedCiphers []string, expectedMinTLSVersion string) error {
+	return validateGenericConfigTLSInjected(modified, fieldName, "GenericControllerConfig", configv1.GroupVersion.String(), expectedCiphers, expectedMinTLSVersion)
 }
 
 func TestModifyConfigMap(t *testing.T) {
@@ -564,6 +587,38 @@ servingInfo:
 				})
 				if err := validateConfigMapsEqual(expectedConfigMap, modified); err != nil {
 					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
+			name: "ConfigMap with valid GenericControllerConfig object - TLS injected",
+			configMap: makeConfigMap(true, map[string]string{
+				genericControllerConfigCMKey: makeGenericControllerConfigYAML(testCipherSuites, tlsVersion12),
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				if err := validateGenericControllerConfigTLSInjected(modified, genericControllerConfigCMKey, testCipherSuites2, tlsVersion13); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
+			name: "ConfigMap with both GenericOperatorConfig and GenericControllerConfig - TLS injected in both",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey:   makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+				genericControllerConfigCMKey: makeGenericControllerConfigYAML(testCipherSuites, tlsVersion12),
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				// Validate the GenericOperatorConfig field
+				if err := validateGenericOperatorConfigTLSInjected(modified, genericOperatorConfigCMKey, testCipherSuites2, tlsVersion13); err != nil {
+					t.Fatalf("validation failed for GenericOperatorConfig: %v", err)
+				}
+				// Validate the GenericControllerConfig field
+				if err := validateGenericControllerConfigTLSInjected(modified, genericControllerConfigCMKey, testCipherSuites2, tlsVersion13); err != nil {
+					t.Fatalf("validation failed for GenericControllerConfig: %v", err)
 				}
 			},
 		},
