@@ -7,7 +7,8 @@ import (
 )
 
 type ReleaseExtractOptions struct {
-	To string
+	To       string
+	AuthFile string
 }
 
 type VersionOptions struct {

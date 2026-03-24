@@ -3,7 +3,10 @@ package util
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -101,6 +104,25 @@ func SkipIfMicroshift(ctx context.Context, restConfig *rest.Config) error {
 		g.Skip("Skipping test: running on MicroShift cluster!")
 	}
 	return nil
+}
+
+// GetAuthFile retrieves the auth file from the specified secret and writes it to a temporary file, returning the file path.
+// e.g.: ns="openshift-config", secretName="pull-secret", key=".dockerconfigjson"
+func GetAuthFile(ctx context.Context, client kubernetes.Interface, ns string, secretName string, key string) (filePath string, err error) {
+	sec, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	secretData, ok := sec.Data[key]
+	if !ok {
+		return "", fmt.Errorf("auth key not found in secret %s/%s", ns, secretName)
+	}
+	authFile := filepath.Join("/tmp/", fmt.Sprintf("ota-%s", rand.Text()))
+	err = os.WriteFile(authFile, secretData, 0644)
+	if err != nil {
+		return "", fmt.Errorf("error writing file %s: %v", authFile, err)
+	}
+	return authFile, nil
 }
 
 // GetRestConfig loads the Kubernetes REST configuration from KUBECONFIG environment variable.
