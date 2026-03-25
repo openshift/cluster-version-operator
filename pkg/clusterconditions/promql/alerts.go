@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/prometheus/client_golang/api"
 	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
@@ -26,23 +25,19 @@ func NewAlertGetter(promQLTarget clusterconditions.PromQLTarget) Getter {
 	if !ok {
 		panic("invalid condition type")
 	}
-	return &ocAlertGetter{promQL: v, expiration: 1 * time.Minute}
+	return &ocAlertGetter{promQL: v}
 }
 
 type ocAlertGetter struct {
 	promQL *PromQL
 
-	mutex       sync.Mutex
-	cached      prometheusv1.AlertsResult
-	expiration  time.Duration
-	lastRefresh time.Time
+	mutex  sync.Mutex
+	cached prometheusv1.AlertsResult
 }
 
 func (o *ocAlertGetter) Get(ctx context.Context) prometheusv1.AlertsResult {
-	if time.Now().After(o.lastRefresh.Add(o.expiration)) {
-		if err := o.refresh(ctx); err != nil {
-			klog.Errorf("Failed to refresh alerts, using stale cache instead: %v", err)
-		}
+	if err := o.refresh(ctx); err != nil {
+		klog.Errorf("Failed to refresh alerts, using stale cache instead: %v", err)
 	}
 	return o.cached
 }
@@ -89,7 +84,6 @@ func (o *ocAlertGetter) refresh(ctx context.Context) error {
 		return fmt.Errorf("failed to get alerts: %w", err)
 	}
 	o.cached = r
-	o.lastRefresh = time.Now()
 	klog.Infof("refreshed: %d alerts", len(o.cached.Alerts))
 	return nil
 }
