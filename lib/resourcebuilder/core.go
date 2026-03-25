@@ -18,7 +18,6 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
-	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -114,13 +113,15 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 // observeTLSConfiguration retrieves TLS configuration from the APIServer cluster CR
 // using ObserveTLSSecurityProfile and extracts minTLSVersion and cipherSuites.
 func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.ConfigMap) (*tlsConfig, error) {
-	// Create a lister adapter for ObserveTLSSecurityProfile
-	lister := &apiServerListerAdapter{
-		client: b.configClientv1.APIServers(),
-		ctx:    ctx,
+	apiServer, err := b.configClientv1.APIServers().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve APIServer CR for ConfigMap %s/%s: %w", cm.Namespace, cm.Name, err)
 	}
+
 	listers := &configObserverListers{
-		apiServerLister: lister,
+		apiServerLister: &apiServerListerAdapter{
+			apiServer: apiServer,
+		},
 	}
 
 	// Create an in-memory event recorder that doesn't send events to the API server
@@ -187,10 +188,9 @@ func updateRNodeWithTLSSettings(rnode *yaml.RNode, tlsConf *tlsConfig) error {
 	return nil
 }
 
-// apiServerListerAdapter adapts a client interface to the lister interface
+// apiServerListerAdapter adapts an injected APIServer to the lister interface
 type apiServerListerAdapter struct {
-	client configclientv1.APIServerInterface
-	ctx    context.Context
+	apiServer *configv1.APIServer
 }
 
 func (a *apiServerListerAdapter) List(selector labels.Selector) ([]*configv1.APIServer, error) {
@@ -199,7 +199,10 @@ func (a *apiServerListerAdapter) List(selector labels.Selector) ([]*configv1.API
 }
 
 func (a *apiServerListerAdapter) Get(name string) (*configv1.APIServer, error) {
-	return a.client.Get(a.ctx, name, metav1.GetOptions{})
+	if name != a.apiServer.Name {
+		return nil, fmt.Errorf("APIServer %q not found", name)
+	}
+	return a.apiServer, nil
 }
 
 // configObserverListers implements the configobserver.Listers interface.

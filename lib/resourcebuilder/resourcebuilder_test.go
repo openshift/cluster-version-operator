@@ -29,15 +29,16 @@ metadata:
 func TestModifyConfigMapWithBuilder(t *testing.T) {
 
 	tests := []struct {
-		name       string
-		configMap  *corev1.ConfigMap
-		apiServer  *configv1.APIServer
-		expectYAML string // Expected YAML content after modification
+		name        string
+		configMap   *corev1.ConfigMap
+		apiServer   *configv1.APIServer
+		expectYAML  string // Expected YAML content after modification
+		expectError bool   // Whether an error is expected from Do()
 	}{
 		{
 			name: "ConfigMap with GenericOperatorConfig - TLS injection",
 			configMap: makeConfigMap(true, map[string]string{
-				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
 			}),
 			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
 			expectYAML: makeGenericOperatorConfigYAML(testCipherSuites2, tlsVersion13),
@@ -45,7 +46,7 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 		{
 			name: "ConfigMap without annotation - no modification",
 			configMap: makeConfigMap(false, map[string]string{
-				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
 			}),
 			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
 			expectYAML: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
@@ -53,10 +54,18 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 		{
 			name: "ConfigMap with non-GenericOperatorConfig - no modification",
 			configMap: makeConfigMap(true, map[string]string{
-				"config.yaml": noGenericOperatorConfigYAML,
+				genericOperatorConfigCMKey: noGenericOperatorConfigYAML,
 			}),
 			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites, configv1.VersionTLS13)),
 			expectYAML: noGenericOperatorConfigYAML,
+		},
+		{
+			name: "ConfigMap with annotation - APIServer not found - error expected",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion13),
+			}),
+			expectYAML:  makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion13),
+			expectError: true,
 		},
 	}
 
@@ -73,6 +82,13 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 			// Create fake kubernetes client
 			fakeKubeClient := fakekubernetes.NewClientset()
 
+			// Create the ConfigMap in the fake client before running the builder
+			ctx := context.Background()
+			_, err := fakeKubeClient.CoreV1().ConfigMaps(tt.configMap.Namespace).Create(ctx, tt.configMap, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Failed to create ConfigMap: %v", err)
+			}
+
 			// Marshal ConfigMap to YAML bytes
 			configMapYAML, err := yaml.Marshal(tt.configMap)
 			if err != nil {
@@ -87,20 +103,23 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 			}
 
 			// Call Do()
-			ctx := context.Background()
 			err = b.Do(ctx)
-			if err != nil {
-				t.Fatalf("Do() unexpected error: %v", err)
+
+			// Check error expectation
+			if (err != nil) != tt.expectError {
+				t.Fatalf("Do() error = %v, expectError %v", err, tt.expectError)
 			}
 
-			// Retrieve the applied ConfigMap from the fake client
+			// ConfigMap should always be retrievable, regardless of error
 			appliedConfigMap, err := fakeKubeClient.CoreV1().ConfigMaps(tt.configMap.Namespace).Get(ctx, tt.configMap.Name, metav1.GetOptions{})
 			if err != nil {
 				t.Fatalf("Failed to get applied ConfigMap: %v", err)
 			}
 
 			// Verify the result matches expected YAML
-			modifiedYAML := appliedConfigMap.Data["config.yaml"]
+			// When Do() errors, the ConfigMap should remain unchanged (expectYAML has the original values)
+			// When Do() succeeds, the ConfigMap should have modified values (expectYAML has the modified values)
+			modifiedYAML := appliedConfigMap.Data[genericOperatorConfigCMKey]
 			if diff := cmp.Diff(tt.expectYAML, modifiedYAML); diff != "" {
 				t.Errorf("ConfigMap YAML mismatch (-want +got):\n%s", diff)
 			}

@@ -22,7 +22,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
-	"github.com/openshift/library-go/pkg/crypto"
 )
 
 // makeGenericConfigYAML generates a generic config YAML string with the specified servingInfo fields.
@@ -77,12 +76,6 @@ func makeGenericControllerConfigYAML(cipherSuites []string, minTLSVersion string
 	return makeGenericConfigYAML(configv1.GroupVersion.String(), "GenericControllerConfig", cipherSuites, minTLSVersion)
 }
 
-func getDefaultCipherSuitesSorted() []string {
-	cipherSuites := crypto.CipherSuitesToNamesOrDie(crypto.DefaultCiphers())
-	sort.Strings(cipherSuites)
-	return cipherSuites
-}
-
 const (
 	// TLS version constants used in test configurations
 	tlsVersion12 = "VersionTLS12"
@@ -126,8 +119,6 @@ var (
 		"AES256-GCM-SHA384",
 		"AES128-SHA256",
 	}
-
-	defaultCipherSuites = getDefaultCipherSuitesSorted()
 )
 
 // makeConfigMap is a helper to create a ConfigMap with optional annotation and data
@@ -374,19 +365,14 @@ func TestModifyConfigMap(t *testing.T) {
 			},
 		},
 		{
-			name: "ConfigMap with annotation and Data - APIServer not found - default TLS configuration expected",
+			name: "ConfigMap with annotation and Data - APIServer not found - error expected",
 			configMap: makeConfigMap(true, map[string]string{
 				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
 			}),
 			apiServer:   nil,
-			expectError: false,
+			expectError: true,
 			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
-				defaultTLSConfigMap := makeConfigMap(true, map[string]string{
-					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(defaultCipherSuites, tlsVersion12),
-				})
-				if err := validateConfigMapsEqual(defaultTLSConfigMap, modified); err != nil {
-					t.Fatalf("validation failed: %v", err)
-				}
+				// No validation needed when error is expected
 			},
 		},
 		{
