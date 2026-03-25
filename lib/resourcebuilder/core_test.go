@@ -413,6 +413,41 @@ func TestModifyConfigMap(t *testing.T) {
 			},
 		},
 		{
+			name: "ConfigMap with invalid YAML - no modification",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: `this is not valid YAML: {{{
+malformed: [unclosed
+`,
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites, configv1.VersionTLS13)),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				if err := validateConfigMapsEqual(original, modified); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
+			name: "ConfigMap with wrong apiVersion - no modification",
+			configMap: makeConfigMap(true, map[string]string{
+				genericOperatorConfigCMKey: `apiVersion: v1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  cipherSuites:
+  - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+  minTLSVersion: VersionTLS12
+`,
+			}),
+			apiServer:   makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites, configv1.VersionTLS13)),
+			expectError: false,
+			validateConfigMap: func(t *testing.T, original, modified *corev1.ConfigMap) {
+				if err := validateConfigMapsEqual(original, modified); err != nil {
+					t.Fatalf("validation failed: %v", err)
+				}
+			},
+		},
+		{
 			name: "ConfigMap with valid GenericOperatorConfig - annotation=false - no modification",
 			configMap: makeConfigMap(false, map[string]string{
 				genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
