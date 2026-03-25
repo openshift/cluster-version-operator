@@ -3,21 +3,22 @@ package util
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
+	"io"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -26,6 +27,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned"
+	libmanifest "github.com/openshift/library-go/pkg/manifest"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
 )
@@ -117,12 +119,121 @@ func GetAuthFile(ctx context.Context, client kubernetes.Interface, ns string, se
 	if !ok {
 		return "", fmt.Errorf("auth key not found in secret %s/%s", ns, secretName)
 	}
-	authFile := filepath.Join("/tmp/", fmt.Sprintf("ota-%s", rand.Text()))
-	err = os.WriteFile(authFile, secretData, 0644)
+	f, err := os.CreateTemp("", "ota-*")
 	if err != nil {
-		return "", fmt.Errorf("error writing file %s: %v", authFile, err)
+		return "", fmt.Errorf("error creating temp file: %v", err)
 	}
-	return authFile, nil
+	defer func() {
+		_ = f.Close()
+	}()
+	if _, err := f.Write(secretData); err != nil {
+		_ = os.Remove(f.Name())
+		return "", fmt.Errorf("error writing to temp file: %v", err)
+	}
+	return f.Name(), nil
+}
+
+// GetPodsByNamespace retrieves the list of pods in the specified namespace with the given label selector.
+func GetPodsByNamespace(ctx context.Context, client kubernetes.Interface, namespace string, labelSelector map[string]string) ([]corev1.Pod, error) {
+	podList, err := client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labels.FormatLabels(labelSelector),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error listing pods in namespace %s with label selector %v: %v", namespace, labelSelector, err)
+	}
+	return podList.Items, nil
+}
+
+// ListFilesInPodContainer executes the given command in the specified container of a pod and returns the output as a list of strings.
+func ListFilesInPodContainer(ctx context.Context, restConfig *rest.Config, command []string, namespace string, podName string, containerName string) ([]string, error) {
+	kubeClient, err := GetKubeClient(restConfig)
+	if err != nil {
+		return nil, err
+	}
+	results := []string{}
+	req := kubeClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command:   command,
+			Container: containerName,
+			Stdout:    true,
+			Stderr:    true,
+		}, scheme.ParameterCodec)
+	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
+	if err != nil {
+		return nil, fmt.Errorf("error creating executor for pod %s/%s: %v", namespace, podName, err)
+	}
+	var stdoutBuf, stderrBuf bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdoutBuf,
+		Stderr: &stderrBuf,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error executing command in pod %s/%s: %v, stderr: %s", namespace, podName, err, stderrBuf.String())
+	}
+	files := strings.Split(stdoutBuf.String(), "\n")
+	for _, file := range files {
+		if file == "" {
+			continue
+		}
+		results = append(results, file)
+	}
+	return results, nil
+}
+
+// GetFileContentInPodContainer executes the command to read the content of a file in the specified container of a pod and returns the content as a string.
+func GetFileContentInPodContainer(ctx context.Context, restConfig *rest.Config, namespace string, podName string, containerName string, filePath string) (string, error) {
+	kubeClient, err := GetKubeClient(restConfig)
+	if err != nil {
+		return "", err
+	}
+	command := []string{"cat", filePath}
+	req := kubeClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command:   command,
+			Container: containerName,
+			Stdout:    true,
+			Stderr:    true,
+		}, scheme.ParameterCodec)
+	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
+	if err != nil {
+		return "", fmt.Errorf("error creating executor for pod %s/%s: %v", namespace, podName, err)
+	}
+	var stdoutBuf, stderrBuf bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdout: &stdoutBuf,
+		Stderr: &stderrBuf,
+	})
+	if err != nil {
+		return "", fmt.Errorf("error executing command in pod %s/%s: %v, stderr: %s", namespace, podName, err, stderrBuf.String())
+	}
+	return stdoutBuf.String(), nil
+}
+
+// ParseManifest parses the given file content as a Kubernetes manifest and returns a Manifest object.
+func ParseManifest(fileContent string) (libmanifest.Manifest, error) {
+	d := yaml.NewYAMLOrJSONDecoder(strings.NewReader(fileContent), 1024)
+	for {
+		m := libmanifest.Manifest{}
+		if err := d.Decode(&m); err != nil {
+			if err == io.EOF {
+				return m, nil
+			}
+			return m, errors.Wrapf(err, "error parsing")
+		}
+		m.Raw = bytes.TrimSpace(m.Raw)
+		if len(m.Raw) == 0 || bytes.Equal(m.Raw, []byte("null")) {
+			continue
+		}
+		return m, nil
+	}
 }
 
 // GetRestConfig loads the Kubernetes REST configuration from KUBECONFIG environment variable.
