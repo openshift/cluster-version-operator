@@ -29,7 +29,7 @@ func TestRenderManifest(t *testing.T) {
 				ReleaseImage:   "quay.io/cvo/release:latest",
 				ClusterProfile: "some-profile",
 			},
-			manifestFile:         "../../install/0000_00_cluster-version-operator_03_deployment.yaml",
+			manifestFile:         "../../install/0000_00_cluster-version-operator_30_deployment.yaml",
 			expectedManifestFile: "./testdata/TestRenderManifest_expected_cvo_deployment.yaml",
 		},
 	}

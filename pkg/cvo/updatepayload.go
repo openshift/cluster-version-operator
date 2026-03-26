@@ -233,6 +233,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 			},
 		},
 		Spec: corev1.PodSpec{
+			ServiceAccountName:    "update-payload",
 			ActiveDeadlineSeconds: deadline,
 			InitContainers: []corev1.Container{
 				setContainerDefaults(corev1.Container{
