@@ -5,6 +5,7 @@ metadata:
   annotations:
     kubernetes.io/description: The cluster-version operator manages OpenShift updates and reconciles core resources and cluster operators.
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/bootstrap-cluster-version-operator: hypershift
     openshift.io/node-selector: ""
     workload.openshift.io/allowed: "management"
   labels:
