@@ -373,11 +373,13 @@ func waitForPodCompletion(ctx context.Context, podListerWatcher PodListerWatcher
 	_, err := toolswatch.UntilWithSync(
 		ctx,
 		&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (object runtime.Object, e error) {
-				return podListerWatcher.List(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				options.FieldSelector = fieldSelector
+				return podListerWatcher.List(ctx, options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
-				return podListerWatcher.Watch(ctx, metav1.ListOptions{FieldSelector: fieldSelector})
+				options.FieldSelector = fieldSelector
+				return podListerWatcher.Watch(ctx, options)
 			},
 		},
 		&corev1.Pod{},
