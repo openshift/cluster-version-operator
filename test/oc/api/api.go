@@ -10,8 +10,18 @@ type ReleaseExtractOptions struct {
 	To string
 }
 
+type ReleaseInfoOptions struct {
+	Image string
+}
+
 type VersionOptions struct {
 	Client bool
+}
+
+type ExtractOptions struct {
+	Resource  string
+	Namespace string
+	To        string
 }
 
 type Options struct {
@@ -21,5 +31,7 @@ type Options struct {
 
 type OC interface {
 	AdmReleaseExtract(o ReleaseExtractOptions) error
+	AdmReleaseInfo(o ReleaseInfoOptions) (string, error)
 	Version(o VersionOptions) (string, error)
+	Extract(o ExtractOptions) error
 }
