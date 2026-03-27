@@ -4,14 +4,18 @@ package cvo
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/openshift/cluster-version-operator/pkg/cvo/external/dynamicclient"
 	"github.com/openshift/cluster-version-operator/pkg/external"
 	"github.com/openshift/cluster-version-operator/test/oc"
 	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
@@ -98,5 +102,49 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		cvoPod := podList.Items[0]
 		sccAnnotation := cvoPod.Annotations["openshift.io/scc"]
 		o.Expect(sccAnnotation).To(o.Equal("hostaccess"), "Expected the annotation 'openshift.io/scc annotation' on pod %s to have the value 'hostaccess', but got %s", cvoPod.Name, sccAnnotation)
+	})
+
+	g.It(`should not install resources annotated with release.openshift.io/delete=true`, g.Label("Conformance", "High", "42543"), func() {
+		ctx := context.Background()
+		err := util.SkipIfHypershift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		pods, err := util.GetPodsByNamespace(ctx, kubeClient, external.DefaultCVONamespace, map[string]string{"k8s-app": "cluster-version-operator"})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(pods).NotTo(o.BeEmpty(), "Expected at least one CVO pod")
+
+		annotation := "release.openshift.io/delete"
+		manifestDir := "/release-manifests/"
+		command := []string{"find", manifestDir, "-iname", "*.yaml", "-exec", "grep", "-l", annotation, "{}", ";"}
+		files, err := util.ListFilesInPodContainer(ctx, restCfg, command, external.DefaultCVONamespace, pods[0].Name, "cluster-version-operator")
+		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(files).ToNot(o.BeEmpty(), "Expected to find files in manifests directory of CVO pod, but found none")
+
+		for _, f := range files {
+			fileContent, err := util.GetFileContentInPodContainer(ctx, restCfg, external.DefaultCVONamespace, pods[0].Name, "cluster-version-operator", f)
+			o.Expect(err).NotTo(o.HaveOccurred(), fmt.Sprintf("Failed to get content of file %s in CVO pod", f))
+			o.Expect(fileContent).ToNot(o.BeEmpty(), fmt.Sprintf("Expected to get content of file %s in CVO pod, but got empty content", f))
+
+			if !strings.Contains(fileContent, annotation) {
+				continue
+			}
+
+			manifest, err := util.ParseManifest(fileContent)
+			o.Expect(err).NotTo(o.HaveOccurred(), fmt.Sprintf("Failed to parse manifest content of file %s in CVO pod", f))
+
+			ann := manifest.Obj.GetAnnotations()
+			if ann[annotation] != "true" {
+				continue
+			}
+			logger.Info("Checking file: ", f, ", GVK:", manifest.GVK.String(), ", Name: ", manifest.Obj.GetName(), ", Namespace: ", manifest.Obj.GetNamespace())
+			client, err := dynamicclient.New(restCfg, manifest.GVK, manifest.Obj.GetNamespace())
+			o.Expect(err).NotTo(o.HaveOccurred())
+			_, err = client.Get(ctx, manifest.Obj.GetName(), metav1.GetOptions{})
+			o.Expect(apierrors.IsNotFound(err)).To(o.BeTrue(),
+				fmt.Sprintf("The deleted manifest should not be installed, but actually installed: manifest: %s %s in namespace %s from file %q, error: %v",
+					manifest.GVK, manifest.Obj.GetName(), manifest.Obj.GetNamespace(), f, err))
+		}
 	})
 })

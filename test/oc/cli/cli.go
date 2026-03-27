@@ -83,6 +83,9 @@ func NewOCCli(o api.Options) (api.OC, error) {
 
 func (c *client) AdmReleaseExtract(o api.ReleaseExtractOptions) error {
 	args := []string{"adm", "release", "extract", fmt.Sprintf("--to=%s", o.To)}
+	if o.AuthFile != "" {
+		args = append(args, fmt.Sprintf("--registry-config=%s", o.AuthFile))
+	}
 	_, err := c.executor.Run(args...)
 	if err != nil {
 		return err
