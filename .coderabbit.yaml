@@ -1,0 +1,96 @@
+inheritance: true
+reviews:
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Commit messages should explain the "why" behind changes, not just the "what".
+        When reviewing, check that PR descriptions and commit messages include:
+        - The motivation or reasoning for design decisions
+        - Connections between components that might not be obvious
+        - Why a particular approach was chosen over alternatives
+        Flag PRs where commit messages only describe mechanical changes without context.
+
+    - path: "**/*.go"
+      instructions: |
+        Imports must be sorted using `gci` (github.com/daixiang0/gci) with local packages
+        in a separate group at the bottom. The expected import order is:
+        1. Standard library
+        2. Third-party packages
+        3. Local/project packages (github.com/openshift/cluster-version-operator/...)
+        Groups should be separated by blank lines. Flag any imports that are not properly
+        grouped or sorted.
+
+        Always check errors before accessing returned values. In Go, when a function
+        returns (value, error), the error must be checked before using the value.
+        Accessing fields on a nil value returned alongside an error will cause a panic.
+        Pay special attention to Kubernetes client calls like Get(), List(), Update()
+        where the returned object should not be accessed until err is verified as nil.
+
+        When referencing external code in comments, use permalink URLs that include
+        the commit hash (e.g., github.com/org/repo/blob/<commit-sha>/path/file.go#L42)
+        rather than branch-relative URLs (e.g., github.com/org/repo/blob/main/...).
+        Permalinks remain valid even when the referenced code changes.
+
+    - path: "pkg/cvo/**/*.go"
+      instructions: |
+        In reconciliation and controller logic, be careful about when state is assigned
+        relative to when it is evaluated. Watch for:
+        - Assignments to cached/operator state that happen before the corresponding
+          evaluation or computation (could lead to stale data if an early exit occurs)
+        - Conditional state updates that might miss transitions (e.g., only updating
+          on `!ok` may miss changes from one state to another)
+        - State that should be kept close to its point of use to minimize the window
+          for inconsistency
+        Prefer updating cached state as close as possible to the computation that
+        depends on it.
+
+    - path: "pkg/cvo/metrics*.go"
+      instructions: |
+        Prometheus metrics must follow these conventions:
+        - Use singular metric names (e.g., cluster_version_risk_condition not conditions)
+          to match upstream kube-state-metrics patterns
+        - Use `last_over_time(<metric>[5m])` in alert expressions to prevent failed
+          scrapes from resetting alerts
+        - Prefer `!= 0` over `== 1` for alert expressions where 0 is the happy path
+        - Keep label cardinality low; document all possible label values
+        - Consider adding a `reason` label for failure modes to aid debugging
+        - Default to the non-happy path in switch/case to catch future unknown states
+
+    - path: "install/*prometheusrule*.yaml"
+      instructions: |
+        PrometheusRule alerts should:
+        - Use `last_over_time()` wrappers to handle scrape failures gracefully
+        - Include runbook_url annotations pointing to openshift/runbooks
+        - Match the correct job label (e.g., cluster-version-operator, not cluster-monitoring-operator)
+        - Include clear descriptions mentioning tech-preview status if applicable
+
+    - path: "install/**/*.yaml"
+      instructions: |
+        CVO manifest files must follow these conventions:
+        - File names use runlevel-based ordering: `0000_<runlevel>_cluster-version-operator_<sequence>_<description>.yaml`
+        - Resources that depend on others (e.g., ClusterRoleBindings depending on ServiceAccounts)
+          must have higher sequence numbers than their dependencies
+        - Avoid `ZZ` suffixes for ordering; renumber sibling files instead and leave gaps
+        - Include `release.openshift.io/` annotations as appropriate:
+          - `release.openshift.io/delete: "true"` for resources that should be removed
+          - `release.openshift.io/feature-gate` for feature-gated manifests
+          - Cluster profile annotations for proper filtering
+        - Descriptions and annotations should not use acronyms where possible
+
+    - path: "test/**/*.go"
+      instructions: |
+        Test names must follow OpenShift Test Extension (OTE) conventions:
+        - Describe blocks should use the format: `[Jira:"Cluster Version Operator"] cluster-version-operator ...`
+        - Test specs (It blocks) should describe CVO behavior, not what the test does
+        - Use `g.Label("Serial")` for serial tests instead of encoding it in the name
+        - `By()` descriptions should clearly state what is being checked
+        - Test suites must be registered in cmd/cluster-version-operator-tests/main.go
+
+        Keep test utility code simple and avoid over-engineering:
+        - Do not introduce interfaces when there is only one implementation
+        - Prefer direct method implementations over layered abstractions
+        - Use client-go as the first choice; only fall back to oc-cli when
+          client-go cannot achieve the goal or would be too complex
+        - Utility functions should be reusable; avoid creating helpers used only once
+        - Share test fixtures (clients, configs) via BeforeEach/BeforeAll rather
+          than re-creating them in each test

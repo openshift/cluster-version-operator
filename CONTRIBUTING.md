@@ -62,6 +62,13 @@ The format can be described more formally as follows:
 The first line is the subject and should be no longer than 70 characters, the second line is always blank, and other lines should be wrapped at 80 characters.
 This allows the message to be easier to read on GitHub as well as in various Git tools.
 
+## Automated Code Review
+
+This repository uses [CodeRabbit](https://coderabbit.ai) for automated code review.
+Review rules are defined in [`.coderabbit.yaml`](.coderabbit.yaml) and encode
+common patterns identified from past PR reviews. Please review these rules when
+contributing to understand the standards enforced during automated review.
+
 [golang-style]: https://github.com/golang/go/wiki/CodeReviewComments
 [new-issue]: https://github.com/openshift/cluster-version-operator/issues/new
 [prow-review]: https://github.com/kubernetes/community/blob/master/contributors/guide/owners.md#the-code-review-process
