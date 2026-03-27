@@ -1,0 +1,94 @@
+inheritance: true
+language: en-US
+early_access: false
+reviews:
+  path_filters:
+    - "!vendor/**"
+    - "!go.sum"
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  path_instructions:
+    - path: "install/**prometheusrule*"
+      instructions: |
+        PrometheusRule alert expressions should:
+        - Use `last_over_time(metric{...}[5m])` to prevent failed scrapes from
+          resetting alerts
+        - Prefer `!= 0` for alert expressions where 0 is the happy case
+        - Use singular metric names (e.g., `_condition` not `_conditions`) per
+          kube-state-metrics conventions
+        - Ensure the `for` duration is appropriate for the alert severity
+        - Verify runbook URLs point to the correct component (not another operator)
+        - Include a meaningful description and summary annotation
+    - path: "install/**"
+      instructions: |
+        Manifest file and resource naming conventions:
+        - Resource names should use the full component name (e.g.,
+          `cluster-version-operator`) not acronyms (e.g., `cvo`) and should not
+          echo the Kind (e.g., no `-sa` suffix for ServiceAccounts)
+        - File numbering should leave gaps for future additions; avoid `ZZ` or
+          letter suffixes for ordering — renumber sibling files instead
+        - All manifests must have appropriate cluster-profile annotations
+          (include.release.openshift.io/self-managed-high-availability, etc.)
+        - Use kubernetes.io/description annotations to explain the resource's purpose
+        - When adding new manifests, ensure the run-level ordering is correct
+          (e.g., ServiceAccounts before RoleBindings that reference them)
+    - path: "pkg/**/*.go"
+      instructions: |
+        In reconciliation and controller code, state mutations (struct field
+        assignments, status updates) should happen as close as possible to where
+        the value is consumed. Avoid setting fields early in a function when they
+        are used much later — this creates risk of inconsistency if future code
+        adds early returns or error paths between the mutation and use.
+
+        When sorting or deduplicating collections, ensure stable ordering by
+        including a tiebreaker field (e.g., sort by version then by name).
+
+        When the same boolean condition is used for both logging and a
+        return/branch decision, extract it to a named variable to keep logic
+        coupled and avoid divergence if one usage is updated but not the other.
+
+        When modifying code, check that nearby comments,
+        kubernetes.io/description annotations, and doc strings still accurately
+        describe the new behavior. Outdated documentation is worse than no
+        documentation.
+    - path: "pkg/cvo/updatepayload.go"
+      instructions: |
+        When modifying container security contexts, ensure init containers are
+        also reviewed. All containers should have `readOnlyRootFilesystem: true`
+        unless they explicitly need to write to the filesystem. If an init
+        container needs write access, document why in the commit message and
+        consider using `cp` instead of `mv` to keep the source read-only.
+    - path: "**/*_test.go"
+      instructions: |
+        Test code conventions:
+        - Prefer table-driven tests over multiple similar test functions. If two
+          test functions differ only in setup values, collapse them into one
+          function with test-case tuples
+        - Don't re-fetch resources already obtained in BeforeEach/setup
+        - Don't introduce single-use variables just to name an intermediate
+          value; use the expression directly unless it aids readability
+        - When adding new e2e tests, run `make update` to regenerate
+          .openshift-tests-extension metadata — CI verify-update will fail
+          otherwise
+    - path: "test/**/*.go"
+      instructions: |
+        E2E test conventions:
+        - Add comments explaining non-obvious test URLs or external endpoints
+        - Use Ginkgo Labels to mark test categories (e.g., TechPreview, serial)
+        - When skipping tests for certain environments, document the reason
+        - Ensure test names follow the
+          `[Jira:"Cluster Version Operator"] description` format
+  tools:
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+  auto_review:
+    enabled: true
+    drafts: true
+chat:
+  auto_reply: true
