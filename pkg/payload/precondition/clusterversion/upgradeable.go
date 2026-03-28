@@ -180,3 +180,17 @@ func GetCurrentVersion(history []configv1.UpdateHistory) string {
 	}
 	return ""
 }
+
+func GetCurrentVersionAndImage(history []configv1.UpdateHistory) (string, string) {
+	for _, h := range history {
+		if h.State == configv1.CompletedUpdate {
+			klog.V(2).Infof("Cluster current version=%s", h.Version)
+			return h.Version, h.Image
+		}
+	}
+	// Empty history should only occur if method is called early in startup before history is populated.
+	if len(history) != 0 {
+		return history[len(history)-1].Version, history[len(history)-1].Image
+	}
+	return "", ""
+}
