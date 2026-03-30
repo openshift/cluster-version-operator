@@ -68,7 +68,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), g.Label("Local"), func() {
+	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), func() {
 		// This test case relies on a public service util.FauxinnatiAPIURL
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 
