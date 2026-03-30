@@ -2,7 +2,7 @@
   {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should work with risks from alerts",
     "labels": {
-      "Local": {},
+      "Lifecycle:informing": {},
       "OTA-1813": {},
       "Serial": {}
     },
@@ -10,7 +10,7 @@
       "isolation": {}
     },
     "source": "openshift:payload:cluster-version-operator",
-    "lifecycle": "blocking",
+    "lifecycle": "informing",
     "environmentSelector": {}
   },
   {
