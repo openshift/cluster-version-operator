@@ -1,3 +1,5 @@
+# The Pod is deployed as a static Pod during cluster bootstrap by the installer. Static Pods have some notable details,
+# such as the fact that the spec cannot refer to API objects, like ServiceAccount and ConfigMap.
 apiVersion: v1
 kind: Pod
 metadata:
