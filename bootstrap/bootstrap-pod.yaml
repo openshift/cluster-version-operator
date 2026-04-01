@@ -1,3 +1,6 @@
+# This Pod manifest is deployed as a static Pod via kubelet during cluster bootstrapping.
+# Static Pods are managed directly by kubelet and cannot reference API objects like
+# ServiceAccount, ConfigMap, or Secret in their spec.
 apiVersion: v1
 kind: Pod
 metadata:
