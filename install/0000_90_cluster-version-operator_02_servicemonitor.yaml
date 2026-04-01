@@ -15,10 +15,8 @@ spec:
     port: metrics
     scheme: https
     tlsConfig:
-      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
       serverName: cluster-version-operator.openshift-cluster-version.svc
-      certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
-      keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
+  scrapeClass: tls-client-certificate-auth
   namespaceSelector:
     matchNames:
     - openshift-cluster-version
