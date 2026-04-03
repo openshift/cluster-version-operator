@@ -43,7 +43,6 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
-	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/promql"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/configuration"
@@ -54,6 +53,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
+	"github.com/openshift/cluster-version-operator/pkg/risk"
+	"github.com/openshift/cluster-version-operator/pkg/risk/alert"
 )
 
 const (
@@ -209,7 +210,9 @@ type Operator struct {
 	// configuration, if enabled, reconciles the ClusterVersionOperator configuration.
 	configuration *configuration.ClusterVersionOperatorConfiguration
 
-	AlertGetter AlertGetter
+	// risks holds update-risk source (in-cluster alerts, etc.)
+	// that will be aggregated into conditional update risks.
+	risks risk.Source
 }
 
 // New returns a new cluster version operator.
@@ -270,7 +273,7 @@ func New(
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
-		AlertGetter:               promql.NewAlertGetter(promqlTarget),
+		risks:                     alert.New("Alert", promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
 		requiredFeatureSet:          featureSet,

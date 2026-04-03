@@ -2783,7 +2783,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 			}
 
-			if diff := cmp.Diff(tt.wantUpdates, optr.availableUpdates, cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks")); diff != "" {
+			if diff := cmp.Diff(tt.wantUpdates, optr.availableUpdates, cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks", "risks")); diff != "" {
 				t.Fatalf("unexpected: %s", diff)
 			}
 			if (optr.queue.Len() > 0) != (optr.availableUpdates != nil) {
