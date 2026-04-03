@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
+	oteginkgo "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
@@ -68,7 +69,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), g.Label("Local"), func() {
+	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), oteginkgo.Informing(), func() {
 		// This test case relies on a public service util.FauxinnatiAPIURL
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 
