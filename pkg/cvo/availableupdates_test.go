@@ -213,6 +213,7 @@ var cvFixture = &configv1.ClusterVersion{
 }
 
 var availableUpdatesCmpOpts = []cmp.Option{
+	cmpopts.IgnoreUnexported(availableUpdates{}),
 	cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks"),
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {

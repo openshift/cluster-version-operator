@@ -153,11 +153,13 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 				condition.Reason == "ResponseInvalid"))
 		if !responseFailed || (responseFailed && !preserveCacheOnFailure) {
 			optrAvailableUpdates.Current = current
-			optrAvailableUpdates.Updates = updates
-			optrAvailableUpdates.ConditionalUpdates = conditionalUpdates
+			optrAvailableUpdates.upstreamUpdates = updates
+			optrAvailableUpdates.upstreamConditionalUpdates = conditionalUpdates
 		}
 	}
 
+	optrAvailableUpdates.Updates = deepCopyReleases(optrAvailableUpdates.upstreamUpdates)
+	optrAvailableUpdates.ConditionalUpdates = deepCopyConditionalUpdates(optrAvailableUpdates.upstreamConditionalUpdates)
 	optrAvailableUpdates.AcceptRisks = acceptRisks
 	optrAvailableUpdates.ShouldReconcileAcceptRisks = optr.shouldReconcileAcceptRisks
 	optrAvailableUpdates.risks = optr.risks
@@ -205,10 +207,12 @@ type availableUpdates struct {
 	//   slice was empty.
 	LastSyncOrConfigChange time.Time
 
-	Current            configv1.Release
-	Updates            []configv1.Release
-	ConditionalUpdates []configv1.ConditionalUpdate
-	ConditionRegistry  clusterconditions.ConditionRegistry
+	Current                    configv1.Release
+	Updates                    []configv1.Release
+	upstreamUpdates            []configv1.Release
+	ConditionalUpdates         []configv1.ConditionalUpdate
+	upstreamConditionalUpdates []configv1.ConditionalUpdate
+	ConditionRegistry          clusterconditions.ConditionRegistry
 
 	Condition configv1.ClusterOperatorStatusCondition
 
@@ -332,20 +336,44 @@ func (optr *Operator) getAvailableUpdates() *availableUpdates {
 	}
 
 	if optr.availableUpdates.Updates != nil {
-		u.Updates = make([]configv1.Release, 0, len(optr.availableUpdates.Updates))
-		for _, update := range optr.availableUpdates.Updates {
-			u.Updates = append(u.Updates, *update.DeepCopy())
-		}
+		u.Updates = deepCopyReleases(optr.availableUpdates.Updates)
+	}
+
+	if optr.availableUpdates.upstreamUpdates != nil {
+		u.upstreamUpdates = deepCopyReleases(optr.availableUpdates.upstreamUpdates)
 	}
 
 	if optr.availableUpdates.ConditionalUpdates != nil {
-		u.ConditionalUpdates = make([]configv1.ConditionalUpdate, 0, len(optr.availableUpdates.ConditionalUpdates))
-		for _, conditionalUpdate := range optr.availableUpdates.ConditionalUpdates {
-			u.ConditionalUpdates = append(u.ConditionalUpdates, *conditionalUpdate.DeepCopy())
-		}
+		u.ConditionalUpdates = deepCopyConditionalUpdates(optr.availableUpdates.ConditionalUpdates)
+	}
+
+	if optr.availableUpdates.upstreamConditionalUpdates != nil {
+		u.upstreamConditionalUpdates = deepCopyConditionalUpdates(optr.availableUpdates.upstreamConditionalUpdates)
 	}
 
 	return u
+}
+
+func deepCopyReleases(releases []configv1.Release) []configv1.Release {
+	if releases == nil {
+		return nil
+	}
+	c := make([]configv1.Release, 0, len(releases))
+	for _, update := range releases {
+		c = append(c, *update.DeepCopy())
+	}
+	return c
+}
+
+func deepCopyConditionalUpdates(updates []configv1.ConditionalUpdate) []configv1.ConditionalUpdate {
+	if updates == nil {
+		return nil
+	}
+	c := make([]configv1.ConditionalUpdate, 0, len(updates))
+	for _, update := range updates {
+		c = append(c, *update.DeepCopy())
+	}
+	return c
 }
 
 func loadRiskConditions(ctx context.Context, risks []string, riskVersions map[string]riskWithVersion, conditionRegistry clusterconditions.ConditionRegistry) map[string][]metav1.Condition {
