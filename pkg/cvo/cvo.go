@@ -54,7 +54,13 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
+	"github.com/openshift/cluster-version-operator/pkg/risk/adminack"
+	"github.com/openshift/cluster-version-operator/pkg/risk/aggregate"
 	"github.com/openshift/cluster-version-operator/pkg/risk/alert"
+	deletionrisk "github.com/openshift/cluster-version-operator/pkg/risk/deletion"
+	"github.com/openshift/cluster-version-operator/pkg/risk/overrides"
+	updatingrisk "github.com/openshift/cluster-version-operator/pkg/risk/updating"
+	upgradeablerisk "github.com/openshift/cluster-version-operator/pkg/risk/upgradeable"
 )
 
 const (
@@ -130,21 +136,13 @@ type Operator struct {
 	queue workqueue.TypedRateLimitingInterface[any]
 	// availableUpdatesQueue tracks checking for updates from the update server.
 	availableUpdatesQueue workqueue.TypedRateLimitingInterface[any]
-	// upgradeableQueue tracks checking for upgradeable.
-	upgradeableQueue workqueue.TypedRateLimitingInterface[any]
 
 	// statusLock guards access to modifying available updates
 	statusLock       sync.Mutex
 	availableUpdates *availableUpdates
 
-	// upgradeableStatusLock guards access to modifying Upgradeable conditions
-	upgradeableStatusLock sync.Mutex
-	upgradeable           *upgradeable
-	upgradeableChecks     []upgradeableCheck
-
-	// upgradeableCheckIntervals drives minimal intervals between Upgradeable status
-	// synchronization
-	upgradeableCheckIntervals upgradeableCheckIntervals
+	// upgradeable tracks the risks that feed the ClusterVersion Upgradeable condition.
+	upgradeable risk.Source
 
 	// conditionRegistry is used to evaluate whether a particular condition is risky or not.
 	conditionRegistry clusterconditions.ConditionRegistry
@@ -257,7 +255,6 @@ func New(
 
 		statusInterval:             15 * time.Second,
 		minimumUpdateCheckInterval: minimumInterval,
-		upgradeableCheckIntervals:  defaultUpgradeableCheckIntervals(),
 		payloadDir:                 overridePayloadDir,
 		updateService:              updateService,
 
@@ -267,13 +264,11 @@ func New(
 		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
 		availableUpdatesQueue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "availableupdates"}),
-		upgradeableQueue:      workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "upgradeable"}),
 
 		hypershift:                hypershift,
 		exclude:                   exclude,
 		clusterProfile:            clusterProfile,
 		conditionRegistry:         standard.NewConditionRegistry(promqlTarget),
-		risks:                     alert.New("Alert", promqlTarget),
 		injectClusterIdIntoPromQL: injectClusterIdIntoPromQL,
 
 		requiredFeatureSet:          featureSet,
@@ -284,12 +279,6 @@ func New(
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
-		return nil, err
-	}
-	if _, err := cmConfigInformer.Informer().AddEventHandler(optr.adminAcksEventHandler()); err != nil {
-		return nil, err
-	}
-	if _, err := cmConfigManagedInformer.Informer().AddEventHandler(optr.adminGatesEventHandler()); err != nil {
 		return nil, err
 	}
 	if _, err := coInformer.Informer().AddEventHandler(optr.clusterOperatorEventHandler()); err != nil {
@@ -313,7 +302,19 @@ func New(
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
 
 	// make sure this is initialized after all the listers are initialized
-	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
+	riskSourceCallback := func() { optr.availableUpdatesQueue.Add(optr.queueKey()) }
+	optr.upgradeable = aggregate.New(
+		updatingrisk.New("ClusterVersionUpdating", optr.name, cvInformer, riskSourceCallback),
+		overrides.New("ClusterVersionOverrides", optr.name, cvInformer, riskSourceCallback),
+		deletionrisk.New("ResourceDeletionInProgress", optr.currentVersion),
+		adminack.New("AdminAck", optr.currentVersion, cmConfigManagedInformer, cmConfigInformer, riskSourceCallback),
+		upgradeablerisk.New("ClusterOperatorUpgradeable", optr.currentVersion, coInformer, riskSourceCallback),
+	)
+
+	optr.risks = aggregate.New(
+		alert.New("Alert", promqlTarget),
+		optr.upgradeable,
+	)
 
 	optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
 
@@ -468,7 +469,6 @@ func loadConfigMapVerifierDataFromUpdate(update *payload.Update, clientBuilder s
 func (optr *Operator) Run(runContext context.Context, shutdownContext context.Context) error {
 	defer optr.queue.ShutDown()
 	defer optr.availableUpdatesQueue.ShutDown()
-	defer optr.upgradeableQueue.ShutDown()
 	defer optr.configuration.Queue().ShutDown()
 	stopCh := runContext.Done()
 
@@ -529,21 +529,8 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	go func() {
 		defer utilruntime.HandleCrash()
 		wait.UntilWithContext(runContext, func(runContext context.Context) {
-			optr.worker(runContext, optr.upgradeableQueue, optr.upgradeableSyncFunc(false))
-		}, time.Second)
-		resultChannel <- asyncResult{name: "upgradeable"}
-	}()
-
-	resultChannelCount++
-	go func() {
-		defer utilruntime.HandleCrash()
-		wait.UntilWithContext(runContext, func(runContext context.Context) {
 			// run the worker, then when the queue is closed sync one final time to flush any pending status
 			optr.worker(runContext, optr.queue, func(runContext context.Context, key string) error { return optr.sync(runContext, key) })
-			// This is to ensure upgradeableCondition to be synced and thus to avoid the race caused by the throttle
-			if err := optr.upgradeableSyncFunc(true)(shutdownContext, optr.queueKey()); err != nil {
-				utilruntime.HandleError(fmt.Errorf("unable to perform final upgradeable sync: %v", err))
-			}
 			if err := optr.sync(shutdownContext, optr.queueKey()); err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to perform final sync: %v", err))
 			}
@@ -593,7 +580,6 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			shutdown = true
 			optr.queue.ShutDown()
 			optr.availableUpdatesQueue.ShutDown()
-			optr.upgradeableQueue.ShutDown()
 			optr.configuration.Queue().ShutDown()
 		}
 	}
@@ -613,12 +599,10 @@ func (optr *Operator) clusterVersionEventHandler() cache.ResourceEventHandler {
 		AddFunc: func(_ interface{}) {
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
-			optr.upgradeableQueue.Add(workQueueKey)
 		},
 		UpdateFunc: func(_, _ interface{}) {
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
-			optr.upgradeableQueue.Add(workQueueKey)
 		},
 		DeleteFunc: func(_ interface{}) {
 			optr.queue.Add(workQueueKey)
@@ -827,31 +811,6 @@ func (optr *Operator) availableUpdatesSync(ctx context.Context, key string) erro
 		return err
 	}
 	return optr.syncAvailableUpdates(ctx, config)
-}
-
-// upgradeableSyncFunc returns a function that is triggered on cluster version change (and periodic requeues) to
-// sync upgradeableCondition. It only modifies cluster version.
-func (optr *Operator) upgradeableSyncFunc(ignoreThrottlePeriod bool) func(_ context.Context, key string) error {
-	return func(_ context.Context, key string) error {
-		startTime := time.Now()
-		klog.V(2).Infof("Started syncing upgradeable %q", key)
-		defer func() {
-			klog.V(2).Infof("Finished syncing upgradeable %q (%v)", key, time.Since(startTime))
-		}()
-
-		config, err := optr.cvLister.Get(optr.name)
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if errs := validation.ValidateClusterVersion(config, optr.shouldReconcileAcceptRisks()); len(errs) > 0 {
-			return nil
-		}
-
-		return optr.syncUpgradeable(config, ignoreThrottlePeriod)
-	}
 }
 
 // isOlderThanLastUpdate returns true if the cluster version is older than
