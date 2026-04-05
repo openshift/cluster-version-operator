@@ -19,6 +19,8 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -229,6 +231,7 @@ func (f fakeRiFlags) AcceptRisks() bool {
 }
 
 func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {
+	ctx := context.Background()
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 	type args struct {
 		syncWorkerStatus *SyncWorkerStatus
@@ -752,7 +755,9 @@ func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t
 				if tc.shouldModifyWhenNotReconcilingAndHistoryNotEmpty && !c.isReconciling && !c.isHistoryEmpty {
 					expectedCondition = tc.expectedConditionModified
 				}
-				updateClusterVersionStatus(cvStatus, tc.args.syncWorkerStatus, release, getAvailableUpdates, gates, noErrors, func() bool {
+				registry := clusterconditions.NewConditionRegistry()
+				registry.Register("Always", &always.Always{})
+				updateClusterVersionStatus(ctx, cvStatus, tc.args.syncWorkerStatus, release, registry, getAvailableUpdates, nil, gates, noErrors, func() bool {
 					return false
 				})
 				condition := resourcemerge.FindOperatorStatusCondition(cvStatus.Conditions, internal.ClusterStatusFailing)

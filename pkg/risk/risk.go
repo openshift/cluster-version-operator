@@ -23,7 +23,7 @@ import (
 )
 
 // validName enforces the non-empty CamelCase risk-naming convention.
-var validName = regexp.MustCompile(`^[A-Z][A-Za-z0-9]*$`)
+var validName = regexp.MustCompile(`^[A-Z][A-Za-z0-9.-]*$`)
 
 // Source represents a risk source, like the update service's
 // conditionalEdges.  Or firing in-cluster alerts.  Or another source.
