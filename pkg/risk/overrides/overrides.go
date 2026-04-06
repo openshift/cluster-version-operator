@@ -29,14 +29,14 @@ type overrides struct {
 }
 
 // New returns a new update-risk source, tracking the use of ClusterVersion overrides.
-func New(name string, cvName string, cvInformer configinformersv1.ClusterVersionInformer, changeCallback func()) risk.Source {
+func New(name string, cvName string, cvInformer configinformersv1.ClusterVersionInformer, changeCallback func()) (risk.Source, error) {
 	cvLister := cvInformer.Lister()
 	source := &overrides{name: name, cvName: cvName, cvLister: cvLister}
-	cvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := cvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { source.eventHandler(changeCallback) },
 		UpdateFunc: func(_, _ interface{}) { source.eventHandler(changeCallback) },
 	})
-	return source
+	return source, err
 }
 
 // Name returns the source's name.

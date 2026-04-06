@@ -32,15 +32,15 @@ type upgradeable struct {
 }
 
 // New returns a new update-risk source, tracking ClusterOperator Upgradeable conditions.
-func New(name string, currentVersion func() configv1.Release, coInformer configinformersv1.ClusterOperatorInformer, changeCallback func()) risk.Source {
+func New(name string, currentVersion func() configv1.Release, coInformer configinformersv1.ClusterOperatorInformer, changeCallback func()) (risk.Source, error) {
 	coLister := coInformer.Lister()
 	source := &upgradeable{name: name, currentVersion: currentVersion, coLister: coLister}
-	coInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := coInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { source.eventHandler(changeCallback) },
 		UpdateFunc: func(_, _ interface{}) { source.eventHandler(changeCallback) },
 		DeleteFunc: func(_ interface{}) { source.eventHandler(changeCallback) },
 	})
-	return source
+	return source, err
 }
 
 // Name returns the source's name.

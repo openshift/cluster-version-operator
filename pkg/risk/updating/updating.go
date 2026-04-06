@@ -30,14 +30,14 @@ type updating struct {
 }
 
 // New returns a new updating-risk source, tracking whether an update is in progress.
-func New(name string, cvName string, cvInformer configinformersv1.ClusterVersionInformer, changeCallback func()) risk.Source {
+func New(name string, cvName string, cvInformer configinformersv1.ClusterVersionInformer, changeCallback func()) (risk.Source, error) {
 	cvLister := cvInformer.Lister()
 	source := &updating{name: name, cvName: cvName, cvLister: cvLister}
-	cvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err := cvInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { source.eventHandler(changeCallback) },
 		UpdateFunc: func(_, _ interface{}) { source.eventHandler(changeCallback) },
 	})
-	return source
+	return source, err
 }
 
 // Name returns the source's name.
