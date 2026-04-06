@@ -3992,14 +3992,13 @@ func Test_gateApplicableToCurrentVersion(t *testing.T) {
 		{
 			t.Run(tt.name, func(t *testing.T) {
 				isApplicable, err := gateApplicableToCurrentVersion(tt.gateName, tt.cv)
+				if isApplicable != tt.expectedResult {
+					t.Errorf("gateApplicableToCurrentVersion() %s expected applicable %t, got applicable %t", tt.gateName, tt.expectedResult, isApplicable)
+				}
 				if err != nil && !tt.wantErr {
-					t.Fatalf("gateApplicableToCurrentVersion() unexpected error: %v", err)
-				}
-				if err != nil {
-					return
-				}
-				if isApplicable && !tt.expectedResult {
-					t.Fatalf("gateApplicableToCurrentVersion() %s should not apply", tt.gateName)
+					t.Errorf("gateApplicableToCurrentVersion() unexpected error: %v", err)
+				} else if err == nil && tt.wantErr {
+					t.Error("gateApplicableToCurrentVersion() unexpected success when an error was expected")
 				}
 			})
 		}
