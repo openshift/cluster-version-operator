@@ -296,7 +296,9 @@ func New(
 
 	optr.proxyLister = proxyInformer.Lister()
 	optr.cmConfigLister = cmConfigInformer.Lister().ConfigMaps(internal.ConfigNamespace)
+	optr.cacheSynced = append(optr.cacheSynced, cmConfigInformer.Informer().HasSynced)
 	optr.cmConfigManagedLister = cmConfigManagedInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
+	optr.cacheSynced = append(optr.cacheSynced, cmConfigManagedInformer.Informer().HasSynced)
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
