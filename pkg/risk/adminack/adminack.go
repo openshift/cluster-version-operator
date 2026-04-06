@@ -4,6 +4,7 @@ package adminack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"slices"
@@ -41,21 +42,21 @@ type adminAck struct {
 }
 
 // New returns a new update-risk source, tracking administrator acknowledgements.
-func New(name string, currentVersion func() configv1.Release, adminGatesInformer, adminAcksInformer informerscorev1.ConfigMapInformer, changeCallback func()) risk.Source {
+func New(name string, currentVersion func() configv1.Release, adminGatesInformer, adminAcksInformer informerscorev1.ConfigMapInformer, changeCallback func()) (risk.Source, error) {
 	adminGatesLister := adminGatesInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
 	adminAcksLister := adminAcksInformer.Lister().ConfigMaps(internal.ConfigNamespace)
 	source := &adminAck{name: name, currentVersion: currentVersion, adminGatesLister: adminGatesLister, adminAcksLister: adminAcksLister}
-	adminGatesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err1 := adminGatesInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { source.eventHandler(changeCallback) },
 		UpdateFunc: func(_, _ interface{}) { source.eventHandler(changeCallback) },
 		DeleteFunc: func(_ interface{}) { source.eventHandler(changeCallback) },
 	})
-	adminAcksInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err2 := adminAcksInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { source.eventHandler(changeCallback) },
 		UpdateFunc: func(_, _ interface{}) { source.eventHandler(changeCallback) },
 		DeleteFunc: func(_ interface{}) { source.eventHandler(changeCallback) },
 	})
-	return source
+	return source, errors.Join(err1, err2)
 }
 
 // Name returns the source's name.

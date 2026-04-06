@@ -285,7 +285,10 @@ func TestOperator_upgradeableSync(t *testing.T) {
 	for _, tt := range tests {
 		{
 			t.Run(tt.name, func(t *testing.T) {
-				source := New("AdminAck", func() configv1.Release { return configv1.Release{Version: "4.21.0"} }, cmInformer, cmInformer, nil)
+				source, err := New("AdminAck", func() configv1.Release { return configv1.Release{Version: "4.21.0"} }, cmInformer, cmInformer, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
 				if tt.gateCm != nil {
 					if tt.gateCm.Name == "delete" {
 						err := f.CoreV1().ConfigMaps(internal.ConfigManagedNamespace).Delete(ctx, internal.AdminGatesConfigMap, metav1.DeleteOptions{})

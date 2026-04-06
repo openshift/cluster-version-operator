@@ -305,13 +305,31 @@ func New(
 
 	// make sure this is initialized after all the listers are initialized
 	riskSourceCallback := func() { optr.availableUpdatesQueue.Add(optr.queueKey()) }
-	optr.upgradeable = aggregate.New(
-		updatingrisk.New("ClusterVersionUpdating", optr.name, cvInformer, riskSourceCallback),
-		overrides.New("ClusterVersionOverrides", optr.name, cvInformer, riskSourceCallback),
-		deletionrisk.New("ResourceDeletionInProgress", optr.currentVersion),
-		adminack.New("AdminAck", optr.currentVersion, cmConfigManagedInformer, cmConfigInformer, riskSourceCallback),
-		upgradeablerisk.New("ClusterOperatorUpgradeable", optr.currentVersion, coInformer, riskSourceCallback),
-	)
+
+	risks := []risk.Source{}
+	if source, err := updatingrisk.New("ClusterVersionUpdating", optr.name, cvInformer, riskSourceCallback); err != nil {
+		return optr, err
+	} else {
+		risks = append(risks, source)
+	}
+	if source, err := overrides.New("ClusterVersionOverrides", optr.name, cvInformer, riskSourceCallback); err != nil {
+		return optr, err
+	} else {
+		risks = append(risks, source)
+	}
+	risks = append(risks, deletionrisk.New("ResourceDeletionInProgress", optr.currentVersion))
+	if source, err := adminack.New("AdminAck", optr.currentVersion, cmConfigManagedInformer, cmConfigInformer, riskSourceCallback); err != nil {
+		return optr, err
+	} else {
+		risks = append(risks, source)
+	}
+	if source, err := upgradeablerisk.New("ClusterOperatorUpgradeable", optr.currentVersion, coInformer, riskSourceCallback); err != nil {
+		return optr, err
+	} else {
+		risks = append(risks, source)
+	}
+
+	optr.upgradeable = aggregate.New(risks...)
 
 	optr.risks = aggregate.New(
 		alert.New("Alert", promqlTarget),

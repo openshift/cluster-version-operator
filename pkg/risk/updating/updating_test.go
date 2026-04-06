@@ -43,7 +43,10 @@ func Test_New(t *testing.T) {
 	versions := []string{"4.21.1", "4.22.0", "5.0.0"}
 
 	expectedName := "ClusterVersionUpdating"
-	source := updating.New(expectedName, cv.Name, cvInformer, changeCallback)
+	source, err := updating.New(expectedName, cv.Name, cvInformer, changeCallback)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("name", func(t *testing.T) {
 		if name := source.Name(); name != expectedName {

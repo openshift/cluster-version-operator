@@ -51,7 +51,10 @@ func Test_New(t *testing.T) {
 	versions := []string{"4.21.1", "4.22.0", "5.0.0"}
 
 	expectedName := "ClusterOperatorUpgradeable"
-	source := upgradeable.New(expectedName, currentVersion, coInformer, changeCallback)
+	source, err := upgradeable.New(expectedName, currentVersion, coInformer, changeCallback)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	t.Run("name", func(t *testing.T) {
 		if name := source.Name(); name != expectedName {
