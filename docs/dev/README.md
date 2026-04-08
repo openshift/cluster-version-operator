@@ -144,3 +144,4 @@ deployment.apps/cluster-version-operator patched
 
 - [Feed custom upgrade graphs to CVO](feed-cvo-custom-graphs.md)
 - [Run local CVO against a remote cluster](run-cvo-locally.md)
+- [Troubleshoot CVO on the bootstrap node](troubleshoot-bootstrap-cvo.md)
