@@ -517,7 +517,8 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			if tc.riskConditions == nil {
 				tc.riskConditions = map[string][]metav1.Condition{}
 			}
-			actual := evaluateConditionalUpdate(tc.risks, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
+			conditionalUpdate := configv1.ConditionalUpdate{Risks: tc.risks}
+			actual := evaluateConditionalUpdate(conditionalUpdate, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
 			}

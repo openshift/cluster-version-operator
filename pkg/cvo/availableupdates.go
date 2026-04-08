@@ -580,7 +580,7 @@ func (u *availableUpdates) evaluateConditionalUpdates(ctx context.Context) {
 	u.RiskConditions = loadRiskConditions(ctx, risks, riskVersions, u.ConditionRegistry)
 
 	for i, conditionalUpdate := range u.ConditionalUpdates {
-		condition := evaluateConditionalUpdate(conditionalUpdate.Risks, u.AcceptRisks, u.ShouldReconcileAcceptRisks, u.RiskConditions)
+		condition := evaluateConditionalUpdate(conditionalUpdate, u.AcceptRisks, u.ShouldReconcileAcceptRisks, u.RiskConditions)
 
 		if condition.Status == metav1.ConditionTrue {
 			u.addUpdate(conditionalUpdate.Release)
@@ -666,7 +666,7 @@ func newRecommendedReason(now, want string) string {
 }
 
 func evaluateConditionalUpdate(
-	risks []configv1.ConditionalUpdateRisk,
+	conditionalUpdate configv1.ConditionalUpdate,
 	acceptRisks sets.Set[string],
 	shouldReconcileAcceptRisks func() bool,
 	riskConditions map[string][]metav1.Condition,
@@ -680,7 +680,7 @@ func evaluateConditionalUpdate(
 	}
 
 	var errorMessages []string
-	for _, risk := range risks {
+	for _, risk := range conditionalUpdate.Risks {
 		riskCondition := meta.FindStatusCondition(riskConditions[risk.Name], internal.ConditionalUpdateRiskConditionTypeApplies)
 		if riskCondition == nil {
 			// This should never happen
@@ -700,7 +700,7 @@ func evaluateConditionalUpdate(
 				recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionTrue)
 				recommended.Reason = newRecommendedReason(recommended.Reason, recommendedReasonAllExposedRisksAccepted)
 				recommended.Message = "The update is recommended, because either risk does not apply to this cluster or it is accepted by cluster admins."
-				klog.V(2).Infof("Risk with name %q is accepted by the cluster admin and thus not in the evaluation of conditional update", risk.Name)
+				klog.V(2).Infof("Risk with name %q is accepted by the cluster admin and thus not in the evaluation of conditional update %s", risk.Name, conditionalUpdate.Release.Version)
 			} else {
 				recommended.Status = newRecommendedStatus(recommended.Status, metav1.ConditionFalse)
 				wantReason := recommendedReasonExposed
