@@ -211,4 +211,20 @@ func SkipIfNetworkRestricted(ctx context.Context, restConfig *rest.Config, urls 
 		g.Skip("This test is skipped because the network is restricted")
 	}
 	return nil
+
+}
+
+// GetExpectedChannelPrefix extracts the major.minor version from a full version string
+// and returns the expected channel prefix in the format "stable-<major>.<minor>"
+// Example: "4.22.0-rc.0" -> "stable-4.22"
+func GetExpectedChannelPrefix(version string) string {
+	// Parse semantic version to extract major.minor
+	// Version format is typically: major.minor.patch or major.minor.patch-prerelease
+	var major, minor int
+	_, err := fmt.Sscanf(version, "%d.%d", &major, &minor)
+	if err != nil {
+		// If parsing fails, return empty string
+		return ""
+	}
+	return fmt.Sprintf("stable-%d.%d", major, minor)
 }
