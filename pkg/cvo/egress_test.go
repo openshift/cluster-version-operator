@@ -103,16 +103,16 @@ func TestGetTLSConfig(t *testing.T) {
 	listerErr := fmt.Errorf("transient lister error")
 
 	tests := []struct {
-		name              string
-		trustedCABundle   *corev1.ConfigMap // openshift-config-managed/trusted-ca-bundle
-		userCABundle      *corev1.ConfigMap // openshift-config/user-ca-bundle
-		managedListerErr  error             // non-NotFound error from the managed lister
-		configListerErr   error             // non-NotFound error from the config lister
-		hypershift        bool
-		wantNilConfig     bool
-		wantCA1Present    bool
-		wantCA2Present    bool
-		wantErr           bool
+		name             string
+		trustedCABundle  *corev1.ConfigMap // openshift-config-managed/trusted-ca-bundle
+		userCABundle     *corev1.ConfigMap // openshift-config/user-ca-bundle
+		managedListerErr error             // non-NotFound error from the managed lister
+		configListerErr  error             // non-NotFound error from the config lister
+		hypershift       bool
+		wantNilConfig    bool
+		wantCA1Present   bool
+		wantCA2Present   bool
+		wantErr          bool
 	}{
 		{
 			name:          "non-hypershift: no bundles → nil config",
@@ -175,10 +175,10 @@ func TestGetTLSConfig(t *testing.T) {
 			wantErr:          true,
 		},
 		{
-			name:             "hypershift: user-ca-bundle lister non-NotFound error is propagated",
-			hypershift:       true,
-			configListerErr:  listerErr,
-			wantErr:          true,
+			name:            "hypershift: user-ca-bundle lister non-NotFound error is propagated",
+			hypershift:      true,
+			configListerErr: listerErr,
+			wantErr:         true,
 		},
 	}
 
