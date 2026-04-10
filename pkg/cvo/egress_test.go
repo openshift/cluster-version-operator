@@ -3,6 +3,7 @@ package cvo
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -99,14 +100,19 @@ func TestGetTLSConfig(t *testing.T) {
 	ca1Cert := ca1Certs[0]
 	ca2Cert := ca2Certs[0]
 
+	listerErr := fmt.Errorf("transient lister error")
+
 	tests := []struct {
-		name            string
-		trustedCABundle *corev1.ConfigMap // openshift-config-managed/trusted-ca-bundle
-		userCABundle    *corev1.ConfigMap // openshift-config/user-ca-bundle
-		hypershift      bool
-		wantNilConfig   bool
-		wantCA1Present  bool
-		wantCA2Present  bool
+		name              string
+		trustedCABundle   *corev1.ConfigMap // openshift-config-managed/trusted-ca-bundle
+		userCABundle      *corev1.ConfigMap // openshift-config/user-ca-bundle
+		managedListerErr  error             // non-NotFound error from the managed lister
+		configListerErr   error             // non-NotFound error from the config lister
+		hypershift        bool
+		wantNilConfig     bool
+		wantCA1Present    bool
+		wantCA2Present    bool
+		wantErr           bool
 	}{
 		{
 			name:          "non-hypershift: no bundles → nil config",
@@ -161,16 +167,29 @@ func TestGetTLSConfig(t *testing.T) {
 			wantCA1Present:  true,
 			wantCA2Present:  true,
 		},
+		// Error path: non-NotFound errors from listers must be propagated.
+		{
+			name:             "managed lister non-NotFound error is propagated",
+			hypershift:       false,
+			managedListerErr: listerErr,
+			wantErr:          true,
+		},
+		{
+			name:             "hypershift: user-ca-bundle lister non-NotFound error is propagated",
+			hypershift:       true,
+			configListerErr:  listerErr,
+			wantErr:          true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			managedLister := &cmConfigLister{}
+			managedLister := &cmConfigLister{Err: tt.managedListerErr}
 			if tt.trustedCABundle != nil {
 				managedLister.Items = append(managedLister.Items, tt.trustedCABundle)
 			}
 
-			configLister := &cmConfigLister{}
+			configLister := &cmConfigLister{Err: tt.configListerErr}
 			if tt.userCABundle != nil {
 				configLister.Items = append(configLister.Items, tt.userCABundle)
 			}
@@ -182,6 +201,12 @@ func TestGetTLSConfig(t *testing.T) {
 			}
 
 			tlsCfg, err := optr.getTLSConfig()
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected an error but got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

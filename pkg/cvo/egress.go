@@ -110,5 +110,8 @@ func (optr *Operator) getTLSConfig() (*tls.Config, error) {
 		return nil, nil
 	}
 
+	// MinVersion is intentionally omitted; Go defaults to TLS 1.2 for clients,
+	// which is acceptable for Cincinnati/OSUS connectivity and avoids breaking
+	// compatibility with update services that do not yet support TLS 1.3.
 	return &tls.Config{RootCAs: certPool}, nil
 }
