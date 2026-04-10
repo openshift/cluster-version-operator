@@ -2,14 +2,11 @@ package cvo
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -17,15 +14,12 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	prometheusv1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
 
@@ -35,6 +29,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/risk"
+	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
 )
 
 // notFoundProxyLister is a stub for ProxyLister
@@ -217,11 +213,12 @@ var cvFixture = &configv1.ClusterVersion{
 }
 
 var availableUpdatesCmpOpts = []cmp.Option{
+	cmpopts.IgnoreUnexported(availableUpdates{}),
 	cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks"),
 	cmpopts.IgnoreTypes(time.Time{}),
 	cmpopts.IgnoreInterfaces(struct {
 		clusterconditions.ConditionRegistry
-		AlertGetter
+		risk.Source
 	}{}),
 }
 
@@ -520,7 +517,8 @@ func TestEvaluateConditionalUpdate(t *testing.T) {
 			if tc.riskConditions == nil {
 				tc.riskConditions = map[string][]metav1.Condition{}
 			}
-			actual := evaluateConditionalUpdate(tc.risks, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
+			conditionalUpdate := configv1.ConditionalUpdate{Risks: tc.risks}
+			actual := evaluateConditionalUpdate(conditionalUpdate, tc.acceptRisks, tc.shouldReconcileAcceptRisks, tc.riskConditions)
 			if diff := cmp.Diff(tc.expected, actual); diff != "" {
 				t.Errorf("actual condition differs from expected:\n%s", diff)
 			}
@@ -784,58 +782,6 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 	}
 }
 
-func Test_sanityCheck(t *testing.T) {
-	tests := []struct {
-		name     string
-		updates  []configv1.ConditionalUpdate
-		expected error
-	}{
-		{
-			name: "good",
-			updates: []configv1.ConditionalUpdate{
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskB"}}},
-			},
-		},
-		{
-			name: "invalid risk name",
-			updates: []configv1.ConditionalUpdate{
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "", URL: "some"}}},
-			},
-			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found invalid name on risk {[] some   []}")}),
-		},
-		{
-			name: "bad in one update",
-			updates: []configv1.ConditionalUpdate{
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskA", URL: "some"}}},
-			},
-			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
-		},
-		{
-			name: "bad in two updates",
-			updates: []configv1.ConditionalUpdate{
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}}},
-				{Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA", URL: "some"}}},
-			},
-			expected: utilerrors.NewAggregate([]error{fmt.Errorf("found collision on risk riskA: {[]  riskA  []} and {[] some riskA  []}")}),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := sanityCheck(tt.updates)
-			if diff := cmp.Diff(tt.expected, actual, cmp.Comparer(func(x, y error) bool {
-				if x == nil || y == nil {
-					return x == nil && y == nil
-				}
-				return x.Error() == y.Error()
-			})); diff != "" {
-				t.Errorf("sanityCheck() mismatch (-want +got):\n%s", diff)
-			}
-
-		})
-	}
-}
-
 func Test_loadRiskVersions(t *testing.T) {
 	testcases := []struct {
 		name               string
@@ -952,170 +898,6 @@ func Test_loadRiskConditions(t *testing.T) {
 			actual := loadRiskConditions(context.Background(), tt.risks, tt.riskVersions, registry)
 			if diff := cmp.Diff(tt.expected, actual); diff != "" {
 				t.Errorf("%s: loadRiskConditions() mismatch (-want +got):\n%s", tt.name, diff)
-			}
-		})
-	}
-}
-
-type mockAlertGetter struct {
-	ret      prometheusv1.AlertsResult
-	jsonFile string
-	t        *testing.T
-}
-
-func (m *mockAlertGetter) Get(_ context.Context) prometheusv1.AlertsResult {
-	var ret prometheusv1.AlertsResult
-	if m.jsonFile != "" {
-		data, err := os.ReadFile(m.jsonFile)
-		if err != nil {
-			m.t.Fatal(err)
-		}
-		err = json.Unmarshal(data, &ret)
-		if err != nil {
-			m.t.Fatal(err)
-		}
-		return ret
-	}
-	return m.ret
-}
-
-func Test_evaluateAlertConditions(t *testing.T) {
-	t1 := time.Now()
-	t2 := time.Now().Add(-3 * time.Minute)
-	t3, err := time.Parse(time.RFC3339, "2026-03-04T00:38:19.02109776Z")
-	if err != nil {
-		t.Fatalf("failed to parse time: %v", err)
-	}
-	tests := []struct {
-		name               string
-		u                  *availableUpdates
-		expectedErr        error
-		expectedAlertRisks []configv1.ConditionalUpdateRisk
-	}{
-		{
-			name: "basic case",
-			u: &availableUpdates{
-				AlertGetter: &mockAlertGetter{
-					t: t,
-					ret: prometheusv1.AlertsResult{
-						Alerts: []prometheusv1.Alert{
-							{
-								Labels: map[model.LabelName]model.LabelValue{
-									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetLimit"),
-									model.LabelName("severity"):            model.LabelValue("critical"),
-									model.LabelName("namespace"):           model.LabelValue("namespace"),
-									model.LabelName("poddisruptionbudget"): model.LabelValue("some-pdb"),
-								},
-								State: prometheusv1.AlertStateFiring,
-								Annotations: map[model.LabelName]model.LabelValue{
-									model.LabelName("summary"):     model.LabelValue("summary"),
-									model.LabelName("description"): model.LabelValue("description"),
-									model.LabelName("message"):     model.LabelValue("message"),
-									model.LabelName("runbook_url"): model.LabelValue("http://runbook.example.com/runbooks/abc.md"),
-								},
-								ActiveAt: t1,
-							},
-							{
-								Labels: map[model.LabelName]model.LabelValue{
-									model.LabelName("alertname"): model.LabelValue("not-important"),
-								},
-								State: prometheusv1.AlertStatePending,
-							},
-							{
-								Labels: map[model.LabelName]model.LabelValue{
-									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetAtLimit"),
-									model.LabelName("severity"):            model.LabelValue("severity"),
-									model.LabelName("namespace"):           model.LabelValue("namespace"),
-									model.LabelName("poddisruptionbudget"): model.LabelValue("some-pdb"),
-								},
-								State: prometheusv1.AlertStateFiring,
-								Annotations: map[model.LabelName]model.LabelValue{
-									model.LabelName("summary"):     model.LabelValue("summary"),
-									model.LabelName("description"): model.LabelValue("description"),
-									model.LabelName("message"):     model.LabelValue("message"),
-									model.LabelName("runbook_url"): model.LabelValue("http://runbook.example.com/runbooks/bbb.md"),
-								},
-								ActiveAt: t1,
-							},
-							{
-								Labels: map[model.LabelName]model.LabelValue{
-									model.LabelName("alertname"):           model.LabelValue("PodDisruptionBudgetAtLimit"),
-									model.LabelName("severity"):            model.LabelValue("severity"),
-									model.LabelName("namespace"):           model.LabelValue("namespace"),
-									model.LabelName("poddisruptionbudget"): model.LabelValue("another-pdb"),
-								},
-								State: prometheusv1.AlertStateFiring,
-								Annotations: map[model.LabelName]model.LabelValue{
-									model.LabelName("summary"):     model.LabelValue("summary"),
-									model.LabelName("description"): model.LabelValue("description"),
-									model.LabelName("message"):     model.LabelValue("message"),
-									model.LabelName("runbook_url"): model.LabelValue("http://runbook.example.com/runbooks/bbb.md"),
-								},
-								ActiveAt: t2,
-							},
-						},
-					},
-				},
-			},
-			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
-				{
-					Name:          "PodDisruptionBudgetAtLimit",
-					Message:       "summary.",
-					URL:           "http://runbook.example.com/runbooks/bbb.md",
-					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-					Conditions: []metav1.Condition{{
-						Type:               "Applies",
-						Status:             "True",
-						Reason:             "Alert:firing",
-						Message:            "severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md; severity alert PodDisruptionBudgetAtLimit firing, which might slow node drains. Namespace=namespace, PodDisruptionBudget=another-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/bbb.md",
-						LastTransitionTime: metav1.NewTime(t2),
-					}},
-				},
-				{
-					Name:          "PodDisruptionBudgetLimit",
-					Message:       "summary.",
-					URL:           "http://runbook.example.com/runbooks/abc.md",
-					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-					Conditions: []metav1.Condition{{
-						Type:               "Applies",
-						Status:             "True",
-						Reason:             "Alert:firing",
-						Message:            "critical alert PodDisruptionBudgetLimit firing, suggesting significant cluster issues worth investigating. Namespace=namespace, PodDisruptionBudget=some-pdb. summary. The alert description is: description | message http://runbook.example.com/runbooks/abc.md",
-						LastTransitionTime: metav1.NewTime(t1),
-					}},
-				},
-			},
-		},
-		{
-			name: "from file",
-			u: &availableUpdates{
-				AlertGetter: &mockAlertGetter{
-					t:        t,
-					jsonFile: filepath.Join("testdata", "alerts.json"),
-				},
-			},
-			expectedAlertRisks: []configv1.ConditionalUpdateRisk{
-				{
-					Name:          "TestAlert",
-					Message:       "Test summary.",
-					URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
-					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-					Conditions: []metav1.Condition{{
-						Type:               "Applies",
-						Status:             "True",
-						Reason:             "Alert:firing",
-						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-						LastTransitionTime: metav1.NewTime(t3),
-					}},
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual := tt.u.evaluateAlertRisks(context.TODO())
-			if diff := cmp.Diff(tt.expectedAlertRisks, actual); diff != "" {
-				t.Errorf("AlertRisks mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -1259,152 +1041,6 @@ func Test_newRecommendedReason(t *testing.T) {
 	}
 }
 
-func Test_attachAlertRisksToUpdates(t *testing.T) {
-	now := metav1.Now()
-	tests := []struct {
-		name                     string
-		alertRisks               []configv1.ConditionalUpdateRisk
-		updates                  []configv1.Release
-		conditionUpdates         []configv1.ConditionalUpdate
-		expected                 []configv1.Release
-		expectedConditionUpdates []configv1.ConditionalUpdate
-		expectedRiskConditions   map[string][]metav1.Condition
-	}{
-		{
-			name: "no alert risks",
-		},
-		{
-			name: "basic case",
-			alertRisks: []configv1.ConditionalUpdateRisk{
-				{
-					Name:          "TestAlert",
-					Message:       "Test summary.",
-					URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
-					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-					Conditions: []metav1.Condition{{
-						Type:               "Applies",
-						Status:             "True",
-						Reason:             "Alert:firing",
-						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-						LastTransitionTime: now,
-					}},
-				},
-			},
-			updates: []configv1.Release{
-				{
-					Version: "4.21.1",
-				},
-				{
-					Version: "4.21.2",
-				},
-			},
-			conditionUpdates: []configv1.ConditionalUpdate{
-				{
-					Release: configv1.Release{
-						Version: "4.21.3",
-					},
-					Risks: []configv1.ConditionalUpdateRisk{
-						{
-							Name: "Risk1",
-						},
-					},
-				},
-			},
-			expectedConditionUpdates: []configv1.ConditionalUpdate{
-				{
-					Release: configv1.Release{
-						Version: "4.21.1",
-					},
-					Risks: []configv1.ConditionalUpdateRisk{
-						{
-							Name:          "TestAlert",
-							Message:       "Test summary.",
-							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
-							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-							Conditions: []metav1.Condition{{
-								Type:               "Applies",
-								Status:             "True",
-								Reason:             "Alert:firing",
-								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-								LastTransitionTime: now,
-							}},
-						},
-					},
-				},
-				{
-					Release: configv1.Release{
-						Version: "4.21.2",
-					},
-					Risks: []configv1.ConditionalUpdateRisk{
-						{
-							Name:          "TestAlert",
-							Message:       "Test summary.",
-							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
-							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-							Conditions: []metav1.Condition{{
-								Type:               "Applies",
-								Status:             "True",
-								Reason:             "Alert:firing",
-								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-								LastTransitionTime: now,
-							}},
-						},
-					},
-				},
-				{
-					Release: configv1.Release{
-						Version: "4.21.3",
-					},
-					Risks: []configv1.ConditionalUpdateRisk{
-						{
-							Name: "Risk1",
-						},
-						{
-							Name:          "TestAlert",
-							Message:       "Test summary.",
-							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
-							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
-							Conditions: []metav1.Condition{{
-								Type:               "Applies",
-								Status:             "True",
-								Reason:             "Alert:firing",
-								Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-								LastTransitionTime: now,
-							}},
-						},
-					},
-				},
-			},
-			expectedRiskConditions: map[string][]metav1.Condition{
-				"TestAlert": []metav1.Condition{{
-					Type:               "Applies",
-					Status:             "True",
-					Reason:             "Alert:firing",
-					Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
-					LastTransitionTime: now,
-				}},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			u := &availableUpdates{Updates: tt.updates, ConditionalUpdates: tt.conditionUpdates}
-			u.attachAlertRisksToUpdates(tt.alertRisks)
-			// attaching is idempotent
-			u.attachAlertRisksToUpdates(tt.alertRisks)
-			if diff := cmp.Diff(tt.expected, u.Updates); diff != "" {
-				t.Errorf("available updates mismatch (-want +got):\n%s", diff)
-			}
-			if diff := cmp.Diff(tt.expectedConditionUpdates, u.ConditionalUpdates); diff != "" {
-				t.Errorf("conditional updates mismatch (-want +got):\n%s", diff)
-			}
-			if diff := cmp.Diff(tt.expectedRiskConditions, u.RiskConditions); diff != "" {
-				t.Errorf("risk conditions mismatch (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
 func Test_evaluateConditionalUpdates(t *testing.T) {
 	t1, err := time.Parse(time.RFC3339, "2026-03-04T00:38:19.02109776Z")
 	if err != nil {
@@ -1419,6 +1055,7 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 		shouldReconcileAcceptRisks func() bool
 		updates                    []configv1.Release
 		conditionUpdates           []configv1.ConditionalUpdate
+		risks                      risk.Source
 		expected                   []configv1.Release
 		expectedConditionUpdates   []configv1.ConditionalUpdate
 		expectedRiskConditions     map[string][]metav1.Condition
@@ -1434,6 +1071,22 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 					Version: "4.21.2",
 				},
 			},
+			risks: &riskmock.Mock{
+				InternalName: "Mock",
+				InternalRisks: []configv1.ConditionalUpdateRisk{{
+					Name:          "TestAlert",
+					Message:       "Test summary.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+					Conditions: []metav1.Condition{{
+						Type:               "Applies",
+						Status:             "True",
+						Reason:             "Alert:firing",
+						Message:            "critical alert TestAlert firing, suggesting significant cluster issues worth investigating. Test summary. The alert description is: Test description. <alert does not have a runbook_url annotation>",
+						LastTransitionTime: metav1.NewTime(t1),
+					}},
+				}},
+			},
 			expectedConditionUpdates: []configv1.ConditionalUpdate{
 				{
 					Release: configv1.Release{
@@ -1443,7 +1096,7 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 						{
 							Name:          "TestAlert",
 							Message:       "Test summary.",
-							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							URL:           "https://example.com/testAlert",
 							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 							Conditions: []metav1.Condition{{
 								Type:               "Applies",
@@ -1458,7 +1111,7 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 						Type:               "Recommended",
 						Status:             "False",
 						Reason:             "TestAlert",
-						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						Message:            "Test summary. https://example.com/testAlert",
 						LastTransitionTime: metav1.NewTime(t1),
 					}},
 				},
@@ -1470,7 +1123,7 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 						{
 							Name:          "TestAlert",
 							Message:       "Test summary.",
-							URL:           "https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+							URL:           "https://example.com/testAlert",
 							MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 							Conditions: []metav1.Condition{{
 								Type:               "Applies",
@@ -1485,7 +1138,7 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 						Type:               "Recommended",
 						Status:             "False",
 						Reason:             "TestAlert",
-						Message:            "Test summary. https://github.com/openshift/runbooks/tree/master/alerts?runbook=notfound",
+						Message:            "Test summary. https://example.com/testAlert",
 						LastTransitionTime: metav1.NewTime(t1),
 					}},
 				},
@@ -1507,9 +1160,9 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 				ConditionalUpdates:         tt.conditionUpdates,
 				ShouldReconcileAcceptRisks: tt.shouldReconcileAcceptRisks,
 				ConditionRegistry:          conditionRegistry,
-				AlertGetter:                &mockAlertGetter{t: t, jsonFile: filepath.Join("testdata", "alerts.json")},
+				risks:                      tt.risks,
 			}
-			u.evaluateConditionalUpdates(context.TODO())
+			u.evaluateConditionalUpdates(context.Background())
 			if diff := cmp.Diff(tt.expected, u.Updates); diff != "" {
 				t.Errorf("available updates mismatch (-want +got):\n%s", diff)
 			}

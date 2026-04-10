@@ -16,7 +16,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -2783,7 +2782,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				}
 			}
 
-			if diff := cmp.Diff(tt.wantUpdates, optr.availableUpdates, cmpopts.IgnoreFields(availableUpdates{}, "ShouldReconcileAcceptRisks")); diff != "" {
+			if diff := cmp.Diff(tt.wantUpdates, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
 				t.Fatalf("unexpected: %s", diff)
 			}
 			if (optr.queue.Len() > 0) != (optr.availableUpdates != nil) {
