@@ -70,13 +70,14 @@ func TestRenderManifest(t *testing.T) {
 	}
 }
 
-func TestRenderDirWithMajorVersionFiltering(t *testing.T) {
+func TestRenderDirFiltering(t *testing.T) {
 	tests := []struct {
 		name               string
 		manifests          []testManifest
 		majorVersion       *uint64
 		expectedInclusions []string // Names of manifests that should be included
 		expectedExclusions []string // Names of manifests that should be excluded
+		expectError        bool     // Whether an error is expected
 	}{
 		{
 			name: "major version 4 includes version 4 manifests",
@@ -188,6 +189,49 @@ func TestRenderDirWithMajorVersionFiltering(t *testing.T) {
 			expectedInclusions: []string{"version4-or-5-manifest", "exclude-version3-manifest"},
 			expectedExclusions: []string{"version6-only-manifest"},
 		},
+		{
+			name: "delete annotation excludes manifests",
+			manifests: []testManifest{
+				{
+					name:        "normal-manifest",
+					annotations: map[string]string{},
+				},
+				{
+					name: "deleted-manifest",
+					annotations: map[string]string{
+						"release.openshift.io/delete": "true",
+					},
+				},
+				{
+					name: "another-normal-manifest",
+					annotations: map[string]string{
+						"some.other.annotation": "value",
+					},
+				},
+			},
+			majorVersion:       ptr.To(uint64(4)),
+			expectedInclusions: []string{"normal-manifest", "another-normal-manifest"},
+			expectedExclusions: []string{"deleted-manifest"},
+		},
+		{
+			name: "invalid delete annotation value returns error but continues rendering",
+			manifests: []testManifest{
+				{
+					name:        "normal-manifest",
+					annotations: map[string]string{},
+				},
+				{
+					name: "invalid-delete-manifest",
+					annotations: map[string]string{
+						"release.openshift.io/delete": "false",
+					},
+				},
+			},
+			majorVersion:       ptr.To(uint64(4)),
+			expectedInclusions: []string{"normal-manifest"},
+			expectedExclusions: []string{"invalid-delete-manifest"},
+			expectError:        true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -238,8 +282,14 @@ func TestRenderDirWithMajorVersionFiltering(t *testing.T) {
 				sets.Set[schema.GroupKind]{}, // filterGroupKind
 			)
 
-			if err != nil {
-				t.Fatalf("renderDir failed: %v", err)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("renderDir failed: %v", err)
+				}
 			}
 
 			// Check which manifests were included in output

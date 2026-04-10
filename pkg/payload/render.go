@@ -21,6 +21,8 @@ import (
 	"github.com/openshift/api/config"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
+
+	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 )
 
 // Render renders critical manifests from /manifests to outputDir.
@@ -148,6 +150,10 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, overrides [
 				klog.Infof("excluding %s because we do not render that group/kind", manifest.String())
 			} else if err := manifest.Include(nil, requiredFeatureSet, clusterProfile, nil, overrides, enabledFeatureGates, majorVersion); err != nil {
 				klog.Infof("excluding %s: %v", manifest.String(), err)
+			} else if found, err := resourcedelete.ValidDeleteAnnotation(manifest.Obj.GetAnnotations()); err != nil {
+				errs = append(errs, fmt.Errorf("invalid delete annotation in %s from %s: %w", manifest.String(), file.Name(), err))
+			} else if found {
+				klog.Infof("excluding %s because we do not render manifests with the delete annotation", manifest.String())
 			} else {
 				filteredManifests = append(filteredManifests, string(manifest.Raw))
 				klog.Infof("including %s", manifest.String())
