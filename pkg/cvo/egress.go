@@ -72,7 +72,14 @@ func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
 }
 
 func (optr *Operator) getTLSConfig() (*tls.Config, error) {
-	certPool := x509.NewCertPool()
+	// Seed from the OS system cert pool so that any custom CAs we append
+	// augment rather than replace system trust.  SystemCertPool may fail on
+	// some platforms (e.g. no system root store); fall back to an empty pool
+	// so the function degrades gracefully instead of hard-failing.
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		certPool = x509.NewCertPool()
+	}
 	found := false
 
 	// Always try the managed trusted CA bundle (proxy-merged bundle written by
