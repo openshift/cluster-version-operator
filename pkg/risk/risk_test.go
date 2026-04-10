@@ -112,7 +112,7 @@ func Test_Merge(t *testing.T) {
 				}},
 			},
 			expectedUpdates: []configv1.Release{{Version: "1.2.3"}},
-			expectedError:   `invalid risk name "" does not match "^[A-Z][A-Za-z0-9]*$"`,
+			expectedError:   `invalid risk name "" does not match "^[A-Z][A-Za-z0-9.-]*$"`,
 		},
 		{
 			name:    "single-source collision",

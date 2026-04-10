@@ -29,6 +29,8 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -114,6 +116,8 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 		fmt.Printf("Cannot create cluster version object, err: %#v\n", err)
 	}
 
+	registry := clusterconditions.NewConditionRegistry()
+	registry.Register("Always", &always.Always{})
 	o := &Operator{
 		namespace:              "test",
 		name:                   "version",
@@ -121,6 +125,7 @@ func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *
 		client:                 client,
 		enabledCVOFeatureGates: featuregates.DefaultCvoGates("version"),
 		cvLister:               &clientCVLister{client: client},
+		conditionRegistry:      registry,
 		exclude:                "exclude-test",
 		eventRecorder:          record.NewFakeRecorder(100),
 		clusterProfile:         payload.DefaultClusterProfile,
