@@ -8,6 +8,7 @@ import (
 	o "github.com/onsi/gomega"
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	prometheusoperatorv1client "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
+	"sigs.k8s.io/yaml"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -38,6 +39,11 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		backup      configv1.ClusterVersionSpec
 	)
 
+	const (
+		prometheusRuleForTesting = "testing"
+		alertNameForTesting      = "TestAlertFeatureE2ETestOTA1813"
+	)
+
 	g.BeforeEach(func() {
 		c, err = util.GetRestConfig()
 		o.Expect(err).To(o.BeNil())
@@ -60,6 +66,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.AfterEach(func() {
+		err := monitoringClient.PrometheusRules(external.DefaultCVONamespace).Delete(ctx, prometheusRuleForTesting, metav1.DeleteOptions{})
+		if !errors.IsNotFound(err) {
+			o.Expect(err).To(o.BeNil())
+		}
 		if needRecover {
 			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
@@ -78,7 +88,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		g.By("Using fauxinnati as the upstream and its simple channel")
 		cv.Spec.Upstream = util.FauxinnatiAPIURL
-		cv.Spec.Channel = "simple"
+		cv.Spec.Channel = "OTA-1813"
 
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -87,7 +97,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Create a critical alert for testing")
 		prometheusRule := &monitoringv1.PrometheusRule{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testing",
+				Name:      prometheusRuleForTesting,
 				Namespace: external.DefaultCVONamespace,
 			},
 			Spec: monitoringv1.PrometheusRuleSpec{
@@ -96,7 +106,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 						Name: "test",
 						Rules: []monitoringv1.Rule{
 							{
-								Alert:       "TestAlertFeatureE2ETestOTA1813",
+								Alert:       alertNameForTesting,
 								Annotations: map[string]string{"summary": "Test summary.", "description": "Test description."},
 								Expr: intstr.IntOrString{
 									Type:   intstr.String,
@@ -111,19 +121,13 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 		created, err := monitoringClient.PrometheusRules(external.DefaultCVONamespace).Create(ctx, prometheusRule, metav1.CreateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
-		defer func() {
-			err := monitoringClient.PrometheusRules(external.DefaultCVONamespace).Delete(ctx, created.Name, metav1.DeleteOptions{})
-			if !errors.IsNotFound(err) {
-				o.Expect(err).To(o.BeNil())
-			}
-		}()
 
 		g.By("Checking if the risk shows up in ClusterVersion's status")
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 10*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 			for _, risk := range cv.Status.ConditionalUpdateRisks {
-				if risk.Name == "TestAlertFeatureE2ETestOTA1813" {
+				if risk.Name == alertNameForTesting {
 					if c := meta.FindStatusCondition(risk.Conditions, external.ConditionalUpdateRiskConditionTypeApplies); c != nil {
 						if c.Status == metav1.ConditionTrue && external.IsAlertConditionReason(c.Reason) {
 							return true, nil
@@ -149,6 +153,66 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			}
 			return true, nil
 		})).NotTo(o.HaveOccurred(), "still recommending updates while alert is firing")
+
+		g.By("Checking that there are recommended conditional updates promoted to available updates after the risk from alert is accepted")
+		cv, err = configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		if cv.Spec.DesiredUpdate == nil {
+			cv.Spec.DesiredUpdate = &configv1.Update{}
+		}
+		cv.Spec.DesiredUpdate.AcceptRisks = append(cv.Spec.DesiredUpdate.AcceptRisks, configv1.AcceptRisk{Name: alertNameForTesting})
+		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			if len(cv.Status.AvailableUpdates) == 0 {
+				return false, nil
+			}
+			for _, cu := range cv.Status.ConditionalUpdates {
+				condition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
+				if condition != nil && condition.Status == metav1.ConditionTrue {
+					return true, nil
+				}
+			}
+			return false, nil
+		})).NotTo(o.HaveOccurred(), "still no recommended conditional updates after the risk from alert is accepted")
+
+		g.By("Checking that there are no duplicated versions in conditional updates")
+		cv, err = configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		versions := sets.New[string]()
+		for _, cu := range cv.Status.ConditionalUpdates {
+			o.Expect(versions.Has(cu.Release.Version)).To(o.BeFalse(), "ConditionalUpdates.Release.Version %s is duplicated. cv/version is:\n%s", cu.Release.Version, getYaml(*cv))
+			versions.Insert(cu.Release.Version)
+		}
+
+		g.By("Checking that there are no duplicated versions in available updates")
+		versions = sets.New[string]()
+		for _, u := range cv.Status.AvailableUpdates {
+			o.Expect(versions.Has(u.Version)).To(o.BeFalse(), "AvailableUpdates.Version %s is duplicated. cv/version is:\n%s", u.Version, getYaml(*cv))
+			versions.Insert(u.Version)
+		}
+
+		g.By("Checking that there are no recommended conditional updates after the alert is resolved")
+		err = monitoringClient.PrometheusRules(external.DefaultCVONamespace).Delete(ctx, created.Name, metav1.DeleteOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
+			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+			for _, cu := range cv.Status.ConditionalUpdates {
+				condition := meta.FindStatusCondition(cu.Conditions, external.ConditionalUpdateConditionTypeRecommended)
+				if condition != nil && condition.Status == metav1.ConditionTrue {
+					return false, nil
+				}
+			}
+			return true, nil
+		})).NotTo(o.HaveOccurred(), "still recommended conditional updates after the alert is resolved")
+
+		g.By("Checking that there are available updates after the alert is resolved")
+		o.Expect(cv.Status.AvailableUpdates).NotTo(o.BeEmpty())
 	})
 
 	g.It("should work with accept risks", g.Label("Serial"), func() {
@@ -239,3 +303,12 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 })
+
+func getYaml(cv configv1.ClusterVersion) string {
+	raw, err := yaml.Marshal(cv)
+	if err != nil {
+		logger.Error(err, "failed to marshal ClusterVersion")
+		return ""
+	}
+	return string(raw)
+}
