@@ -40,6 +40,21 @@ func mergeMap(modified *bool, existing *map[string]string, required map[string]s
 	}
 }
 
+func mergeByteSliceMap(modified *bool, existing *map[string][]byte, required map[string][]byte) {
+	if *existing == nil {
+		if required == nil {
+			return
+		}
+		*existing = map[string][]byte{}
+	}
+	for k, v := range required {
+		if existingV, ok := (*existing)[k]; !ok || string(v) != string(existingV) {
+			*modified = true
+			(*existing)[k] = v
+		}
+	}
+}
+
 func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required []metav1.OwnerReference) {
 	for ridx := range required {
 		found := false
