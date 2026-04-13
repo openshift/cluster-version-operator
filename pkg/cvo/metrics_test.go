@@ -1222,7 +1222,7 @@ func Test_authHandler(t *testing.T) {
 func setupTestCerts(t *testing.T) (caPEM []byte, prometheusCert, unauthorizedCert, untrustedCert *x509.Certificate) {
 	t.Helper()
 
-	caConfig, err := crypto.MakeSelfSignedCAConfig("test-ca", time.Hour)
+	caConfig, err := crypto.MakeSelfSignedCAConfig("test-ca", 1)
 	if err != nil {
 		t.Fatalf("failed to create CA: %v", err)
 	}
@@ -1258,7 +1258,7 @@ func setupTestCerts(t *testing.T) (caPEM []byte, prometheusCert, unauthorizedCer
 	unauthorizedCert = unauthorizedConfig.Certs[0]
 
 	// Generate cert from a different CA (untrusted) for authentication failure tests
-	untrustedCAConfig, err := crypto.MakeSelfSignedCAConfig("untrusted-ca", time.Hour)
+	untrustedCAConfig, err := crypto.MakeSelfSignedCAConfig("untrusted-ca", 1)
 	if err != nil {
 		t.Fatalf("failed to create untrusted CA: %v", err)
 	}
