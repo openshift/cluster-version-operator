@@ -24,9 +24,11 @@ import (
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/risk"
 )
 
 const (
@@ -168,16 +170,11 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 		cvUpdated = true
 		config = updated
 	}
-	// update the config with upgradeable
-	if updated := optr.getUpgradeable().NeedsUpdate(config); updated != nil {
-		cvUpdated = true
-		config = updated
-	}
 	if !cvUpdated && (original == nil || original == config) {
 		original = config.DeepCopy()
 	}
 
-	updateClusterVersionStatus(&config.Status, status, optr.release, optr.getAvailableUpdates, optr.enabledCVOFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
+	updateClusterVersionStatus(ctx, &config.Status, status, optr.release, optr.conditionRegistry, optr.getAvailableUpdates, optr.upgradeable, optr.enabledCVOFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))
@@ -189,10 +186,13 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 // updateClusterVersionStatus updates the passed cvStatus with the latest status information
 func updateClusterVersionStatus(
+	ctx context.Context,
 	cvStatus *configv1.ClusterVersionStatus,
 	status *SyncWorkerStatus,
 	release configv1.Release,
+	conditionRegistry clusterconditions.ConditionRegistry,
 	getAvailableUpdates func() *availableUpdates,
+	upgradeable risk.Source,
 	enabledGates featuregates.CvoGateChecker,
 	validationErrs field.ErrorList,
 	shouldReconcileAcceptRisks func() bool,
@@ -227,8 +227,8 @@ func updateClusterVersionStatus(
 
 	var riskNamesForDesiredImage []string
 	if shouldReconcileAcceptRisks() {
-		updates := getAvailableUpdates()
 		var riskConditions map[string][]metav1.Condition
+		updates := getAvailableUpdates()
 		conditionalUpdates := cvStatus.ConditionalUpdates
 		if updates != nil {
 			// updates.Updates may become updates.ConditionalUpdates if some alert becomes a risk
@@ -240,6 +240,8 @@ func updateClusterVersionStatus(
 		cvStatus.ConditionalUpdates, riskNamesForDesiredImage = conditionalUpdateWithRiskNamesAndRiskConditions(conditionalUpdates, riskConditions, desired.Image)
 		cvStatus.ConditionalUpdateRisks = conditionalUpdateRisks(cvStatus.ConditionalUpdates)
 	}
+
+	setUpgradeableCondition(ctx, cvStatus, upgradeable, conditionRegistry, now)
 
 	risksMsg := ""
 	if desired.Image == status.loadPayloadStatus.Update.Image {
@@ -603,6 +605,78 @@ func setReleaseAcceptedCondition(cvStatus *configv1.ClusterVersionStatus, status
 				LastTransitionTime: now,
 			})
 		}
+	}
+}
+
+func setUpgradeableCondition(ctx context.Context, cvStatus *configv1.ClusterVersionStatus, upgradeable risk.Source, conditionRegistry clusterconditions.ConditionRegistry, now metav1.Time) {
+	var err error
+	var risks []configv1.ConditionalUpdateRisk
+	if upgradeable != nil {
+		var updateVersions []string
+		for _, update := range cvStatus.AvailableUpdates {
+			updateVersions = append(updateVersions, update.Version)
+		}
+		for _, conditionalUpdate := range cvStatus.ConditionalUpdates {
+			updateVersions = append(updateVersions, conditionalUpdate.Release.Version)
+		}
+		risks, _, err = upgradeable.Risks(ctx, updateVersions)
+		if err != nil {
+			klog.Errorf("errors while calculating risks for the %s condition: %v", configv1.OperatorUpgradeable, err)
+		}
+
+		for i := len(risks) - 1; i >= 0; i-- {
+			c := meta.FindStatusCondition(risks[i].Conditions, internal.ConditionalUpdateRiskConditionTypeApplies)
+			if c == nil {
+				if match, err := conditionRegistry.Match(ctx, risks[i].MatchingRules); err != nil || match {
+					continue // keep the risks that failed to eval or matched
+				}
+			} else if c.Status != metav1.ConditionFalse {
+				continue // keep the risks that failed to eval or matched
+			}
+			risks = append(risks[:i], risks[i+1:]...) // exclude non-applicable risks
+		}
+	}
+
+	// remove obsolete subconditions
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableAdminAckRequired)
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableDeletesInProgress)
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterOperators)
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterVersionOverrides)
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableUpgradeInProgress)
+
+	if len(risks) == 0 {
+		if err != nil {
+			resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:               configv1.OperatorUpgradeable,
+				Status:             configv1.ConditionUnknown,
+				Reason:             recommendedReasonEvaluationFailed,
+				Message:            err.Error(),
+				LastTransitionTime: now,
+			})
+		} else {
+			resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, configv1.OperatorUpgradeable)
+		}
+	} else {
+		reason := "RiskNameNotCompatibleWithReasonProperty"
+		if reasonPattern.MatchString(risks[0].Name) {
+			reason = risks[0].Name
+		}
+		message := risks[0].Message
+		if len(risks) > 1 {
+			reason = recommendedReasonMultiple
+			var msgs []string
+			for _, risk := range risks {
+				msgs = append(msgs, risk.Message)
+			}
+			message = fmt.Sprintf("Cluster should not be upgraded between minor or major versions for multiple reasons:\n* %s", strings.Join(msgs, "\n* "))
+		}
+		resourcemerge.SetOperatorStatusCondition(&cvStatus.Conditions, configv1.ClusterOperatorStatusCondition{
+			Type:               configv1.OperatorUpgradeable,
+			Status:             configv1.ConditionFalse,
+			Reason:             reason,
+			Message:            message,
+			LastTransitionTime: now,
+		})
 	}
 }
 
