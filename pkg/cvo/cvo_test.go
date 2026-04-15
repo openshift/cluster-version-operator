@@ -3813,6 +3813,7 @@ func TestOperator_upgradeableSync(t *testing.T) {
 		t.Errorf("error adding ConfigMap event handler: %v", err)
 	}
 	configManagedInformer.Start(ctx.Done())
+	configManagedInformer.WaitForCacheSync(ctx.Done())
 
 	_, err := f.CoreV1().ConfigMaps("test").Create(ctx, &defaultGateCm, metav1.CreateOptions{})
 	if err != nil {
