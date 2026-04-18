@@ -1,2 +1,0 @@
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
-COPY skill/ /skill/
