@@ -1,0 +1,527 @@
+# Temporary CRD stub — will be removed once the lightspeed-agentic-operator owns this CRD.
+# Generated from github.com/harche/lightspeed-agentic-operator/api/v1alpha1
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    release.openshift.io/feature-gate: LightspeedProposals
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: agents.agentic.openshift.io
+spec:
+  group: agentic.openshift.io
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.llmRef.name
+      name: LLM
+      type: string
+    - jsonPath: .spec.skills[0].image
+      name: Skills Image
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: "Agent defines a complete agent configuration: which LLM to use,
+          what\nskills to mount, optional MCP servers, and what system prompt to follow.\nIt
+          is the second link in the CRD chain (LlmProvider -> Agent -> Workflow\n->
+          Proposal) and is referenced by Workflow steps via agentRef.\n\nAgent is
+          cluster-scoped. You typically create a few agents with different\ncapabilities
+          and assign them to workflow steps. For example, an analysis\nagent might
+          use a capable model with broad diagnostic skills, while an\nexecution agent
+          uses a fast model with targeted remediation skills.\n\nExample — an analysis
+          agent with selective skills and a system prompt:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Agent\n\tmetadata:\n\t  name: analyzer\n\tspec:\n\t  llmRef:\n\t    name:
+          smart\n\t  skills:\n\t    - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+          \     paths:\n\t        - /skills/prometheus\n\t        - /skills/cluster-ops\n\t
+          \       - /skills/rbac-security\n\t  systemPromptRef:\n\t    name: analysis-prompt\n\nExample
+          — an execution agent with a fast model:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Agent\n\tmetadata:\n\t  name: executor\n\tspec:\n\t  llmRef:\n\t    name:
+          fast\n\t  skills:\n\t    - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+          \     paths:\n\t        - /skills/cluster-ops\n\t  systemPromptRef:\n\t
+          \   name: execution-prompt\n\nExample — an agent with MCP servers for extended
+          tooling:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind: Agent\n\tmetadata:\n\t
+          \ name: analyzer-with-mcp\n\tspec:\n\t  llmRef:\n\t    name: smart\n\t  skills:\n\t
+          \   - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t  mcpServers:\n\t
+          \   - name: openshift\n\t      url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+          \     timeout: 10\n\t      headers:\n\t        - name: Authorization\n\t
+          \         valueFrom:\n\t            type: kubernetes\n\t    - name: pagerduty\n\t
+          \     url: https://mcp-pagerduty.example.com/sse\n\t      headers:\n\t        -
+          name: X-API-Key\n\t          valueFrom:\n\t            type: secret\n\t
+          \           secretRef:\n\t              name: pagerduty-api-key\n\t  systemPromptRef:\n\t
+          \   name: analysis-prompt"
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AgentSpec defines the desired state of Agent.
+            properties:
+              image:
+                description: "image optionally overrides the agent container image
+                  used in the\nsandbox pod. When omitted, the operator uses the default
+                  agent image\nfrom the base SandboxTemplate.\n\nCustom images MUST
+                  be based on (FROM) the lightspeed-service image.\nThe base image
+                  provides the agent runtime (API server with /analyze,\n/execute,
+                  /verify endpoints, agent SDKs), CLI tools (oc, promtool,\ncurl),
+                  and the entrypoint the operator expects. Without these, the\noperator
+                  cannot communicate with the sandbox.\n\nUse this to ship custom
+                  binaries or tools that your skills depend on:\n\n  # Containerfile\n
+                  \ FROM registry.redhat.io/openshift-lightspeed/lightspeed-service-api-rhel9:latest\n
+                  \ RUN dnf install -y my-custom-cli\n  COPY my-binary /usr/local/bin/\n\nExample:\n\n\timage:
+                  quay.io/my-org/my-agent:v2"
+                minLength: 1
+                type: string
+              llmRef:
+                description: |-
+                  llmRef references a cluster-scoped LlmProvider CR that supplies the
+                  LLM backend for this agent. The operator resolves this reference at
+                  reconcile time and configures the sandbox pod with the provider's
+                  credentials and model.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              mcpServers:
+                description: |-
+                  mcpServers defines external MCP (Model Context Protocol) servers the
+                  agent can connect to for additional tools and context beyond its
+                  built-in skills. Each server is identified by name and URL.
+                items:
+                  description: "MCPServerConfig defines the configuration for an MCP
+                    (Model Context Protocol)\nserver that the agent can connect to
+                    for additional tools and context.\nMCP servers extend the agent's
+                    capabilities beyond its built-in skills.\n\nExample — connecting
+                    to an OpenShift MCP server with SA token auth:\n\n\tmcpServers:\n\t
+                    \ - name: openshift\n\t    url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+                    \   timeout: 10\n\t    headers:\n\t      - name: Authorization\n\t
+                    \       valueFrom:\n\t          type: kubernetes\n\nExample —
+                    connecting to an external API with secret-based auth:\n\n\tmcpServers:\n\t
+                    \ - name: pagerduty\n\t    url: https://mcp-pagerduty.example.com/sse\n\t
+                    \   headers:\n\t      - name: X-API-Key\n\t        valueFrom:\n\t
+                    \         type: secret\n\t          secretRef:\n\t            name:
+                    pagerduty-api-key"
+                  properties:
+                    headers:
+                      description: headers to send to the MCP server.
+                      items:
+                        description: |-
+                          MCPHeader defines an HTTP header to send with every request to an
+                          MCP server. Used for authentication and routing.
+                        properties:
+                          name:
+                            description: name of the header (e.g., "Authorization",
+                              "X-API-Key").
+                            minLength: 1
+                            pattern: ^[A-Za-z0-9-]+$
+                            type: string
+                          valueFrom:
+                            description: valueFrom is the source of the header value.
+                            properties:
+                              secretRef:
+                                description: |-
+                                  secretRef references a secret containing the header value.
+                                  Required when type is "secret".
+                                properties:
+                                  name:
+                                    default: ""
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                type: object
+                                x-kubernetes-map-type: atomic
+                              type:
+                                description: type specifies the source type for the
+                                  header value.
+                                enum:
+                                - secret
+                                - kubernetes
+                                - client
+                                type: string
+                            required:
+                            - type
+                            type: object
+                            x-kubernetes-validations:
+                            - message: secretRef with non-empty name is required when
+                                type is 'secret'
+                              rule: 'self.type == ''secret'' ? has(self.secretRef)
+                                && size(self.secretRef.name) > 0 : true'
+                            - message: secretRef must not be set when type is 'kubernetes'
+                                or 'client'
+                              rule: 'self.type != ''secret'' ? !has(self.secretRef)
+                                : true'
+                        required:
+                        - name
+                        - valueFrom
+                        type: object
+                      type: array
+                    name:
+                      description: name of the MCP server.
+                      type: string
+                    timeout:
+                      default: 5
+                      description: timeout for the MCP server in seconds, default
+                        is 5.
+                      type: integer
+                    url:
+                      description: url of the MCP server (HTTP/HTTPS).
+                      pattern: ^https?://.*$
+                      type: string
+                  required:
+                  - name
+                  - url
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              outputFields:
+                description: |-
+                  outputFields defines additional structured output fields beyond the
+                  base schema that every agent produces (diagnosis, proposal, RBAC,
+                  verification plan). Use this to request domain-specific structured
+                  data from the agent (e.g., an ACS violation ID, affected images).
+                  Mutually exclusive with rawOutputSchema.
+                items:
+                  description: "OutputField defines a top-level field in the agent's
+                    structured output.\nThese fields are merged into the base output
+                    schema that the operator sends\nto the agent. Use outputFields
+                    to request adapter-specific structured data\n(e.g., an ACS adapter
+                    might add a \"violationId\" string field).\n\nSupports up to two
+                    levels of nesting: top-level fields can contain object\nproperties
+                    or array items, and those can contain one more level of nesting.\n\nExample
+                    — adding an ACS violation ID and affected images to the output:\n\n\toutputFields:\n\t
+                    \ - name: violationId\n\t    type: string\n\t    description:
+                    \"The ACS violation ID that triggered this proposal\"\n\t    required:
+                    true\n\t  - name: affectedImages\n\t    type: array\n\t    description:
+                    \"Container images flagged by the violation\"\n\t    items:\n\t
+                    \     type: string"
+                  properties:
+                    description:
+                      description: description explains the purpose of this field
+                        (passed to the LLM).
+                      type: string
+                    enum:
+                      description: enum constrains string fields to a set of allowed
+                        values.
+                      items:
+                        type: string
+                      type: array
+                    items:
+                      description: items defines the element schema when type is array.
+                      properties:
+                        properties:
+                          description: properties defines fields for object-typed
+                            array elements.
+                          items:
+                            description: |-
+                              OutputSubField defines a nested field (one level deep) within an OutputField
+                              of type "object" or within array items of type "object". At this depth,
+                              array items are restricted to primitive types (string, number, boolean).
+                            properties:
+                              description:
+                                description: description explains the purpose of this
+                                  field (passed to the LLM).
+                                type: string
+                              enum:
+                                description: enum constrains string fields to a set
+                                  of allowed values.
+                                items:
+                                  type: string
+                                type: array
+                              items:
+                                description: items defines the element schema when
+                                  type is array (primitive types only at this depth).
+                                properties:
+                                  type:
+                                    allOf:
+                                    - enum:
+                                      - string
+                                      - number
+                                      - boolean
+                                      - array
+                                      - object
+                                    - enum:
+                                      - string
+                                      - number
+                                      - boolean
+                                    description: type is the JSON type of array elements.
+                                    type: string
+                                required:
+                                - type
+                                type: object
+                              name:
+                                description: name is the field name in the output
+                                  JSON.
+                                minLength: 1
+                                pattern: ^[a-zA-Z][a-zA-Z0-9_]*$
+                                type: string
+                              required:
+                                description: required indicates whether the agent
+                                  must populate this field.
+                                type: boolean
+                              type:
+                                description: type is the JSON type of this field.
+                                enum:
+                                - string
+                                - number
+                                - boolean
+                                - array
+                                - object
+                                type: string
+                            required:
+                            - name
+                            - type
+                            type: object
+                            x-kubernetes-validations:
+                            - message: items is required when type is array
+                              rule: 'self.type == ''array'' ? has(self.items) : true'
+                            - message: enum is only valid for string fields
+                              rule: 'has(self.enum) ? self.type == ''string'' : true'
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
+                        type:
+                          allOf:
+                          - enum:
+                            - string
+                            - number
+                            - boolean
+                            - array
+                            - object
+                          - enum:
+                            - string
+                            - number
+                            - boolean
+                            - object
+                          description: type is the JSON type of array elements.
+                          type: string
+                      required:
+                      - type
+                      type: object
+                    name:
+                      description: name is the field name in the output JSON.
+                      minLength: 1
+                      pattern: ^[a-zA-Z][a-zA-Z0-9_]*$
+                      type: string
+                    properties:
+                      description: properties defines nested fields when type is object.
+                      items:
+                        description: |-
+                          OutputSubField defines a nested field (one level deep) within an OutputField
+                          of type "object" or within array items of type "object". At this depth,
+                          array items are restricted to primitive types (string, number, boolean).
+                        properties:
+                          description:
+                            description: description explains the purpose of this
+                              field (passed to the LLM).
+                            type: string
+                          enum:
+                            description: enum constrains string fields to a set of
+                              allowed values.
+                            items:
+                              type: string
+                            type: array
+                          items:
+                            description: items defines the element schema when type
+                              is array (primitive types only at this depth).
+                            properties:
+                              type:
+                                allOf:
+                                - enum:
+                                  - string
+                                  - number
+                                  - boolean
+                                  - array
+                                  - object
+                                - enum:
+                                  - string
+                                  - number
+                                  - boolean
+                                description: type is the JSON type of array elements.
+                                type: string
+                            required:
+                            - type
+                            type: object
+                          name:
+                            description: name is the field name in the output JSON.
+                            minLength: 1
+                            pattern: ^[a-zA-Z][a-zA-Z0-9_]*$
+                            type: string
+                          required:
+                            description: required indicates whether the agent must
+                              populate this field.
+                            type: boolean
+                          type:
+                            description: type is the JSON type of this field.
+                            enum:
+                            - string
+                            - number
+                            - boolean
+                            - array
+                            - object
+                            type: string
+                        required:
+                        - name
+                        - type
+                        type: object
+                        x-kubernetes-validations:
+                        - message: items is required when type is array
+                          rule: 'self.type == ''array'' ? has(self.items) : true'
+                        - message: enum is only valid for string fields
+                          rule: 'has(self.enum) ? self.type == ''string'' : true'
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - name
+                      x-kubernetes-list-type: map
+                    required:
+                      description: required indicates whether the agent must populate
+                        this field.
+                      type: boolean
+                    type:
+                      description: type is the JSON type of this field.
+                      enum:
+                      - string
+                      - number
+                      - boolean
+                      - array
+                      - object
+                      type: string
+                  required:
+                  - name
+                  - type
+                  type: object
+                  x-kubernetes-validations:
+                  - message: items is required when type is array
+                    rule: 'self.type == ''array'' ? has(self.items) : true'
+                  - message: properties is required when type is object
+                    rule: 'self.type == ''object'' ? has(self.properties) : true'
+                  - message: enum is only valid for string fields
+                    rule: 'has(self.enum) ? self.type == ''string'' : true'
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              rawOutputSchema:
+                description: |-
+                  rawOutputSchema is an escape hatch that replaces the entire output
+                  schema with a raw JSON Schema object. Use this when outputFields
+                  cannot express the schema you need (e.g., deeply nested structures,
+                  conditional fields). Mutually exclusive with outputFields.
+                x-kubernetes-preserve-unknown-fields: true
+              skills:
+                description: |-
+                  skills defines one or more OCI images containing skills to mount
+                  in the agent's sandbox pod. Each entry specifies an image and optionally
+                  which paths within that image to mount. The operator creates Kubernetes
+                  image volumes (requires K8s 1.34+) and mounts them into the agent's
+                  skills directory.
+
+                  Multiple entries allow composing skills from different images:
+
+                    skills:
+                      - image: registry.ci.openshift.org/ocp/5.0:agentic-skills
+                        paths:
+                          - /skills/prometheus
+                          - /skills/cluster-update/update-advisor
+                      - image: quay.io/my-org/custom-skills:latest
+                items:
+                  description: "SkillsSource defines an OCI image containing skills
+                    and optionally which\npaths within that image to mount. Skills
+                    are mounted as Kubernetes image\nvolumes in the agent's sandbox
+                    pod.\n\nWhen paths is omitted, the entire image is mounted. When
+                    paths is specified,\nonly those directories are mounted (each
+                    as a separate subPath volumeMount),\nallowing selective composition
+                    of skills from large shared images.\n\nExample — mount all skills
+                    from a custom image:\n\n\tskills:\n\t  - image: quay.io/my-org/my-skills:latest\n\nExample
+                    — selectively mount two skills from a shared image:\n\n\tskills:\n\t
+                    \ - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+                    \   paths:\n\t      - /skills/prometheus\n\t      - /skills/cluster-update/update-advisor"
+                  properties:
+                    image:
+                      description: |-
+                        image is the OCI image reference containing skills.
+                        The operator mounts this as a Kubernetes image volume (requires K8s 1.34+).
+                      minLength: 1
+                      type: string
+                    paths:
+                      description: |-
+                        paths restricts which directories from the image are mounted.
+                        Each path is mounted as a separate subPath volumeMount into the agent's
+                        skills directory. The last segment of each path becomes the mount name
+                        (e.g., "/skills/prometheus" mounts as "prometheus").
+
+                        When omitted, the entire image is mounted as a single volume.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - image
+                  type: object
+                minItems: 1
+                type: array
+              systemPromptRef:
+                description: |-
+                  systemPromptRef references a ConfigMap containing the system prompt.
+                  The ConfigMap must have a key named "prompt" with the prompt text.
+                  The system prompt shapes the agent's behavior for its role (analysis,
+                  execution, or verification). When omitted, the agent uses a default
+                  prompt appropriate for its workflow step.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - llmRef
+            - skills
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

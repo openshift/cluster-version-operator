@@ -189,3 +189,83 @@ Subsystems include: `pkg/cvo`, `pkg/payload`, `lib/resourceapply`, `hack`, etc.
 ### Development and Testing
 - Never test against production clusters - always use disposable test environments
 - CVO has significant control over cluster state and can disrupt operations during development
+
+## Lightspeed Proposal Integration
+
+The CVO creates `Proposal` CRs (API group `agentic.openshift.io/v1alpha1`) when available updates are discovered, gated behind the `LightspeedProposals` feature gate.
+
+### Key files
+- `pkg/proposal/proposal.go` — Creates Proposal CRs with pre-collected readiness data
+- `pkg/proposal/proposal_test.go` — Unit tests for proposal creation and dedup
+- `pkg/cvo/cvo.go:maybeCreateLightspeedProposal` — Runs readiness checks, calls proposal creator
+- `pkg/cvo/availableupdates.go:188` — Entry point after Cincinnati sync
+- `pkg/featuregates/featuregates.go` — `LightspeedProposals()` feature gate
+- `install/*lightspeed*` — Agent, Workflow, and system prompt manifests (applied by CVO from payload)
+- Skills are consumed from the shared `agentic-skills` image (openshift/agentic-skills repo)
+
+### Deploying dev CVO with Lightspeed proposals
+
+Requires: lightspeed-operator already deployed on the cluster (CRDs, agent, sandbox).
+
+```bash
+# 1. Build binary and payload override (excludes CVO deployment manifest to prevent self-revert)
+cd /path/to/cluster-version-operator
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -mod=vendor \
+  -o _output/linux/amd64/cluster-version-operator ./cmd/cluster-version-operator/
+
+# 2. Create payload override directory with release-metadata (so CVO detects correct version)
+mkdir -p _output/payload-override/{manifests,release-manifests}
+cp install/* _output/payload-override/manifests/
+rm _output/payload-override/manifests/*30_deployment*   # prevent self-revert
+CLUSTER_VERSION=$(oc get clusterversion version -o jsonpath='{.status.desired.version}')
+cat > _output/payload-override/release-manifests/release-metadata <<EOF
+{"kind":"cincinnati-metadata-v0","version":"${CLUSTER_VERSION}"}
+EOF
+cat > _output/payload-override/release-manifests/image-references <<EOF
+{"kind":"ImageStream","apiVersion":"image.openshift.io/v1","metadata":{"name":"${CLUSTER_VERSION}"},"spec":{"tags":[]}}
+EOF
+
+# 3. Build and push container image
+cat > Dockerfile.dev <<'EOF'
+FROM registry.access.redhat.com/ubi9-minimal:latest
+COPY _output/linux/amd64/cluster-version-operator /usr/bin/cluster-version-operator
+COPY install /manifests
+COPY _output/payload-override /payload
+ENTRYPOINT ["/usr/bin/cluster-version-operator"]
+EOF
+TAG="v$(date +%s)"
+docker build --platform linux/amd64 -f Dockerfile.dev -t quay.io/harpatil/cvo-lightspeed:${TAG} .
+docker push quay.io/harpatil/cvo-lightspeed:${TAG}
+
+# 4. Deploy: single atomic patch (image + args + env) to avoid partial reverts
+RELEASE_IMAGE=$(oc get clusterversion version -o jsonpath='{.status.desired.image}')
+API_HOST=$(oc get infrastructure cluster -o jsonpath='{.status.apiServerInternalURI}' | sed 's|https://||' | cut -d: -f1)
+oc patch deployment cluster-version-operator -n openshift-cluster-version --type json -p "[
+  {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/image\",\"value\":\"quay.io/harpatil/cvo-lightspeed:${TAG}\"},
+  {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/imagePullPolicy\",\"value\":\"Always\"},
+  {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/args\",\"value\":[
+    \"start\",\"--release-image=${RELEASE_IMAGE}\",\"--enable-auto-update=false\",
+    \"--listen=0.0.0.0:9099\",\"--serving-cert-file=/etc/tls/serving-cert/tls.crt\",
+    \"--serving-key-file=/etc/tls/serving-cert/tls.key\",\"--v=4\",\"--always-enable-capabilities=Ingress\"
+  ]},
+  {\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/env\",\"value\":[
+    {\"name\":\"OPERATOR_IMAGE_VERSION\",\"value\":\"${CLUSTER_VERSION}\"},
+    {\"name\":\"KUBERNETES_SERVICE_PORT\",\"value\":\"6443\"},
+    {\"name\":\"KUBERNETES_SERVICE_HOST\",\"value\":\"${API_HOST}\"},
+    {\"name\":\"NODE_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"spec.nodeName\"}}},
+    {\"name\":\"CLUSTER_PROFILE\",\"value\":\"self-managed-high-availability\"},
+    {\"name\":\"PAYLOAD_OVERRIDE\",\"value\":\"/payload\"}
+  ]}
+]"
+
+# 5. Watch for proposal creation (happens after first Cincinnati update check, ~2-5 min)
+oc get proposals -n openshift-lightspeed -w
+```
+
+### Gotchas
+- **PAYLOAD_OVERRIDE is critical** — without it, the CVO reads `/release-manifests/release-metadata` (which doesn't exist in the dev image) and falls back to version `0.0.1-snapshot`, disabling all feature gates including `LightspeedProposals`.
+- **Remove the CVO deployment manifest** from `_output/payload-override/manifests/` — otherwise the CVO reconciles its own deployment and reverts the image/env changes.
+- **KUBERNETES_SERVICE_HOST must be the API hostname** (e.g., `api-int.cluster.example.com`), not a node IP. Using `fieldRef: status.hostIP` causes TLS errors.
+- **All deployment changes must be in a single `oc patch`** — sequential patches trigger rollouts that can lose env vars.
+- **Leader lease timeout** — after patching, the new pod must wait up to ~2 min for the old pod's lease to expire before it can start reconciling.
+- **Skills image** comes from the shared `agentic-skills` repo (`registry.ci.openshift.org/ocp/4.22:agentic-skills`). The Agent CR selects specific skills via `paths`.

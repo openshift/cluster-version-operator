@@ -1033,4 +1033,12 @@ var (
 					enhancementPR("https://github.com/openshift/enhancements/pull/1933").
 					enable(inDevPreviewNoUpgrade(), inTechPreviewNoUpgrade()).
 					mustRegister()
+
+	FeatureGateLightspeedProposals = newFeatureGate("LightspeedProposals").
+					reportProblemsToJiraComponent("Cluster Version Operator").
+					contactPerson("harpatil").
+					productScope(ocpSpecific).
+					enhancementPR("https://github.com/openshift/enhancements/pull/XXXX").
+					enable(inDevPreviewNoUpgrade(), inTechPreviewNoUpgrade()).
+					mustRegister()
 )

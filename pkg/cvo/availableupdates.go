@@ -182,6 +182,13 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// queue optr.sync() to update ClusterVersion status
 	optr.queue.Add(queueKey)
+
+	// Create LightspeedProposals for available update paths.
+	// This is best-effort and must never block update discovery.
+	if optr.shouldCreateLightspeedProposals() {
+		optr.maybeCreateLightspeedProposals(ctx, config)
+	}
+
 	return nil
 }
 

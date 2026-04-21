@@ -228,6 +228,10 @@ func (f fakeRiFlags) AcceptRisks() bool {
 	return f.acceptRisks
 }
 
+func (f fakeRiFlags) LightspeedProposals() bool {
+	return false
+}
+
 func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {
 	ignoreLastTransitionTime := cmpopts.IgnoreFields(configv1.ClusterOperatorStatusCondition{}, "LastTransitionTime")
 	type args struct {

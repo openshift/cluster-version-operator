@@ -1,0 +1,15 @@
+---
+apiVersion: agentic.openshift.io/v1alpha1
+kind: Workflow
+metadata:
+  name: ota-advisory
+  annotations:
+    release.openshift.io/feature-gate: LightspeedProposals
+spec:
+  analysis:
+    agentRef:
+      name: ota-advisor
+  execution:
+    skip: true
+  verification:
+    skip: true

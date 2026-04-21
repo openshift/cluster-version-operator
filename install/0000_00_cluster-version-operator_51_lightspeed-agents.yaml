@@ -1,0 +1,197 @@
+---
+apiVersion: agentic.openshift.io/v1alpha1
+kind: Agent
+metadata:
+  name: ota-advisor
+  annotations:
+    release.openshift.io/feature-gate: LightspeedProposals
+spec:
+  llmRef:
+    name: smart
+  skills:
+    # Source: https://github.com/openshift/agentic-skills
+    - image: quay.io/harpatil/ocp-skills:latest
+      paths:
+        - /skills/cluster-update/update-advisor
+        - /skills/cluster-update/product-lifecycle
+        - /skills/monitoring/prometheus
+        - /skills/documentation/openshift
+        - /skills/documentation/kubernetes
+        - /skills/support/jira
+  systemPromptRef:
+    name: ota-advisory-prompt
+  rawOutputSchema:
+    description: >-
+      Include structured component data about upgrade readiness.
+      You MUST include exactly one ota_readiness_summary component.
+      Include one ota_finding component for each blocker or warning discovered.
+      If the readiness data contains an olm_operator_lifecycle section,
+      include exactly one ota_olm_operator_status component.
+    type: array
+    minItems: 1
+    items:
+      oneOf:
+      - type: object
+        description: Overall upgrade readiness summary with per-check results.
+        properties:
+          type:
+            type: string
+            const: ota_readiness_summary
+          decision:
+            type: string
+            enum: ["recommend", "caution", "block", "escalate"]
+            description: >-
+              "recommend" when all checks pass with no warnings.
+              "caution" when warnings exist but no blockers.
+              "block" when blockers must be resolved first.
+              "escalate" when data is insufficient for a confident assessment.
+          checks:
+            type: array
+            description: One entry per readiness check from the input JSON.
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: >-
+                    Human-readable check name, e.g. "Cluster Conditions",
+                    "Operator Health", "etcd Health"
+                status:
+                  type: string
+                  enum: ["pass", "warn", "fail", "error"]
+                  description: >-
+                    "pass" if no issues. "warn" if non-blocking concerns.
+                    "fail" if blockers found. "error" if the check itself
+                    could not complete.
+                detail:
+                  type: string
+                  description: >-
+                    Brief one-line summary, e.g. "All 34 operators healthy",
+                    "2 operators Degraded=True"
+              required: ["name", "status"]
+        required: ["type", "decision", "checks"]
+      - type: object
+        description: A specific blocker, warning, or informational finding.
+        properties:
+          type:
+            type: string
+            const: ota_finding
+          severity:
+            type: string
+            enum: ["blocker", "warning", "info"]
+          check:
+            type: string
+            description: >-
+              Which readiness check surfaced this, e.g. "operator_health",
+              "api_deprecations", "etcd_health"
+          detail:
+            type: string
+            description: >-
+              Clear description for a cluster administrator, e.g.
+              "ClusterOperator 'dns' reports Degraded=True: DNS pod
+              CrashLoopBackOff on worker-2"
+          affectedResources:
+            type: array
+            items:
+              type: string
+            description: >-
+              Affected resources in namespace/name format, e.g.
+              "openshift-dns/dns-default". Omit if not applicable.
+          prerequisite:
+            type: string
+            description: >-
+              Action to resolve this before upgrading, e.g. "Investigate
+              and resolve DNS pod crash on worker-2"
+          verifyCommand:
+            type: string
+            description: >-
+              Command to verify the finding is resolved, e.g.
+              "oc get co dns -o jsonpath='{.status.conditions[?(@.type==\"Degraded\")].status}'"
+        required: ["type", "severity", "check", "detail"]
+      - type: object
+        description: Per-operator OLM lifecycle status for the operator update planner.
+        properties:
+          type:
+            type: string
+            const: ota_olm_operator_status
+          operators:
+            type: array
+            description: One entry per OLM-managed operator (Subscription).
+            items:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Subscription name
+                namespace:
+                  type: string
+                displayName:
+                  type: string
+                  description: Human-readable name from the CSV
+                installedVersion:
+                  type: string
+                channel:
+                  type: string
+                source:
+                  type: string
+                  description: CatalogSource name
+                installPlanApproval:
+                  type: string
+                  enum: ["Automatic", "Manual"]
+                pendingUpgrade:
+                  type: boolean
+                pendingVersion:
+                  type: string
+                compatibleWithTarget:
+                  type: boolean
+                  description: >-
+                    false when olm.maxOpenShiftVersion is less than the
+                    target OCP version
+                availableChannels:
+                  type: array
+                  items:
+                    type: string
+                ocpCompat:
+                  type: object
+                  properties:
+                    min:
+                      type: string
+                    max:
+                      type: string
+                lifecycle:
+                  type: object
+                  description: >-
+                    Red Hat Product Life Cycle (PLCC) data for this operator,
+                    if available. Populated by querying the PLCC API using
+                    the operator's package name.
+                  properties:
+                    productName:
+                      type: string
+                      description: PLCC product name
+                    supportPhase:
+                      type: string
+                      enum: ["Full Support", "Maintenance Support", "End of life"]
+                      description: Current support status from PLCC
+                    ocpVersions:
+                      type: string
+                      description: >-
+                        OCP versions this product version is compatible with,
+                        e.g. "4.19, 4.20, 4.21"
+                    maintenanceEnds:
+                      type: string
+                      description: >-
+                        Maintenance support end date (ISO 8601 or descriptive
+                        string), e.g. "2027-04-21T00:00:00.000Z"
+              required: ["name", "namespace"]
+          summary:
+            type: object
+            properties:
+              totalOperators:
+                type: integer
+              pendingUpgrades:
+                type: integer
+              manualApproval:
+                type: integer
+              incompatibleWithTarget:
+                type: integer
+        required: ["type", "operators", "summary"]

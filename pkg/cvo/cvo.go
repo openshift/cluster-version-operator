@@ -2,6 +2,7 @@ package cvo
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -40,6 +41,8 @@ import (
 	"github.com/openshift/library-go/pkg/verify/store/configmap"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 
+	"k8s.io/client-go/dynamic"
+
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
@@ -51,6 +54,8 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
+	"github.com/openshift/cluster-version-operator/pkg/readiness"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
@@ -213,6 +218,11 @@ type Operator struct {
 	// risks holds update-risk source (in-cluster alerts, etc.)
 	// that will be aggregated into conditional update risks.
 	risks risk.Source
+
+	// proposalCreator, when non-nil, handles creating LightspeedProposal CRs
+	// when available updates are discovered. Initialized in InitializeFromPayload
+	// when the LightspeedProposals feature gate is enabled.
+	proposalCreator *proposal.Creator
 }
 
 // New returns a new cluster version operator.
@@ -386,6 +396,14 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 
 	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
+
+	if optr.shouldCreateLightspeedProposals() {
+		if dynamicClient, err := dynamic.NewForConfig(restConfig); err != nil {
+			klog.Warningf("Failed to create dynamic client for LightspeedProposal: %v", err)
+		} else {
+			optr.proposalCreator = proposal.NewCreator(dynamicClient, proposal.DefaultConfig())
+		}
+	}
 
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
@@ -1190,4 +1208,46 @@ func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 func (optr *Operator) shouldReconcileAcceptRisks() bool {
 	// HyperShift will be supported later if needed
 	return optr.enabledCVOFeatureGates.AcceptRisks() && !optr.hypershift
+}
+
+// shouldCreateLightspeedProposals returns whether the CVO should create
+// LightspeedProposal CRs when available updates are discovered.
+func (optr *Operator) shouldCreateLightspeedProposals() bool {
+	return optr.enabledCVOFeatureGates.LightspeedProposals() && !optr.hypershift
+}
+
+// maybeCreateLightspeedProposals creates a Proposal CR for each available update path.
+// Readiness checks run once and are shared across all proposals.
+func (optr *Operator) maybeCreateLightspeedProposals(ctx context.Context, config *configv1.ClusterVersion) {
+	if optr.proposalCreator == nil {
+		return
+	}
+
+	au := optr.getAvailableUpdates()
+	if au == nil || (len(au.Updates) == 0 && len(au.ConditionalUpdates) == 0) {
+		return
+	}
+
+	// Run readiness checks once — most checks are cluster-state, not target-specific.
+	// Use the highest version for target-sensitive checks (API deprecations, OLM compat).
+	highestVersion, _ := proposal.SelectTarget(au.Updates, au.ConditionalUpdates)
+	var readinessJSON string
+	if highestVersion != "" {
+		dc := optr.proposalCreator.DynamicClient()
+		output := readiness.RunAll(ctx, dc, optr.release.Version, highestVersion)
+		if data, err := json.Marshal(output); err != nil {
+			klog.Warningf("Failed to marshal readiness check output: %v", err)
+		} else {
+			readinessJSON = string(data)
+			klog.V(2).Infof("Readiness check completed (%d/%d ok, %.1fs): %s",
+				output.Meta.ChecksOK, output.Meta.TotalChecks, output.Meta.ElapsedSeconds, readinessJSON)
+		}
+	}
+
+	for _, u := range au.Updates {
+		optr.proposalCreator.MaybeCreateProposal(ctx, optr.release.Version, u.Version, "recommended", config.Spec.Channel, au.Updates, readinessJSON)
+	}
+	for _, u := range au.ConditionalUpdates {
+		optr.proposalCreator.MaybeCreateProposal(ctx, optr.release.Version, u.Release.Version, "conditional", config.Spec.Channel, au.Updates, readinessJSON)
+	}
 }
