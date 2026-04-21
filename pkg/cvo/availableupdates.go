@@ -182,6 +182,10 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// queue optr.sync() to update ClusterVersion status
 	optr.queue.Add(queueKey)
+	if optr.shouldEnableProposalController() {
+		// queue optr.proposalController.Sync() to manage proposals
+		optr.proposalController.Queue().Add(optr.proposalController.QueueKey())
+	}
 	return nil
 }
 

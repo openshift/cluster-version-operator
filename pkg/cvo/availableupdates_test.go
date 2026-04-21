@@ -14,6 +14,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +30,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
 )
@@ -202,6 +204,14 @@ func newOperator(url string, cluster release, promqlMock clusterconditions.Condi
 	availableUpdates := &availableUpdates{
 		Current: configv1.Release{Version: cluster.version, Image: cluster.image},
 	}
+	operator.proposalController = proposal.NewController(
+		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+			return nil, nil, nil
+		},
+		fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+			return &configv1.ClusterVersion{}, nil
+		},
+	)
 	return availableUpdates, operator
 }
 
