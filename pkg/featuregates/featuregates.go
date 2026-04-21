@@ -45,6 +45,9 @@ type CvoGateChecker interface {
 
 	// AcceptRisks controls whether the CVO reconciles spec.desiredUpdate.acceptRisks.
 	AcceptRisks() bool
+
+	// Proposal controls whether the CVO makes proposals for updates.
+	Proposal() bool
 }
 
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
@@ -60,6 +63,7 @@ type CvoGates struct {
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
+	proposal                  bool
 }
 
 func (c CvoGates) DesiredVersion() string {
@@ -82,6 +86,10 @@ func (c CvoGates) AcceptRisks() bool {
 	return c.acceptRisks
 }
 
+func (c CvoGates) Proposal() bool {
+	return c.proposal
+}
+
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
@@ -90,6 +98,7 @@ func DefaultCvoGates(version string) CvoGates {
 		statusReleaseArchitecture: false,
 		cvoConfiguration:          false,
 		acceptRisks:               false,
+		proposal:                  false,
 	}
 }
 
@@ -97,6 +106,9 @@ func DefaultCvoGates(version string) CvoGates {
 // CvoGates that reflects them, or the default gates if given version was not found in the FeatureGate
 func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGates {
 	enabledGates := DefaultCvoGates(version)
+
+	// We do not have a specific gate for the Proposal feature and use the TechPreviewNoUpgrade instead
+	enabledGates.proposal = gate.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
 
 	for _, g := range gate.Status.FeatureGates {
 

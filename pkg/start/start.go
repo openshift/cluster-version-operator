@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -47,6 +48,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	proposalv1alpha1 "github.com/openshift/cluster-version-operator/pkg/proposal/api/v1alpha1"
 )
 
 const (
@@ -505,6 +507,14 @@ func (cb *ClientBuilder) OperatorClientOrDie(name string, configFns ...func(*res
 	return operatorclientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
+func (cb *ClientBuilder) RuntimeControllerClientOrDie(name string, configFns ...func(*rest.Config)) runtimeclient.Client {
+	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{})
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 func newClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	clientCfg := clientcmd.NewDefaultClientConfigLoadingRules()
 	clientCfg.ExplicitPath = kubeconfig
@@ -577,6 +587,13 @@ type Context struct {
 	OperatorInformerFactory operatorinformers.SharedInformerFactory
 }
 
+func addSchemes() error {
+	if err := proposalv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		return fmt.Errorf("failed to add proposalv1alpha1 to scheme: %w", err)
+	}
+	return nil
+}
+
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
 func (o *Options) NewControllerContext(
@@ -601,6 +618,11 @@ func (o *Options) NewControllerContext(
 
 	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
 	o.PromQLTarget.KubeClient = cvoKubeClient
+
+	if err := addSchemes(); err != nil {
+		return nil, err
+	}
+	rtClient := cb.RuntimeControllerClientOrDie("runtime-controller-client")
 
 	cvo, err := cvo.New(
 		o.NodeName,
@@ -628,6 +650,7 @@ func (o *Options) NewControllerContext(
 		startingFeatureSet,
 		startingCvoGates,
 		startingEnabledManifestFeatureGates,
+		rtClient,
 	)
 	if err != nil {
 		return nil, err
