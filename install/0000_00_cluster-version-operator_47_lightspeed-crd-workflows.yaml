@@ -1,0 +1,204 @@
+# Temporary CRD stub — will be removed once the lightspeed-agentic-operator owns this CRD.
+# Generated from github.com/harche/lightspeed-agentic-operator/api/v1alpha1
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    release.openshift.io/feature-gate: LightspeedProposals
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: workflows.agentic.openshift.io
+spec:
+  group: agentic.openshift.io
+  names:
+    kind: Workflow
+    listKind: WorkflowList
+    plural: workflows
+    singular: workflow
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.analysis.agentRef.name
+      name: Analysis Agent
+      type: string
+    - jsonPath: .spec.execution.skip
+      name: Exec Skip
+      type: boolean
+    - jsonPath: .spec.verification.skip
+      name: Verify Skip
+      type: boolean
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: "Workflow defines a reusable 3-step pipeline template that controls
+          which\nagents handle analysis, execution, and verification, and whether
+          any steps\nare skipped. It is the third link in the CRD chain (LlmProvider
+          -> Agent ->\nWorkflow -> Proposal) and is referenced by Proposal resources
+          via\nspec.workflowRef.\n\nWorkflow is cluster-scoped. You create workflows
+          representing different\noperational patterns and then reference them from
+          proposals. Per-proposal\noverrides (WorkflowOverride in the Proposal spec)
+          allow customizing\nindividual steps without creating a new Workflow.\n\nExample
+          — full remediation (analyze, execute, verify):\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Workflow\n\tmetadata:\n\t  name: remediation\n\tspec:\n\t  analysis:\n\t
+          \   agentRef:\n\t      name: analyzer\n\t  execution:\n\t    agentRef:\n\t
+          \     name: executor\n\t  verification:\n\t    agentRef:\n\t      name:
+          verifier\n\nExample — advisory-only (analyze only, no execution or verification):\n\n\tapiVersion:
+          agentic.openshift.io/v1alpha1\n\tkind: Workflow\n\tmetadata:\n\t  name:
+          advisory-only\n\tspec:\n\t  analysis:\n\t    agentRef:\n\t      name: analyzer\n\t
+          \ execution:\n\t    skip: true\n\t  verification:\n\t    skip: true\n\nExample
+          — gitops-remediation (analyze, skip execution, verify after user applies
+          via git):\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind: Workflow\n\tmetadata:\n\t
+          \ name: gitops-remediation\n\tspec:\n\t  analysis:\n\t    agentRef:\n\t
+          \     name: analyzer\n\t  execution:\n\t    skip: true\n\t  verification:\n\t
+          \   agentRef:\n\t      name: verifier\n\nExample — trust-mode (analyze,
+          execute, skip verification):\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Workflow\n\tmetadata:\n\t  name: trust-mode\n\tspec:\n\t  analysis:\n\t
+          \   agentRef:\n\t      name: analyzer\n\t  execution:\n\t    agentRef:\n\t
+          \     name: executor\n\t  verification:\n\t    skip: true"
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              WorkflowSpec defines the desired state of Workflow.
+
+              A workflow is a 3-step pipeline template. The steps always run in order:
+              analysis -> execution -> verification. Between analysis and execution,
+              the proposal pauses in the Proposed phase for user approval (unless the
+              operator is configured for auto-approve).
+            properties:
+              analysis:
+                description: |-
+                  analysis defines the analysis step. The analysis agent examines the
+                  cluster state, produces a diagnosis (root cause, confidence), a
+                  remediation proposal (actions, risk, reversibility), a verification
+                  plan, and RBAC permissions needed for execution.
+                properties:
+                  agentRef:
+                    description: |-
+                      agentRef references a cluster-scoped Agent CR to use for this step.
+                      The operator resolves this reference and launches a sandbox pod with
+                      the agent's LLM, skills, and system prompt to process the step.
+                      Required when skip is false; must be omitted or nil when skip is true.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  skip:
+                    description: |-
+                      skip skips this step entirely. When true, agentRef is not needed and
+                      the operator advances the proposal past this step automatically.
+                      See WorkflowStep documentation for the effect of skipping each step.
+                    type: boolean
+                type: object
+              execution:
+                description: |-
+                  execution defines the execution step. The execution agent carries out
+                  the approved remediation plan using the RBAC permissions granted by the
+                  operator. When skipped, the proposal enters AwaitingSync for manual
+                  or GitOps-driven application.
+                properties:
+                  agentRef:
+                    description: |-
+                      agentRef references a cluster-scoped Agent CR to use for this step.
+                      The operator resolves this reference and launches a sandbox pod with
+                      the agent's LLM, skills, and system prompt to process the step.
+                      Required when skip is false; must be omitted or nil when skip is true.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  skip:
+                    description: |-
+                      skip skips this step entirely. When true, agentRef is not needed and
+                      the operator advances the proposal past this step automatically.
+                      See WorkflowStep documentation for the effect of skipping each step.
+                    type: boolean
+                type: object
+              verification:
+                description: |-
+                  verification defines the verification step. The verification agent
+                  checks whether the remediation was successful by running the
+                  verification plan produced during analysis. When skipped, the proposal
+                  completes immediately after execution.
+                properties:
+                  agentRef:
+                    description: |-
+                      agentRef references a cluster-scoped Agent CR to use for this step.
+                      The operator resolves this reference and launches a sandbox pod with
+                      the agent's LLM, skills, and system prompt to process the step.
+                      Required when skip is false; must be omitted or nil when skip is true.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                  skip:
+                    description: |-
+                      skip skips this step entirely. When true, agentRef is not needed and
+                      the operator advances the proposal past this step automatically.
+                      See WorkflowStep documentation for the effect of skipping each step.
+                    type: boolean
+                type: object
+            required:
+            - analysis
+            - execution
+            - verification
+            type: object
+            x-kubernetes-validations:
+            - message: agentRef is required when analysis is not skipped
+              rule: self.analysis.skip || (has(self.analysis.agentRef) && self.analysis.agentRef.name
+                != '')
+            - message: agentRef is required when execution is not skipped
+              rule: self.execution.skip || (has(self.execution.agentRef) && self.execution.agentRef.name
+                != '')
+            - message: agentRef is required when verification is not skipped
+              rule: self.verification.skip || (has(self.verification.agentRef) &&
+                self.verification.agentRef.name != '')
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

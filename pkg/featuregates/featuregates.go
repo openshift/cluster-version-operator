@@ -45,6 +45,10 @@ type CvoGateChecker interface {
 
 	// AcceptRisks controls whether the CVO reconciles spec.desiredUpdate.acceptRisks.
 	AcceptRisks() bool
+
+	// LightspeedProposals controls whether the CVO creates LightspeedProposal CRs
+	// when available updates are discovered.
+	LightspeedProposals() bool
 }
 
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
@@ -60,6 +64,7 @@ type CvoGates struct {
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
+	lightspeedProposals       bool
 }
 
 func (c CvoGates) DesiredVersion() string {
@@ -82,6 +87,10 @@ func (c CvoGates) AcceptRisks() bool {
 	return c.acceptRisks
 }
 
+func (c CvoGates) LightspeedProposals() bool {
+	return c.lightspeedProposals
+}
+
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
@@ -90,6 +99,7 @@ func DefaultCvoGates(version string) CvoGates {
 		statusReleaseArchitecture: false,
 		cvoConfiguration:          false,
 		acceptRisks:               false,
+		lightspeedProposals:       false,
 	}
 }
 
@@ -113,6 +123,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.cvoConfiguration = true
 			case features.FeatureGateClusterUpdateAcceptRisks:
 				enabledGates.acceptRisks = true
+			case features.FeatureGateLightspeedProposals:
+				enabledGates.lightspeedProposals = true
 			}
 		}
 		for _, disabled := range g.Disabled {
@@ -123,6 +135,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.cvoConfiguration = false
 			case features.FeatureGateClusterUpdateAcceptRisks:
 				enabledGates.acceptRisks = false
+			case features.FeatureGateLightspeedProposals:
+				enabledGates.lightspeedProposals = false
 			}
 		}
 	}
