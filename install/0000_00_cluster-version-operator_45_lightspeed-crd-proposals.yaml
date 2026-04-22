@@ -1,0 +1,1128 @@
+# Temporary CRD stub — will be removed once the lightspeed-agentic-operator owns this CRD.
+# Generated from github.com/harche/lightspeed-agentic-operator/api/v1alpha1
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: proposals.agentic.openshift.io
+spec:
+  group: agentic.openshift.io
+  names:
+    kind: Proposal
+    listKind: ProposalList
+    plural: proposals
+    singular: proposal
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.workflowRef.name
+      name: Workflow
+      type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .spec.request
+      name: Request
+      priority: 1
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: "Proposal represents a unit of work managed by the agentic platform.
+          It is\nthe final link in the CRD chain (LlmProvider -> Agent -> Workflow
+          ->\nProposal) and the primary resource users and adapters interact with.\n\nA
+          Proposal references a Workflow that defines which agents handle each\nstep,
+          and tracks the full lifecycle from initial request through analysis,\nuser
+          approval, execution, and verification. Proposals are created by\nadapters
+          (AlertManager webhook, ACS violation webhook, manual creation)\nor by the
+          operator itself (escalation child proposals).\n\nProposal is cluster-scoped.
+          The operator watches for new Proposals and\ndrives them through the lifecycle
+          automatically. Users interact with\nproposals in the Proposed phase to approve,
+          deny, or escalate.\n\nExample — a remediation proposal targeting a specific
+          namespace:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind: Proposal\n\tmetadata:\n\t
+          \ name: fix-crashloop\n\tspec:\n\t  request: |\n\t    Pod web-frontend-5d4b8c6f-x9k2m
+          in namespace production is in\n\t    CrashLoopBackOff. Last restart reason:
+          OOMKilled. Container memory\n\t    limit is 256Mi.\n\t  workflowRef:\n\t
+          \   name: remediation\n\t  targetNamespaces:\n\t    - production\n\nExample
+          — advisory-only via workflowOverride (reuses a remediation workflow\nbut
+          skips execution so the user applies changes manually):\n\n\tapiVersion:
+          agentic.openshift.io/v1alpha1\n\tkind: Proposal\n\tmetadata:\n\t  name:
+          one-off-advisory\n\tspec:\n\t  request: \"Review the nginx deployment in
+          staging for security best practices\"\n\t  workflowRef:\n\t    name: remediation\n\t
+          \ targetNamespaces:\n\t    - staging\n\t  workflowOverride:\n\t    execution:\n\t
+          \     skip: true\n\t    verification:\n\t      skip: true\n\nExample — an
+          upgrade proposal with limited retries:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Proposal\n\tmetadata:\n\t  name: upgrade-4-22\n\tspec:\n\t  request: \"Analyze
+          and plan upgrade from OpenShift 4.21 to 4.22\"\n\t  workflowRef:\n\t    name:
+          upgrade\n\t  maxAttempts: 2"
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: |-
+              ProposalSpec defines the desired state of Proposal. This is the user-facing
+              (or adapter-facing) configuration -- everything the operator needs to start
+              processing the proposal.
+            properties:
+              maxAttempts:
+                description: |-
+                  maxAttempts overrides the global retry limit for this proposal.
+                  When a step fails, the operator resets the proposal to Pending
+                  with enriched context (up to maxAttempts times). After that, the
+                  proposal transitions to Escalated. Set to 0 to disable retries.
+                  When omitted, the operator's global default is used.
+                maximum: 20
+                minimum: 0
+                type: integer
+              parentRef:
+                description: |-
+                  parentRef references the parent proposal in an escalation chain.
+                  Set automatically by the operator when creating a child proposal
+                  after maxAttempts is exhausted. The child proposal inherits the
+                  full failure history from its parent. The child is also owned by
+                  the parent via Kubernetes owner references for garbage collection.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+              request:
+                description: |-
+                  request is the user's original request, alert description, or a
+                  description of what triggered this proposal. This text is passed to
+                  the analysis agent as the primary input. For adapter-created proposals,
+                  this typically contains the alert summary and relevant details.
+                minLength: 1
+                type: string
+              targetNamespaces:
+                description: |-
+                  targetNamespaces are the Kubernetes namespace(s) this proposal
+                  operates on. The operator uses these to scope RBAC (creating Roles
+                  and RoleBindings only in these namespaces) and to pass context to
+                  the analysis agent. When empty, the proposal operates at the
+                  cluster level only.
+                items:
+                  type: string
+                type: array
+              workflowOverride:
+                description: |-
+                  workflowOverride allows per-proposal overrides of the referenced
+                  workflow without creating a new Workflow CR. Useful for one-off
+                  customizations like skipping execution on a normally full-lifecycle
+                  workflow, or swapping in a specialized agent.
+                properties:
+                  analysis:
+                    description: analysis overrides for the analysis step.
+                    properties:
+                      agentRef:
+                        description: |-
+                          agentRef overrides the agent used for this step. Allows using a
+                          different agent for a specific proposal without changing the Workflow.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      skip:
+                        description: |-
+                          skip overrides the skip flag for this step. When set to true, the step
+                          is skipped regardless of the Workflow's setting. When set to false,
+                          the step runs even if the Workflow says skip.
+                        type: boolean
+                    type: object
+                  execution:
+                    description: execution overrides for the execution step.
+                    properties:
+                      agentRef:
+                        description: |-
+                          agentRef overrides the agent used for this step. Allows using a
+                          different agent for a specific proposal without changing the Workflow.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      skip:
+                        description: |-
+                          skip overrides the skip flag for this step. When set to true, the step
+                          is skipped regardless of the Workflow's setting. When set to false,
+                          the step runs even if the Workflow says skip.
+                        type: boolean
+                    type: object
+                  verification:
+                    description: verification overrides for the verification step.
+                    properties:
+                      agentRef:
+                        description: |-
+                          agentRef overrides the agent used for this step. Allows using a
+                          different agent for a specific proposal without changing the Workflow.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      skip:
+                        description: |-
+                          skip overrides the skip flag for this step. When set to true, the step
+                          is skipped regardless of the Workflow's setting. When set to false,
+                          the step runs even if the Workflow says skip.
+                        type: boolean
+                    type: object
+                type: object
+              workflowRef:
+                description: |-
+                  workflowRef references a cluster-scoped Workflow CR that defines
+                  which agents handle each step (analysis, execution, verification)
+                  and which steps are skipped. This is the primary routing mechanism.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
+            required:
+            - request
+            - workflowRef
+            type: object
+          status:
+            description: |-
+              ProposalStatus defines the observed state of Proposal. All fields are
+              set by the operator -- users should not modify status fields directly.
+              The status provides complete observability into the proposal's progress,
+              including per-step results, retry history, and standard Kubernetes conditions.
+            properties:
+              attempt:
+                description: |-
+                  attempt is the current attempt number (1-based). Incremented each
+                  time the proposal is retried after a failure. Starts at 1 for the
+                  first attempt.
+                type: integer
+              conditions:
+                description: |-
+                  conditions represent the latest available observations using the
+                  standard Kubernetes condition pattern. Condition types include:
+                  Analyzed, Approved, Executed, Verified, and Escalated.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              phase:
+                default: Pending
+                description: |-
+                  phase is the current phase of the proposal lifecycle.
+                  See ProposalPhase for the full state machine.
+                enum:
+                - Pending
+                - Analyzing
+                - Proposed
+                - Approved
+                - Denied
+                - Executing
+                - AwaitingSync
+                - Verifying
+                - Completed
+                - Failed
+                - Escalated
+                type: string
+              previousAttempts:
+                description: |-
+                  previousAttempts contains the failure history from earlier attempts.
+                  Each entry records which phase failed and why, giving the analysis
+                  agent on the next attempt context to avoid repeating the same mistake.
+                items:
+                  description: |-
+                    PreviousAttempt captures the state of a failed attempt. When a proposal
+                    fails and retries, the operator records the failure context here so that
+                    the analysis agent on the next attempt can learn from previous failures.
+                    If maxAttempts is reached, the full history of PreviousAttempts is
+                    included in the escalation child proposal.
+                  properties:
+                    attempt:
+                      description: attempt is the 1-based attempt number that failed.
+                      type: integer
+                    failedPhase:
+                      description: failedPhase is which step failed (analysis, execution,
+                        or verification).
+                      enum:
+                      - analysis
+                      - execution
+                      - verification
+                      type: string
+                    failureReason:
+                      description: failureReason is the error message or explanation
+                        from the failed step.
+                      type: string
+                  required:
+                  - attempt
+                  type: object
+                type: array
+              steps:
+                description: |-
+                  steps contains the per-step observed state (analysis, execution,
+                  verification). Each step independently tracks its phase, timing,
+                  sandbox info, and results.
+                properties:
+                  analysis:
+                    description: analysis is the observed state of the analysis step.
+                    properties:
+                      completedAt:
+                        description: completedAt is when the step completed.
+                        format: date-time
+                        type: string
+                      components:
+                        description: |-
+                          components contains optional adapter-specific UI components that
+                          apply to the analysis step as a whole (not to a specific option).
+                        items:
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: array
+                      conditions:
+                        description: conditions for this step.
+                        items:
+                          description: Condition contains details for one aspect of
+                            the current state of this API Resource.
+                          properties:
+                            lastTransitionTime:
+                              description: |-
+                                lastTransitionTime is the last time the condition transitioned from one status to another.
+                                This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                              format: date-time
+                              type: string
+                            message:
+                              description: |-
+                                message is a human readable message indicating details about the transition.
+                                This may be an empty string.
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              description: |-
+                                observedGeneration represents the .metadata.generation that the condition was set based upon.
+                                For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                                with respect to the current state of the instance.
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              description: |-
+                                reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                                Producers of specific condition types may define expected values and meanings for this field,
+                                and whether the values are considered a guaranteed API.
+                                The value should be a CamelCase string.
+                                This field may not be empty.
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              description: status of the condition, one of True, False,
+                                Unknown.
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      options:
+                        description: |-
+                          options contains one or more remediation options returned by the
+                          analysis agent. Each option has its own diagnosis, plan, verification
+                          strategy, and RBAC requirements. The user reviews these in the
+                          Proposed phase and selects one to approve.
+                        items:
+                          description: |-
+                            RemediationOption represents a single remediation approach produced by
+                            the analysis agent. The agent may return multiple options, each with
+                            its own diagnosis, remediation plan, verification strategy, and RBAC
+                            requirements. The user selects one option during the Proposed phase
+                            (recorded in AnalysisStepStatus.selectedOption), and the operator uses
+                            that option's RBAC and plan for the execution phase.
+
+                            The components field is an extensibility point for adapter-specific UI
+                            data. For example, an ACS adapter might include violation details or
+                            affected deployment information as components that the console plugin
+                            renders with custom components.
+                          properties:
+                            components:
+                              description: |-
+                                components contains optional adapter-defined structured data for
+                                custom console UI rendering. Each entry is a raw JSON object.
+                              items:
+                                x-kubernetes-preserve-unknown-fields: true
+                              type: array
+                            diagnosis:
+                              description: diagnosis contains the root cause analysis
+                                specific to this option.
+                              properties:
+                                confidence:
+                                  description: |-
+                                    confidence is the agent's self-assessed confidence in its diagnosis.
+                                    Higher confidence generally correlates with clearer symptoms and
+                                    more deterministic root causes.
+                                  enum:
+                                  - low
+                                  - medium
+                                  - high
+                                  type: string
+                                rootCause:
+                                  description: |-
+                                    rootCause is a concise one-line description of the identified root
+                                    cause (e.g., "OOMKilled due to memory limit of 256Mi").
+                                  type: string
+                                summary:
+                                  description: |-
+                                    summary is a human-readable diagnosis summary explaining the problem,
+                                    its symptoms, and the agent's findings.
+                                  type: string
+                              required:
+                              - confidence
+                              - rootCause
+                              - summary
+                              type: object
+                            proposal:
+                              description: proposal contains the remediation plan
+                                for this option.
+                              properties:
+                                actions:
+                                  description: actions is the ordered list of discrete
+                                    actions the agent proposes.
+                                  items:
+                                    description: |-
+                                      ProposedAction describes a single discrete action the analysis agent
+                                      recommends as part of its remediation plan. Actions are displayed to
+                                      the user in the Proposed phase for review before approval.
+                                    properties:
+                                      description:
+                                        description: |-
+                                          description is a human-readable explanation of what this action
+                                          will do (e.g., "Increase memory limit from 256Mi to 512Mi").
+                                        type: string
+                                      type:
+                                        description: |-
+                                          type is the action category (e.g., "patch", "scale", "restart",
+                                          "create", "delete", "rollout").
+                                        type: string
+                                    required:
+                                    - description
+                                    - type
+                                    type: object
+                                  type: array
+                                description:
+                                  description: |-
+                                    description is a human-readable summary of the overall remediation
+                                    approach.
+                                  type: string
+                                estimatedImpact:
+                                  description: |-
+                                    estimatedImpact describes the expected impact of the remediation
+                                    on the system (e.g., "Brief pod restart, ~30s downtime").
+                                  type: string
+                                reversible:
+                                  description: |-
+                                    reversible indicates whether the remediation can be rolled back
+                                    if something goes wrong. The rollback plan is in the
+                                    VerificationPlan.
+                                  type: boolean
+                                risk:
+                                  description: |-
+                                    risk is the agent's assessment of how risky the remediation is.
+                                    Critical-risk proposals typically require explicit human review.
+                                  enum:
+                                  - low
+                                  - medium
+                                  - high
+                                  - critical
+                                  type: string
+                              required:
+                              - actions
+                              - description
+                              - reversible
+                              - risk
+                              type: object
+                            rbac:
+                              description: |-
+                                rbac contains the RBAC permissions the execution agent will need.
+                                The operator's policy engine validates these before creating the
+                                actual Kubernetes RBAC resources. Omitted for advisory-only options.
+                              properties:
+                                clusterScoped:
+                                  description: |-
+                                    clusterScoped are rules that will be applied via ClusterRole +
+                                    ClusterRoleBinding. Used when the agent needs cross-namespace or
+                                    non-namespaced resource access (e.g., reading nodes, CRDs).
+                                  items:
+                                    description: |-
+                                      RBACRule describes a single RBAC permission that the analysis agent
+                                      requests for the execution phase. The operator's policy engine validates
+                                      these requests against a 6-layer defense model before creating the
+                                      actual Role/ClusterRole bindings. Each rule must include a justification
+                                      so that users and policy can audit why the permission is needed.
+                                    properties:
+                                      apiGroups:
+                                        description: apiGroups are the API groups
+                                          for this rule (e.g., "", "apps", "batch").
+                                        items:
+                                          type: string
+                                        type: array
+                                      justification:
+                                        description: |-
+                                          justification explains why this permission is needed for the
+                                          remediation (e.g., "Need to patch deployment to increase memory limit").
+                                          Required for audit and policy enforcement.
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          namespace is the target namespace for namespace-scoped rules.
+                                          Must match one of the proposal's targetNamespaces. Ignored for
+                                          cluster-scoped rules.
+                                        type: string
+                                      resourceNames:
+                                        description: |-
+                                          resourceNames restricts the rule to specific named resources.
+                                          When empty, the rule applies to all resources of the given type.
+                                        items:
+                                          type: string
+                                        type: array
+                                      resources:
+                                        description: resources are the resource types
+                                          (e.g., "pods", "deployments").
+                                        items:
+                                          type: string
+                                        type: array
+                                      verbs:
+                                        description: verbs are the allowed operations
+                                          (e.g., "get", "patch", "delete").
+                                        items:
+                                          type: string
+                                        type: array
+                                    required:
+                                    - apiGroups
+                                    - justification
+                                    - resources
+                                    - verbs
+                                    type: object
+                                  type: array
+                                namespaceScoped:
+                                  description: |-
+                                    namespaceScoped are rules that will be applied via Role + RoleBinding
+                                    in the proposal's target namespaces. These are the most common rules.
+                                  items:
+                                    description: |-
+                                      RBACRule describes a single RBAC permission that the analysis agent
+                                      requests for the execution phase. The operator's policy engine validates
+                                      these requests against a 6-layer defense model before creating the
+                                      actual Role/ClusterRole bindings. Each rule must include a justification
+                                      so that users and policy can audit why the permission is needed.
+                                    properties:
+                                      apiGroups:
+                                        description: apiGroups are the API groups
+                                          for this rule (e.g., "", "apps", "batch").
+                                        items:
+                                          type: string
+                                        type: array
+                                      justification:
+                                        description: |-
+                                          justification explains why this permission is needed for the
+                                          remediation (e.g., "Need to patch deployment to increase memory limit").
+                                          Required for audit and policy enforcement.
+                                        type: string
+                                      namespace:
+                                        description: |-
+                                          namespace is the target namespace for namespace-scoped rules.
+                                          Must match one of the proposal's targetNamespaces. Ignored for
+                                          cluster-scoped rules.
+                                        type: string
+                                      resourceNames:
+                                        description: |-
+                                          resourceNames restricts the rule to specific named resources.
+                                          When empty, the rule applies to all resources of the given type.
+                                        items:
+                                          type: string
+                                        type: array
+                                      resources:
+                                        description: resources are the resource types
+                                          (e.g., "pods", "deployments").
+                                        items:
+                                          type: string
+                                        type: array
+                                      verbs:
+                                        description: verbs are the allowed operations
+                                          (e.g., "get", "patch", "delete").
+                                        items:
+                                          type: string
+                                        type: array
+                                    required:
+                                    - apiGroups
+                                    - justification
+                                    - resources
+                                    - verbs
+                                    type: object
+                                  type: array
+                              type: object
+                            summary:
+                              description: |-
+                                summary is an optional one-line summary for collapsed views in the
+                                console UI.
+                              type: string
+                            title:
+                              description: |-
+                                title is a short human-readable name for this option
+                                (e.g., "Increase memory limit", "Restart with backoff").
+                              minLength: 1
+                              type: string
+                            verification:
+                              description: |-
+                                verification contains the verification plan. Omitted when
+                                verification is skipped in the workflow.
+                              properties:
+                                description:
+                                  description: description is a human-readable summary
+                                    of the verification approach.
+                                  type: string
+                                rollbackPlan:
+                                  description: |-
+                                    rollbackPlan describes how to undo the remediation if verification
+                                    fails. Displayed to the user and available to the verification agent.
+                                  properties:
+                                    command:
+                                      description: command is the rollback command
+                                        or steps to execute.
+                                      type: string
+                                    description:
+                                      description: description is a human-readable
+                                        explanation of the rollback strategy.
+                                      type: string
+                                  required:
+                                  - command
+                                  - description
+                                  type: object
+                                steps:
+                                  description: steps is the ordered list of verification
+                                    checks to run.
+                                  items:
+                                    description: |-
+                                      VerificationStep describes a single verification check that the
+                                      verification agent should run after execution. Populated by the
+                                      analysis agent as part of the RemediationOption.
+                                    properties:
+                                      command:
+                                        description: |-
+                                          command is the command or API call to run for this check
+                                          (e.g., "oc get pod -n production -l app=web -o jsonpath='{.items[0].status.phase}'").
+                                        type: string
+                                      expected:
+                                        description: |-
+                                          expected is the expected output or condition
+                                          (e.g., "Running", "ready=true").
+                                        type: string
+                                      name:
+                                        description: name is a short identifier for
+                                          this check (e.g., "pod-running").
+                                        type: string
+                                      type:
+                                        description: type categorizes the check (e.g.,
+                                          "command", "metric", "condition").
+                                        type: string
+                                    required:
+                                    - command
+                                    - expected
+                                    - name
+                                    - type
+                                    type: object
+                                  type: array
+                              required:
+                              - description
+                              type: object
+                          required:
+                          - diagnosis
+                          - proposal
+                          - title
+                          type: object
+                        type: array
+                      phase:
+                        description: phase is the step phase.
+                        enum:
+                        - Pending
+                        - Running
+                        - Completed
+                        - Failed
+                        - Skipped
+                        type: string
+                      sandbox:
+                        description: sandbox tracks the sandbox used.
+                        properties:
+                          claimName:
+                            description: |-
+                              claimName is the name of the SandboxClaim resource that owns the
+                              sandbox pod.
+                            type: string
+                          completedAt:
+                            description: completedAt is when the sandbox pod finished
+                              (success or failure).
+                            format: date-time
+                            type: string
+                          namespace:
+                            description: namespace is the namespace where the SandboxClaim
+                              and its pod live.
+                            type: string
+                          startedAt:
+                            description: startedAt is when the sandbox pod was created.
+                            format: date-time
+                            type: string
+                        type: object
+                      selectedOption:
+                        description: |-
+                          selectedOption is the 0-based index into the options array that the
+                          user approved. Set when the user approves the proposal. The operator
+                          uses this to determine which option's RBAC and plan to use for
+                          execution.
+                        minimum: 0
+                        type: integer
+                      startedAt:
+                        description: startedAt is when the step started.
+                        format: date-time
+                        type: string
+                    type: object
+                  execution:
+                    description: execution is the observed state of the execution
+                      step.
+                    properties:
+                      actionsTaken:
+                        description: actionsTaken lists what the agent did.
+                        items:
+                          description: |-
+                            ExecutionAction describes a single action taken by the execution agent
+                            during the Executing phase. These are recorded in ExecutionStepStatus
+                            to provide an audit trail of what the agent actually did.
+                          properties:
+                            description:
+                              description: |-
+                                description is what the agent did
+                                (e.g., "Patched deployment/web to set memory limit to 512Mi").
+                              type: string
+                            error:
+                              description: error is the error message if the action
+                                failed.
+                              type: string
+                            output:
+                              description: output is the command output or API response
+                                from the action.
+                              type: string
+                            success:
+                              description: success indicates whether this individual
+                                action succeeded.
+                              type: boolean
+                            type:
+                              description: type is the action category (e.g., "patch",
+                                "scale", "restart").
+                              type: string
+                          required:
+                          - description
+                          - success
+                          - type
+                          type: object
+                        type: array
+                      completedAt:
+                        description: completedAt is when the step completed.
+                        format: date-time
+                        type: string
+                      components:
+                        description: components contains optional adapter-defined
+                          structured data.
+                        items:
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: array
+                      conditions:
+                        description: conditions for this step.
+                        items:
+                          description: Condition contains details for one aspect of
+                            the current state of this API Resource.
+                          properties:
+                            lastTransitionTime:
+                              description: |-
+                                lastTransitionTime is the last time the condition transitioned from one status to another.
+                                This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                              format: date-time
+                              type: string
+                            message:
+                              description: |-
+                                message is a human readable message indicating details about the transition.
+                                This may be an empty string.
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              description: |-
+                                observedGeneration represents the .metadata.generation that the condition was set based upon.
+                                For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                                with respect to the current state of the instance.
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              description: |-
+                                reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                                Producers of specific condition types may define expected values and meanings for this field,
+                                and whether the values are considered a guaranteed API.
+                                The value should be a CamelCase string.
+                                This field may not be empty.
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              description: status of the condition, one of True, False,
+                                Unknown.
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      phase:
+                        description: phase is the step phase.
+                        enum:
+                        - Pending
+                        - Running
+                        - Completed
+                        - Failed
+                        - Skipped
+                        type: string
+                      sandbox:
+                        description: sandbox tracks the sandbox used.
+                        properties:
+                          claimName:
+                            description: |-
+                              claimName is the name of the SandboxClaim resource that owns the
+                              sandbox pod.
+                            type: string
+                          completedAt:
+                            description: completedAt is when the sandbox pod finished
+                              (success or failure).
+                            format: date-time
+                            type: string
+                          namespace:
+                            description: namespace is the namespace where the SandboxClaim
+                              and its pod live.
+                            type: string
+                          startedAt:
+                            description: startedAt is when the sandbox pod was created.
+                            format: date-time
+                            type: string
+                        type: object
+                      startedAt:
+                        description: startedAt is when the step started.
+                        format: date-time
+                        type: string
+                      success:
+                        description: success indicates whether execution completed
+                          successfully.
+                        type: boolean
+                      verification:
+                        description: verification is the inline verification from
+                          the execution agent.
+                        properties:
+                          conditionImproved:
+                            description: |-
+                              conditionImproved indicates whether the target condition improved
+                              after the remediation (e.g., pod is no longer CrashLoopBackOff).
+                            type: boolean
+                          summary:
+                            description: summary is a human-readable summary of the
+                              inline verification.
+                            type: string
+                        required:
+                        - conditionImproved
+                        - summary
+                        type: object
+                    type: object
+                  verification:
+                    description: verification is the observed state of the verification
+                      step.
+                    properties:
+                      checks:
+                        description: checks contains individual verification check
+                          results.
+                        items:
+                          description: |-
+                            VerifyCheck is a single verification check result from the verification
+                            agent. Each check corresponds to a VerificationStep from the analysis
+                            agent's verification plan.
+                          properties:
+                            name:
+                              description: name is the check identifier, matching
+                                the VerificationStep name.
+                              type: string
+                            passed:
+                              description: |-
+                                passed indicates whether the check's observed value matches
+                                the expected value.
+                              type: boolean
+                            source:
+                              description: source is what performed the check (e.g.,
+                                "oc", "promql", "curl").
+                              type: string
+                            value:
+                              description: value is the actual observed value (e.g.,
+                                "Running", "3 replicas").
+                              type: string
+                          required:
+                          - name
+                          - passed
+                          - source
+                          - value
+                          type: object
+                        type: array
+                      completedAt:
+                        description: completedAt is when the step completed.
+                        format: date-time
+                        type: string
+                      components:
+                        description: components contains optional adapter-defined
+                          structured data.
+                        items:
+                          x-kubernetes-preserve-unknown-fields: true
+                        type: array
+                      conditions:
+                        description: conditions for this step.
+                        items:
+                          description: Condition contains details for one aspect of
+                            the current state of this API Resource.
+                          properties:
+                            lastTransitionTime:
+                              description: |-
+                                lastTransitionTime is the last time the condition transitioned from one status to another.
+                                This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                              format: date-time
+                              type: string
+                            message:
+                              description: |-
+                                message is a human readable message indicating details about the transition.
+                                This may be an empty string.
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              description: |-
+                                observedGeneration represents the .metadata.generation that the condition was set based upon.
+                                For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                                with respect to the current state of the instance.
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              description: |-
+                                reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                                Producers of specific condition types may define expected values and meanings for this field,
+                                and whether the values are considered a guaranteed API.
+                                The value should be a CamelCase string.
+                                This field may not be empty.
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              description: status of the condition, one of True, False,
+                                Unknown.
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      phase:
+                        description: phase is the step phase.
+                        enum:
+                        - Pending
+                        - Running
+                        - Completed
+                        - Failed
+                        - Skipped
+                        type: string
+                      sandbox:
+                        description: sandbox tracks the sandbox used.
+                        properties:
+                          claimName:
+                            description: |-
+                              claimName is the name of the SandboxClaim resource that owns the
+                              sandbox pod.
+                            type: string
+                          completedAt:
+                            description: completedAt is when the sandbox pod finished
+                              (success or failure).
+                            format: date-time
+                            type: string
+                          namespace:
+                            description: namespace is the namespace where the SandboxClaim
+                              and its pod live.
+                            type: string
+                          startedAt:
+                            description: startedAt is when the sandbox pod was created.
+                            format: date-time
+                            type: string
+                        type: object
+                      startedAt:
+                        description: startedAt is when the step started.
+                        format: date-time
+                        type: string
+                      success:
+                        description: success indicates whether verification passed.
+                        type: boolean
+                      summary:
+                        description: summary is a human-readable verification summary.
+                        type: string
+                    type: object
+                type: object
+            required:
+            - phase
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
