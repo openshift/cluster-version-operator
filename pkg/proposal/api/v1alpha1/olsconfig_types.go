@@ -17,11 +17,12 @@ limitations under the License.
 package v1alpha1
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // OLSConfigSpec defines the desired state of OLSConfig
