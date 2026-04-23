@@ -382,12 +382,20 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 	}
 
 	t.Logf("verify the controller writes a leadership change event")
-	events, err := kc.CoreV1().Events(ns).List(ctx, metav1.ListOptions{})
+	var lastEvents []v1.Event
+	err = wait.PollUntilContextTimeout(ctx, 200*time.Millisecond, 10*time.Second, true, func(localCtx context.Context) (bool, error) {
+		events, err := kc.CoreV1().Events(ns).List(localCtx, metav1.ListOptions{})
+		if err != nil {
+			return false, err
+		}
+		lastEvents = events.Items
+		return hasLeaderEvent(events.Items, ns), nil
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !hasLeaderEvent(events.Items, ns) {
-		t.Fatalf("no leader election events found in\n%#v", events.Items)
+	if !hasLeaderEvent(lastEvents, ns) {
+		t.Fatalf("no leader election events found in\n%#v", lastEvents)
 	}
 
 	t.Logf("after the context is closed, the lock should be released quickly")
