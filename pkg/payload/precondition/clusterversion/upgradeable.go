@@ -150,11 +150,8 @@ func majorOrMinorUpdateFrom(status configv1.ClusterVersionStatus, currentVersion
 	}
 	if cond := resourcemerge.FindOperatorStatusCondition(status.Conditions, configv1.OperatorProgressing); cond != nil &&
 		cond.Status == configv1.ConditionTrue {
-		if v.Major < currentVersion.Major {
-			return completedVersion, "Major"
-		}
-		if v.Major == currentVersion.Major && v.Minor < currentVersion.Minor {
-			return completedVersion, "Minor"
+		if ut := internal.UpdateType(v, currentVersion); ut == internal.UpdateTypeMajor || ut == internal.UpdateTypeMinor {
+			return completedVersion, ut
 		}
 	}
 	return "", ""

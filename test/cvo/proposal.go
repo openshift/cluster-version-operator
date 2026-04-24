@@ -21,6 +21,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	proposalv1alpha1 "github.com/openshift/cluster-version-operator/pkg/proposal/api/v1alpha1"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
@@ -92,7 +93,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should create proposals", g.Label("Serial"), oteginkgo.Informing(), func() {
+	g.It("should create proposals", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
 
@@ -110,7 +111,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Checking if the proposal are created")
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			proposals := proposalv1alpha1.ProposalList{}
-			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(external.DefaultCVONamespace))
+			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(proposal.DefaultConfig().Namespace),
+				ctrlruntimeclient.MatchingLabels(proposal.CVOProposalLabels))
 			o.Expect(err).NotTo(o.HaveOccurred())
 			if len(proposals.Items) == 0 {
 				return false, nil

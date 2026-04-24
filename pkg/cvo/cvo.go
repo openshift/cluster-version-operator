@@ -330,7 +330,11 @@ func New(
 			return nil, nil, nil
 		}
 		return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
-	}, rtClient, cvInformer.Lister().Get)
+	}, rtClient, cvInformer.Lister().Get, func(namespace, name string) (*corev1.ConfigMap, error) {
+		return cmConfigManagedInformer.Lister().ConfigMaps(namespace).Get(name)
+	}, func() string {
+		return optr.release.Version
+	})
 
 	return optr, nil
 }
