@@ -2758,6 +2758,10 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				return nil, nil, nil
 			}, ctrlruntimefake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
 				return &configv1.ClusterVersion{}, nil
+			}, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
+				return &corev1.ConfigMap{}, nil
+			}, func() string {
+				return optr.release.Version
 			})
 			err := optr.availableUpdatesSync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {

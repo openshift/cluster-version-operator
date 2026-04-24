@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/klog/v2"
 
@@ -130,4 +132,25 @@ func IsAlertConditionReason(reason string) bool {
 
 func AlertConditionMessage(alertName, severity, state, impact, details string) string {
 	return fmt.Sprintf("%s alert %s %s, %s. %s", severity, alertName, state, impact, details)
+}
+
+const (
+	UpdateTypeMajor   = "Major"
+	UpdateTypeMinor   = "Minor"
+	UpdateTypePatch   = "Patch"
+	UpdateTypeUnknown = "Unknown"
+)
+
+// UpdateType returns the type of the update from the source to the target versions
+func UpdateType(source, target semver.Version) string {
+	if source.Major < target.Major {
+		return UpdateTypeMajor
+	}
+	if source.Major == target.Major && source.Minor < target.Minor {
+		return UpdateTypeMinor
+	}
+	if source.LT(target) {
+		return UpdateTypePatch
+	}
+	return UpdateTypeUnknown
 }

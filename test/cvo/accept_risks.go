@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -184,14 +185,14 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 		versions := sets.New[string]()
 		for _, cu := range cv.Status.ConditionalUpdates {
-			o.Expect(versions.Has(cu.Release.Version)).To(o.BeFalse(), "ConditionalUpdates.Release.Version %s is duplicated. cv/version is:\n%s", cu.Release.Version, getYaml(*cv))
+			o.Expect(versions.Has(cu.Release.Version)).To(o.BeFalse(), "ConditionalUpdates.Release.Version %s is duplicated. cv/version is:\n%s", cu.Release.Version, getYaml(cv))
 			versions.Insert(cu.Release.Version)
 		}
 
 		g.By("Checking that there are no duplicated versions in available updates")
 		versions = sets.New[string]()
 		for _, u := range cv.Status.AvailableUpdates {
-			o.Expect(versions.Has(u.Version)).To(o.BeFalse(), "AvailableUpdates.Version %s is duplicated. cv/version is:\n%s", u.Version, getYaml(*cv))
+			o.Expect(versions.Has(u.Version)).To(o.BeFalse(), "AvailableUpdates.Version %s is duplicated. cv/version is:\n%s", u.Version, getYaml(cv))
 			versions.Insert(u.Version)
 		}
 
@@ -304,10 +305,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 })
 
-func getYaml(cv configv1.ClusterVersion) string {
-	raw, err := yaml.Marshal(cv)
+func getYaml(obj runtime.Object) string {
+	raw, err := yaml.Marshal(obj)
 	if err != nil {
-		logger.Error(err, "failed to marshal ClusterVersion")
+		logger.Error(err, "failed to marshal", "Kind", obj.GetObjectKind().GroupVersionKind().String())
 		return ""
 	}
 	return string(raw)

@@ -345,13 +345,23 @@ func New(
 
 	optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
 
-	optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
-		availableUpdates := optr.getAvailableUpdates()
-		if availableUpdates == nil {
-			return nil, nil, nil
-		}
-		return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
-	}, rtClient, cvInformer.Lister().Get)
+	optr.proposalController = proposal.NewController(
+		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+			availableUpdates := optr.getAvailableUpdates()
+			if availableUpdates == nil {
+				return nil, nil, nil
+			}
+			return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
+		},
+		rtClient,
+		cvInformer.Lister().Get,
+		func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error) {
+			return kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, opts)
+		},
+		func() string {
+			return optr.release.Version
+		},
+	)
 
 	return optr, nil
 }
