@@ -124,6 +124,7 @@ type Operator struct {
 	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister           configlistersv1.ProxyLister
 	featureGateLister     configlistersv1.FeatureGateLister
+	apiServerInformer     configinformersv1.APIServerInformer
 	cacheSynced           []cache.InformerSynced
 
 	// queue tracks applying updates to a cluster.
@@ -229,6 +230,7 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	operatorInformerFactory operatorexternalversions.SharedInformerFactory,
 	featureGateInformer configinformersv1.FeatureGateInformer,
+	apiServerInformer configinformersv1.APIServerInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	operatorClient operatorclientset.Interface,
@@ -311,6 +313,8 @@ func New(
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
+
+	optr.apiServerInformer = apiServerInformer
 
 	// make sure this is initialized after all the listers are initialized
 	optr.upgradeableChecks = optr.defaultUpgradeableChecks()
@@ -1190,4 +1194,9 @@ func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 func (optr *Operator) shouldReconcileAcceptRisks() bool {
 	// HyperShift will be supported later if needed
 	return optr.enabledCVOFeatureGates.AcceptRisks() && !optr.hypershift
+}
+
+// APIServerInformer returns the APIServer informer for watching TLS configuration changes
+func (optr *Operator) APIServerInformer() configinformersv1.APIServerInformer {
+	return optr.apiServerInformer
 }
