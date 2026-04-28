@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-lightspeed
+  annotations:
+    kubernetes.io/description: This manifest is only for testing purpose and will be removed when its own operator becomes available on the cluster.
+    include.release.openshift.io/self-managed-high-availability: "true"
