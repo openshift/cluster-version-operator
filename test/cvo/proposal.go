@@ -13,6 +13,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
@@ -37,6 +38,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 	var (
 		c                   *rest.Config
+		kubeClient          kubernetes.Interface
 		configClient        *configv1client.ConfigV1Client
 		apiExtensionsClient apiextensionsclientset.Interface
 		rtClient            ctrlruntimeclient.Client
@@ -54,6 +56,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(util.SkipIfHypershift(ctx, c)).To(o.BeNil())
 		o.Expect(util.SkipIfMicroshift(ctx, c)).To(o.BeNil())
 
+		kubeClient, err = util.GetKubeClient(c)
+		o.Expect(err).To(o.BeNil())
 		configClient, err = configv1client.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
 
@@ -107,6 +111,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		needRecover = true
+
+		g.By("Checking if the namespace exists")
+		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, proposal.DefaultConfig().Namespace, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Checking if the proposal are created")
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
