@@ -47,6 +47,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		ctx         = context.Background()
 		needRecover bool
 		backup      configv1.ClusterVersionSpec
+
+		proposalDefaultConfig = proposal.DefaultConfig()
 	)
 
 	g.BeforeEach(func() {
@@ -113,13 +115,17 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		needRecover = true
 
 		g.By("Checking if the namespace exists")
-		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, proposal.DefaultConfig().Namespace, metav1.GetOptions{})
+		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, proposalDefaultConfig.Namespace, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Checking if the prompt ConfigMap exists")
+		_, err = kubeClient.CoreV1().ConfigMaps(proposalDefaultConfig.Namespace).Get(ctx, proposalDefaultConfig.PromptConfigMap, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Checking if the proposal are created")
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
 			proposals := proposalv1alpha1.ProposalList{}
-			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(proposal.DefaultConfig().Namespace),
+			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(proposalDefaultConfig.Namespace),
 				ctrlruntimeclient.MatchingLabels(proposal.CVOProposalLabels))
 			o.Expect(err).NotTo(o.HaveOccurred())
 			if len(proposals.Items) == 0 {

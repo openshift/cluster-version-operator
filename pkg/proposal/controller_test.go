@@ -107,7 +107,7 @@ Update path: Recommended
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewController(tt.updatesGetterFunc, tt.client, tt.cvGetterFunc, func(name, namespace string) (*corev1.ConfigMap, error) {
+			c := NewController(tt.updatesGetterFunc, tt.client, tt.cvGetterFunc, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
 				return &corev1.ConfigMap{
 					Data: map[string]string{
 						"prompt": "prompt-abc",

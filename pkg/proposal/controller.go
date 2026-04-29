@@ -45,7 +45,7 @@ type cvGetterFunc func(name string) (*configv1.ClusterVersion, error)
 
 type getCurrentVersionFunc func() string
 
-type configMapGetterFunc func(namespace, name string) (*corev1.ConfigMap, error)
+type configMapGetterFunc func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error)
 
 // NewController returns Controller to manage Proposals.
 // It monitors available and conditional updates, and creates a LightspeedProposal for every target version of them.
@@ -128,7 +128,7 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 	}
 
 	var prompt string
-	promptConfigMap, err := c.configMapGetterFunc(c.config.Namespace, c.config.PromptConfigMap)
+	promptConfigMap, err := c.configMapGetterFunc(ctx, c.config.Namespace, c.config.PromptConfigMap, metav1.GetOptions{})
 	if err != nil {
 		klog.V(i.Normal).Infof("Failed to get prompt ConfigMap %s/%s: %v", c.config.Namespace, c.config.PromptConfigMap, err)
 		return fmt.Errorf("failed to get prompt ConfigMap %s/%s: %w", c.config.Namespace, c.config.PromptConfigMap, err)
