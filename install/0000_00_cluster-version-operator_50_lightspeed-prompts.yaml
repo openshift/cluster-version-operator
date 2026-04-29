@@ -5,7 +5,8 @@ metadata:
   name: ota-advisory-prompt
   namespace: openshift-lightspeed
   annotations:
-    release.openshift.io/feature-gate: LightspeedProposals
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
 data:
   prompt: |
     You are an OpenShift upgrade advisor. Analyze the cluster readiness
