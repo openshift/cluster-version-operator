@@ -4,7 +4,8 @@ kind: Agent
 metadata:
   name: ota-advisor
   annotations:
-    release.openshift.io/feature-gate: LightspeedProposals
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
 spec:
   llmRef:
     name: smart
