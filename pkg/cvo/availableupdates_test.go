@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
@@ -1173,5 +1174,88 @@ func Test_evaluateConditionalUpdates(t *testing.T) {
 				t.Errorf("risk conditions mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// The setup is to satisfy needsConditionalUpdateEval == true and
+// needFreshFetch == false in the targeting function optr.syncAvailableUpdates
+// so that we simulate the scenario where the operator re-evaluates conditional updates
+// without fetching the updates from the upstream.
+func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T) {
+	now := time.Now()
+	optr := &Operator{
+		queue: workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]()),
+		availableUpdates: &availableUpdates{
+			LastSyncOrConfigChange: now,
+			LastAttempt:            now,
+			AcceptRisks:            sets.New[string]("RiskA"),
+			Architecture:           "amd64",
+			upstreamUpdates: []configv1.Release{
+				{
+					Version: "4.21.2",
+				},
+			},
+			// it becomes conditional because a firing alert
+			ConditionalUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{
+						Version: "4.21.2",
+					},
+					Conditions: []metav1.Condition{
+						{
+							Type:   "Recommended",
+							Status: "False",
+						},
+					},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:       "TestAlert",
+							Conditions: []metav1.Condition{},
+						},
+					},
+				},
+			},
+		},
+	}
+	optr.minimumUpdateCheckInterval = 10 * time.Minute
+	cvgGates := featuregates.CvoGatesFromFeatureGate(&configv1.FeatureGate{
+		Status: configv1.FeatureGateStatus{
+			FeatureGates: []configv1.FeatureGateDetails{
+				{
+					Enabled: []configv1.FeatureGateAttributes{
+						{
+							Name: features.FeatureGateClusterUpdateAcceptRisks,
+						},
+					},
+				},
+			},
+		},
+	}, "")
+	if !cvgGates.AcceptRisks() {
+		t.Fatalf("accept risk feature is not enabled")
+	}
+	optr.enabledCVOFeatureGates = cvgGates
+	err := optr.syncAvailableUpdates(context.Background(), &configv1.ClusterVersion{
+		Spec: configv1.ClusterVersionSpec{
+			DesiredUpdate: &configv1.Update{
+				Architecture: "amd64",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to sync available updates: %v", err)
+	}
+
+	// The conditional update is back to be an available update after evaluation.
+	// There was no available updates before the sync call.
+	expected := &availableUpdates{
+		Architecture: "amd64",
+		Updates: []configv1.Release{{
+			Version: "4.21.2",
+		}},
+	}
+
+	if diff := cmp.Diff(expected, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
+		t.Errorf("syncAvailableUpdates mismatch (-want +got):\n%s", diff)
 	}
 }
