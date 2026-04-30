@@ -339,6 +339,13 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 		}
 	}
 
+	configSynced := controllerCtx.ConfigInformerFactory.WaitForCacheSync(informersDone)
+	for _, synced := range configSynced {
+		if !synced {
+			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
+		}
+	}
+
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
@@ -356,7 +363,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, o.MetricsOptions)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, controllerCtx.CVO.APIServerInformer(), o.MetricsOptions)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
@@ -615,6 +622,7 @@ func (o *Options) NewControllerContext(
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		configInformerFactory.Config().V1().FeatureGates(),
+		configInformerFactory.Config().V1().APIServers(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		operatorClient,
