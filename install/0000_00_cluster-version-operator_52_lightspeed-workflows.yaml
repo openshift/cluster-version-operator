@@ -1,0 +1,16 @@
+---
+apiVersion: agentic.openshift.io/v1alpha1
+kind: Workflow
+metadata:
+  name: ota-advisory
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
+spec:
+  analysis:
+    agentRef:
+      name: ota-advisor
+  execution:
+    skip: true
+  verification:
+    skip: true

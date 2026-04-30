@@ -98,6 +98,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				fg.Status = configv1.FeatureGateStatus{}
 				tt.startingCvoFeatureGates = CvoGates{unknownVersion: true}
 			}
+			tt.startingCvoFeatureGates.proposal = fg.Spec.FeatureSet == configv1.TechPreviewNoUpgrade
 
 			client := fakeconfigv1client.NewClientset(fg)
 
