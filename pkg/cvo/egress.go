@@ -72,27 +72,53 @@ func (optr *Operator) getProxyConfig() (*httpproxy.Config, error) {
 }
 
 func (optr *Operator) getTLSConfig() (*tls.Config, error) {
-	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
-	if apierrors.IsNotFound(err) {
-		return nil, nil
-	}
+	// Seed from the OS system cert pool so that any custom CAs we append
+	// augment rather than replace system trust.  SystemCertPool may fail on
+	// some platforms (e.g. no system root store); fall back to an empty pool
+	// so the function degrades gracefully instead of hard-failing.
+	certPool, err := x509.SystemCertPool()
 	if err != nil {
+		certPool = x509.NewCertPool()
+	}
+	found := false
+
+	// Always try the managed trusted CA bundle (proxy-merged bundle written by
+	// the platform into openshift-config-managed/trusted-ca-bundle).
+	cm, err := optr.cmConfigManagedLister.Get("trusted-ca-bundle")
+	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
-
-	certPool := x509.NewCertPool()
-
-	if cm.Data["ca-bundle.crt"] != "" {
+	if err == nil && cm.Data["ca-bundle.crt"] != "" {
 		if ok := certPool.AppendCertsFromPEM([]byte(cm.Data["ca-bundle.crt"])); !ok {
-			return nil, fmt.Errorf("unable to add ca-bundle.crt certificates")
+			return nil, fmt.Errorf("unable to add trusted-ca-bundle certificates")
 		}
-	} else {
+		found = true
+	}
+
+	// In HyperShift the platform does not automatically merge additionalTrustBundle
+	// into trusted-ca-bundle, so also load openshift-config/user-ca-bundle which
+	// HCCO syncs from HostedCluster.spec.additionalTrustBundle.  This allows CVO
+	// to verify TLS to a custom spec.updateService whose certificate is signed by
+	// an internal CA that is present only in additionalTrustBundle.
+	if optr.hypershift {
+		ucm, err := optr.cmConfigLister.Get("user-ca-bundle")
+		if err != nil && !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		if err == nil && ucm.Data["ca-bundle.crt"] != "" {
+			if ok := certPool.AppendCertsFromPEM([]byte(ucm.Data["ca-bundle.crt"])); !ok {
+				return nil, fmt.Errorf("unable to add user-ca-bundle certificates")
+			}
+			found = true
+		}
+	}
+
+	if !found {
 		return nil, nil
 	}
 
-	config := &tls.Config{
-		RootCAs: certPool,
-	}
-
-	return config, nil
+	// MinVersion is intentionally omitted; Go defaults to TLS 1.2 for clients,
+	// which is acceptable for Cincinnati/OSUS connectivity and avoids breaking
+	// compatibility with update services that do not yet support TLS 1.3.
+	return &tls.Config{RootCAs: certPool}, nil
 }
