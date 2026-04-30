@@ -575,14 +575,6 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 
 	server := createHttpServer(options, clientCA)
 
-	// Wait for APIServer informer to sync before using the lister, with a timeout to avoid blocking
-	// if the CRD doesn't exist yet.
-	syncCtx, syncCancel := context.WithTimeout(metricsContext, 30*time.Second)
-	defer syncCancel()
-	if !cache.WaitForCacheSync(syncCtx.Done(), apiServerInformer.Informer().HasSynced) {
-		klog.Warningf("APIServer informer failed to sync within 30s (CRD may not exist yet), falling back to defaults")
-	}
-
 	profileMgr, err := newTLSProfileManager(apiServerInformer.Lister(), overrides)
 	if err != nil {
 		return fmt.Errorf("failed to initialize TLS profile manager: %w", err)

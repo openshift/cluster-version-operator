@@ -124,8 +124,10 @@ type Operator struct {
 	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister           configlistersv1.ProxyLister
 	featureGateLister     configlistersv1.FeatureGateLister
-	apiServerInformer     configinformersv1.APIServerInformer
+	apiServerLister       configlistersv1.APIServerLister
 	cacheSynced           []cache.InformerSynced
+
+	apiServerInformer configinformersv1.APIServerInformer
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.TypedRateLimitingInterface[any]
@@ -314,6 +316,10 @@ func New(
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
 
+	optr.apiServerLister = apiServerInformer.Lister()
+	optr.cacheSynced = append(optr.cacheSynced, apiServerInformer.Informer().HasSynced)
+
+	// Store the apiServerInformer for metrics TLS configuration updates
 	optr.apiServerInformer = apiServerInformer
 
 	// make sure this is initialized after all the listers are initialized

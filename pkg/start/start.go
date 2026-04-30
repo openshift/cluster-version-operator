@@ -339,6 +339,13 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 		}
 	}
 
+	configSynced := controllerCtx.ConfigInformerFactory.WaitForCacheSync(informersDone)
+	for _, synced := range configSynced {
+		if !synced {
+			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
+		}
+	}
+
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
