@@ -17,6 +17,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
+	ctrlruntimefake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +47,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
 )
 
 var (
@@ -2758,6 +2760,11 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			old := optr.availableUpdates
 
 			ctx := context.Background()
+			optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+				return nil, nil, nil
+			}, ctrlruntimefake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+				return &configv1.ClusterVersion{}, nil
+			})
 			err := optr.availableUpdatesSync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)

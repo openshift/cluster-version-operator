@@ -14,6 +14,7 @@ import (
 	"github.com/blang/semver/v4"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,6 +30,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
 )
@@ -242,6 +244,11 @@ func TestSyncAvailableUpdates(t *testing.T) {
 	expectedAvailableUpdates.RiskConditions = map[string][]metav1.Condition{"FourFiveSix": {{Type: "Applies", Status: "True", Reason: "Match"}}}
 
 	optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
+	optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+		return nil, nil, nil
+	}, fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+		return &configv1.ClusterVersion{}, nil
+	})
 	err := optr.syncAvailableUpdates(context.Background(), cvFixture)
 
 	if err != nil {
@@ -331,6 +338,11 @@ func TestSyncAvailableUpdates_ConditionalUpdateRecommendedConditions(t *testing.
 			tc.modifyCV(cv, fixture.expectedConditionalUpdates[0])
 
 			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
+			optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+				return nil, nil, nil
+			}, fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+				return &configv1.ClusterVersion{}, nil
+			})
 			err := optr.syncAvailableUpdates(context.Background(), cv)
 
 			if err != nil {
@@ -767,6 +779,11 @@ func TestSyncAvailableUpdatesDesiredUpdate(t *testing.T) {
 			cv := cvFixture.DeepCopy()
 			cv.Spec.DesiredUpdate = tt.args.desiredUpdate
 			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
+			optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+				return nil, nil, nil
+			}, fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+				return &configv1.ClusterVersion{}, nil
+			})
 			if err := optr.syncAvailableUpdates(context.Background(), cv); err != nil {
 				t.Fatalf("syncAvailableUpdates() unexpected error: %v", err)
 			}
