@@ -206,7 +206,6 @@ type fakeRiFlags struct {
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
-	proposal                  bool
 }
 
 func (f fakeRiFlags) DesiredVersion() string {
@@ -227,10 +226,6 @@ func (f fakeRiFlags) CVOConfiguration() bool {
 
 func (f fakeRiFlags) AcceptRisks() bool {
 	return f.acceptRisks
-}
-
-func (f fakeRiFlags) Proposal() bool {
-	return f.proposal
 }
 
 func TestUpdateClusterVersionStatus_FilteringMultipleErrorsForFailingCondition(t *testing.T) {

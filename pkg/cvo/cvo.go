@@ -1224,5 +1224,7 @@ func (optr *Operator) shouldReconcileAcceptRisks() bool {
 
 // shouldEnableProposalController returns whether the CVO should enable the proposal controller
 func (optr *Operator) shouldEnableProposalController() bool {
-	return optr.enabledCVOFeatureGates.Proposal()
+	// We do not have a specific gate for the Proposal feature and use the TechPreviewNoUpgrade instead.
+	// It can ensure that featuregates.ChangeStopper restarts CVO when the returns of this function flips.
+	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
 }
