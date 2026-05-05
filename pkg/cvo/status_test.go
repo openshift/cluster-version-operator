@@ -108,7 +108,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 							Desired: configv1.Release{
 								Version: "4.0.1",
 								Image:   "image/image:v4.0.1",
-								URL:     configv1.URL("https://example.com/v4.0.1"),
+								URL:     "https://example.com/v4.0.1",
 							},
 							VersionHash: "",
 							Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -149,7 +149,7 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 						Desired: configv1.Release{
 							Version: "4.0.1",
 							Image:   "image/image:v4.0.1",
-							URL:     configv1.URL("https://example.com/v4.0.1"),
+							URL:     "https://example.com/v4.0.1",
 						},
 						VersionHash: "",
 						Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -1084,7 +1084,7 @@ func Test_conditionalUpdateWithRiskNamesAndRiskConditions(t *testing.T) {
 			desiredImage: "not-important",
 			availableUpdates: &availableUpdates{
 				RiskConditions: map[string][]metav1.Condition{
-					"TestAlert": []metav1.Condition{{
+					"TestAlert": {{
 						Type:               "Applies",
 						Status:             "True",
 						Reason:             "Alert:firing",
