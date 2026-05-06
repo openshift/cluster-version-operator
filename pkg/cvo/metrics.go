@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,9 +25,13 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	tlsprofile "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -259,6 +264,135 @@ func handleServerResult(result asyncResult, lastLoopError error) error {
 	return lastError
 }
 
+// tlsProfileManager manages the central TLS profile configuration with event-driven updates.
+type tlsProfileManager struct {
+	// mu protects applyProfile from concurrent access during TLS handshakes
+	// and APIServer event handler updates
+	mu           sync.RWMutex
+	applyProfile func(*tls.Config) // nil if no central profile configured
+	overrides    *tlsSettings      // nil if no overrides configured
+}
+
+type tlsSettings struct {
+	minVersion   uint16
+	cipherSuites []uint16
+}
+
+// newTLSProfileManager creates a new TLS profile manager and performs initial resolution.
+// Falls back to safe defaults on any error to prioritize availability.
+func newTLSProfileManager(lister configlistersv1.APIServerLister, overrides *tlsSettings) (*tlsProfileManager, error) {
+	mgr := &tlsProfileManager{
+		overrides: overrides,
+	}
+
+	apiServer, err := lister.Get(tlsprofile.APIServerName)
+	if err != nil {
+		klog.Warningf("APIServer resource not available at startup: %v, using fallback defaults", err)
+		apiServer = nil
+	}
+
+	if err := mgr.updateSettings(apiServer); err != nil {
+		klog.Warningf("Failed to initialize TLS profile: %v, using safe defaults", err)
+	}
+
+	return mgr, nil
+}
+
+// updateSettings resolves and caches the TLS profile apply function.
+func (m *tlsProfileManager) updateSettings(apiServer *configv1.APIServer) error {
+	applyFunc, err := m.resolveTLSProfile(apiServer)
+	if err != nil {
+		klog.Warningf("Failed to update TLS profile, keeping previous profile: %v", err)
+		return err
+	}
+
+	// By storing the apply function rather than extracted values, we automatically pick up any
+	// new fields that the tls profile package might set in future versions.
+	m.mu.Lock()
+	m.applyProfile = applyFunc
+	m.mu.Unlock()
+
+	klog.V(2).Info("Updated cached TLS profile")
+	return nil
+}
+
+// resolveTLSProfile resolves the TLS profile apply function from the APIServer resource.
+func (m *tlsProfileManager) resolveTLSProfile(apiServer *configv1.APIServer) (func(*tls.Config), error) {
+	// No APIServer or TLS adherence disabled
+	if apiServer == nil || !crypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
+		return nil, nil
+	}
+
+	// Get the TLS profile spec
+	profile, err := tlsprofile.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TLS profile spec: %w", err)
+	}
+
+	// Get the apply function from the profile
+	applyFunc, unsupportedCiphers := tlsprofile.NewTLSConfigFromProfile(profile)
+	if len(unsupportedCiphers) > 0 {
+		klog.V(4).Infof("TLS profile contains unsupported ciphers (will be ignored): %v", unsupportedCiphers)
+	}
+
+	klog.V(4).Info("Resolved central TLS profile apply function")
+	return applyFunc, nil
+}
+
+// applySettings applies the TLS configuration to the provided config.
+// Applies: crypto defaults → central profile → overrides
+func (m *tlsProfileManager) applySettings(config *tls.Config) {
+	crypto.SecureTLSConfig(config)
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Apply central profile if configured (modifies config in place)
+	if m.applyProfile != nil {
+		m.applyProfile(config)
+	}
+
+	// Apply overrides (these take final precedence)
+	if m.overrides != nil {
+		if m.overrides.minVersion != 0 {
+			config.MinVersion = m.overrides.minVersion
+		}
+		if len(m.overrides.cipherSuites) > 0 {
+			config.CipherSuites = m.overrides.cipherSuites
+		}
+	}
+}
+
+// registerEventHandlers registers event handlers on the APIServer informer to watch for
+// TLS profile changes and update the cached profile accordingly.
+func (m *tlsProfileManager) registerEventHandlers(apiServerInformer configinformersv1.APIServerInformer) error {
+	_, err := apiServerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			if apiServer, ok := obj.(*configv1.APIServer); ok {
+				if err := m.updateSettings(apiServer); err != nil {
+					klog.Errorf("Failed to apply TLS settings on APIServer add: %v", err)
+				}
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			if apiServer, ok := newObj.(*configv1.APIServer); ok {
+				if err := m.updateSettings(apiServer); err != nil {
+					klog.Errorf("Failed to apply TLS settings on APIServer update: %v", err)
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			if err := m.updateSettings(nil); err != nil {
+				klog.Errorf("Failed to apply fallback TLS settings on APIServer delete: %v", err)
+			}
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add APIServer event handler: %w", err)
+	}
+	return nil
+}
+
 type MetricsOptions struct {
 	ListenAddress string
 
@@ -267,6 +401,43 @@ type MetricsOptions struct {
 
 	DisableAuthentication bool
 	DisableAuthorization  bool
+
+	// TLSMinVersionOverride is the minimum TLS version supported.
+	// When set, it takes precedence over the central TLS profile.
+	TLSMinVersionOverride string
+
+	// TLSCipherSuitesOverride is the list of allowed cipher suites for the server.
+	// When set, it takes precedence over the central TLS profile.
+	TLSCipherSuitesOverride []string
+}
+
+// validateTLSOverrides validates the TLS override options and returns parsed values.
+// Returns nil if no overrides are configured.
+func validateTLSOverrides(options MetricsOptions) (*tlsSettings, error) {
+	// If no overrides, return nil (central profile or defaults will be used)
+	if options.TLSMinVersionOverride == "" && len(options.TLSCipherSuitesOverride) == 0 {
+		return nil, nil
+	}
+
+	validated := &tlsSettings{}
+
+	if options.TLSMinVersionOverride != "" {
+		minVersion, err := cliflag.TLSVersion(options.TLSMinVersionOverride)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --tls-min-version %q: %w (valid values: %v)", options.TLSMinVersionOverride, err, cliflag.TLSPossibleVersions())
+		}
+		validated.minVersion = minVersion
+	}
+
+	if len(options.TLSCipherSuitesOverride) > 0 {
+		cipherSuites, err := cliflag.TLSCipherSuites(options.TLSCipherSuitesOverride)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --tls-cipher-suites: %w", err)
+		}
+		validated.cipherSuites = cipherSuites
+	}
+
+	return validated, nil
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
@@ -276,13 +447,28 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, apiServerInformer configinformersv1.APIServerInformer, options MetricsOptions) error {
 	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
 
 	if options.DisableAuthentication && !options.DisableAuthorization {
 		return errors.New("invalid configuration: cannot enable authorization without authentication")
+	}
+
+	// Validate and parse TLS overrides once at startup
+	overrides, err := validateTLSOverrides(options)
+	if err != nil {
+		return fmt.Errorf("invalid TLS configuration: %w", err)
+	}
+
+	if overrides != nil {
+		if overrides.minVersion != 0 {
+			klog.V(2).Infof("TLS min version override: %d (will override central TLS profile)", overrides.minVersion)
+		}
+		if len(overrides.cipherSuites) > 0 {
+			klog.V(2).Infof("TLS cipher suites override applied (will override central TLS profile)")
+		}
 	}
 
 	// Prepare synchronization for to-be created go routines
@@ -388,6 +574,16 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	}()
 
 	server := createHttpServer(options, clientCA)
+
+	profileMgr, err := newTLSProfileManager(apiServerInformer.Lister(), overrides)
+	if err != nil {
+		return fmt.Errorf("failed to initialize TLS profile manager: %w", err)
+	}
+
+	if err := profileMgr.registerEventHandlers(apiServerInformer); err != nil {
+		return fmt.Errorf("failed to register APIServer event handlers: %w", err)
+	}
+
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
@@ -399,6 +595,9 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
 				return nil, err
 			}
+
+			profileMgr.applySettings(config)
+
 			return config, nil
 		},
 	})

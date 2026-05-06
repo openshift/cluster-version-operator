@@ -133,7 +133,10 @@ type Operator struct {
 	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister           configlistersv1.ProxyLister
 	featureGateLister     configlistersv1.FeatureGateLister
+	apiServerLister       configlistersv1.APIServerLister
 	cacheSynced           []cache.InformerSynced
+
+	apiServerInformer configinformersv1.APIServerInformer
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.TypedRateLimitingInterface[any]
@@ -233,6 +236,7 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	operatorInformerFactory operatorexternalversions.SharedInformerFactory,
 	featureGateInformer configinformersv1.FeatureGateInformer,
+	apiServerInformer configinformersv1.APIServerInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	operatorClient operatorclientset.Interface,
@@ -309,6 +313,12 @@ func New(
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
+
+	optr.apiServerLister = apiServerInformer.Lister()
+	optr.cacheSynced = append(optr.cacheSynced, apiServerInformer.Informer().HasSynced)
+
+	// Store the apiServerInformer for metrics TLS configuration updates
+	optr.apiServerInformer = apiServerInformer
 
 	// make sure this is initialized after all the listers are initialized
 	riskSourceCallback := func() { optr.availableUpdatesQueue.Add(optr.queueKey()) }
@@ -1216,4 +1226,9 @@ func (optr *Operator) shouldEnableProposalController() bool {
 	// We do not have a specific gate for the Proposal feature and use the TechPreviewNoUpgrade instead.
 	// It can ensure that featuregates.ChangeStopper restarts CVO when the returns of this function flips.
 	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
+}
+
+// APIServerInformer returns the APIServer informer for watching TLS configuration changes
+func (optr *Operator) APIServerInformer() configinformersv1.APIServerInformer {
+	return optr.apiServerInformer
 }
