@@ -36,26 +36,26 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 	}{
 		{
 			name: "ConfigMap with GenericOperatorConfig - TLS injection",
-			configMap: makeConfigMap(true, map[string]string{
-				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			configMap: makeConfigMap("true", map[string]string{
+				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuitesYml, tlsVersion12),
 			}),
-			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
-			expectYAML: makeGenericOperatorConfigYAML(testCipherSuites2, tlsVersion13),
+			apiServer:  makeAPIServerConfig(testCipherSuitesAPI2, configv1.VersionTLS13),
+			expectYAML: makeGenericOperatorConfigYAML(testCipherSuitesYml2, tlsVersion13),
 		},
 		{
 			name: "ConfigMap without annotation - no modification",
-			configMap: makeConfigMap(false, map[string]string{
-				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			configMap: makeConfigMap(noAnnotation, map[string]string{
+				"config.yaml": makeGenericOperatorConfigYAML(testCipherSuitesYml, tlsVersion12),
 			}),
-			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites2, configv1.VersionTLS13)),
-			expectYAML: makeGenericOperatorConfigYAML(testCipherSuites, tlsVersion12),
+			apiServer:  makeAPIServerConfig(testCipherSuitesAPI2, configv1.VersionTLS13),
+			expectYAML: makeGenericOperatorConfigYAML(testCipherSuitesYml, tlsVersion12),
 		},
 		{
 			name: "ConfigMap with non-GenericOperatorConfig - no modification",
-			configMap: makeConfigMap(true, map[string]string{
+			configMap: makeConfigMap("true", map[string]string{
 				"config.yaml": noGenericOperatorConfigYAML,
 			}),
-			apiServer:  makeAPIServerConfig(withCustomTLSProfile(testOpenSSLCipherSuites, configv1.VersionTLS13)),
+			apiServer:  makeAPIServerConfig(testCipherSuitesAPI, configv1.VersionTLS13),
 			expectYAML: noGenericOperatorConfigYAML,
 		},
 	}
