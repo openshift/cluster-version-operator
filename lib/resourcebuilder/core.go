@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
@@ -145,11 +144,11 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	}
 
 	// Extract cipherSuites from the observed config
+	// We pass the list as-is, even though TLS implementations may ignore the order and/or content (Go currently does).
+	// This future-proofs for other implementations, and avoids inconsistencies between the CVO-injected list and the original.
 	if cipherSuites, ciphersFound, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites"); err != nil {
 		return nil, err
 	} else if ciphersFound {
-		// Sort cipher suites for consistent ordering
-		sort.Strings(cipherSuites)
 		config.cipherSuites = optional[[]string]{value: cipherSuites, found: true}
 	}
 
