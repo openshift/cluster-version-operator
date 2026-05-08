@@ -82,7 +82,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should install light speed CRDs correctly", func() {
-		for _, name := range []string{"proposals.agentic.openshift.io", "agents.agentic.openshift.io", "workflows.agentic.openshift.io"} {
+		for _, name := range []string{"proposals.agentic.openshift.io", "agents.agentic.openshift.io", "analysisresults.agentic.openshift.io", "llmproviders.agentic.openshift.io"} {
 			_, err := apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
 			if util.IsTechPreviewNoUpgrade(ctx, c) {
 				o.Expect(err).To(o.BeNil())
