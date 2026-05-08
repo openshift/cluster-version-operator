@@ -1,0 +1,618 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: analysisresults.agentic.openshift.io
+spec:
+  group: agentic.openshift.io
+  names:
+    kind: AnalysisResult
+    listKind: AnalysisResultList
+    plural: analysisresults
+    singular: analysisresult
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.proposalName
+      name: Proposal
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Completed")].reason
+      name: Outcome
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          AnalysisResult records the output of a single analysis step execution.
+          Created by the operator after the analysis agent completes. Owned by
+          the parent Proposal for garbage collection.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: spec contains the immutable identity fields for this result.
+            properties:
+              proposalName:
+                description: proposalName is the name of the parent Proposal in the
+                  same namespace.
+                maxLength: 253
+                minLength: 1
+                type: string
+            required:
+            - proposalName
+            type: object
+            x-kubernetes-validations:
+            - message: spec is immutable
+              rule: self == oldSelf
+          status:
+            description: status contains result data and conditions.
+            minProperties: 1
+            properties:
+              conditions:
+                description: conditions track the lifecycle of this result.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                maxItems: 8
+                minItems: 1
+                type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
+              failureReason:
+                description: failureReason is populated when the step failed due to
+                  a system error.
+                maxLength: 8192
+                minLength: 1
+                type: string
+              options:
+                description: options contains the remediation options returned by
+                  the analysis agent.
+                items:
+                  description: |-
+                    RemediationOption represents a single remediation approach produced by
+                    the analysis agent. The agent may return multiple options, each with
+                    its own diagnosis, remediation plan, verification strategy, and RBAC
+                    requirements. The user selects one option after analysis
+                    (recorded in AnalysisStepStatus.selectedOption), and the operator uses
+                    that option's RBAC and plan for the execution step.
+
+                    The components field is an extensibility point for adapter-specific UI
+                    data. For example, an ACS adapter might include violation details or
+                    affected deployment information as components that the console plugin
+                    renders with custom components.
+                  properties:
+                    components:
+                      description: |-
+                        components contains optional adapter-defined structured data whose
+                        shape is determined by spec.outputSchema on the Proposal. The
+                        operator passes this through to the AnalysisResult CR; the console
+                        renders it using adapter-specific UI components.
+                      x-kubernetes-preserve-unknown-fields: true
+                    diagnosis:
+                      description: diagnosis contains the root cause analysis specific
+                        to this option.
+                      properties:
+                        confidence:
+                          description: |-
+                            confidence is the agent's self-assessed confidence in its diagnosis.
+                            Higher confidence generally correlates with clearer symptoms and
+                            more deterministic root causes.
+                          enum:
+                          - Low
+                          - Medium
+                          - High
+                          type: string
+                        rootCause:
+                          description: |-
+                            rootCause is a concise Markdown-formatted description of the identified
+                            root cause (e.g., "OOMKilled due to memory limit of 256Mi").
+                            Maximum 1024 characters.
+                          maxLength: 1024
+                          minLength: 1
+                          type: string
+                        summary:
+                          description: |-
+                            summary is a Markdown-formatted diagnosis summary explaining the
+                            problem, its symptoms, and the agent's findings. Maximum 8192 characters.
+                          maxLength: 8192
+                          minLength: 1
+                          type: string
+                      required:
+                      - confidence
+                      - rootCause
+                      - summary
+                      type: object
+                    proposal:
+                      description: proposal contains the remediation plan for this
+                        option.
+                      properties:
+                        actions:
+                          description: |-
+                            actions is the ordered list of discrete actions the agent proposes.
+                            Maximum 50 items.
+                          items:
+                            description: |-
+                              ProposedAction describes a single discrete action the analysis agent
+                              recommends as part of its remediation plan. Actions are displayed to
+                              the user after analysis for review before approval.
+                            properties:
+                              description:
+                                description: |-
+                                  description is a Markdown-formatted explanation of what this action
+                                  will do (e.g., "Increase memory limit from 256Mi to 512Mi").
+                                  Maximum 4096 characters.
+                                maxLength: 4096
+                                minLength: 1
+                                type: string
+                              type:
+                                description: |-
+                                  type is the action category (e.g., "patch", "scale", "restart",
+                                  "create", "delete", "rollout"). Free-form string to allow agents
+                                  to express domain-specific action types. Must be 1-256 characters.
+                                maxLength: 256
+                                minLength: 1
+                                type: string
+                            required:
+                            - description
+                            - type
+                            type: object
+                          maxItems: 50
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        description:
+                          description: |-
+                            description is a Markdown-formatted summary of the overall remediation
+                            approach. Maximum 8192 characters.
+                          maxLength: 8192
+                          minLength: 1
+                          type: string
+                        estimatedImpact:
+                          description: |-
+                            estimatedImpact is a Markdown-formatted description of the expected
+                            impact of the remediation on the system
+                            (e.g., "Brief pod restart, ~30s downtime").
+                            Maximum 1024 characters.
+                          maxLength: 1024
+                          minLength: 1
+                          type: string
+                        reversible:
+                          description: |-
+                            reversible indicates whether the remediation can be rolled back
+                            if something goes wrong. See rollbackPlan for details.
+                            Must be one of: Reversible, Irreversible, Partial.
+                          enum:
+                          - Reversible
+                          - Irreversible
+                          - Partial
+                          type: string
+                        risk:
+                          description: |-
+                            risk is the agent's assessment of how risky the remediation is.
+                            Critical-risk proposals typically require explicit human review.
+                          enum:
+                          - Low
+                          - Medium
+                          - High
+                          - Critical
+                          type: string
+                        rollbackPlan:
+                          description: |-
+                            rollbackPlan describes how to undo the remediation if execution fails
+                            or causes unexpected issues. Only the execution step mutates cluster
+                            state, so rollback lives here alongside the actions it would undo.
+                          properties:
+                            command:
+                              description: |-
+                                command is the rollback command or steps to execute.
+                                Maximum 4096 characters.
+                              maxLength: 4096
+                              minLength: 1
+                              type: string
+                            description:
+                              description: |-
+                                description is a Markdown-formatted explanation of the rollback strategy.
+                                Must be 1-4096 characters.
+                              maxLength: 4096
+                              minLength: 1
+                              type: string
+                          required:
+                          - description
+                          type: object
+                      required:
+                      - actions
+                      - description
+                      - estimatedImpact
+                      - risk
+                      type: object
+                    rbac:
+                      description: |-
+                        rbac contains the RBAC permissions the execution agent will need.
+                        The operator's policy engine validates these before creating the
+                        actual Kubernetes RBAC resources. Omitted for advisory-only options.
+                      minProperties: 1
+                      properties:
+                        clusterScoped:
+                          description: |-
+                            clusterScoped are rules that will be applied via ClusterRole +
+                            ClusterRoleBinding. Used when the agent needs cross-namespace or
+                            non-namespaced resource access (e.g., reading nodes, CRDs).
+                            Maximum 50 items.
+                          items:
+                            description: |-
+                              RBACRule describes a single RBAC permission that the analysis agent
+                              requests for the execution step. The operator's policy engine validates
+                              these requests against a 6-layer defense model before creating the
+                              actual Role/ClusterRole bindings. Each rule must include a justification
+                              so that users and policy can audit why the permission is needed.
+                            properties:
+                              apiGroups:
+                                description: |-
+                                  apiGroups are the API groups for this rule (e.g., "", "apps", "batch").
+                                  The empty string "" represents the core API group (pods, services, etc.).
+                                  Maximum 20 items, each up to 253 characters.
+                                items:
+                                  maxLength: 253
+                                  type: string
+                                maxItems: 20
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              justification:
+                                description: |-
+                                  justification is a Markdown-formatted explanation of why this
+                                  permission is needed for the remediation
+                                  (e.g., "Need to patch deployment to increase memory limit").
+                                  Required for audit and policy enforcement. Maximum 1024 characters.
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace is the target namespace for namespace-scoped rules.
+                                  Must match one of the proposal's targetNamespaces. Ignored for
+                                  cluster-scoped rules. Validation is deferred to the operator's
+                                  policy engine at runtime. Must be a valid RFC 1123 DNS label.
+                                maxLength: 63
+                                minLength: 1
+                                type: string
+                                x-kubernetes-validations:
+                                - message: 'must be a valid DNS label: lowercase alphanumeric
+                                    characters and hyphens, starting with an alphabetic
+                                    character and ending with an alphanumeric character'
+                                  rule: '!format.dns1123Label().validate(self).hasValue()'
+                              resourceNames:
+                                description: |-
+                                  resourceNames restricts the rule to specific named resources.
+                                  When empty, the rule applies to all resources of the given type.
+                                  Maximum 50 items.
+                                items:
+                                  maxLength: 253
+                                  minLength: 1
+                                  type: string
+                                maxItems: 50
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              resources:
+                                description: |-
+                                  resources are the resource types (e.g., "pods", "deployments").
+                                  Maximum 20 items.
+                                items:
+                                  maxLength: 253
+                                  minLength: 1
+                                  type: string
+                                maxItems: 20
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              verbs:
+                                description: |-
+                                  verbs are the allowed operations (e.g., "get", "patch", "delete").
+                                  Maximum 10 items.
+                                items:
+                                  maxLength: 63
+                                  minLength: 1
+                                  type: string
+                                maxItems: 10
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - apiGroups
+                            - justification
+                            - resources
+                            - verbs
+                            type: object
+                          maxItems: 50
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                        namespaceScoped:
+                          description: |-
+                            namespaceScoped are rules that will be applied via Role + RoleBinding
+                            in the proposal's target namespaces. These are the most common rules.
+                            Maximum 50 items.
+                          items:
+                            description: |-
+                              RBACRule describes a single RBAC permission that the analysis agent
+                              requests for the execution step. The operator's policy engine validates
+                              these requests against a 6-layer defense model before creating the
+                              actual Role/ClusterRole bindings. Each rule must include a justification
+                              so that users and policy can audit why the permission is needed.
+                            properties:
+                              apiGroups:
+                                description: |-
+                                  apiGroups are the API groups for this rule (e.g., "", "apps", "batch").
+                                  The empty string "" represents the core API group (pods, services, etc.).
+                                  Maximum 20 items, each up to 253 characters.
+                                items:
+                                  maxLength: 253
+                                  type: string
+                                maxItems: 20
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              justification:
+                                description: |-
+                                  justification is a Markdown-formatted explanation of why this
+                                  permission is needed for the remediation
+                                  (e.g., "Need to patch deployment to increase memory limit").
+                                  Required for audit and policy enforcement. Maximum 1024 characters.
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                              namespace:
+                                description: |-
+                                  namespace is the target namespace for namespace-scoped rules.
+                                  Must match one of the proposal's targetNamespaces. Ignored for
+                                  cluster-scoped rules. Validation is deferred to the operator's
+                                  policy engine at runtime. Must be a valid RFC 1123 DNS label.
+                                maxLength: 63
+                                minLength: 1
+                                type: string
+                                x-kubernetes-validations:
+                                - message: 'must be a valid DNS label: lowercase alphanumeric
+                                    characters and hyphens, starting with an alphabetic
+                                    character and ending with an alphanumeric character'
+                                  rule: '!format.dns1123Label().validate(self).hasValue()'
+                              resourceNames:
+                                description: |-
+                                  resourceNames restricts the rule to specific named resources.
+                                  When empty, the rule applies to all resources of the given type.
+                                  Maximum 50 items.
+                                items:
+                                  maxLength: 253
+                                  minLength: 1
+                                  type: string
+                                maxItems: 50
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              resources:
+                                description: |-
+                                  resources are the resource types (e.g., "pods", "deployments").
+                                  Maximum 20 items.
+                                items:
+                                  maxLength: 253
+                                  minLength: 1
+                                  type: string
+                                maxItems: 20
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                              verbs:
+                                description: |-
+                                  verbs are the allowed operations (e.g., "get", "patch", "delete").
+                                  Maximum 10 items.
+                                items:
+                                  maxLength: 63
+                                  minLength: 1
+                                  type: string
+                                maxItems: 10
+                                minItems: 1
+                                type: array
+                                x-kubernetes-list-type: atomic
+                            required:
+                            - apiGroups
+                            - justification
+                            - resources
+                            - verbs
+                            type: object
+                          maxItems: 50
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      type: object
+                    summary:
+                      description: |-
+                        summary is an optional Markdown-formatted one-line summary for
+                        collapsed views in the console UI. Maximum 1024 characters.
+                      maxLength: 1024
+                      minLength: 1
+                      type: string
+                    title:
+                      description: |-
+                        title is a short Markdown-formatted name for this option
+                        (e.g., "Increase memory limit", "Restart with backoff").
+                        Must be 1-256 characters.
+                      maxLength: 256
+                      minLength: 1
+                      type: string
+                    verification:
+                      description: |-
+                        verification contains the verification plan. Omitted when
+                        verification is skipped in the workflow.
+                      properties:
+                        description:
+                          description: |-
+                            description is a Markdown-formatted summary of the verification approach.
+                            Maximum 4096 characters.
+                          maxLength: 4096
+                          minLength: 1
+                          type: string
+                        steps:
+                          description: |-
+                            steps is the ordered list of verification checks to run.
+                            Maximum 20 items.
+                          items:
+                            description: |-
+                              VerificationStep describes a single verification check that the
+                              verification agent should run after execution. Populated by the
+                              analysis agent as part of the RemediationOption.
+                            properties:
+                              command:
+                                description: |-
+                                  command is the command or API call to run for this check
+                                  (e.g., "oc get pod -n production -l app=web -o jsonpath='{.items[0].status.phase}'").
+                                  Maximum 4096 characters.
+                                maxLength: 4096
+                                minLength: 1
+                                type: string
+                              expected:
+                                description: |-
+                                  expected is the expected output or condition
+                                  (e.g., "Running", "ready=true"). Maximum 1024 characters.
+                                maxLength: 1024
+                                minLength: 1
+                                type: string
+                              name:
+                                description: |-
+                                  name is a short identifier for this check (e.g., "pod-running").
+                                  Must be 1-253 characters.
+                                maxLength: 253
+                                minLength: 1
+                                type: string
+                              type:
+                                description: |-
+                                  type categorizes the check (e.g., "command", "metric", "condition").
+                                  Must be 1-256 characters.
+                                maxLength: 256
+                                minLength: 1
+                                type: string
+                            required:
+                            - name
+                            - type
+                            type: object
+                          maxItems: 20
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                      required:
+                      - description
+                      type: object
+                  required:
+                  - diagnosis
+                  - proposal
+                  - title
+                  type: object
+                maxItems: 10
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+              sandbox:
+                description: sandbox tracks the sandbox pod used for this analysis.
+                properties:
+                  claimName:
+                    description: |-
+                      claimName is the name of the SandboxClaim resource that owns the
+                      sandbox pod. Maximum 253 characters.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                  namespace:
+                    description: |-
+                      namespace is the namespace where the SandboxClaim and its pod live.
+                      Must be a valid RFC 1123 DNS label.
+                    maxLength: 63
+                    minLength: 1
+                    type: string
+                    x-kubernetes-validations:
+                    - message: 'must be a valid DNS label: lowercase alphanumeric
+                        characters and hyphens, starting with an alphabetic character
+                        and ending with an alphanumeric character'
+                      rule: '!format.dns1123Label().validate(self).hasValue()'
+                required:
+                - claimName
+                - namespace
+                type: object
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
