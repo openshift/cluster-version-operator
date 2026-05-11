@@ -153,7 +153,6 @@ func getProposals(_ []configv1.Release, _ []configv1.ConditionalUpdate) []*propo
 				Analysis: proposalv1alpha1.ProposalStep{
 					Agent: "smart",
 				},
-				TargetNamespaces: []string{i.DefaultCVONamespace},
 				Tools: proposalv1alpha1.ToolsSpec{
 					Skills: []proposalv1alpha1.SkillsSource{
 						{
