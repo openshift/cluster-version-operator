@@ -35,14 +35,14 @@ var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
 
 type adminAck struct {
 	name             string
-	currentVersion   func() configv1.Release
+	currentVersion   func() string
 	adminGatesLister listerscorev1.ConfigMapNamespaceLister
 	adminAcksLister  listerscorev1.ConfigMapNamespaceLister
 	lastSeen         []configv1.ConditionalUpdateRisk
 }
 
 // New returns a new update-risk source, tracking administrator acknowledgements.
-func New(name string, currentVersion func() configv1.Release, adminGatesInformer, adminAcksInformer informerscorev1.ConfigMapInformer, changeCallback func()) (risk.Source, error) {
+func New(name string, currentVersion func() string, adminGatesInformer, adminAcksInformer informerscorev1.ConfigMapInformer, changeCallback func()) (risk.Source, error) {
 	adminGatesLister := adminGatesInformer.Lister().ConfigMaps(internal.ConfigManagedNamespace)
 	adminAcksLister := adminAcksInformer.Lister().ConfigMaps(internal.ConfigNamespace)
 	source := &adminAck{name: name, currentVersion: currentVersion, adminGatesLister: adminGatesLister, adminAcksLister: adminAcksLister}
@@ -92,8 +92,8 @@ func (a *adminAck) Risks(_ context.Context, versions []string) ([]configv1.Condi
 }
 
 func (a *adminAck) risks() ([]configv1.ConditionalUpdateRisk, semver.Version, error) {
-	currentRelease := a.currentVersion()
-	version, err := semver.Parse(currentRelease.Version)
+	currentVersion := a.currentVersion()
+	version, err := semver.Parse(currentVersion)
 	if err != nil {
 		return []configv1.ConditionalUpdateRisk{{
 			Name:          fmt.Sprintf("%sUnknown", a.name),

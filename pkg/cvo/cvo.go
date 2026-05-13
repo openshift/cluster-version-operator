@@ -325,7 +325,7 @@ func New(
 		risks = append(risks, source)
 	}
 	risks = append(risks, deletionrisk.New("ResourceDeletionInProgress", optr.currentVersion))
-	if source, err := adminack.New("AdminAck", optr.currentVersion, cmConfigManagedInformer, cmConfigInformer, riskSourceCallback); err != nil {
+	if source, err := adminack.New("AdminAck", func() string { return optr.currentVersion().Version }, cmConfigManagedInformer, cmConfigInformer, riskSourceCallback); err != nil {
 		return optr, err
 	} else {
 		risks = append(risks, source)
