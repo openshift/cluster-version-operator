@@ -7,7 +7,7 @@ import (
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -15,9 +15,9 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
-	proposalv1alpha1 "github.com/openshift/cluster-version-operator/pkg/proposal/api/v1alpha1"
 )
 
 type Controller struct {
@@ -145,11 +145,43 @@ func getProposals(_ []configv1.Release, _ []configv1.ConditionalUpdate) []*propo
 				Namespace: i.DefaultCVONamespace,
 			},
 			// Feed required fields only to pass API server validation
-			// The workflow does not exist but that should cause no trouble because no controller watches it before lightspeed-operator is installed on the cluster
+			// The agent does not exist but that should cause no trouble because no controller watches it before lightspeed-operator is installed on the cluster
 			Spec: proposalv1alpha1.ProposalSpec{
-				Request: "some-request",
-				WorkflowRef: corev1.LocalObjectReference{
-					Name: "ota-advisory",
+				// TODO: make a real request
+				Request: "some-request-todo",
+				// CVO consumes some Agent maintained by the cluster admin
+				Analysis: proposalv1alpha1.ProposalStep{
+					Agent: "smart",
+				},
+				Tools: proposalv1alpha1.ToolsSpec{
+					Skills: []proposalv1alpha1.SkillsSource{
+						{
+							// TODO: Use the image built from https://github.com/openshift/agentic-skills
+							Image: "quay.io/harpatil/ocp-skills:latest",
+							Paths: []string{
+								"/skills/cluster-update/update-advisor",
+								"/skills/cluster-update/product-lifecycle",
+								"/skills/monitoring/prometheus",
+								"/skills/documentation/openshift",
+								"/skills/documentation/kubernetes",
+								"/skills/support/jira",
+							},
+						},
+					},
+				},
+				AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+					Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
+					// TODO: make a real schema
+					Schema: &apiextensionsv1.JSONSchemaProps{
+						Type:        "object",
+						Description: "Proposal analysis — lightweight custom output",
+						Properties: map[string]apiextensionsv1.JSONSchemaProps{
+							"property-name-todo": {
+								Type:        "string",
+								Description: "todo",
+							},
+						},
+					},
 				},
 			},
 		},

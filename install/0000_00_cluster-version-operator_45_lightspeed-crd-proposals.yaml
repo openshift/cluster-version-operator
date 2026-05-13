@@ -1,5 +1,3 @@
-# Temporary CRD stub — will be removed once the lightspeed-agentic-operator owns this CRD.
-# Generated from github.com/harche/lightspeed-agentic-operator/api/v1alpha1
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
@@ -19,12 +17,6 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.workflowRef.name
-      name: Workflow
-      type: string
-    - jsonPath: .status.phase
-      name: Phase
-      type: string
     - jsonPath: .spec.request
       name: Request
       priority: 1
@@ -35,33 +27,24 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: "Proposal represents a unit of work managed by the agentic platform.
-          It is\nthe final link in the CRD chain (LlmProvider -> Agent -> Workflow
-          ->\nProposal) and the primary resource users and adapters interact with.\n\nA
-          Proposal references a Workflow that defines which agents handle each\nstep,
-          and tracks the full lifecycle from initial request through analysis,\nuser
-          approval, execution, and verification. Proposals are created by\nadapters
-          (AlertManager webhook, ACS violation webhook, manual creation)\nor by the
-          operator itself (escalation child proposals).\n\nProposal is cluster-scoped.
-          The operator watches for new Proposals and\ndrives them through the lifecycle
-          automatically. Users interact with\nproposals in the Proposed phase to approve,
-          deny, or escalate.\n\nExample — a remediation proposal targeting a specific
-          namespace:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind: Proposal\n\tmetadata:\n\t
-          \ name: fix-crashloop\n\tspec:\n\t  request: |\n\t    Pod web-frontend-5d4b8c6f-x9k2m
-          in namespace production is in\n\t    CrashLoopBackOff. Last restart reason:
-          OOMKilled. Container memory\n\t    limit is 256Mi.\n\t  workflowRef:\n\t
-          \   name: remediation\n\t  targetNamespaces:\n\t    - production\n\nExample
-          — advisory-only via workflowOverride (reuses a remediation workflow\nbut
-          skips execution so the user applies changes manually):\n\n\tapiVersion:
+        description: "Proposal represents a unit of work managed by the agentic platform.\nIt
+          is the primary resource component teams and adapters interact with.\n\nA
+          Proposal defines the workflow shape inline: which steps run and which\nagent
+          handles each step. Analysis is always required. Omit execution\nand/or verification
+          to skip those steps.\n\nExample — analysis only (advisory):\n\n\tapiVersion:
           agentic.openshift.io/v1alpha1\n\tkind: Proposal\n\tmetadata:\n\t  name:
-          one-off-advisory\n\tspec:\n\t  request: \"Review the nginx deployment in
-          staging for security best practices\"\n\t  workflowRef:\n\t    name: remediation\n\t
-          \ targetNamespaces:\n\t    - staging\n\t  workflowOverride:\n\t    execution:\n\t
-          \     skip: true\n\t    verification:\n\t      skip: true\n\nExample — an
-          upgrade proposal with limited retries:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
-          Proposal\n\tmetadata:\n\t  name: upgrade-4-22\n\tspec:\n\t  request: \"Analyze
-          and plan upgrade from OpenShift 4.21 to 4.22\"\n\t  workflowRef:\n\t    name:
-          upgrade\n\t  maxAttempts: 2"
+          one-off-investigation\n\tspec:\n\t  request: \"Investigate why pod foo is
+          crashlooping\"\n\t  targetNamespaces:\n\t    - lightspeed-demo\n\t  tools:\n\t
+          \   skills:\n\t      - image: registry.redhat.io/acs/acs-lightspeed-skills:latest\n\t
+          \ analysis:\n\t    agent: smart\n\nExample — full remediation (analyze →
+          execute → verify):\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          Proposal\n\tmetadata:\n\t  name: fix-nginx-cve-2024-1234\n\t  namespace:
+          stackrox\n\tspec:\n\t  request: \"Fix CVE-2024-1234 in nginx:1.21\"\n\t
+          \ targetNamespaces:\n\t    - lightspeed-demo\n\t  tools:\n\t    skills:\n\t
+          \     - image: registry.redhat.io/acs/acs-lightspeed-skills:latest\n\t    requiredSecrets:\n\t
+          \     - name: acs-api-token\n\t        mountAs:\n\t          type: EnvVar\n\t
+          \         envVar:\n\t            name: ACS_API_TOKEN\n\t  analysis:\n\t
+          \   agent: smart\n\t  execution: {}\n\t  verification:\n\t    agent: fast"
         properties:
           apiVersion:
             description: |-
@@ -81,178 +64,1615 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              ProposalSpec defines the desired state of Proposal. This is the user-facing
-              (or adapter-facing) configuration -- everything the operator needs to start
-              processing the proposal.
+            description: spec defines the desired state of Proposal.
             properties:
-              maxAttempts:
+              analysis:
                 description: |-
-                  maxAttempts overrides the global retry limit for this proposal.
-                  When a step fails, the operator resets the proposal to Pending
-                  with enriched context (up to maxAttempts times). After that, the
-                  proposal transitions to Escalated. Set to 0 to disable retries.
-                  When omitted, the operator's global default is used.
-                maximum: 20
-                minimum: 0
-                type: integer
-              parentRef:
-                description: |-
-                  parentRef references the parent proposal in an escalation chain.
-                  Set automatically by the operator when creating a child proposal
-                  after maxAttempts is exhausted. The child proposal inherits the
-                  full failure history from its parent. The child is also owned by
-                  the parent via Kubernetes owner references for garbage collection.
+                  analysis defines per-step configuration for the analysis step,
+                  including which agent handles it and any per-step tools.
+
+                  Immutable: agent and per-step tools are fixed at creation.
+                minProperties: 1
                 properties:
-                  name:
-                    default: ""
+                  agent:
                     description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      agent is the name of the cluster-scoped Agent CR to use for this step.
+                      Defaults to "default" when omitted.
+                    maxLength: 253
+                    minLength: 1
                     type: string
+                    x-kubernetes-validations:
+                    - message: 'must be a valid DNS subdomain: lowercase alphanumeric
+                        characters, hyphens, and dots'
+                      rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                  tools:
+                    description: |-
+                      tools provides per-step tools that replace the shared spec.tools
+                      for this step. Use this when different steps need different skills.
+                    minProperties: 1
+                    properties:
+                      mcpServers:
+                        description: |-
+                          mcpServers defines external MCP (Model Context Protocol) servers the
+                          agent can connect to for additional tools and context.
+                        items:
+                          description: "MCPServerConfig defines the configuration
+                            for an MCP (Model Context Protocol)\nserver that the agent
+                            can connect to for additional tools and context.\nMCP
+                            servers extend the agent's capabilities beyond its built-in
+                            skills.\n\nExample — connecting to an OpenShift MCP server
+                            with SA token auth:\n\n\tmcpServers:\n\t  - name: openshift\n\t
+                            \   url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+                            \   timeoutSeconds: 10\n\t    headers:\n\t      - name:
+                            Authorization\n\t        valueFrom:\n\t          type:
+                            ServiceAccountToken\n\nExample — connecting to an external
+                            API with secret-based auth:\n\n\tmcpServers:\n\t  - name:
+                            pagerduty\n\t    url: https://mcp-pagerduty.example.com/sse\n\t
+                            \   headers:\n\t      - name: X-API-Key\n\t        valueFrom:\n\t
+                            \         type: Secret\n\t          secret:\n\t            name:
+                            pagerduty-api-key"
+                          properties:
+                            headers:
+                              description: headers to send to the MCP server. Maximum
+                                20 items.
+                              items:
+                                description: |-
+                                  MCPHeader defines an HTTP header to send with every request to an
+                                  MCP server. Used for authentication and routing.
+                                properties:
+                                  name:
+                                    description: |-
+                                      name of the header (e.g., "Authorization", "X-API-Key").
+                                      Must be at least 1 character, containing only letters, digits, and hyphens.
+                                    maxLength: 253
+                                    minLength: 1
+                                    type: string
+                                    x-kubernetes-validations:
+                                    - message: name must start with a letter and contain
+                                        only letters, digits, and hyphens
+                                      rule: self.matches('^[A-Za-z][A-Za-z0-9-]*$')
+                                  valueFrom:
+                                    description: valueFrom is the source of the header
+                                      value.
+                                    properties:
+                                      secret:
+                                        description: |-
+                                          secret references a Secret containing the header value.
+                                          Required when type is "Secret".
+                                        properties:
+                                          name:
+                                            description: name of the Secret. Must
+                                              be a valid RFC 1123 DNS subdomain.
+                                            maxLength: 253
+                                            minLength: 1
+                                            type: string
+                                            x-kubernetes-validations:
+                                            - message: 'must be a valid DNS subdomain:
+                                                lowercase alphanumeric characters,
+                                                hyphens, and dots'
+                                              rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                                        required:
+                                        - name
+                                        type: object
+                                      type:
+                                        description: |-
+                                          type specifies the source type for the header value. Allowed values:
+                                            - "Secret"     — reads the value from a Kubernetes Secret (use for
+                                              API keys and tokens). Requires the secret field to be set.
+                                            - "ServiceAccountToken" — auto-injects a Kubernetes service account token
+                                              (for MCP servers that accept K8s auth).
+                                            - "Client"     — the value is provided by the calling client at
+                                              runtime (e.g., forwarded from a user session).
+                                        enum:
+                                        - Secret
+                                        - ServiceAccountToken
+                                        - Client
+                                        type: string
+                                    required:
+                                    - type
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: secret is required when type is Secret,
+                                        and forbidden otherwise
+                                      rule: 'self.type == ''Secret'' ? has(self.secret)
+                                        : !has(self.secret)'
+                                required:
+                                - name
+                                - valueFrom
+                                type: object
+                              maxItems: 20
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
+                            name:
+                              description: |-
+                                name of the MCP server. Must start with a letter and contain only
+                                lowercase alphanumeric characters and hyphens. Must be 1-253 characters.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: name must start with a lowercase letter and
+                                  contain only lowercase alphanumerics and hyphens
+                                rule: self.matches('^[a-z][a-z0-9-]*$')
+                            timeoutSeconds:
+                              default: 5
+                              description: |-
+                                timeoutSeconds is the per-request timeout for calls to this MCP server,
+                                in seconds. Default is 5.
+                                Valid range: 1-300.
+                              format: int32
+                              maximum: 300
+                              minimum: 1
+                              type: integer
+                            url:
+                              description: |-
+                                url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL,
+                                maximum 2048 characters.
+                              maxLength: 2048
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: url must be a valid HTTP or HTTPS URL
+                                rule: isURL(self) && url(self).getScheme() in ['http',
+                                  'https']
+                          required:
+                          - name
+                          - url
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      requiredSecrets:
+                        description: |-
+                          requiredSecrets declares Kubernetes Secrets that the sandbox pod
+                          needs at runtime. The cluster admin creates the actual Secrets
+                          in the same namespace as the Proposal.
+                        items:
+                          description: |-
+                            SecretRequirement declares a Kubernetes Secret that the sandbox needs
+                            at runtime. The cluster admin creates the actual Secret in the same
+                            namespace as the Proposal.
+                          properties:
+                            description:
+                              description: |-
+                                description explains what this secret is used for, helping the
+                                cluster admin understand what credentials to provide.
+                              maxLength: 1024
+                              minLength: 1
+                              type: string
+                            mountAs:
+                              description: mountAs specifies how the secret is exposed
+                                in the sandbox pod.
+                              properties:
+                                envVar:
+                                  description: |-
+                                    envVar configures environment variable injection.
+                                    Required when type is "EnvVar".
+                                  properties:
+                                    name:
+                                      description: |-
+                                        name is the environment variable name (e.g., "GITHUB_TOKEN").
+                                        Must be uppercase letters, digits, and underscores, starting
+                                        with a letter or underscore.
+                                      maxLength: 256
+                                      minLength: 1
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: 'must be a valid environment variable
+                                          name: uppercase letters, digits, and underscores,
+                                          starting with a letter or underscore'
+                                        rule: self.matches('^[A-Z_][A-Z0-9_]*$')
+                                  required:
+                                  - name
+                                  type: object
+                                filePath:
+                                  description: |-
+                                    filePath configures file mount.
+                                    Required when type is "FilePath".
+                                  properties:
+                                    path:
+                                      description: |-
+                                        path is the absolute file path (e.g., "/etc/secrets/tls.crt").
+                                        Must start with a forward slash.
+                                      maxLength: 512
+                                      minLength: 2
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: path must be an absolute path starting
+                                          with '/'
+                                        rule: self.startsWith('/')
+                                  required:
+                                  - path
+                                  type: object
+                                type:
+                                  description: |-
+                                    type specifies how the secret is exposed. Allowed values: "EnvVar",
+                                    "FilePath".
+
+                                    When set to EnvVar, the secret value is injected as an environment
+                                    variable, and the 'envVar' field must be configured.
+
+                                    When set to FilePath, the secret is mounted as a file, and the
+                                    'filePath' field must be configured.
+                                  enum:
+                                  - EnvVar
+                                  - FilePath
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: envVar is required when type is EnvVar, and
+                                  forbidden otherwise
+                                rule: 'self.type == ''EnvVar'' ? has(self.envVar)
+                                  : !has(self.envVar)'
+                              - message: filePath is required when type is FilePath,
+                                  and forbidden otherwise
+                                rule: 'self.type == ''FilePath'' ? has(self.filePath)
+                                  : !has(self.filePath)'
+                            name:
+                              description: |-
+                                name of the Secret (must exist in the same namespace as the Proposal).
+                                Must be a valid RFC 1123 DNS subdomain.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: 'must be a valid DNS subdomain: lowercase
+                                  alphanumeric characters, hyphens, and dots'
+                                rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                          required:
+                          - mountAs
+                          - name
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      skills:
+                        description: |-
+                          skills defines one or more OCI images containing skills to mount
+                          in the agent's sandbox pod. The operator creates Kubernetes image
+                          volumes (requires K8s 1.34+) and mounts them into the agent's
+                          skills directory. Each image must be unique within the list.
+                        items:
+                          description: "SkillsSource defines an OCI image containing
+                            skills and optionally which\npaths within that image to
+                            mount. Skills are mounted as Kubernetes image\nvolumes
+                            in the agent's sandbox pod.\n\nWhen paths is omitted,
+                            the entire image is mounted. When paths is specified,\nonly
+                            those directories are mounted (each as a separate subPath
+                            volumeMount),\nallowing selective composition of skills
+                            from large shared images.\n\nExample — mount all skills
+                            from a custom image:\n\n\tskills:\n\t  - image: quay.io/my-org/my-skills:latest\n\nExample
+                            — selectively mount two skills from a shared image:\n\n\tskills:\n\t
+                            \ - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+                            \   paths:\n\t      - /skills/prometheus\n\t      - /skills/cluster-update/update-advisor"
+                          properties:
+                            image:
+                              description: |-
+                                image is the OCI image reference containing skills.
+                                The operator mounts this as a Kubernetes image volume (requires K8s 1.34+).
+                                Must be a valid OCI image pullspec: a domain, followed by a repository path,
+                                ending with either a tag (:tag) or a digest (@algorithm:hex).
+                                Must be 1-512 characters.
+                              maxLength: 512
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: must start with a valid domain. valid domains
+                                  must be alphanumeric characters (lowercase and uppercase)
+                                  separated by the '.' character.
+                                rule: self.matches('^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])((\\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(:[0-9]+)?\\b')
+                              - message: a valid name is required. valid names must
+                                  contain lowercase alphanumeric characters separated
+                                  only by the '.', '_', '__', '-' characters.
+                                rule: self.find('(/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?((/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?)+)?)')
+                                  != ''
+                              - message: must end with a digest or a tag
+                                rule: self.find('(@.*:)') != '' || self.find(':.*$')
+                                  != ''
+                              - message: tag must not be more than 127 characters
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').substring(1).size()
+                                  <= 127 : true) : true'
+                              - message: tag is invalid. valid tags must begin with
+                                  a word character followed by word characters, '.',
+                                  or '-'
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').matches('':[\\w][\\w.-]*$'')
+                                  : true) : true'
+                              - message: digest algorithm is not valid. valid algorithms
+                                  must start with an alpha character followed by alphanumeric
+                                  characters and may contain '-', '_', '+', and '.'
+                                  characters.
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find(''(@.*:)'').matches(''(@[A-Za-z][A-Za-z0-9]*([_+.][A-Za-z][A-Za-z0-9]*)*[:])'')
+                                  : true'
+                              - message: digest must be at least 32 characters
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').substring(1).size()
+                                  >= 32 : true'
+                              - message: digest must only contain hex characters (A-F,
+                                  a-f, 0-9)
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').matches('':[0-9A-Fa-f]*$'')
+                                  : true'
+                            paths:
+                              description: |-
+                                paths restricts which directories from the image are mounted.
+                                Each path is mounted as a separate subPath volumeMount into the agent's
+                                skills directory. The last segment of each path becomes the mount name
+                                (e.g., "/skills/prometheus" mounts as "prometheus").
+
+                                Each path must be an absolute file path: starts with "/", no ".."
+                                or "." segments, no double slashes, no trailing slash, and only
+                                alphanumeric characters, hyphens, underscores, dots, and slashes.
+
+                                When omitted, the entire image is mounted as a single volume.
+                                Maximum 50 items.
+                              items:
+                                maxLength: 512
+                                minLength: 2
+                                type: string
+                              maxItems: 50
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                              x-kubernetes-validations:
+                              - message: each path must be 2-512 characters
+                                rule: self.all(p, p.size() >= 2 && p.size() <= 512)
+                              - message: each path must be absolute (start with '/')
+                                rule: self.all(p, p.startsWith('/'))
+                              - message: paths must not end with '/'
+                                rule: self.all(p, !p.endsWith('/'))
+                              - message: paths must not contain double slashes
+                                rule: self.all(p, !p.contains('//'))
+                              - message: paths must not contain '.' or '..' segments
+                                rule: self.all(p, !p.contains('/../') && !p.endsWith('/..')
+                                  && !p.contains('/./') && !p.endsWith('/.'))
+                              - message: paths may only contain alphanumeric characters,
+                                  '/', '_', '.', and '-'
+                                rule: self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))
+                          required:
+                          - image
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - image
+                        x-kubernetes-list-type: map
+                    type: object
                 type: object
-                x-kubernetes-map-type: atomic
+              execution:
+                description: |-
+                  execution defines per-step configuration for the execution step.
+                  Omit to skip execution (advisory/assisted patterns).
+
+                  Immutable: agent and per-step tools are fixed at creation.
+                minProperties: 1
+                properties:
+                  agent:
+                    description: |-
+                      agent is the name of the cluster-scoped Agent CR to use for this step.
+                      Defaults to "default" when omitted.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                    x-kubernetes-validations:
+                    - message: 'must be a valid DNS subdomain: lowercase alphanumeric
+                        characters, hyphens, and dots'
+                      rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                  tools:
+                    description: |-
+                      tools provides per-step tools that replace the shared spec.tools
+                      for this step. Use this when different steps need different skills.
+                    minProperties: 1
+                    properties:
+                      mcpServers:
+                        description: |-
+                          mcpServers defines external MCP (Model Context Protocol) servers the
+                          agent can connect to for additional tools and context.
+                        items:
+                          description: "MCPServerConfig defines the configuration
+                            for an MCP (Model Context Protocol)\nserver that the agent
+                            can connect to for additional tools and context.\nMCP
+                            servers extend the agent's capabilities beyond its built-in
+                            skills.\n\nExample — connecting to an OpenShift MCP server
+                            with SA token auth:\n\n\tmcpServers:\n\t  - name: openshift\n\t
+                            \   url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+                            \   timeoutSeconds: 10\n\t    headers:\n\t      - name:
+                            Authorization\n\t        valueFrom:\n\t          type:
+                            ServiceAccountToken\n\nExample — connecting to an external
+                            API with secret-based auth:\n\n\tmcpServers:\n\t  - name:
+                            pagerduty\n\t    url: https://mcp-pagerduty.example.com/sse\n\t
+                            \   headers:\n\t      - name: X-API-Key\n\t        valueFrom:\n\t
+                            \         type: Secret\n\t          secret:\n\t            name:
+                            pagerduty-api-key"
+                          properties:
+                            headers:
+                              description: headers to send to the MCP server. Maximum
+                                20 items.
+                              items:
+                                description: |-
+                                  MCPHeader defines an HTTP header to send with every request to an
+                                  MCP server. Used for authentication and routing.
+                                properties:
+                                  name:
+                                    description: |-
+                                      name of the header (e.g., "Authorization", "X-API-Key").
+                                      Must be at least 1 character, containing only letters, digits, and hyphens.
+                                    maxLength: 253
+                                    minLength: 1
+                                    type: string
+                                    x-kubernetes-validations:
+                                    - message: name must start with a letter and contain
+                                        only letters, digits, and hyphens
+                                      rule: self.matches('^[A-Za-z][A-Za-z0-9-]*$')
+                                  valueFrom:
+                                    description: valueFrom is the source of the header
+                                      value.
+                                    properties:
+                                      secret:
+                                        description: |-
+                                          secret references a Secret containing the header value.
+                                          Required when type is "Secret".
+                                        properties:
+                                          name:
+                                            description: name of the Secret. Must
+                                              be a valid RFC 1123 DNS subdomain.
+                                            maxLength: 253
+                                            minLength: 1
+                                            type: string
+                                            x-kubernetes-validations:
+                                            - message: 'must be a valid DNS subdomain:
+                                                lowercase alphanumeric characters,
+                                                hyphens, and dots'
+                                              rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                                        required:
+                                        - name
+                                        type: object
+                                      type:
+                                        description: |-
+                                          type specifies the source type for the header value. Allowed values:
+                                            - "Secret"     — reads the value from a Kubernetes Secret (use for
+                                              API keys and tokens). Requires the secret field to be set.
+                                            - "ServiceAccountToken" — auto-injects a Kubernetes service account token
+                                              (for MCP servers that accept K8s auth).
+                                            - "Client"     — the value is provided by the calling client at
+                                              runtime (e.g., forwarded from a user session).
+                                        enum:
+                                        - Secret
+                                        - ServiceAccountToken
+                                        - Client
+                                        type: string
+                                    required:
+                                    - type
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: secret is required when type is Secret,
+                                        and forbidden otherwise
+                                      rule: 'self.type == ''Secret'' ? has(self.secret)
+                                        : !has(self.secret)'
+                                required:
+                                - name
+                                - valueFrom
+                                type: object
+                              maxItems: 20
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
+                            name:
+                              description: |-
+                                name of the MCP server. Must start with a letter and contain only
+                                lowercase alphanumeric characters and hyphens. Must be 1-253 characters.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: name must start with a lowercase letter and
+                                  contain only lowercase alphanumerics and hyphens
+                                rule: self.matches('^[a-z][a-z0-9-]*$')
+                            timeoutSeconds:
+                              default: 5
+                              description: |-
+                                timeoutSeconds is the per-request timeout for calls to this MCP server,
+                                in seconds. Default is 5.
+                                Valid range: 1-300.
+                              format: int32
+                              maximum: 300
+                              minimum: 1
+                              type: integer
+                            url:
+                              description: |-
+                                url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL,
+                                maximum 2048 characters.
+                              maxLength: 2048
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: url must be a valid HTTP or HTTPS URL
+                                rule: isURL(self) && url(self).getScheme() in ['http',
+                                  'https']
+                          required:
+                          - name
+                          - url
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      requiredSecrets:
+                        description: |-
+                          requiredSecrets declares Kubernetes Secrets that the sandbox pod
+                          needs at runtime. The cluster admin creates the actual Secrets
+                          in the same namespace as the Proposal.
+                        items:
+                          description: |-
+                            SecretRequirement declares a Kubernetes Secret that the sandbox needs
+                            at runtime. The cluster admin creates the actual Secret in the same
+                            namespace as the Proposal.
+                          properties:
+                            description:
+                              description: |-
+                                description explains what this secret is used for, helping the
+                                cluster admin understand what credentials to provide.
+                              maxLength: 1024
+                              minLength: 1
+                              type: string
+                            mountAs:
+                              description: mountAs specifies how the secret is exposed
+                                in the sandbox pod.
+                              properties:
+                                envVar:
+                                  description: |-
+                                    envVar configures environment variable injection.
+                                    Required when type is "EnvVar".
+                                  properties:
+                                    name:
+                                      description: |-
+                                        name is the environment variable name (e.g., "GITHUB_TOKEN").
+                                        Must be uppercase letters, digits, and underscores, starting
+                                        with a letter or underscore.
+                                      maxLength: 256
+                                      minLength: 1
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: 'must be a valid environment variable
+                                          name: uppercase letters, digits, and underscores,
+                                          starting with a letter or underscore'
+                                        rule: self.matches('^[A-Z_][A-Z0-9_]*$')
+                                  required:
+                                  - name
+                                  type: object
+                                filePath:
+                                  description: |-
+                                    filePath configures file mount.
+                                    Required when type is "FilePath".
+                                  properties:
+                                    path:
+                                      description: |-
+                                        path is the absolute file path (e.g., "/etc/secrets/tls.crt").
+                                        Must start with a forward slash.
+                                      maxLength: 512
+                                      minLength: 2
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: path must be an absolute path starting
+                                          with '/'
+                                        rule: self.startsWith('/')
+                                  required:
+                                  - path
+                                  type: object
+                                type:
+                                  description: |-
+                                    type specifies how the secret is exposed. Allowed values: "EnvVar",
+                                    "FilePath".
+
+                                    When set to EnvVar, the secret value is injected as an environment
+                                    variable, and the 'envVar' field must be configured.
+
+                                    When set to FilePath, the secret is mounted as a file, and the
+                                    'filePath' field must be configured.
+                                  enum:
+                                  - EnvVar
+                                  - FilePath
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: envVar is required when type is EnvVar, and
+                                  forbidden otherwise
+                                rule: 'self.type == ''EnvVar'' ? has(self.envVar)
+                                  : !has(self.envVar)'
+                              - message: filePath is required when type is FilePath,
+                                  and forbidden otherwise
+                                rule: 'self.type == ''FilePath'' ? has(self.filePath)
+                                  : !has(self.filePath)'
+                            name:
+                              description: |-
+                                name of the Secret (must exist in the same namespace as the Proposal).
+                                Must be a valid RFC 1123 DNS subdomain.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: 'must be a valid DNS subdomain: lowercase
+                                  alphanumeric characters, hyphens, and dots'
+                                rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                          required:
+                          - mountAs
+                          - name
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      skills:
+                        description: |-
+                          skills defines one or more OCI images containing skills to mount
+                          in the agent's sandbox pod. The operator creates Kubernetes image
+                          volumes (requires K8s 1.34+) and mounts them into the agent's
+                          skills directory. Each image must be unique within the list.
+                        items:
+                          description: "SkillsSource defines an OCI image containing
+                            skills and optionally which\npaths within that image to
+                            mount. Skills are mounted as Kubernetes image\nvolumes
+                            in the agent's sandbox pod.\n\nWhen paths is omitted,
+                            the entire image is mounted. When paths is specified,\nonly
+                            those directories are mounted (each as a separate subPath
+                            volumeMount),\nallowing selective composition of skills
+                            from large shared images.\n\nExample — mount all skills
+                            from a custom image:\n\n\tskills:\n\t  - image: quay.io/my-org/my-skills:latest\n\nExample
+                            — selectively mount two skills from a shared image:\n\n\tskills:\n\t
+                            \ - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+                            \   paths:\n\t      - /skills/prometheus\n\t      - /skills/cluster-update/update-advisor"
+                          properties:
+                            image:
+                              description: |-
+                                image is the OCI image reference containing skills.
+                                The operator mounts this as a Kubernetes image volume (requires K8s 1.34+).
+                                Must be a valid OCI image pullspec: a domain, followed by a repository path,
+                                ending with either a tag (:tag) or a digest (@algorithm:hex).
+                                Must be 1-512 characters.
+                              maxLength: 512
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: must start with a valid domain. valid domains
+                                  must be alphanumeric characters (lowercase and uppercase)
+                                  separated by the '.' character.
+                                rule: self.matches('^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])((\\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(:[0-9]+)?\\b')
+                              - message: a valid name is required. valid names must
+                                  contain lowercase alphanumeric characters separated
+                                  only by the '.', '_', '__', '-' characters.
+                                rule: self.find('(/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?((/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?)+)?)')
+                                  != ''
+                              - message: must end with a digest or a tag
+                                rule: self.find('(@.*:)') != '' || self.find(':.*$')
+                                  != ''
+                              - message: tag must not be more than 127 characters
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').substring(1).size()
+                                  <= 127 : true) : true'
+                              - message: tag is invalid. valid tags must begin with
+                                  a word character followed by word characters, '.',
+                                  or '-'
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').matches('':[\\w][\\w.-]*$'')
+                                  : true) : true'
+                              - message: digest algorithm is not valid. valid algorithms
+                                  must start with an alpha character followed by alphanumeric
+                                  characters and may contain '-', '_', '+', and '.'
+                                  characters.
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find(''(@.*:)'').matches(''(@[A-Za-z][A-Za-z0-9]*([_+.][A-Za-z][A-Za-z0-9]*)*[:])'')
+                                  : true'
+                              - message: digest must be at least 32 characters
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').substring(1).size()
+                                  >= 32 : true'
+                              - message: digest must only contain hex characters (A-F,
+                                  a-f, 0-9)
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').matches('':[0-9A-Fa-f]*$'')
+                                  : true'
+                            paths:
+                              description: |-
+                                paths restricts which directories from the image are mounted.
+                                Each path is mounted as a separate subPath volumeMount into the agent's
+                                skills directory. The last segment of each path becomes the mount name
+                                (e.g., "/skills/prometheus" mounts as "prometheus").
+
+                                Each path must be an absolute file path: starts with "/", no ".."
+                                or "." segments, no double slashes, no trailing slash, and only
+                                alphanumeric characters, hyphens, underscores, dots, and slashes.
+
+                                When omitted, the entire image is mounted as a single volume.
+                                Maximum 50 items.
+                              items:
+                                maxLength: 512
+                                minLength: 2
+                                type: string
+                              maxItems: 50
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                              x-kubernetes-validations:
+                              - message: each path must be 2-512 characters
+                                rule: self.all(p, p.size() >= 2 && p.size() <= 512)
+                              - message: each path must be absolute (start with '/')
+                                rule: self.all(p, p.startsWith('/'))
+                              - message: paths must not end with '/'
+                                rule: self.all(p, !p.endsWith('/'))
+                              - message: paths must not contain double slashes
+                                rule: self.all(p, !p.contains('//'))
+                              - message: paths must not contain '.' or '..' segments
+                                rule: self.all(p, !p.contains('/../') && !p.endsWith('/..')
+                                  && !p.contains('/./') && !p.endsWith('/.'))
+                              - message: paths may only contain alphanumeric characters,
+                                  '/', '_', '.', and '-'
+                                rule: self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))
+                          required:
+                          - image
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - image
+                        x-kubernetes-list-type: map
+                    type: object
+                type: object
+              outputSchema:
+                description: |-
+                  outputSchema is a JSON Schema injected as a required "components"
+                  property in the analysis output. Use this to require adapter-specific
+                  structured data beyond the base analysis schema (diagnosis, proposal,
+                  RBAC, verification plan).
+
+                  Immutable: the output contract is fixed at creation.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
               request:
                 description: |-
                   request is the user's original request, alert description, or a
                   description of what triggered this proposal. This text is passed to
-                  the analysis agent as the primary input. For adapter-created proposals,
-                  this typically contains the alert summary and relevant details.
+                  the analysis agent as the primary input.
+
+                  Immutable: Proposals are run-to-completion (like Jobs). To change
+                  the request, create a new Proposal. Use spec.revisionFeedback for
+                  iterative feedback on an existing analysis.
+                maxLength: 32768
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: request is immutable after creation
+                  rule: self == oldSelf
+              revisionFeedback:
+                description: |-
+                  revisionFeedback is the user's free-text feedback requesting changes
+                  to the analysis. Patching this field bumps metadata.generation, which
+                  the operator detects (generation > observedGeneration) and triggers
+                  re-analysis with the feedback appended to the original request.
+
+                  Mutable: this is the only mutable spec field. All other spec fields
+                  are immutable via CEL rules, so generation changes signal revision.
+                maxLength: 32768
                 minLength: 1
                 type: string
               targetNamespaces:
                 description: |-
                   targetNamespaces are the Kubernetes namespace(s) this proposal
-                  operates on. The operator uses these to scope RBAC (creating Roles
-                  and RoleBindings only in these namespaces) and to pass context to
-                  the analysis agent. When empty, the proposal operates at the
-                  cluster level only.
+                  operates on. Used for RBAC scoping and context to the analysis agent.
+
+                  When omitted, the proposal is not namespace-scoped — the analysis
+                  agent determines the relevant namespaces from the request context.
+                  Adapters (AlertManager, ACS) typically set this automatically from
+                  the source event.
+
+                  Immutable: RBAC scoping is fixed at creation. Changing target
+                  namespaces mid-flight would invalidate the analysis and any
+                  granted execution RBAC.
                 items:
+                  maxLength: 63
+                  minLength: 1
                   type: string
+                maxItems: 50
+                minItems: 1
                 type: array
-              workflowOverride:
+                x-kubernetes-list-type: atomic
+                x-kubernetes-validations:
+                - message: each namespace must be a valid DNS label
+                  rule: self.all(ns, !format.dns1123Label().validate(ns).hasValue())
+              tools:
                 description: |-
-                  workflowOverride allows per-proposal overrides of the referenced
-                  workflow without creating a new Workflow CR. Useful for one-off
-                  customizations like skipping execution on a normally full-lifecycle
-                  workflow, or swapping in a specialized agent.
+                  tools defines the default tools for all steps: skills images,
+                  MCP servers, and required secrets. Per-step tools
+                  (analysis.tools, execution.tools, verification.tools) replace
+                  this default for individual steps.
+
+                  Immutable: the skills and secrets available to the agent are
+                  fixed at creation. Changing tools mid-flight could violate the
+                  assumptions of an in-progress analysis or execution.
+                minProperties: 1
                 properties:
-                  analysis:
-                    description: analysis overrides for the analysis step.
-                    properties:
-                      agentRef:
-                        description: |-
-                          agentRef overrides the agent used for this step. Allows using a
-                          different agent for a specific proposal without changing the Workflow.
-                        properties:
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                        type: object
-                        x-kubernetes-map-type: atomic
-                      skip:
-                        description: |-
-                          skip overrides the skip flag for this step. When set to true, the step
-                          is skipped regardless of the Workflow's setting. When set to false,
-                          the step runs even if the Workflow says skip.
-                        type: boolean
-                    type: object
-                  execution:
-                    description: execution overrides for the execution step.
-                    properties:
-                      agentRef:
-                        description: |-
-                          agentRef overrides the agent used for this step. Allows using a
-                          different agent for a specific proposal without changing the Workflow.
-                        properties:
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                        type: object
-                        x-kubernetes-map-type: atomic
-                      skip:
-                        description: |-
-                          skip overrides the skip flag for this step. When set to true, the step
-                          is skipped regardless of the Workflow's setting. When set to false,
-                          the step runs even if the Workflow says skip.
-                        type: boolean
-                    type: object
-                  verification:
-                    description: verification overrides for the verification step.
-                    properties:
-                      agentRef:
-                        description: |-
-                          agentRef overrides the agent used for this step. Allows using a
-                          different agent for a specific proposal without changing the Workflow.
-                        properties:
-                          name:
-                            default: ""
-                            description: |-
-                              Name of the referent.
-                              This field is effectively required, but due to backwards compatibility is
-                              allowed to be empty. Instances of this type with an empty value here are
-                              almost certainly wrong.
-                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            type: string
-                        type: object
-                        x-kubernetes-map-type: atomic
-                      skip:
-                        description: |-
-                          skip overrides the skip flag for this step. When set to true, the step
-                          is skipped regardless of the Workflow's setting. When set to false,
-                          the step runs even if the Workflow says skip.
-                        type: boolean
-                    type: object
-                type: object
-              workflowRef:
-                description: |-
-                  workflowRef references a cluster-scoped Workflow CR that defines
-                  which agents handle each step (analysis, execution, verification)
-                  and which steps are skipped. This is the primary routing mechanism.
-                properties:
-                  name:
-                    default: ""
+                  mcpServers:
                     description: |-
-                      Name of the referent.
-                      This field is effectively required, but due to backwards compatibility is
-                      allowed to be empty. Instances of this type with an empty value here are
-                      almost certainly wrong.
-                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                    type: string
+                      mcpServers defines external MCP (Model Context Protocol) servers the
+                      agent can connect to for additional tools and context.
+                    items:
+                      description: "MCPServerConfig defines the configuration for
+                        an MCP (Model Context Protocol)\nserver that the agent can
+                        connect to for additional tools and context.\nMCP servers
+                        extend the agent's capabilities beyond its built-in skills.\n\nExample
+                        — connecting to an OpenShift MCP server with SA token auth:\n\n\tmcpServers:\n\t
+                        \ - name: openshift\n\t    url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+                        \   timeoutSeconds: 10\n\t    headers:\n\t      - name: Authorization\n\t
+                        \       valueFrom:\n\t          type: ServiceAccountToken\n\nExample
+                        — connecting to an external API with secret-based auth:\n\n\tmcpServers:\n\t
+                        \ - name: pagerduty\n\t    url: https://mcp-pagerduty.example.com/sse\n\t
+                        \   headers:\n\t      - name: X-API-Key\n\t        valueFrom:\n\t
+                        \         type: Secret\n\t          secret:\n\t            name:
+                        pagerduty-api-key"
+                      properties:
+                        headers:
+                          description: headers to send to the MCP server. Maximum
+                            20 items.
+                          items:
+                            description: |-
+                              MCPHeader defines an HTTP header to send with every request to an
+                              MCP server. Used for authentication and routing.
+                            properties:
+                              name:
+                                description: |-
+                                  name of the header (e.g., "Authorization", "X-API-Key").
+                                  Must be at least 1 character, containing only letters, digits, and hyphens.
+                                maxLength: 253
+                                minLength: 1
+                                type: string
+                                x-kubernetes-validations:
+                                - message: name must start with a letter and contain
+                                    only letters, digits, and hyphens
+                                  rule: self.matches('^[A-Za-z][A-Za-z0-9-]*$')
+                              valueFrom:
+                                description: valueFrom is the source of the header
+                                  value.
+                                properties:
+                                  secret:
+                                    description: |-
+                                      secret references a Secret containing the header value.
+                                      Required when type is "Secret".
+                                    properties:
+                                      name:
+                                        description: name of the Secret. Must be a
+                                          valid RFC 1123 DNS subdomain.
+                                        maxLength: 253
+                                        minLength: 1
+                                        type: string
+                                        x-kubernetes-validations:
+                                        - message: 'must be a valid DNS subdomain:
+                                            lowercase alphanumeric characters, hyphens,
+                                            and dots'
+                                          rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                                    required:
+                                    - name
+                                    type: object
+                                  type:
+                                    description: |-
+                                      type specifies the source type for the header value. Allowed values:
+                                        - "Secret"     — reads the value from a Kubernetes Secret (use for
+                                          API keys and tokens). Requires the secret field to be set.
+                                        - "ServiceAccountToken" — auto-injects a Kubernetes service account token
+                                          (for MCP servers that accept K8s auth).
+                                        - "Client"     — the value is provided by the calling client at
+                                          runtime (e.g., forwarded from a user session).
+                                    enum:
+                                    - Secret
+                                    - ServiceAccountToken
+                                    - Client
+                                    type: string
+                                required:
+                                - type
+                                type: object
+                                x-kubernetes-validations:
+                                - message: secret is required when type is Secret,
+                                    and forbidden otherwise
+                                  rule: 'self.type == ''Secret'' ? has(self.secret)
+                                    : !has(self.secret)'
+                            required:
+                            - name
+                            - valueFrom
+                            type: object
+                          maxItems: 20
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-map-keys:
+                          - name
+                          x-kubernetes-list-type: map
+                        name:
+                          description: |-
+                            name of the MCP server. Must start with a letter and contain only
+                            lowercase alphanumeric characters and hyphens. Must be 1-253 characters.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                          x-kubernetes-validations:
+                          - message: name must start with a lowercase letter and contain
+                              only lowercase alphanumerics and hyphens
+                            rule: self.matches('^[a-z][a-z0-9-]*$')
+                        timeoutSeconds:
+                          default: 5
+                          description: |-
+                            timeoutSeconds is the per-request timeout for calls to this MCP server,
+                            in seconds. Default is 5.
+                            Valid range: 1-300.
+                          format: int32
+                          maximum: 300
+                          minimum: 1
+                          type: integer
+                        url:
+                          description: |-
+                            url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL,
+                            maximum 2048 characters.
+                          maxLength: 2048
+                          minLength: 1
+                          type: string
+                          x-kubernetes-validations:
+                          - message: url must be a valid HTTP or HTTPS URL
+                            rule: isURL(self) && url(self).getScheme() in ['http',
+                              'https']
+                      required:
+                      - name
+                      - url
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  requiredSecrets:
+                    description: |-
+                      requiredSecrets declares Kubernetes Secrets that the sandbox pod
+                      needs at runtime. The cluster admin creates the actual Secrets
+                      in the same namespace as the Proposal.
+                    items:
+                      description: |-
+                        SecretRequirement declares a Kubernetes Secret that the sandbox needs
+                        at runtime. The cluster admin creates the actual Secret in the same
+                        namespace as the Proposal.
+                      properties:
+                        description:
+                          description: |-
+                            description explains what this secret is used for, helping the
+                            cluster admin understand what credentials to provide.
+                          maxLength: 1024
+                          minLength: 1
+                          type: string
+                        mountAs:
+                          description: mountAs specifies how the secret is exposed
+                            in the sandbox pod.
+                          properties:
+                            envVar:
+                              description: |-
+                                envVar configures environment variable injection.
+                                Required when type is "EnvVar".
+                              properties:
+                                name:
+                                  description: |-
+                                    name is the environment variable name (e.g., "GITHUB_TOKEN").
+                                    Must be uppercase letters, digits, and underscores, starting
+                                    with a letter or underscore.
+                                  maxLength: 256
+                                  minLength: 1
+                                  type: string
+                                  x-kubernetes-validations:
+                                  - message: 'must be a valid environment variable
+                                      name: uppercase letters, digits, and underscores,
+                                      starting with a letter or underscore'
+                                    rule: self.matches('^[A-Z_][A-Z0-9_]*$')
+                              required:
+                              - name
+                              type: object
+                            filePath:
+                              description: |-
+                                filePath configures file mount.
+                                Required when type is "FilePath".
+                              properties:
+                                path:
+                                  description: |-
+                                    path is the absolute file path (e.g., "/etc/secrets/tls.crt").
+                                    Must start with a forward slash.
+                                  maxLength: 512
+                                  minLength: 2
+                                  type: string
+                                  x-kubernetes-validations:
+                                  - message: path must be an absolute path starting
+                                      with '/'
+                                    rule: self.startsWith('/')
+                              required:
+                              - path
+                              type: object
+                            type:
+                              description: |-
+                                type specifies how the secret is exposed. Allowed values: "EnvVar",
+                                "FilePath".
+
+                                When set to EnvVar, the secret value is injected as an environment
+                                variable, and the 'envVar' field must be configured.
+
+                                When set to FilePath, the secret is mounted as a file, and the
+                                'filePath' field must be configured.
+                              enum:
+                              - EnvVar
+                              - FilePath
+                              type: string
+                          required:
+                          - type
+                          type: object
+                          x-kubernetes-validations:
+                          - message: envVar is required when type is EnvVar, and forbidden
+                              otherwise
+                            rule: 'self.type == ''EnvVar'' ? has(self.envVar) : !has(self.envVar)'
+                          - message: filePath is required when type is FilePath, and
+                              forbidden otherwise
+                            rule: 'self.type == ''FilePath'' ? has(self.filePath)
+                              : !has(self.filePath)'
+                        name:
+                          description: |-
+                            name of the Secret (must exist in the same namespace as the Proposal).
+                            Must be a valid RFC 1123 DNS subdomain.
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                          x-kubernetes-validations:
+                          - message: 'must be a valid DNS subdomain: lowercase alphanumeric
+                              characters, hyphens, and dots'
+                            rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                      required:
+                      - mountAs
+                      - name
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - name
+                    x-kubernetes-list-type: map
+                  skills:
+                    description: |-
+                      skills defines one or more OCI images containing skills to mount
+                      in the agent's sandbox pod. The operator creates Kubernetes image
+                      volumes (requires K8s 1.34+) and mounts them into the agent's
+                      skills directory. Each image must be unique within the list.
+                    items:
+                      description: "SkillsSource defines an OCI image containing skills
+                        and optionally which\npaths within that image to mount. Skills
+                        are mounted as Kubernetes image\nvolumes in the agent's sandbox
+                        pod.\n\nWhen paths is omitted, the entire image is mounted.
+                        When paths is specified,\nonly those directories are mounted
+                        (each as a separate subPath volumeMount),\nallowing selective
+                        composition of skills from large shared images.\n\nExample
+                        — mount all skills from a custom image:\n\n\tskills:\n\t  -
+                        image: quay.io/my-org/my-skills:latest\n\nExample — selectively
+                        mount two skills from a shared image:\n\n\tskills:\n\t  -
+                        image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+                        \   paths:\n\t      - /skills/prometheus\n\t      - /skills/cluster-update/update-advisor"
+                      properties:
+                        image:
+                          description: |-
+                            image is the OCI image reference containing skills.
+                            The operator mounts this as a Kubernetes image volume (requires K8s 1.34+).
+                            Must be a valid OCI image pullspec: a domain, followed by a repository path,
+                            ending with either a tag (:tag) or a digest (@algorithm:hex).
+                            Must be 1-512 characters.
+                          maxLength: 512
+                          minLength: 1
+                          type: string
+                          x-kubernetes-validations:
+                          - message: must start with a valid domain. valid domains
+                              must be alphanumeric characters (lowercase and uppercase)
+                              separated by the '.' character.
+                            rule: self.matches('^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])((\\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(:[0-9]+)?\\b')
+                          - message: a valid name is required. valid names must contain
+                              lowercase alphanumeric characters separated only by
+                              the '.', '_', '__', '-' characters.
+                            rule: self.find('(/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?((/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?)+)?)')
+                              != ''
+                          - message: must end with a digest or a tag
+                            rule: self.find('(@.*:)') != '' || self.find(':.*$') !=
+                              ''
+                          - message: tag must not be more than 127 characters
+                            rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                              != '''' ? self.find('':.*$'').substring(1).size() <=
+                              127 : true) : true'
+                          - message: tag is invalid. valid tags must begin with a
+                              word character followed by word characters, '.', or
+                              '-'
+                            rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                              != '''' ? self.find('':.*$'').matches('':[\\w][\\w.-]*$'')
+                              : true) : true'
+                          - message: digest algorithm is not valid. valid algorithms
+                              must start with an alpha character followed by alphanumeric
+                              characters and may contain '-', '_', '+', and '.' characters.
+                            rule: 'self.find(''(@.*:)'') != '''' ? self.find(''(@.*:)'').matches(''(@[A-Za-z][A-Za-z0-9]*([_+.][A-Za-z][A-Za-z0-9]*)*[:])'')
+                              : true'
+                          - message: digest must be at least 32 characters
+                            rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').substring(1).size()
+                              >= 32 : true'
+                          - message: digest must only contain hex characters (A-F,
+                              a-f, 0-9)
+                            rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').matches('':[0-9A-Fa-f]*$'')
+                              : true'
+                        paths:
+                          description: |-
+                            paths restricts which directories from the image are mounted.
+                            Each path is mounted as a separate subPath volumeMount into the agent's
+                            skills directory. The last segment of each path becomes the mount name
+                            (e.g., "/skills/prometheus" mounts as "prometheus").
+
+                            Each path must be an absolute file path: starts with "/", no ".."
+                            or "." segments, no double slashes, no trailing slash, and only
+                            alphanumeric characters, hyphens, underscores, dots, and slashes.
+
+                            When omitted, the entire image is mounted as a single volume.
+                            Maximum 50 items.
+                          items:
+                            maxLength: 512
+                            minLength: 2
+                            type: string
+                          maxItems: 50
+                          minItems: 1
+                          type: array
+                          x-kubernetes-list-type: atomic
+                          x-kubernetes-validations:
+                          - message: each path must be 2-512 characters
+                            rule: self.all(p, p.size() >= 2 && p.size() <= 512)
+                          - message: each path must be absolute (start with '/')
+                            rule: self.all(p, p.startsWith('/'))
+                          - message: paths must not end with '/'
+                            rule: self.all(p, !p.endsWith('/'))
+                          - message: paths must not contain double slashes
+                            rule: self.all(p, !p.contains('//'))
+                          - message: paths must not contain '.' or '..' segments
+                            rule: self.all(p, !p.contains('/../') && !p.endsWith('/..')
+                              && !p.contains('/./') && !p.endsWith('/.'))
+                          - message: paths may only contain alphanumeric characters,
+                              '/', '_', '.', and '-'
+                            rule: self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))
+                      required:
+                      - image
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                    x-kubernetes-list-map-keys:
+                    - image
+                    x-kubernetes-list-type: map
                 type: object
-                x-kubernetes-map-type: atomic
-            required:
-            - request
-            - workflowRef
-            type: object
-          status:
-            description: |-
-              ProposalStatus defines the observed state of Proposal. All fields are
-              set by the operator -- users should not modify status fields directly.
-              The status provides complete observability into the proposal's progress,
-              including per-step results, retry history, and standard Kubernetes conditions.
-            properties:
-              attempt:
+              verification:
                 description: |-
-                  attempt is the current attempt number (1-based). Incremented each
-                  time the proposal is retried after a failure. Starts at 1 for the
-                  first attempt.
-                type: integer
+                  verification defines per-step configuration for the verification step.
+                  Omit to skip verification.
+
+                  Immutable: agent and per-step tools are fixed at creation.
+                minProperties: 1
+                properties:
+                  agent:
+                    description: |-
+                      agent is the name of the cluster-scoped Agent CR to use for this step.
+                      Defaults to "default" when omitted.
+                    maxLength: 253
+                    minLength: 1
+                    type: string
+                    x-kubernetes-validations:
+                    - message: 'must be a valid DNS subdomain: lowercase alphanumeric
+                        characters, hyphens, and dots'
+                      rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                  tools:
+                    description: |-
+                      tools provides per-step tools that replace the shared spec.tools
+                      for this step. Use this when different steps need different skills.
+                    minProperties: 1
+                    properties:
+                      mcpServers:
+                        description: |-
+                          mcpServers defines external MCP (Model Context Protocol) servers the
+                          agent can connect to for additional tools and context.
+                        items:
+                          description: "MCPServerConfig defines the configuration
+                            for an MCP (Model Context Protocol)\nserver that the agent
+                            can connect to for additional tools and context.\nMCP
+                            servers extend the agent's capabilities beyond its built-in
+                            skills.\n\nExample — connecting to an OpenShift MCP server
+                            with SA token auth:\n\n\tmcpServers:\n\t  - name: openshift\n\t
+                            \   url: https://mcp.openshift-lightspeed.svc:8443/sse\n\t
+                            \   timeoutSeconds: 10\n\t    headers:\n\t      - name:
+                            Authorization\n\t        valueFrom:\n\t          type:
+                            ServiceAccountToken\n\nExample — connecting to an external
+                            API with secret-based auth:\n\n\tmcpServers:\n\t  - name:
+                            pagerduty\n\t    url: https://mcp-pagerduty.example.com/sse\n\t
+                            \   headers:\n\t      - name: X-API-Key\n\t        valueFrom:\n\t
+                            \         type: Secret\n\t          secret:\n\t            name:
+                            pagerduty-api-key"
+                          properties:
+                            headers:
+                              description: headers to send to the MCP server. Maximum
+                                20 items.
+                              items:
+                                description: |-
+                                  MCPHeader defines an HTTP header to send with every request to an
+                                  MCP server. Used for authentication and routing.
+                                properties:
+                                  name:
+                                    description: |-
+                                      name of the header (e.g., "Authorization", "X-API-Key").
+                                      Must be at least 1 character, containing only letters, digits, and hyphens.
+                                    maxLength: 253
+                                    minLength: 1
+                                    type: string
+                                    x-kubernetes-validations:
+                                    - message: name must start with a letter and contain
+                                        only letters, digits, and hyphens
+                                      rule: self.matches('^[A-Za-z][A-Za-z0-9-]*$')
+                                  valueFrom:
+                                    description: valueFrom is the source of the header
+                                      value.
+                                    properties:
+                                      secret:
+                                        description: |-
+                                          secret references a Secret containing the header value.
+                                          Required when type is "Secret".
+                                        properties:
+                                          name:
+                                            description: name of the Secret. Must
+                                              be a valid RFC 1123 DNS subdomain.
+                                            maxLength: 253
+                                            minLength: 1
+                                            type: string
+                                            x-kubernetes-validations:
+                                            - message: 'must be a valid DNS subdomain:
+                                                lowercase alphanumeric characters,
+                                                hyphens, and dots'
+                                              rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                                        required:
+                                        - name
+                                        type: object
+                                      type:
+                                        description: |-
+                                          type specifies the source type for the header value. Allowed values:
+                                            - "Secret"     — reads the value from a Kubernetes Secret (use for
+                                              API keys and tokens). Requires the secret field to be set.
+                                            - "ServiceAccountToken" — auto-injects a Kubernetes service account token
+                                              (for MCP servers that accept K8s auth).
+                                            - "Client"     — the value is provided by the calling client at
+                                              runtime (e.g., forwarded from a user session).
+                                        enum:
+                                        - Secret
+                                        - ServiceAccountToken
+                                        - Client
+                                        type: string
+                                    required:
+                                    - type
+                                    type: object
+                                    x-kubernetes-validations:
+                                    - message: secret is required when type is Secret,
+                                        and forbidden otherwise
+                                      rule: 'self.type == ''Secret'' ? has(self.secret)
+                                        : !has(self.secret)'
+                                required:
+                                - name
+                                - valueFrom
+                                type: object
+                              maxItems: 20
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-map-keys:
+                              - name
+                              x-kubernetes-list-type: map
+                            name:
+                              description: |-
+                                name of the MCP server. Must start with a letter and contain only
+                                lowercase alphanumeric characters and hyphens. Must be 1-253 characters.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: name must start with a lowercase letter and
+                                  contain only lowercase alphanumerics and hyphens
+                                rule: self.matches('^[a-z][a-z0-9-]*$')
+                            timeoutSeconds:
+                              default: 5
+                              description: |-
+                                timeoutSeconds is the per-request timeout for calls to this MCP server,
+                                in seconds. Default is 5.
+                                Valid range: 1-300.
+                              format: int32
+                              maximum: 300
+                              minimum: 1
+                              type: integer
+                            url:
+                              description: |-
+                                url of the MCP server (HTTP/HTTPS). Must be an HTTP or HTTPS URL,
+                                maximum 2048 characters.
+                              maxLength: 2048
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: url must be a valid HTTP or HTTPS URL
+                                rule: isURL(self) && url(self).getScheme() in ['http',
+                                  'https']
+                          required:
+                          - name
+                          - url
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      requiredSecrets:
+                        description: |-
+                          requiredSecrets declares Kubernetes Secrets that the sandbox pod
+                          needs at runtime. The cluster admin creates the actual Secrets
+                          in the same namespace as the Proposal.
+                        items:
+                          description: |-
+                            SecretRequirement declares a Kubernetes Secret that the sandbox needs
+                            at runtime. The cluster admin creates the actual Secret in the same
+                            namespace as the Proposal.
+                          properties:
+                            description:
+                              description: |-
+                                description explains what this secret is used for, helping the
+                                cluster admin understand what credentials to provide.
+                              maxLength: 1024
+                              minLength: 1
+                              type: string
+                            mountAs:
+                              description: mountAs specifies how the secret is exposed
+                                in the sandbox pod.
+                              properties:
+                                envVar:
+                                  description: |-
+                                    envVar configures environment variable injection.
+                                    Required when type is "EnvVar".
+                                  properties:
+                                    name:
+                                      description: |-
+                                        name is the environment variable name (e.g., "GITHUB_TOKEN").
+                                        Must be uppercase letters, digits, and underscores, starting
+                                        with a letter or underscore.
+                                      maxLength: 256
+                                      minLength: 1
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: 'must be a valid environment variable
+                                          name: uppercase letters, digits, and underscores,
+                                          starting with a letter or underscore'
+                                        rule: self.matches('^[A-Z_][A-Z0-9_]*$')
+                                  required:
+                                  - name
+                                  type: object
+                                filePath:
+                                  description: |-
+                                    filePath configures file mount.
+                                    Required when type is "FilePath".
+                                  properties:
+                                    path:
+                                      description: |-
+                                        path is the absolute file path (e.g., "/etc/secrets/tls.crt").
+                                        Must start with a forward slash.
+                                      maxLength: 512
+                                      minLength: 2
+                                      type: string
+                                      x-kubernetes-validations:
+                                      - message: path must be an absolute path starting
+                                          with '/'
+                                        rule: self.startsWith('/')
+                                  required:
+                                  - path
+                                  type: object
+                                type:
+                                  description: |-
+                                    type specifies how the secret is exposed. Allowed values: "EnvVar",
+                                    "FilePath".
+
+                                    When set to EnvVar, the secret value is injected as an environment
+                                    variable, and the 'envVar' field must be configured.
+
+                                    When set to FilePath, the secret is mounted as a file, and the
+                                    'filePath' field must be configured.
+                                  enum:
+                                  - EnvVar
+                                  - FilePath
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: envVar is required when type is EnvVar, and
+                                  forbidden otherwise
+                                rule: 'self.type == ''EnvVar'' ? has(self.envVar)
+                                  : !has(self.envVar)'
+                              - message: filePath is required when type is FilePath,
+                                  and forbidden otherwise
+                                rule: 'self.type == ''FilePath'' ? has(self.filePath)
+                                  : !has(self.filePath)'
+                            name:
+                              description: |-
+                                name of the Secret (must exist in the same namespace as the Proposal).
+                                Must be a valid RFC 1123 DNS subdomain.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: 'must be a valid DNS subdomain: lowercase
+                                  alphanumeric characters, hyphens, and dots'
+                                rule: '!format.dns1123Subdomain().validate(self).hasValue()'
+                          required:
+                          - mountAs
+                          - name
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - name
+                        x-kubernetes-list-type: map
+                      skills:
+                        description: |-
+                          skills defines one or more OCI images containing skills to mount
+                          in the agent's sandbox pod. The operator creates Kubernetes image
+                          volumes (requires K8s 1.34+) and mounts them into the agent's
+                          skills directory. Each image must be unique within the list.
+                        items:
+                          description: "SkillsSource defines an OCI image containing
+                            skills and optionally which\npaths within that image to
+                            mount. Skills are mounted as Kubernetes image\nvolumes
+                            in the agent's sandbox pod.\n\nWhen paths is omitted,
+                            the entire image is mounted. When paths is specified,\nonly
+                            those directories are mounted (each as a separate subPath
+                            volumeMount),\nallowing selective composition of skills
+                            from large shared images.\n\nExample — mount all skills
+                            from a custom image:\n\n\tskills:\n\t  - image: quay.io/my-org/my-skills:latest\n\nExample
+                            — selectively mount two skills from a shared image:\n\n\tskills:\n\t
+                            \ - image: registry.ci.openshift.org/ocp/5.0:agentic-skills\n\t
+                            \   paths:\n\t      - /skills/prometheus\n\t      - /skills/cluster-update/update-advisor"
+                          properties:
+                            image:
+                              description: |-
+                                image is the OCI image reference containing skills.
+                                The operator mounts this as a Kubernetes image volume (requires K8s 1.34+).
+                                Must be a valid OCI image pullspec: a domain, followed by a repository path,
+                                ending with either a tag (:tag) or a digest (@algorithm:hex).
+                                Must be 1-512 characters.
+                              maxLength: 512
+                              minLength: 1
+                              type: string
+                              x-kubernetes-validations:
+                              - message: must start with a valid domain. valid domains
+                                  must be alphanumeric characters (lowercase and uppercase)
+                                  separated by the '.' character.
+                                rule: self.matches('^([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9])((\\.([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]))+)?(:[0-9]+)?\\b')
+                              - message: a valid name is required. valid names must
+                                  contain lowercase alphanumeric characters separated
+                                  only by the '.', '_', '__', '-' characters.
+                                rule: self.find('(/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?((/[a-z0-9]+((([._]|__|[-]*)[a-z0-9]+)+)?)+)?)')
+                                  != ''
+                              - message: must end with a digest or a tag
+                                rule: self.find('(@.*:)') != '' || self.find(':.*$')
+                                  != ''
+                              - message: tag must not be more than 127 characters
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').substring(1).size()
+                                  <= 127 : true) : true'
+                              - message: tag is invalid. valid tags must begin with
+                                  a word character followed by word characters, '.',
+                                  or '-'
+                                rule: 'self.find(''(@.*:)'') == '''' ? (self.find('':.*$'')
+                                  != '''' ? self.find('':.*$'').matches('':[\\w][\\w.-]*$'')
+                                  : true) : true'
+                              - message: digest algorithm is not valid. valid algorithms
+                                  must start with an alpha character followed by alphanumeric
+                                  characters and may contain '-', '_', '+', and '.'
+                                  characters.
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find(''(@.*:)'').matches(''(@[A-Za-z][A-Za-z0-9]*([_+.][A-Za-z][A-Za-z0-9]*)*[:])'')
+                                  : true'
+                              - message: digest must be at least 32 characters
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').substring(1).size()
+                                  >= 32 : true'
+                              - message: digest must only contain hex characters (A-F,
+                                  a-f, 0-9)
+                                rule: 'self.find(''(@.*:)'') != '''' ? self.find('':.*$'').matches('':[0-9A-Fa-f]*$'')
+                                  : true'
+                            paths:
+                              description: |-
+                                paths restricts which directories from the image are mounted.
+                                Each path is mounted as a separate subPath volumeMount into the agent's
+                                skills directory. The last segment of each path becomes the mount name
+                                (e.g., "/skills/prometheus" mounts as "prometheus").
+
+                                Each path must be an absolute file path: starts with "/", no ".."
+                                or "." segments, no double slashes, no trailing slash, and only
+                                alphanumeric characters, hyphens, underscores, dots, and slashes.
+
+                                When omitted, the entire image is mounted as a single volume.
+                                Maximum 50 items.
+                              items:
+                                maxLength: 512
+                                minLength: 2
+                                type: string
+                              maxItems: 50
+                              minItems: 1
+                              type: array
+                              x-kubernetes-list-type: atomic
+                              x-kubernetes-validations:
+                              - message: each path must be 2-512 characters
+                                rule: self.all(p, p.size() >= 2 && p.size() <= 512)
+                              - message: each path must be absolute (start with '/')
+                                rule: self.all(p, p.startsWith('/'))
+                              - message: paths must not end with '/'
+                                rule: self.all(p, !p.endsWith('/'))
+                              - message: paths must not contain double slashes
+                                rule: self.all(p, !p.contains('//'))
+                              - message: paths must not contain '.' or '..' segments
+                                rule: self.all(p, !p.contains('/../') && !p.endsWith('/..')
+                                  && !p.contains('/./') && !p.endsWith('/.'))
+                              - message: paths may only contain alphanumeric characters,
+                                  '/', '_', '.', and '-'
+                                rule: self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))
+                          required:
+                          - image
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - image
+                        x-kubernetes-list-type: map
+                    type: object
+                type: object
+            required:
+            - analysis
+            - request
+            type: object
+            x-kubernetes-validations:
+            - message: analysis must be provided
+              rule: has(self.analysis)
+            - message: targetNamespaces is immutable once set
+              rule: '!has(oldSelf.targetNamespaces) || (has(self.targetNamespaces)
+                && self.targetNamespaces == oldSelf.targetNamespaces)'
+            - message: outputSchema is immutable once set
+              rule: '!has(oldSelf.outputSchema) || (has(self.outputSchema) && self.outputSchema
+                == oldSelf.outputSchema)'
+            - message: tools is immutable once set
+              rule: '!has(oldSelf.tools) || (has(self.tools) && self.tools == oldSelf.tools)'
+            - message: analysis is immutable once set
+              rule: '!has(oldSelf.analysis) || (has(self.analysis) && self.analysis
+                == oldSelf.analysis)'
+            - message: execution is immutable once set
+              rule: '!has(oldSelf.execution) || (has(self.execution) && self.execution
+                == oldSelf.execution)'
+            - message: verification is immutable once set
+              rule: '!has(oldSelf.verification) || (has(self.verification) && self.verification
+                == oldSelf.verification)'
+          status:
+            description: status defines the observed state of Proposal.
+            minProperties: 1
+            properties:
               conditions:
                 description: |-
                   conditions represent the latest available observations using the
@@ -312,80 +1732,23 @@ spec:
                   - status
                   - type
                   type: object
+                maxItems: 8
+                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              phase:
-                default: Pending
-                description: |-
-                  phase is the current phase of the proposal lifecycle.
-                  See ProposalPhase for the full state machine.
-                enum:
-                - Pending
-                - Analyzing
-                - Proposed
-                - Approved
-                - Denied
-                - Executing
-                - AwaitingSync
-                - Verifying
-                - Completed
-                - Failed
-                - Escalated
-                type: string
-              previousAttempts:
-                description: |-
-                  previousAttempts contains the failure history from earlier attempts.
-                  Each entry records which phase failed and why, giving the analysis
-                  agent on the next attempt context to avoid repeating the same mistake.
-                items:
-                  description: |-
-                    PreviousAttempt captures the state of a failed attempt. When a proposal
-                    fails and retries, the operator records the failure context here so that
-                    the analysis agent on the next attempt can learn from previous failures.
-                    If maxAttempts is reached, the full history of PreviousAttempts is
-                    included in the escalation child proposal.
-                  properties:
-                    attempt:
-                      description: attempt is the 1-based attempt number that failed.
-                      type: integer
-                    failedPhase:
-                      description: failedPhase is which step failed (analysis, execution,
-                        or verification).
-                      enum:
-                      - analysis
-                      - execution
-                      - verification
-                      type: string
-                    failureReason:
-                      description: failureReason is the error message or explanation
-                        from the failed step.
-                      type: string
-                  required:
-                  - attempt
-                  type: object
-                type: array
               steps:
                 description: |-
                   steps contains the per-step observed state (analysis, execution,
-                  verification). Each step independently tracks its phase, timing,
-                  sandbox info, and results.
+                  verification). Each step independently tracks its timing, sandbox
+                  info, and references to result CRs.
+                minProperties: 1
                 properties:
                   analysis:
                     description: analysis is the observed state of the analysis step.
+                    minProperties: 1
                     properties:
-                      completedAt:
-                        description: completedAt is when the step completed.
-                        format: date-time
-                        type: string
-                      components:
-                        description: |-
-                          components contains optional adapter-specific UI components that
-                          apply to the analysis step as a whole (not to a specific option).
-                        items:
-                          x-kubernetes-preserve-unknown-fields: true
-                        type: array
                       conditions:
                         description: conditions for this step.
                         items:
@@ -443,416 +1806,198 @@ spec:
                           - status
                           - type
                           type: object
+                        maxItems: 8
+                        minItems: 1
                         type: array
-                      options:
+                        x-kubernetes-list-map-keys:
+                        - type
+                        x-kubernetes-list-type: map
+                      results:
                         description: |-
-                          options contains one or more remediation options returned by the
-                          analysis agent. Each option has its own diagnosis, plan, verification
-                          strategy, and RBAC requirements. The user reviews these in the
-                          Proposed phase and selects one to approve.
+                          results references AnalysisResult CRs, newest last.
+                          Each entry corresponds to one analysis attempt.
                         items:
                           description: |-
-                            RemediationOption represents a single remediation approach produced by
-                            the analysis agent. The agent may return multiple options, each with
-                            its own diagnosis, remediation plan, verification strategy, and RBAC
-                            requirements. The user selects one option during the Proposed phase
-                            (recorded in AnalysisStepStatus.selectedOption), and the operator uses
-                            that option's RBAC and plan for the execution phase.
-
-                            The components field is an extensibility point for adapter-specific UI
-                            data. For example, an ACS adapter might include violation details or
-                            affected deployment information as components that the console plugin
-                            renders with custom components.
+                            StepResultRef is a lightweight reference to a result CR with an inline
+                            success field for quick scanning without fetching the CR.
                           properties:
-                            components:
-                              description: |-
-                                components contains optional adapter-defined structured data for
-                                custom console UI rendering. Each entry is a raw JSON object.
-                              items:
-                                x-kubernetes-preserve-unknown-fields: true
-                              type: array
-                            diagnosis:
-                              description: diagnosis contains the root cause analysis
-                                specific to this option.
-                              properties:
-                                confidence:
-                                  description: |-
-                                    confidence is the agent's self-assessed confidence in its diagnosis.
-                                    Higher confidence generally correlates with clearer symptoms and
-                                    more deterministic root causes.
-                                  enum:
-                                  - low
-                                  - medium
-                                  - high
-                                  type: string
-                                rootCause:
-                                  description: |-
-                                    rootCause is a concise one-line description of the identified root
-                                    cause (e.g., "OOMKilled due to memory limit of 256Mi").
-                                  type: string
-                                summary:
-                                  description: |-
-                                    summary is a human-readable diagnosis summary explaining the problem,
-                                    its symptoms, and the agent's findings.
-                                  type: string
-                              required:
-                              - confidence
-                              - rootCause
-                              - summary
-                              type: object
-                            proposal:
-                              description: proposal contains the remediation plan
-                                for this option.
-                              properties:
-                                actions:
-                                  description: actions is the ordered list of discrete
-                                    actions the agent proposes.
-                                  items:
-                                    description: |-
-                                      ProposedAction describes a single discrete action the analysis agent
-                                      recommends as part of its remediation plan. Actions are displayed to
-                                      the user in the Proposed phase for review before approval.
-                                    properties:
-                                      description:
-                                        description: |-
-                                          description is a human-readable explanation of what this action
-                                          will do (e.g., "Increase memory limit from 256Mi to 512Mi").
-                                        type: string
-                                      type:
-                                        description: |-
-                                          type is the action category (e.g., "patch", "scale", "restart",
-                                          "create", "delete", "rollout").
-                                        type: string
-                                    required:
-                                    - description
-                                    - type
-                                    type: object
-                                  type: array
-                                description:
-                                  description: |-
-                                    description is a human-readable summary of the overall remediation
-                                    approach.
-                                  type: string
-                                estimatedImpact:
-                                  description: |-
-                                    estimatedImpact describes the expected impact of the remediation
-                                    on the system (e.g., "Brief pod restart, ~30s downtime").
-                                  type: string
-                                reversible:
-                                  description: |-
-                                    reversible indicates whether the remediation can be rolled back
-                                    if something goes wrong. The rollback plan is in the
-                                    VerificationPlan.
-                                  type: boolean
-                                risk:
-                                  description: |-
-                                    risk is the agent's assessment of how risky the remediation is.
-                                    Critical-risk proposals typically require explicit human review.
-                                  enum:
-                                  - low
-                                  - medium
-                                  - high
-                                  - critical
-                                  type: string
-                              required:
-                              - actions
-                              - description
-                              - reversible
-                              - risk
-                              type: object
-                            rbac:
-                              description: |-
-                                rbac contains the RBAC permissions the execution agent will need.
-                                The operator's policy engine validates these before creating the
-                                actual Kubernetes RBAC resources. Omitted for advisory-only options.
-                              properties:
-                                clusterScoped:
-                                  description: |-
-                                    clusterScoped are rules that will be applied via ClusterRole +
-                                    ClusterRoleBinding. Used when the agent needs cross-namespace or
-                                    non-namespaced resource access (e.g., reading nodes, CRDs).
-                                  items:
-                                    description: |-
-                                      RBACRule describes a single RBAC permission that the analysis agent
-                                      requests for the execution phase. The operator's policy engine validates
-                                      these requests against a 6-layer defense model before creating the
-                                      actual Role/ClusterRole bindings. Each rule must include a justification
-                                      so that users and policy can audit why the permission is needed.
-                                    properties:
-                                      apiGroups:
-                                        description: apiGroups are the API groups
-                                          for this rule (e.g., "", "apps", "batch").
-                                        items:
-                                          type: string
-                                        type: array
-                                      justification:
-                                        description: |-
-                                          justification explains why this permission is needed for the
-                                          remediation (e.g., "Need to patch deployment to increase memory limit").
-                                          Required for audit and policy enforcement.
-                                        type: string
-                                      namespace:
-                                        description: |-
-                                          namespace is the target namespace for namespace-scoped rules.
-                                          Must match one of the proposal's targetNamespaces. Ignored for
-                                          cluster-scoped rules.
-                                        type: string
-                                      resourceNames:
-                                        description: |-
-                                          resourceNames restricts the rule to specific named resources.
-                                          When empty, the rule applies to all resources of the given type.
-                                        items:
-                                          type: string
-                                        type: array
-                                      resources:
-                                        description: resources are the resource types
-                                          (e.g., "pods", "deployments").
-                                        items:
-                                          type: string
-                                        type: array
-                                      verbs:
-                                        description: verbs are the allowed operations
-                                          (e.g., "get", "patch", "delete").
-                                        items:
-                                          type: string
-                                        type: array
-                                    required:
-                                    - apiGroups
-                                    - justification
-                                    - resources
-                                    - verbs
-                                    type: object
-                                  type: array
-                                namespaceScoped:
-                                  description: |-
-                                    namespaceScoped are rules that will be applied via Role + RoleBinding
-                                    in the proposal's target namespaces. These are the most common rules.
-                                  items:
-                                    description: |-
-                                      RBACRule describes a single RBAC permission that the analysis agent
-                                      requests for the execution phase. The operator's policy engine validates
-                                      these requests against a 6-layer defense model before creating the
-                                      actual Role/ClusterRole bindings. Each rule must include a justification
-                                      so that users and policy can audit why the permission is needed.
-                                    properties:
-                                      apiGroups:
-                                        description: apiGroups are the API groups
-                                          for this rule (e.g., "", "apps", "batch").
-                                        items:
-                                          type: string
-                                        type: array
-                                      justification:
-                                        description: |-
-                                          justification explains why this permission is needed for the
-                                          remediation (e.g., "Need to patch deployment to increase memory limit").
-                                          Required for audit and policy enforcement.
-                                        type: string
-                                      namespace:
-                                        description: |-
-                                          namespace is the target namespace for namespace-scoped rules.
-                                          Must match one of the proposal's targetNamespaces. Ignored for
-                                          cluster-scoped rules.
-                                        type: string
-                                      resourceNames:
-                                        description: |-
-                                          resourceNames restricts the rule to specific named resources.
-                                          When empty, the rule applies to all resources of the given type.
-                                        items:
-                                          type: string
-                                        type: array
-                                      resources:
-                                        description: resources are the resource types
-                                          (e.g., "pods", "deployments").
-                                        items:
-                                          type: string
-                                        type: array
-                                      verbs:
-                                        description: verbs are the allowed operations
-                                          (e.g., "get", "patch", "delete").
-                                        items:
-                                          type: string
-                                        type: array
-                                    required:
-                                    - apiGroups
-                                    - justification
-                                    - resources
-                                    - verbs
-                                    type: object
-                                  type: array
-                              type: object
-                            summary:
-                              description: |-
-                                summary is an optional one-line summary for collapsed views in the
-                                console UI.
-                              type: string
-                            title:
-                              description: |-
-                                title is a short human-readable name for this option
-                                (e.g., "Increase memory limit", "Restart with backoff").
+                            name:
+                              description: name is the name of the result CR.
+                              maxLength: 253
                               minLength: 1
                               type: string
-                            verification:
+                            outcome:
                               description: |-
-                                verification contains the verification plan. Omitted when
-                                verification is skipped in the workflow.
-                              properties:
-                                description:
-                                  description: description is a human-readable summary
-                                    of the verification approach.
-                                  type: string
-                                rollbackPlan:
-                                  description: |-
-                                    rollbackPlan describes how to undo the remediation if verification
-                                    fails. Displayed to the user and available to the verification agent.
-                                  properties:
-                                    command:
-                                      description: command is the rollback command
-                                        or steps to execute.
-                                      type: string
-                                    description:
-                                      description: description is a human-readable
-                                        explanation of the rollback strategy.
-                                      type: string
-                                  required:
-                                  - command
-                                  - description
-                                  type: object
-                                steps:
-                                  description: steps is the ordered list of verification
-                                    checks to run.
-                                  items:
-                                    description: |-
-                                      VerificationStep describes a single verification check that the
-                                      verification agent should run after execution. Populated by the
-                                      analysis agent as part of the RemediationOption.
-                                    properties:
-                                      command:
-                                        description: |-
-                                          command is the command or API call to run for this check
-                                          (e.g., "oc get pod -n production -l app=web -o jsonpath='{.items[0].status.phase}'").
-                                        type: string
-                                      expected:
-                                        description: |-
-                                          expected is the expected output or condition
-                                          (e.g., "Running", "ready=true").
-                                        type: string
-                                      name:
-                                        description: name is a short identifier for
-                                          this check (e.g., "pod-running").
-                                        type: string
-                                      type:
-                                        description: type categorizes the check (e.g.,
-                                          "command", "metric", "condition").
-                                        type: string
-                                    required:
-                                    - command
-                                    - expected
-                                    - name
-                                    - type
-                                    type: object
-                                  type: array
-                              required:
-                              - description
-                              type: object
+                                outcome indicates the result of this step attempt.
+                                Must be one of: Succeeded, Failed.
+                              enum:
+                              - Succeeded
+                              - Failed
+                              type: string
                           required:
-                          - diagnosis
-                          - proposal
-                          - title
+                          - name
+                          - outcome
                           type: object
+                        maxItems: 20
+                        minItems: 1
                         type: array
-                      phase:
-                        description: phase is the step phase.
-                        enum:
-                        - Pending
-                        - Running
-                        - Completed
-                        - Failed
-                        - Skipped
-                        type: string
+                        x-kubernetes-list-type: atomic
                       sandbox:
                         description: sandbox tracks the sandbox used.
                         properties:
                           claimName:
                             description: |-
                               claimName is the name of the SandboxClaim resource that owns the
-                              sandbox pod.
-                            type: string
-                          completedAt:
-                            description: completedAt is when the sandbox pod finished
-                              (success or failure).
-                            format: date-time
+                              sandbox pod. Maximum 253 characters.
+                            maxLength: 253
+                            minLength: 1
                             type: string
                           namespace:
-                            description: namespace is the namespace where the SandboxClaim
-                              and its pod live.
+                            description: |-
+                              namespace is the namespace where the SandboxClaim and its pod live.
+                              Must be a valid RFC 1123 DNS label.
+                            maxLength: 63
+                            minLength: 1
                             type: string
-                          startedAt:
-                            description: startedAt is when the sandbox pod was created.
-                            format: date-time
-                            type: string
+                            x-kubernetes-validations:
+                            - message: 'must be a valid DNS label: lowercase alphanumeric
+                                characters and hyphens, starting with an alphabetic
+                                character and ending with an alphanumeric character'
+                              rule: '!format.dns1123Label().validate(self).hasValue()'
+                        required:
+                        - claimName
+                        - namespace
                         type: object
-                      selectedOption:
-                        description: |-
-                          selectedOption is the 0-based index into the options array that the
-                          user approved. Set when the user approves the proposal. The operator
-                          uses this to determine which option's RBAC and plan to use for
-                          execution.
-                        minimum: 0
-                        type: integer
-                      startedAt:
-                        description: startedAt is when the step started.
-                        format: date-time
-                        type: string
+                    type: object
+                  escalation:
+                    description: escalation is the observed state of the escalation
+                      step.
+                    minProperties: 1
+                    properties:
+                      conditions:
+                        description: conditions for this step.
+                        items:
+                          description: Condition contains details for one aspect of
+                            the current state of this API Resource.
+                          properties:
+                            lastTransitionTime:
+                              description: |-
+                                lastTransitionTime is the last time the condition transitioned from one status to another.
+                                This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                              format: date-time
+                              type: string
+                            message:
+                              description: |-
+                                message is a human readable message indicating details about the transition.
+                                This may be an empty string.
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              description: |-
+                                observedGeneration represents the .metadata.generation that the condition was set based upon.
+                                For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                                with respect to the current state of the instance.
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              description: |-
+                                reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                                Producers of specific condition types may define expected values and meanings for this field,
+                                and whether the values are considered a guaranteed API.
+                                The value should be a CamelCase string.
+                                This field may not be empty.
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              description: status of the condition, one of True, False,
+                                Unknown.
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        maxItems: 8
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - type
+                        x-kubernetes-list-type: map
+                      results:
+                        description: results references EscalationResult CRs, newest
+                          last.
+                        items:
+                          description: |-
+                            StepResultRef is a lightweight reference to a result CR with an inline
+                            success field for quick scanning without fetching the CR.
+                          properties:
+                            name:
+                              description: name is the name of the result CR.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                            outcome:
+                              description: |-
+                                outcome indicates the result of this step attempt.
+                                Must be one of: Succeeded, Failed.
+                              enum:
+                              - Succeeded
+                              - Failed
+                              type: string
+                          required:
+                          - name
+                          - outcome
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      sandbox:
+                        description: sandbox tracks the sandbox used.
+                        properties:
+                          claimName:
+                            description: |-
+                              claimName is the name of the SandboxClaim resource that owns the
+                              sandbox pod. Maximum 253 characters.
+                            maxLength: 253
+                            minLength: 1
+                            type: string
+                          namespace:
+                            description: |-
+                              namespace is the namespace where the SandboxClaim and its pod live.
+                              Must be a valid RFC 1123 DNS label.
+                            maxLength: 63
+                            minLength: 1
+                            type: string
+                            x-kubernetes-validations:
+                            - message: 'must be a valid DNS label: lowercase alphanumeric
+                                characters and hyphens, starting with an alphabetic
+                                character and ending with an alphanumeric character'
+                              rule: '!format.dns1123Label().validate(self).hasValue()'
+                        required:
+                        - claimName
+                        - namespace
+                        type: object
                     type: object
                   execution:
                     description: execution is the observed state of the execution
                       step.
+                    minProperties: 1
                     properties:
-                      actionsTaken:
-                        description: actionsTaken lists what the agent did.
-                        items:
-                          description: |-
-                            ExecutionAction describes a single action taken by the execution agent
-                            during the Executing phase. These are recorded in ExecutionStepStatus
-                            to provide an audit trail of what the agent actually did.
-                          properties:
-                            description:
-                              description: |-
-                                description is what the agent did
-                                (e.g., "Patched deployment/web to set memory limit to 512Mi").
-                              type: string
-                            error:
-                              description: error is the error message if the action
-                                failed.
-                              type: string
-                            output:
-                              description: output is the command output or API response
-                                from the action.
-                              type: string
-                            success:
-                              description: success indicates whether this individual
-                                action succeeded.
-                              type: boolean
-                            type:
-                              description: type is the action category (e.g., "patch",
-                                "scale", "restart").
-                              type: string
-                          required:
-                          - description
-                          - success
-                          - type
-                          type: object
-                        type: array
-                      completedAt:
-                        description: completedAt is when the step completed.
-                        format: date-time
-                        type: string
-                      components:
-                        description: components contains optional adapter-defined
-                          structured data.
-                        items:
-                          x-kubernetes-preserve-unknown-fields: true
-                        type: array
                       conditions:
                         description: conditions for this step.
                         items:
@@ -910,111 +2055,83 @@ spec:
                           - status
                           - type
                           type: object
+                        maxItems: 8
+                        minItems: 1
                         type: array
-                      phase:
-                        description: phase is the step phase.
-                        enum:
-                        - Pending
-                        - Running
-                        - Completed
-                        - Failed
-                        - Skipped
-                        type: string
+                        x-kubernetes-list-map-keys:
+                        - type
+                        x-kubernetes-list-type: map
+                      results:
+                        description: |-
+                          results references ExecutionResult CRs, newest last.
+                          Each entry corresponds to one execution attempt (including retries).
+                        items:
+                          description: |-
+                            StepResultRef is a lightweight reference to a result CR with an inline
+                            success field for quick scanning without fetching the CR.
+                          properties:
+                            name:
+                              description: name is the name of the result CR.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                            outcome:
+                              description: |-
+                                outcome indicates the result of this step attempt.
+                                Must be one of: Succeeded, Failed.
+                              enum:
+                              - Succeeded
+                              - Failed
+                              type: string
+                          required:
+                          - name
+                          - outcome
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      retryCount:
+                        description: |-
+                          retryCount tracks how many times execution+verification has been
+                          retried for the current analysis option. Reset when a new analysis
+                          is run (initial or revision). The operator increments this on each
+                          objective verification failure before retrying execution.
+                        format: int32
+                        minimum: 0
+                        type: integer
                       sandbox:
                         description: sandbox tracks the sandbox used.
                         properties:
                           claimName:
                             description: |-
                               claimName is the name of the SandboxClaim resource that owns the
-                              sandbox pod.
-                            type: string
-                          completedAt:
-                            description: completedAt is when the sandbox pod finished
-                              (success or failure).
-                            format: date-time
+                              sandbox pod. Maximum 253 characters.
+                            maxLength: 253
+                            minLength: 1
                             type: string
                           namespace:
-                            description: namespace is the namespace where the SandboxClaim
-                              and its pod live.
-                            type: string
-                          startedAt:
-                            description: startedAt is when the sandbox pod was created.
-                            format: date-time
-                            type: string
-                        type: object
-                      startedAt:
-                        description: startedAt is when the step started.
-                        format: date-time
-                        type: string
-                      success:
-                        description: success indicates whether execution completed
-                          successfully.
-                        type: boolean
-                      verification:
-                        description: verification is the inline verification from
-                          the execution agent.
-                        properties:
-                          conditionImproved:
                             description: |-
-                              conditionImproved indicates whether the target condition improved
-                              after the remediation (e.g., pod is no longer CrashLoopBackOff).
-                            type: boolean
-                          summary:
-                            description: summary is a human-readable summary of the
-                              inline verification.
+                              namespace is the namespace where the SandboxClaim and its pod live.
+                              Must be a valid RFC 1123 DNS label.
+                            maxLength: 63
+                            minLength: 1
                             type: string
+                            x-kubernetes-validations:
+                            - message: 'must be a valid DNS label: lowercase alphanumeric
+                                characters and hyphens, starting with an alphabetic
+                                character and ending with an alphanumeric character'
+                              rule: '!format.dns1123Label().validate(self).hasValue()'
                         required:
-                        - conditionImproved
-                        - summary
+                        - claimName
+                        - namespace
                         type: object
                     type: object
                   verification:
                     description: verification is the observed state of the verification
                       step.
+                    minProperties: 1
                     properties:
-                      checks:
-                        description: checks contains individual verification check
-                          results.
-                        items:
-                          description: |-
-                            VerifyCheck is a single verification check result from the verification
-                            agent. Each check corresponds to a VerificationStep from the analysis
-                            agent's verification plan.
-                          properties:
-                            name:
-                              description: name is the check identifier, matching
-                                the VerificationStep name.
-                              type: string
-                            passed:
-                              description: |-
-                                passed indicates whether the check's observed value matches
-                                the expected value.
-                              type: boolean
-                            source:
-                              description: source is what performed the check (e.g.,
-                                "oc", "promql", "curl").
-                              type: string
-                            value:
-                              description: value is the actual observed value (e.g.,
-                                "Running", "3 replicas").
-                              type: string
-                          required:
-                          - name
-                          - passed
-                          - source
-                          - value
-                          type: object
-                        type: array
-                      completedAt:
-                        description: completedAt is when the step completed.
-                        format: date-time
-                        type: string
-                      components:
-                        description: components contains optional adapter-defined
-                          structured data.
-                        items:
-                          x-kubernetes-preserve-unknown-fields: true
-                        type: array
                       conditions:
                         description: conditions for this step.
                         items:
@@ -1072,52 +2189,70 @@ spec:
                           - status
                           - type
                           type: object
+                        maxItems: 8
+                        minItems: 1
                         type: array
-                      phase:
-                        description: phase is the step phase.
-                        enum:
-                        - Pending
-                        - Running
-                        - Completed
-                        - Failed
-                        - Skipped
-                        type: string
+                        x-kubernetes-list-map-keys:
+                        - type
+                        x-kubernetes-list-type: map
+                      results:
+                        description: |-
+                          results references VerificationResult CRs, newest last.
+                          Each entry corresponds to one verification attempt (including retries).
+                        items:
+                          description: |-
+                            StepResultRef is a lightweight reference to a result CR with an inline
+                            success field for quick scanning without fetching the CR.
+                          properties:
+                            name:
+                              description: name is the name of the result CR.
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                            outcome:
+                              description: |-
+                                outcome indicates the result of this step attempt.
+                                Must be one of: Succeeded, Failed.
+                              enum:
+                              - Succeeded
+                              - Failed
+                              type: string
+                          required:
+                          - name
+                          - outcome
+                          type: object
+                        maxItems: 20
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-type: atomic
                       sandbox:
                         description: sandbox tracks the sandbox used.
                         properties:
                           claimName:
                             description: |-
                               claimName is the name of the SandboxClaim resource that owns the
-                              sandbox pod.
-                            type: string
-                          completedAt:
-                            description: completedAt is when the sandbox pod finished
-                              (success or failure).
-                            format: date-time
+                              sandbox pod. Maximum 253 characters.
+                            maxLength: 253
+                            minLength: 1
                             type: string
                           namespace:
-                            description: namespace is the namespace where the SandboxClaim
-                              and its pod live.
+                            description: |-
+                              namespace is the namespace where the SandboxClaim and its pod live.
+                              Must be a valid RFC 1123 DNS label.
+                            maxLength: 63
+                            minLength: 1
                             type: string
-                          startedAt:
-                            description: startedAt is when the sandbox pod was created.
-                            format: date-time
-                            type: string
+                            x-kubernetes-validations:
+                            - message: 'must be a valid DNS label: lowercase alphanumeric
+                                characters and hyphens, starting with an alphabetic
+                                character and ending with an alphanumeric character'
+                              rule: '!format.dns1123Label().validate(self).hasValue()'
+                        required:
+                        - claimName
+                        - namespace
                         type: object
-                      startedAt:
-                        description: startedAt is when the step started.
-                        format: date-time
-                        type: string
-                      success:
-                        description: success indicates whether verification passed.
-                        type: boolean
-                      summary:
-                        description: summary is a human-readable verification summary.
-                        type: string
                     type: object
                 type: object
-            required:
-            - phase
             type: object
         required:
         - spec

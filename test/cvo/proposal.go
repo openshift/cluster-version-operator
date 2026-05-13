@@ -19,9 +19,9 @@ import (
 	oteginkgo "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
-	proposalv1alpha1 "github.com/openshift/cluster-version-operator/pkg/proposal/api/v1alpha1"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
@@ -82,7 +82,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should install light speed CRDs correctly", func() {
-		for _, name := range []string{"proposals.agentic.openshift.io", "agents.agentic.openshift.io", "workflows.agentic.openshift.io"} {
+		for _, name := range []string{"proposals.agentic.openshift.io", "agents.agentic.openshift.io", "analysisresults.agentic.openshift.io", "llmproviders.agentic.openshift.io"} {
 			_, err := apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
 			if util.IsTechPreviewNoUpgrade(ctx, c) {
 				o.Expect(err).To(o.BeNil())
