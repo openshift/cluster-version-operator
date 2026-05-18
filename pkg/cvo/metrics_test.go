@@ -17,7 +17,9 @@ import (
 	dto "github.com/prometheus/client_model/go"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	"k8s.io/client-go/tools/record"
@@ -1427,4 +1429,128 @@ func (m *mockCAProvider) VerifyOptions() (x509.VerifyOptions, bool) {
 }
 
 func (m *mockCAProvider) AddListener(_ dynamiccertificates.Listener) {
+}
+
+type apiServerLister struct {
+	apiServer *configv1.APIServer
+}
+
+func (r *apiServerLister) List(selector labels.Selector) ([]*configv1.APIServer, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (r *apiServerLister) Get(name string) (*configv1.APIServer, error) {
+	if r.apiServer != nil && r.apiServer.Name == name {
+		return r.apiServer, nil
+	}
+	return nil, apierrors.NewNotFound(configv1.Resource("apiserver"), name)
+}
+
+func TestObserveAPIServerTLSConfig(t *testing.T) {
+	tests := []struct {
+		name             string
+		apiServer        *configv1.APIServer
+		expectMinVersion uint16
+		checkCiphers     bool
+	}{
+		{
+			name: "custom TLS profile",
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS13,
+								Ciphers: []string{
+									"TLS_AES_128_GCM_SHA256",
+									"TLS_AES_256_GCM_SHA384",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectMinVersion: tls.VersionTLS13,
+			checkCiphers:     true,
+		},
+		{
+			name: "intermediate TLS profile",
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileIntermediateType,
+					},
+				},
+			},
+			expectMinVersion: tls.VersionTLS12,
+			checkCiphers:     true,
+		},
+		{
+			name:             "no APIServer object (uses defaults)",
+			apiServer:        nil,
+			expectMinVersion: tls.VersionTLS12, // default is intermediate
+			checkCiphers:     true,
+		},
+		{
+			name: "nil TLS profile (uses defaults)",
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec:       configv1.APIServerSpec{},
+			},
+			expectMinVersion: tls.VersionTLS12,
+			checkCiphers:     true,
+		},
+		{
+			name: "custom TLS profile type but no custom spec (uses defaults)",
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+					},
+				},
+			},
+			expectMinVersion: tls.VersionTLS12,
+			checkCiphers:     true,
+		},
+		{
+			name: "invalid TLS version and cipher suites (uses defaults)",
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: "InvalidTLSVersion",
+								Ciphers: []string{
+									"RANDOM_CIPHER_123",
+									"INVALID_CIPHER_XYZ",
+									"NOT_A_REAL_CIPHER",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectMinVersion: tls.VersionTLS12,
+			checkCiphers:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lister := &apiServerLister{apiServer: tt.apiServer}
+			minVer, ciphers := ObserveAPIServerTLSConfig(lister)
+			if minVer != tt.expectMinVersion {
+				t.Errorf("expected minTLSVersion 0x%04x, got 0x%04x", tt.expectMinVersion, minVer)
+			}
+			if tt.checkCiphers && len(ciphers) == 0 {
+				t.Errorf("expected cipher suites to be non-empty")
+			}
+		})
+	}
 }

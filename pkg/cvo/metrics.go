@@ -27,6 +27,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
@@ -267,6 +268,69 @@ type MetricsOptions struct {
 
 	DisableAuthentication bool
 	DisableAuthorization  bool
+
+	// TLS configuration observed from APIServer cluster object
+	MinTLSVersion uint16
+	CipherSuites  []uint16
+}
+
+// ObserveAPIServerTLSConfig extracts and converts TLS configuration from the
+// APIServer object. Always returns valid defaults even if APIServer object is
+// missing or invalid (errors are logged).
+func ObserveAPIServerTLSConfig(lister configlistersv1.APIServerLister) (uint16, []uint16) {
+	defaultProfileConfig := configv1.TLSProfiles[crypto.DefaultTLSProfileType]
+	defaultMinTLS := crypto.TLSVersionOrDie(string(defaultProfileConfig.MinTLSVersion))
+	defaultCipherSuites := crypto.CipherSuitesOrDie(crypto.OpenSSLToIANACipherSuites(defaultProfileConfig.Ciphers))
+
+	apiServer, err := lister.Get("cluster")
+	if err != nil {
+		klog.Warningf("Unable to read APIServer object, using default TLS profile: %v", err)
+		return defaultMinTLS, defaultCipherSuites
+	}
+
+	profile := apiServer.Spec.TLSSecurityProfile
+	if profile == nil {
+		return defaultMinTLS, defaultCipherSuites
+	}
+
+	profileConfig := configv1.TLSProfiles[profile.Type]
+	if profile.Type == configv1.TLSProfileCustomType {
+		if profile.Custom == nil {
+			klog.Warningf("APIServer TLS profile type is Custom but no custom spec provided, using default TLS profile")
+			return defaultMinTLS, defaultCipherSuites
+		}
+		profileConfig = &profile.Custom.TLSProfileSpec
+	}
+
+	if profileConfig == nil {
+		klog.Warningf("TLS config for profile %q not found, using default TLS profile", profile.Type)
+		return defaultMinTLS, defaultCipherSuites
+	}
+
+	minTLSVersion, err := crypto.TLSVersion(string(profileConfig.MinTLSVersion))
+	if err != nil {
+		klog.Warningf("Invalid minTLSVersion %q in APIServer TLS profile, using default TLS profile: %v", profileConfig.MinTLSVersion, err)
+		return defaultMinTLS, defaultCipherSuites
+	}
+
+	// convert OpenSSL cipher names to IANA names.
+	ianaCiphers := crypto.OpenSSLToIANACipherSuites(profileConfig.Ciphers)
+	if len(ianaCiphers) == 0 {
+		klog.Warningf("Failed to convert APIServer cipher suites %v to IANA format, using default TLS profile", profileConfig.Ciphers)
+		return defaultMinTLS, defaultCipherSuites
+	}
+
+	cipherSuites := make([]uint16, 0, len(ianaCiphers))
+	for _, cipherName := range ianaCiphers {
+		cipher, err := crypto.CipherSuite(cipherName)
+		if err != nil {
+			klog.Warningf("Invalid cipher suite %q in APIServer TLS profile, using default TLS profile: %v", cipherName, err)
+			return defaultMinTLS, defaultCipherSuites
+		}
+		cipherSuites = append(cipherSuites, cipher)
+	}
+
+	return minTLSVersion, cipherSuites
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
@@ -362,6 +426,11 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	// which generates updated configs via GetConfigForClient callback on each TLS handshake.
 	// This enables automatic certificate rotation without server restarts.
 	baseTlSConfig := crypto.SecureTLSConfig(&tls.Config{ClientAuth: clientAuth})
+
+	// Apply APIServer TLS configuration from options
+	baseTlSConfig.MinVersion = options.MinTLSVersion
+	baseTlSConfig.CipherSuites = options.CipherSuites
+
 	servingCertController := dynamiccertificates.NewDynamicServingCertificateController(
 		baseTlSConfig,
 		clientCA,

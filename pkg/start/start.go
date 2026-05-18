@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -326,6 +328,9 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 	resultChannel := make(chan asyncResult, 1)
 	resultChannelCount := 0
 
+	apiServerLister := controllerCtx.ConfigInformerFactory.Config().V1().APIServers().Lister()
+	apiServerSharedIndexInformer := controllerCtx.ConfigInformerFactory.Config().V1().APIServers().Informer()
+
 	informersDone := postMainContext.Done()
 	// FIXME: would be nice if there was a way to collect these.
 	controllerCtx.ClusterVersionInformerFactory.Start(informersDone)
@@ -335,6 +340,13 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 	controllerCtx.OperatorInformerFactory.Start(informersDone)
 
 	allSynced := controllerCtx.ClusterVersionInformerFactory.WaitForCacheSync(informersDone)
+	for _, synced := range allSynced {
+		if !synced {
+			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
+		}
+	}
+
+	allSynced = controllerCtx.ConfigInformerFactory.WaitForCacheSync(informersDone)
 	for _, synced := range allSynced {
 		if !synced {
 			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
@@ -355,6 +367,27 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 				OnStartedLeading: func(_ context.Context) { // no need for this passed-through postMainContext, because goroutines we launch inside will use runContext
 					launchedMain = true
 					if o.MetricsOptions.ListenAddress != "" {
+						startMinTLSVersion, startCipherSuites := cvo.ObserveAPIServerTLSConfig(apiServerLister)
+						apiServerHandler := func() {
+							currentMinTLS, currentCiphers := cvo.ObserveAPIServerTLSConfig(apiServerLister)
+							if currentMinTLS == startMinTLSVersion && slices.Equal(currentCiphers, startCipherSuites) {
+								return
+							}
+							klog.Infof("APIServer TLS configuration changed; requesting shutdown")
+							runCancel()
+						}
+
+						if _, err := apiServerSharedIndexInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+							UpdateFunc: func(_, _ any) { apiServerHandler() },
+							AddFunc:    func(_ any) { apiServerHandler() },
+							DeleteFunc: func(_ any) { apiServerHandler() },
+						}); err != nil {
+							klog.Warningf("Failed to add watcher for APIServer Config: %v", err)
+						}
+
+						o.MetricsOptions.MinTLSVersion = startMinTLSVersion
+						o.MetricsOptions.CipherSuites = startCipherSuites
+
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
