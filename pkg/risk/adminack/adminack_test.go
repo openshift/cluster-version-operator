@@ -69,7 +69,7 @@ func Test_New(t *testing.T) {
 			expectedRisks: []configv1.ConditionalUpdateRisk{{
 				Name:          "AdminAck-ack-4.21-test",
 				Message:       "Description.",
-				URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+				URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 				MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 			}},
 		},
@@ -86,7 +86,7 @@ func Test_New(t *testing.T) {
 			expectedRisks: []configv1.ConditionalUpdateRisk{{
 				Name:          "AdminAck-ack-4.21-test",
 				Message:       "Description A.",
-				URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+				URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 				MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 			}},
 		},
@@ -104,7 +104,7 @@ func Test_New(t *testing.T) {
 				{
 					Name:          "AdminAck-ack-4.21-with-description",
 					Message:       "Description.",
-					URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+					URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 				},
 				{
@@ -130,20 +130,20 @@ func Test_New(t *testing.T) {
 				{
 					Name:          "AdminAck-ack-4.21-a",
 					Message:       "Description 1.",
-					URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+					URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 				},
 				{
 					Name:          "AdminAck-ack-4.21-b",
 					Message:       "Description 2.",
-					URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+					URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 				},
 
 				{
 					Name:          "AdminAck-ack-4.21-c",
 					Message:       "Description 3.",
-					URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+					URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 				},
 			},
@@ -176,7 +176,7 @@ func Test_New(t *testing.T) {
 			expectedRisks: []configv1.ConditionalUpdateRisk{{
 				Name:          "AdminAck-ack-4.21-b",
 				Message:       "Description 2.",
-				URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+				URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
 				MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 			}},
 		},
@@ -446,6 +446,66 @@ func Test_gateApplicableToCurrentVersion(t *testing.T) {
 					t.Errorf("gateApplicableToCurrentVersion() unexpected error: %v", err)
 				} else if err == nil && tt.wantErr {
 					t.Error("gateApplicableToCurrentVersion() unexpected success when an error was expected")
+				}
+			})
+		}
+	}
+}
+
+func Test_checkAdminGate(t *testing.T) {
+	riskNamePrefix := "AdminAck-"
+	tests := []struct {
+		name           string
+		gateName       string
+		gateValue      string
+		currentVersion string
+		ackConfigmap   *corev1.ConfigMap
+		expectedRisk   *configv1.ConditionalUpdateRisk
+	}{
+		{
+			name:           "valid gate not acknowledged",
+			gateName:       "ack-4.20-sigstore-in-4.21",
+			gateValue:      "This cluster has mirrors configured. 4.21 will require Sigstore signatures for quay.io/openshift-release-dev/ocp-release release verification. Please ensure that any registries configured as mirrors of quay.io/openshift-release-dev/ocp-release images contain the Sigstore signature images associated with any release images before updating to 4.21. See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/nodes/nodes-sigstore-using.html#nodes-sigstore-prepare-for-4.21_nodes-sigstore-using for more details.",
+			currentVersion: "4.20.15",
+			expectedRisk: &configv1.ConditionalUpdateRisk{
+				Name:          "AdminAck-ack-4.20-sigstore-in-4.21",
+				Message:       "This cluster has mirrors configured. 4.21 will require Sigstore signatures for quay.io/openshift-release-dev/ocp-release release verification. Please ensure that any registries configured as mirrors of quay.io/openshift-release-dev/ocp-release images contain the Sigstore signature images associated with any release images before updating to 4.21. See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/nodes/nodes-sigstore-using.html#nodes-sigstore-prepare-for-4.21_nodes-sigstore-using for more details.",
+				URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/nodes/nodes-sigstore-using.html#nodes-sigstore-prepare-for-4.21_nodes-sigstore-using",
+				MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+			},
+		},
+		{
+			name:           "valid gate not acknowledged, newline at end of URI",
+			gateName:       "ack-4.20-sigstore-in-4.21",
+			gateValue:      "This cluster has mirrors configured. See https://example.com/\nfor details.",
+			currentVersion: "4.20.15",
+			expectedRisk: &configv1.ConditionalUpdateRisk{
+				Name:          "AdminAck-ack-4.20-sigstore-in-4.21",
+				Message:       "This cluster has mirrors configured. See https://example.com/\nfor details.",
+				URL:           "https://example.com/",
+				MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+			},
+		},
+		{
+			name:           "valid gate acknowledged",
+			gateName:       "ack-4.20-sigstore-in-4.21",
+			gateValue:      "This cluster has mirrors configured. 4.21 will require Sigstore signatures for quay.io/openshift-release-dev/ocp-release release verification. Please ensure that any registries configured as mirrors of quay.io/openshift-release-dev/ocp-release images contain the Sigstore signature images associated with any release images before updating to 4.21. See https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/nodes/nodes-sigstore-using.html#nodes-sigstore-prepare-for-4.21_nodes-sigstore-using for more details.",
+			currentVersion: "4.20.15",
+			ackConfigmap: &corev1.ConfigMap{
+				Data: map[string]string{"ack-4.20-sigstore-in-4.21": "true"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		{
+			t.Run(tt.name, func(t *testing.T) {
+				version, err := semver.Parse(tt.currentVersion)
+				if err != nil {
+					t.Fatalf("unable to parse version %q: %v", tt.currentVersion, err)
+				}
+				risk := checkAdminGate(tt.gateName, tt.gateValue, riskNamePrefix, version, tt.ackConfigmap)
+				if diff := cmp.Diff(tt.expectedRisk, risk); diff != "" {
+					t.Errorf("risk mismatch (-want +got):\n%s", diff)
 				}
 			})
 		}

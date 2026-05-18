@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -32,6 +33,7 @@ const (
 )
 
 var adminAckGateRegexp = regexp.MustCompile(adminAckGateFmt)
+var uriRegexp = regexp.MustCompile("https://[^[:space:]]*")
 
 type adminAck struct {
 	name             string
@@ -169,6 +171,7 @@ func gateApplicableToCurrentVersion(gateName string, currentVersion semver.Versi
 }
 
 func checkAdminGate(gateName string, gateValue string, riskNamePrefix string, currentVersion semver.Version, ackConfigmap *corev1.ConfigMap) *configv1.ConditionalUpdateRisk {
+	uri := "https://docs.redhat.com/en/documentation/openshift_container_platform/"
 	riskName := fmt.Sprintf("%s%s", riskNamePrefix, gateName)
 	if applies, err := gateApplicableToCurrentVersion(gateName, currentVersion); err == nil {
 		if !applies {
@@ -178,7 +181,7 @@ func checkAdminGate(gateName string, gateValue string, riskNamePrefix string, cu
 		return &configv1.ConditionalUpdateRisk{
 			Name:          riskName,
 			Message:       fmt.Sprintf("%s configmap gate %q is invalid: %v", internal.AdminGatesConfigMap, gateName, err),
-			URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
+			URL:           uri,
 			MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 		}
 
@@ -187,15 +190,32 @@ func checkAdminGate(gateName string, gateValue string, riskNamePrefix string, cu
 		return &configv1.ConditionalUpdateRisk{
 			Name:          riskName,
 			Message:       fmt.Sprintf("%s configmap gate %s must contain a non-empty value.", internal.AdminGatesConfigMap, gateName),
-			URL:           "https://docs.redhat.com/en/documentation/openshift_container_platform/",
+			URL:           uri,
 			MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 		}
 	}
+
+	for _, match := range uriRegexp.FindAllString(gateValue, -1) {
+		if _, err := url.Parse(match); err == nil {
+			uri = match
+			break
+		}
+	}
+
+	if ackConfigmap == nil {
+		return &configv1.ConditionalUpdateRisk{
+			Name:          riskName,
+			Message:       gateValue,
+			URL:           uri,
+			MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+		}
+	}
+
 	if val, ok := ackConfigmap.Data[gateName]; !ok || val != "true" {
 		return &configv1.ConditionalUpdateRisk{
 			Name:          riskName,
 			Message:       gateValue,
-			URL:           "https://example.com/FIXME-look-for-a-URI-in-the-message",
+			URL:           uri,
 			MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
 		}
 	}
