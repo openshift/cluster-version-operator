@@ -638,11 +638,11 @@ func setUpgradeableCondition(ctx context.Context, cvStatus *configv1.ClusterVers
 	}
 
 	// remove obsolete subconditions
-	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableAdminAckRequired)
-	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableDeletesInProgress)
-	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterOperators)
-	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterVersionOverrides)
-	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableUpgradeInProgress)
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableAdminAckRequired)        //nolint:staticcheck // Ignore SA1019 until 5.1
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableDeletesInProgress)       //nolint:staticcheck // Ignore SA1019 until 5.1
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterOperators)        //nolint:staticcheck // Ignore SA1019 until 5.1
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableClusterVersionOverrides) //nolint:staticcheck // Ignore SA1019 until 5.1
+	resourcemerge.RemoveOperatorStatusCondition(&cvStatus.Conditions, internal.UpgradeableUpgradeInProgress)       //nolint:staticcheck // Ignore SA1019 until 5.1
 
 	if len(risks) == 0 {
 		if err != nil {

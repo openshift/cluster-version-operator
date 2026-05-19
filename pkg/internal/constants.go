@@ -70,18 +70,33 @@ const (
 
 	// UpgradeableAdminAckRequired is False if there is API removed from the Kubernetes API server which requires admin
 	// consideration, and thus update to the next minor or major version is blocked.
+	//
+	// Deprecated: In 5.0, we stopped populating Upgradeable* subconditions, and now populate Upgradeable directly.
+	// The constants remain so we can remove them from 5.0 ClusterVersion status, but we will remove the constants themselves in 5.1.
 	UpgradeableAdminAckRequired configv1.ClusterStatusConditionType = "UpgradeableAdminAckRequired"
 	// UpgradeableDeletesInProgress is False if deleting resources is in progress, and thus update to the next minor or major
 	// version is blocked.
+	//
+	// Deprecated: In 5.0, we stopped populating Upgradeable* subconditions, and now populate Upgradeable directly.
+	// The constants remain so we can remove them from 5.0 ClusterVersion status, but we will remove the constants themselves in 5.1.
 	UpgradeableDeletesInProgress configv1.ClusterStatusConditionType = "UpgradeableDeletesInProgress"
 	// UpgradeableClusterOperators is False if something is wrong with Cluster Operators, and thus update to the next minor or major
 	// version is blocked.
+	//
+	// Deprecated: In 5.0, we stopped populating Upgradeable* subconditions, and now populate Upgradeable directly.
+	// The constants remain so we can remove them from 5.0 ClusterVersion status, but we will remove the constants themselves in 5.1.
 	UpgradeableClusterOperators configv1.ClusterStatusConditionType = "UpgradeableClusterOperators"
 	// UpgradeableClusterVersionOverrides is False if there are overrides in the Cluster Version, and thus update to the next minor or major
 	// version is blocked.
+	//
+	// Deprecated: In 5.0, we stopped populating Upgradeable* subconditions, and now populate Upgradeable directly.
+	// The constants remain so we can remove them from 5.0 ClusterVersion status, but we will remove the constants themselves in 5.1.
 	UpgradeableClusterVersionOverrides configv1.ClusterStatusConditionType = "UpgradeableClusterVersionOverrides"
 
 	// UpgradeableUpgradeInProgress is True if an update is in progress.
+	//
+	// Deprecated: In 5.0, we stopped populating Upgradeable* subconditions, and now populate Upgradeable directly.
+	// The constants remain so we can remove them from 5.0 ClusterVersion status, but we will remove the constants themselves in 5.1.
 	UpgradeableUpgradeInProgress configv1.ClusterStatusConditionType = "UpgradeableUpgradeInProgress"
 
 	// ConditionalUpdateConditionTypeRecommended is a type of the condition present on a conditional update
