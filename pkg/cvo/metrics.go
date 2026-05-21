@@ -27,12 +27,10 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
-	cvotls "github.com/openshift/cluster-version-operator/pkg/tls"
 )
 
 // RegisterMetrics initializes metrics and registers them with the
@@ -269,8 +267,6 @@ type MetricsOptions struct {
 
 	DisableAuthentication bool
 	DisableAuthorization  bool
-
-	TLSOptions cvotls.Options
 }
 
 // RunMetrics launches an HTTPS server bound to listenAddress serving
@@ -280,28 +276,13 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, apiServerInformer configinformersv1.APIServerInformer, options MetricsOptions) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, applySettings func(config *tls.Config), options MetricsOptions) error {
 	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
 
 	if options.DisableAuthentication && !options.DisableAuthorization {
 		return errors.New("invalid configuration: cannot enable authorization without authentication")
-	}
-
-	// Validate and parse TLS overrides once at startup
-	overrides, err := options.TLSOptions.ValidateTLSOverrides()
-	if err != nil {
-		return fmt.Errorf("invalid TLS configuration: %w", err)
-	}
-
-	if overrides != nil {
-		if overrides.MinVersion != 0 {
-			klog.V(2).Infof("TLS min version override: %d (will override central TLS profile)", overrides.MinVersion)
-		}
-		if len(overrides.CipherSuites) > 0 {
-			klog.V(2).Infof("TLS cipher suites override: %v (will override central TLS profile)", overrides.CipherSuites)
-		}
 	}
 
 	// Prepare synchronization for to-be created go routines
@@ -408,11 +389,6 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 
 	server := createHttpServer(options, clientCA)
 
-	profileMgr, err := cvotls.NewProfileManager(apiServerInformer, overrides)
-	if err != nil {
-		return fmt.Errorf("failed to initialize TLS profile manager: %w", err)
-	}
-
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
@@ -425,7 +401,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				return nil, err
 			}
 
-			profileMgr.ApplySettings(config)
+			applySettings(config)
 
 			return config, nil
 		},
