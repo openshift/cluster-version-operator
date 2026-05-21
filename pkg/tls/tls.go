@@ -46,7 +46,7 @@ func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, ov
 		klog.Warningf("Failed to initialize TLS profile: %v, using safe defaults", err)
 	}
 
-	if err := mgr.registerEventHandlers(apiServerInformer); err != nil {
+	if err := registerEventHandlers(apiServerInformer, mgr.updateSettings); err != nil {
 		return nil, fmt.Errorf("failed to register APIServer event handlers: %w", err)
 	}
 
@@ -55,7 +55,7 @@ func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, ov
 
 // updateSettings resolves and caches the TLS profile apply function.
 func (m *ProfileManager) updateSettings(apiServer *configv1.APIServer) error {
-	applyFunc, err := m.resolveTLSProfile(apiServer)
+	applyFunc, err := resolveTLSProfile(apiServer)
 	if err != nil {
 		klog.Warningf("Failed to update TLS profile, keeping previous profile: %v", err)
 		return err
@@ -72,7 +72,7 @@ func (m *ProfileManager) updateSettings(apiServer *configv1.APIServer) error {
 }
 
 // resolveTLSProfile resolves the TLS profile apply function from the APIServer resource.
-func (m *ProfileManager) resolveTLSProfile(apiServer *configv1.APIServer) (func(*tls.Config), error) {
+func resolveTLSProfile(apiServer *configv1.APIServer) (func(*tls.Config), error) {
 	// No APIServer or TLS adherence disabled
 	if apiServer == nil || !crypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence) {
 		return nil, nil
@@ -120,24 +120,24 @@ func (m *ProfileManager) ApplySettings(config *tls.Config) {
 
 // registerEventHandlers registers event handlers on the APIServer informer to watch for
 // TLS profile changes and update the cached profile accordingly.
-func (m *ProfileManager) registerEventHandlers(apiServerInformer configinformersv1.APIServerInformer) error {
+func registerEventHandlers(apiServerInformer configinformersv1.APIServerInformer, updateSettings func(apiServer *configv1.APIServer) error) error {
 	_, err := apiServerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			if apiServer, ok := obj.(*configv1.APIServer); ok {
-				if err := m.updateSettings(apiServer); err != nil {
+				if err := updateSettings(apiServer); err != nil {
 					klog.Errorf("Failed to apply TLS settings on APIServer add: %v", err)
 				}
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			if apiServer, ok := newObj.(*configv1.APIServer); ok {
-				if err := m.updateSettings(apiServer); err != nil {
+				if err := updateSettings(apiServer); err != nil {
 					klog.Errorf("Failed to apply TLS settings on APIServer update: %v", err)
 				}
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			if err := m.updateSettings(nil); err != nil {
+			if err := updateSettings(nil); err != nil {
 				klog.Errorf("Failed to apply fallback TLS settings on APIServer delete: %v", err)
 			}
 		},
