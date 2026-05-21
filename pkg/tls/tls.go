@@ -156,14 +156,22 @@ type Options struct {
 	// CipherSuitesOverride is the list of allowed cipher suites for the server.
 	// When set, it takes precedence over the central TLS profile.
 	CipherSuitesOverride []string
+
+	settings *Settings
 }
 
-// ValidateTLSOverrides validates the TLS override options and returns parsed values.
+// GetOverrides returns TLS overrides.
+// It should be called after CreateOverrides.
+func (o *Options) GetOverrides() *Settings {
+	return o.settings
+}
+
+// CreateOverrides creates the TLS override options and returns parsed values.
 // Returns nil if no overrides are configured.
-func (o Options) ValidateTLSOverrides() (*Settings, error) {
+func (o *Options) CreateOverrides() error {
 	// If no overrides, return nil (central profile or defaults will be used)
 	if o.MinVersionOverride == "" && len(o.CipherSuitesOverride) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	validated := &Settings{}
@@ -171,7 +179,7 @@ func (o Options) ValidateTLSOverrides() (*Settings, error) {
 	if o.MinVersionOverride != "" {
 		minVersion, err := cliflag.TLSVersion(o.MinVersionOverride)
 		if err != nil {
-			return nil, fmt.Errorf("invalid --tls-min-version %q: %w (valid values: %v)", o.MinVersionOverride, err, cliflag.TLSPossibleVersions())
+			return fmt.Errorf("invalid --tls-min-version %q: %w (valid values: %v)", o.MinVersionOverride, err, cliflag.TLSPossibleVersions())
 		}
 		validated.MinVersion = minVersion
 	}
@@ -179,10 +187,11 @@ func (o Options) ValidateTLSOverrides() (*Settings, error) {
 	if len(o.CipherSuitesOverride) > 0 {
 		cipherSuites, err := cliflag.TLSCipherSuites(o.CipherSuitesOverride)
 		if err != nil {
-			return nil, fmt.Errorf("invalid --tls-cipher-suites: %w", err)
+			return fmt.Errorf("invalid --tls-cipher-suites: %w", err)
 		}
 		validated.CipherSuites = cipherSuites
 	}
 
-	return validated, nil
+	o.settings = validated
+	return nil
 }
