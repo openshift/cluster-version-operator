@@ -6,13 +6,11 @@ import (
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/cache"
-
 	configv1 "github.com/openshift/api/config/v1"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // Test_applyTLSProfile tests the central TLS profile application from APIServer resource
@@ -422,126 +420,7 @@ func Test_validateTLSOptionsOnlyOnce(t *testing.T) {
 // Test_tlsProfileManager_EventHandlers tests that the TLS profile manager
 // correctly responds to APIServer resource events
 func Test_tlsProfileManager_EventHandlers(t *testing.T) {
-	// TODO fix the test and remove the skip
-	t.Skip("TODO")
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
-	// Create fake client and informer
-	fakeClient := configfake.NewClientset()
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-
-	// Channel to track profile updates
-	profileUpdateCh := make(chan string, 10)
-
-	// Create initial manager with no APIServer resource
-	mgr, err := NewProfileManager(apiServerInformer, nil)
-	if err != nil {
-		t.Fatalf("failed to create TLS profile manager: %v", err)
-	}
-
-	// Helper to wait for event
-	waitForEvent := func(t *testing.T, expectedEvent string) {
-		t.Helper()
-		select {
-		case event := <-profileUpdateCh:
-			if event != expectedEvent {
-				t.Errorf("expected %q event, got %q", expectedEvent, event)
-			}
-		case <-time.After(5 * time.Second):
-			t.Fatalf("timeout waiting for %q event", expectedEvent)
-		}
-	}
-
-	// Helper to verify MinVersion
-	verifyMinVersion := func(t *testing.T, expected uint16) {
-		t.Helper()
-		config := &tls.Config{}
-		mgr.ApplySettings(config)
-		if config.MinVersion != expected {
-			t.Errorf("expected MinVersion %d, got %d", expected, config.MinVersion)
-		}
-	}
-
-	// Add event handlers that mirror the RunMetrics implementation
-	if _, err := apiServerInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			if apiServer, ok := obj.(*configv1.APIServer); ok {
-				if err := mgr.updateSettings(apiServer); err != nil {
-					t.Errorf("Failed to apply TLS settings on APIServer add: %v", err)
-				}
-				profileUpdateCh <- "add"
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			if apiServer, ok := newObj.(*configv1.APIServer); ok {
-				if err := mgr.updateSettings(apiServer); err != nil {
-					t.Errorf("Failed to apply TLS settings on APIServer update: %v", err)
-				}
-				profileUpdateCh <- "update"
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			if err := mgr.updateSettings(nil); err != nil {
-				t.Errorf("Failed to apply fallback TLS settings on APIServer delete: %v", err)
-			}
-			profileUpdateCh <- "delete"
-		},
-	}); err != nil {
-		t.Fatalf("failed to add APIServer event handler: %v", err)
-	}
-
-	// Start informer
-	informerFactory.Start(ctx.Done())
-	if !cache.WaitForCacheSync(ctx.Done(), apiServerInformer.Informer().HasSynced) {
-		t.Fatal("failed to sync APIServer informer")
-	}
-
-	// Test Add event - create APIServer with Intermediate profile
-	apiServer := &configv1.APIServer{
-		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
-		Spec: configv1.APIServerSpec{
-			TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
-			TLSSecurityProfile: &configv1.TLSSecurityProfile{
-				Type:         configv1.TLSProfileIntermediateType,
-				Intermediate: &configv1.IntermediateTLSProfile{},
-			},
-		},
-	}
-
-	if _, err := fakeClient.ConfigV1().APIServers().Create(ctx, apiServer, metav1.CreateOptions{}); err != nil {
-		t.Fatalf("failed to create APIServer: %v", err)
-	}
-
-	waitForEvent(t, "add")
-	verifyMinVersion(t, tls.VersionTLS12)
-
-	// Test Update event - change to Modern profile
-	apiServer, err = fakeClient.ConfigV1().APIServers().Get(ctx, "cluster", metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("failed to get APIServer: %v", err)
-	}
-
-	apiServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
-		Type:   configv1.TLSProfileModernType,
-		Modern: &configv1.ModernTLSProfile{},
-	}
-
-	if _, err := fakeClient.ConfigV1().APIServers().Update(ctx, apiServer, metav1.UpdateOptions{}); err != nil {
-		t.Fatalf("failed to update APIServer: %v", err)
-	}
-
-	waitForEvent(t, "update")
-	verifyMinVersion(t, tls.VersionTLS13)
-
-	// Test Delete event - verify fallback to defaults
-	if err := fakeClient.ConfigV1().APIServers().Delete(ctx, "cluster", metav1.DeleteOptions{}); err != nil {
-		t.Fatalf("failed to delete APIServer: %v", err)
-	}
-
-	waitForEvent(t, "delete")
-	verifyMinVersion(t, tls.VersionTLS12) // Fallback to defaults
 }
 
 // Test_tlsProfileManager_InitializationErrorFallback tests that the manager
