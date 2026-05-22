@@ -12,7 +12,39 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 )
+
+// setupInformer creates and starts an APIServer informer for testing
+func setupInformer(t *testing.T, apiServers ...*configv1.APIServer) (configinformersv1.APIServerInformer, context.CancelFunc) {
+	t.Helper()
+	informer, _, cancel := setupInformerWithClient(t, 2*time.Second, apiServers...)
+	return informer, cancel
+}
+
+// setupInformerWithClient creates and starts an APIServer informer for testing, returning the fake client
+func setupInformerWithClient(t *testing.T, timeout time.Duration, apiServers ...*configv1.APIServer) (configinformersv1.APIServerInformer, *configfake.Clientset, context.CancelFunc) {
+	t.Helper()
+
+	var objects []runtime.Object
+	for _, apiServer := range apiServers {
+		if apiServer != nil {
+			objects = append(objects, apiServer)
+		}
+	}
+
+	fakeClient := configfake.NewClientset(objects...)
+	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
+	apiServerInformer := informerFactory.Config().V1().APIServers()
+	apiServerInformer.Lister() // we have to call this before Start
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+
+	informerFactory.Start(ctx.Done())
+	informerFactory.WaitForCacheSync(ctx.Done())
+
+	return apiServerInformer, fakeClient, cancel
+}
 
 // Test_applyTLSProfile tests the central TLS profile application from APIServer resource
 func Test_applyTLSProfile(t *testing.T) {
@@ -115,20 +147,8 @@ func Test_applyTLSProfile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var objects []runtime.Object
-			if tt.apiServer != nil {
-				objects = append(objects, tt.apiServer)
-			}
-			fakeClient := configfake.NewClientset(objects...)
-			informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-			apiServerInformer := informerFactory.Config().V1().APIServers()
-			apiServerInformer.Lister() // we have to call this before Start
-
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			apiServerInformer, cancel := setupInformer(t, tt.apiServer)
 			defer cancel()
-
-			informerFactory.Start(ctx.Done())
-			informerFactory.WaitForCacheSync(ctx.Done())
 
 			mgr, err := NewProfileManager(apiServerInformer, nil) // No overrides
 
@@ -286,16 +306,8 @@ func Test_tlsProfileOverridePrecedence(t *testing.T) {
 		},
 	}
 
-	fakeClient := configfake.NewClientset(apiServer)
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-	apiServerInformer.Lister() // we have to call this before Start
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	apiServerInformer, cancel := setupInformer(t, apiServer)
 	defer cancel()
-
-	informerFactory.Start(ctx.Done())
-	informerFactory.WaitForCacheSync(ctx.Done())
 
 	// Test 1: Central profile only (no overrides)
 	mgr1, err := NewProfileManager(apiServerInformer, nil)
@@ -344,16 +356,8 @@ func Test_tlsProfileOverridePrecedence(t *testing.T) {
 		},
 	}
 
-	fakeClientOld := configfake.NewClientset(apiServerOld)
-	informerFactoryOld := configinformers.NewSharedInformerFactory(fakeClientOld, 0)
-	apiServerInformerOld := informerFactoryOld.Config().V1().APIServers()
-	apiServerInformerOld.Lister() // we have to call this before Start
-
-	ctxOld, cancelOld := context.WithTimeout(context.Background(), 2*time.Second)
+	apiServerInformerOld, cancelOld := setupInformer(t, apiServerOld)
 	defer cancelOld()
-
-	informerFactoryOld.Start(ctxOld.Done())
-	informerFactoryOld.WaitForCacheSync(ctxOld.Done())
 
 	options2 := Options{
 		MinVersionOverride: "VersionTLS13",
@@ -436,16 +440,10 @@ func Test_tlsProfileManager_EventHandlers(t *testing.T) {
 		},
 	}
 
-	fakeClient := configfake.NewClientset(intermediateAPIServer)
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-	apiServerInformer.Lister() // we have to call this before Start
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	apiServerInformer, fakeClient, cancel := setupInformerWithClient(t, 5*time.Second, intermediateAPIServer)
 	defer cancel()
 
-	informerFactory.Start(ctx.Done())
-	informerFactory.WaitForCacheSync(ctx.Done())
+	ctx := context.Background()
 
 	// Create the manager - this should pick up the initial Intermediate profile
 	mgr, err := NewProfileManager(apiServerInformer, nil)
@@ -581,17 +579,8 @@ func Test_tlsProfileManager_InitializationErrorFallback(t *testing.T) {
 		},
 	}
 
-	// Create fake client and informer
-	fakeClient := configfake.NewClientset(invalidAPIServer)
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-	apiServerInformer.Lister() // we have to call this before Start
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	apiServerInformer, cancel := setupInformer(t, invalidAPIServer)
 	defer cancel()
-
-	informerFactory.Start(ctx.Done())
-	informerFactory.WaitForCacheSync(ctx.Done())
 
 	// Manager creation should succeed despite invalid profile (falls back to defaults)
 	mgr, err := NewProfileManager(apiServerInformer, nil)
@@ -640,16 +629,8 @@ func Test_tlsProfileManager_ErrorRecovery(t *testing.T) {
 		},
 	}
 
-	fakeClient := configfake.NewClientset(intermediateAPIServer)
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-	apiServerInformer.Lister()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	apiServerInformer, cancel := setupInformer(t, intermediateAPIServer)
 	defer cancel()
-
-	informerFactory.Start(ctx.Done())
-	informerFactory.WaitForCacheSync(ctx.Done())
 
 	mgr, err := NewProfileManager(apiServerInformer, nil)
 	if err != nil {
@@ -763,16 +744,8 @@ func Test_tlsProfileManager_TLSAdherenceVariations(t *testing.T) {
 				},
 			}
 
-			fakeClient := configfake.NewClientset(apiServer)
-			informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-			apiServerInformer := informerFactory.Config().V1().APIServers()
-			apiServerInformer.Lister()
-
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			apiServerInformer, cancel := setupInformer(t, apiServer)
 			defer cancel()
-
-			informerFactory.Start(ctx.Done())
-			informerFactory.WaitForCacheSync(ctx.Done())
 
 			mgr, err := NewProfileManager(apiServerInformer, nil)
 			if err != nil {
