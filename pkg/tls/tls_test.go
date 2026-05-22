@@ -420,7 +420,165 @@ func Test_validateTLSOptionsOnlyOnce(t *testing.T) {
 // Test_tlsProfileManager_EventHandlers tests that the TLS profile manager
 // correctly responds to APIServer resource events
 func Test_tlsProfileManager_EventHandlers(t *testing.T) {
+	// Create an initial APIServer with Intermediate profile (TLS 1.2)
+	intermediateAPIServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "cluster",
+			ResourceVersion: "1",
+		},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type:         configv1.TLSProfileIntermediateType,
+				Intermediate: &configv1.IntermediateTLSProfile{},
+			},
+		},
+	}
 
+	fakeClient := configfake.NewClientset(intermediateAPIServer)
+	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
+	apiServerInformer := informerFactory.Config().V1().APIServers()
+	apiServerInformer.Lister() // we have to call this before Start
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	informerFactory.Start(ctx.Done())
+	informerFactory.WaitForCacheSync(ctx.Done())
+
+	// Create the manager - this should pick up the initial Intermediate profile
+	mgr, err := NewProfileManager(apiServerInformer, nil)
+	if err != nil {
+		t.Fatalf("failed to create TLS profile manager: %v", err)
+	}
+
+	// Test 1: Verify initial profile from Add event (Intermediate = TLS 1.2)
+	t.Run("initial add event", func(t *testing.T) {
+		config := &tls.Config{}
+		mgr.ApplySettings(config)
+		if config.MinVersion != tls.VersionTLS12 {
+			t.Errorf("expected initial MinVersion TLS 1.2 from Intermediate profile, got %d", config.MinVersion)
+		}
+	})
+
+	// Test 2: Update event - change to Modern profile (TLS 1.3)
+	t.Run("update event changes profile", func(t *testing.T) {
+		modernAPIServer := intermediateAPIServer.DeepCopy()
+		modernAPIServer.ResourceVersion = "2"
+		modernAPIServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type:   configv1.TLSProfileModernType,
+			Modern: &configv1.ModernTLSProfile{},
+		}
+
+		_, err := fakeClient.ConfigV1().APIServers().Update(ctx, modernAPIServer, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("failed to update APIServer: %v", err)
+		}
+
+		// Give the informer a moment to process the update
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify profile updated to Modern (TLS 1.3)
+		config := &tls.Config{}
+		mgr.ApplySettings(config)
+		if config.MinVersion != tls.VersionTLS13 {
+			t.Errorf("expected MinVersion TLS 1.3 after update to Modern profile, got %d", config.MinVersion)
+		}
+	})
+
+	// Test 3: Update event with invalid profile should retain old profile
+	t.Run("update event with invalid profile retains old", func(t *testing.T) {
+		// First, get the current valid profile (should be Modern = TLS 1.3)
+		configBefore := &tls.Config{}
+		mgr.ApplySettings(configBefore)
+		versionBefore := configBefore.MinVersion
+
+		if versionBefore != tls.VersionTLS13 {
+			t.Fatalf("expected TLS 1.3 before invalid update, got %d", versionBefore)
+		}
+
+		// Create invalid update (Custom type with nil Custom field)
+		invalidAPIServer := intermediateAPIServer.DeepCopy()
+		invalidAPIServer.ResourceVersion = "3"
+		invalidAPIServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type:   configv1.TLSProfileCustomType,
+			Custom: nil, // Invalid
+		}
+
+		_, err := fakeClient.ConfigV1().APIServers().Update(ctx, invalidAPIServer, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("failed to update APIServer: %v", err)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify old profile is retained (still TLS 1.3)
+		configAfter := &tls.Config{}
+		mgr.ApplySettings(configAfter)
+		if configAfter.MinVersion != versionBefore {
+			t.Errorf("expected old profile retained (TLS 1.3), got %d", configAfter.MinVersion)
+		}
+	})
+
+	// Test 4: Update event changing TLSAdherence to disable profile
+	t.Run("update event disables profile with TLSAdherence", func(t *testing.T) {
+		noOpinionAPIServer := intermediateAPIServer.DeepCopy()
+		noOpinionAPIServer.ResourceVersion = "4"
+		noOpinionAPIServer.Spec.TLSAdherence = configv1.TLSAdherencePolicyNoOpinion
+		noOpinionAPIServer.Spec.TLSSecurityProfile = &configv1.TLSSecurityProfile{
+			Type:         configv1.TLSProfileIntermediateType,
+			Intermediate: &configv1.IntermediateTLSProfile{},
+		}
+
+		_, err := fakeClient.ConfigV1().APIServers().Update(ctx, noOpinionAPIServer, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("failed to update APIServer: %v", err)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify applyProfile is nil (profile disabled)
+		mgr.mu.RLock()
+		profileApplied := mgr.applyProfile != nil
+		mgr.mu.RUnlock()
+
+		if profileApplied {
+			t.Error("expected applyProfile to be nil when TLSAdherence is NoOpinion, but it was set")
+		}
+
+		// Should still have safe defaults from crypto.SecureTLSConfig
+		config := &tls.Config{}
+		mgr.ApplySettings(config)
+		if config.MinVersion < tls.VersionTLS12 {
+			t.Errorf("expected MinVersion >= TLS 1.2 from safe defaults, got %d", config.MinVersion)
+		}
+	})
+
+	// Test 5: Delete event should fall back to safe defaults
+	t.Run("delete event falls back to defaults", func(t *testing.T) {
+		err := fakeClient.ConfigV1().APIServers().Delete(ctx, "cluster", metav1.DeleteOptions{})
+		if err != nil {
+			t.Fatalf("failed to delete APIServer: %v", err)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		// Verify applyProfile is nil (no central profile)
+		mgr.mu.RLock()
+		profileApplied := mgr.applyProfile != nil
+		mgr.mu.RUnlock()
+
+		if profileApplied {
+			t.Error("expected applyProfile to be nil after delete, but it was set")
+		}
+
+		// Should still work with safe defaults
+		config := &tls.Config{}
+		mgr.ApplySettings(config)
+		if config.MinVersion < tls.VersionTLS12 {
+			t.Errorf("expected MinVersion >= TLS 1.2 from safe defaults after delete, got %d", config.MinVersion)
+		}
+	})
 }
 
 // Test_tlsProfileManager_InitializationErrorFallback tests that the manager
