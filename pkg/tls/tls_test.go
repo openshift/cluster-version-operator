@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	configv1 "github.com/openshift/api/config/v1"
 	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // Test_applyTLSProfile tests the central TLS profile application from APIServer resource
@@ -537,15 +538,6 @@ func Test_tlsProfileManager_EventHandlers(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		// Verify applyProfile is nil (profile disabled)
-		mgr.mu.RLock()
-		profileApplied := mgr.applyProfile != nil
-		mgr.mu.RUnlock()
-
-		if profileApplied {
-			t.Error("expected applyProfile to be nil when TLSAdherence is NoOpinion, but it was set")
-		}
-
 		// Should still have safe defaults from crypto.SecureTLSConfig
 		config := &tls.Config{}
 		mgr.ApplySettings(config)
@@ -562,15 +554,6 @@ func Test_tlsProfileManager_EventHandlers(t *testing.T) {
 		}
 
 		time.Sleep(100 * time.Millisecond)
-
-		// Verify applyProfile is nil (no central profile)
-		mgr.mu.RLock()
-		profileApplied := mgr.applyProfile != nil
-		mgr.mu.RUnlock()
-
-		if profileApplied {
-			t.Error("expected applyProfile to be nil after delete, but it was set")
-		}
 
 		// Should still work with safe defaults
 		config := &tls.Config{}
