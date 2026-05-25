@@ -98,3 +98,18 @@ func (c *client) Version(o api.VersionOptions) (string, error) {
 	}
 	return string(output), nil
 }
+
+func (c *client) AdmWaitForStableCluster(minimumStablePeriod, timeout string) (string, error) {
+	args := []string{"adm", "wait-for-stable-cluster"}
+	if minimumStablePeriod != "" {
+		args = append(args, fmt.Sprintf("--minimum-stable-period=%s", minimumStablePeriod))
+	}
+	if timeout != "" {
+		args = append(args, fmt.Sprintf("--timeout=%s", timeout))
+	}
+	output, err := c.executor.Run(args...)
+	if err != nil {
+		return "", err
+	}
+	return string(output), nil
+}

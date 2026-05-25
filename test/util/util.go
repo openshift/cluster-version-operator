@@ -3,13 +3,19 @@ package util
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,9 +29,13 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	clientconfigv1 "github.com/openshift/client-go/config/clientset/versioned"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	routev1client "github.com/openshift/client-go/route/clientset/versioned"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
 )
+
+var Logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
 
 // IsHypershift checks if running on a HyperShift hosted cluster
 // Refer to https://github.com/openshift/origin/blob/31704414237b8bd5c66ad247c105c94abc9470b1/test/extended/util/framework.go#L2301
@@ -211,4 +221,120 @@ func SkipIfNetworkRestricted(ctx context.Context, restConfig *rest.Config, urls 
 		g.Skip("This test is skipped because the network is restricted")
 	}
 	return nil
+}
+
+var (
+	controlPlaneTopology configv1.TopologyMode
+	controlPlaneMutex    sync.Mutex
+)
+
+// GetControlPlaneTopology retrieves the cluster infrastructure TopologyMode
+// Ref. https://github.com/openshift/origin/blob/ca9ab3a7054e27ad63bd072344d7783b3ee42c18/test/extended/util/framework.go#L2125
+func GetControlPlaneTopology(ctx context.Context, configClient *configv1client.ConfigV1Client) (configv1.TopologyMode, error) {
+	controlPlaneMutex.Lock()
+	defer controlPlaneMutex.Unlock()
+
+	if controlPlaneTopology == "" {
+		infra, err := configClient.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return "", fmt.Errorf("failure getting test cluster Infrastructure: %s", err.Error())
+		}
+		controlPlaneTopology = infra.Status.ControlPlaneTopology
+	}
+	return controlPlaneTopology, nil
+}
+
+// MustJoinUrlPath behaves like url.JoinPath but it will panic in case of error.
+// Ref. https://github.com/openshift/origin/blob/301fda316591283a71882642977fa15af4da26dd/test/extended/util/prometheus/helpers.go#L446
+func MustJoinUrlPath(base string, paths ...string) string {
+	path, err := url.JoinPath(base, paths...)
+	if err != nil {
+		panic(err)
+	}
+	return path
+}
+
+// PrometheusRouteURL returns the public url of the cluster prometheus service or an error if the route is not found.
+// Ref. https://github.com/openshift/origin/blob/301fda316591283a71882642977fa15af4da26dd/test/extended/util/prometheus/helpers.go#L123
+func PrometheusRouteURL(ctx context.Context, routeClient *routev1client.Clientset) (string, error) {
+	rte, err := routeClient.RouteV1().Routes(namespaceOpenshiftMonitoring).Get(ctx, prometheusName, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("unable to get the %s route in the %s namespace: %w", prometheusName, namespaceOpenshiftMonitoring, err)
+	}
+	return "https://" + rte.Status.Ingress[0].Host, nil
+}
+
+// RequestPrometheusServiceAccountAPIToken returns a time-bound (24hr) API token for the prometheus service account.
+// Ref. https://github.com/openshift/origin/blob/301fda316591283a71882642977fa15af4da26dd/test/extended/util/prometheus/helpers.go#L141
+func RequestPrometheusServiceAccountAPIToken(ctx context.Context, kubeClient kubernetes.Interface) (string, error) {
+	expirationSeconds := int64(24 * time.Hour / time.Second)
+	req, err := kubeClient.CoreV1().ServiceAccounts(namespaceOpenshiftMonitoring).CreateToken(ctx, serviceAccountPrometheus,
+		&authenticationv1.TokenRequest{
+			Spec: authenticationv1.TokenRequestSpec{ExpirationSeconds: &expirationSeconds},
+		}, metav1.CreateOptions{})
+	if err != nil {
+		return "", fmt.Errorf("unable to get an API token for the %s service account in the %s namespace: %w", serviceAccountPrometheus, namespaceOpenshiftMonitoring, err)
+	}
+	return req.Status.Token, nil
+}
+
+const (
+	namespaceOpenshiftMonitoring = "openshift-monitoring"
+	prometheusName               = "prometheus-k8s"
+	serviceAccountPrometheus     = prometheusName
+)
+
+// GetURLWithToken makes an HTTP request with a bearer token.
+// Ref. https://github.com/openshift/origin/blob/301fda316591283a71882642977fa15af4da26dd/test/extended/util/prometheus/helpers.go#L46
+func GetURLWithToken(url, bearerToken string) (string, error) {
+	client := &http.Client{
+		Timeout: time.Duration(10 * time.Second),
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			// Use the HTTP proxy configured in the environment variables.
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", url, err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+bearerToken)
+
+	var (
+		body    []byte
+		lastErr error
+	)
+	condition := func(ctx context.Context) (bool, error) {
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("%s: request failed: %w", url, err)
+			return false, nil
+		}
+		defer func() {
+			if err := resp.Body.Close(); err != nil {
+				Logger.Error(err, "failed to close response body")
+			}
+		}()
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("%s: unexpected status code: %d", url, resp.StatusCode)
+			return false, nil
+		}
+
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			lastErr = fmt.Errorf("%s: failed to read response: %w", url, err)
+			return false, nil
+		}
+
+		return true, nil
+	}
+	if err = wait.PollUntilContextTimeout(context.Background(), time.Second, time.Minute, true, condition); err != nil {
+		return "", fmt.Errorf("%w: %w", err, lastErr)
+	}
+
+	return string(body), nil
 }

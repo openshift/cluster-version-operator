@@ -22,4 +22,8 @@ type Options struct {
 type OC interface {
 	AdmReleaseExtract(o ReleaseExtractOptions) error
 	Version(o VersionOptions) (string, error)
+
+	// AdmWaitForStableCluster runs oc adm wait-for-stable-cluster
+	// Non-Empty minimumStablePeriod or timeout overrides the default value in the command
+	AdmWaitForStableCluster(minimumStablePeriod, timeout string) (string, error)
 }
