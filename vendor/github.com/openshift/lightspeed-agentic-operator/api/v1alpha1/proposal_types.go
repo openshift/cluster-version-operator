@@ -422,7 +422,7 @@ type ProposalStatus struct {
 //	    - lightspeed-demo
 //	  tools:
 //	    skills:
-//	      - image: registry.redhat.io/acs/acs-lightspeed-skills:latest
+//	      - image: registry.redhat.io/acs/acs-agentic-skills:latest
 //	  analysis:
 //	    agent: smart
 //
@@ -439,7 +439,7 @@ type ProposalStatus struct {
 //	    - lightspeed-demo
 //	  tools:
 //	    skills:
-//	      - image: registry.redhat.io/acs/acs-lightspeed-skills:latest
+//	      - image: registry.redhat.io/acs/acs-agentic-skills:latest
 //	    requiredSecrets:
 //	      - name: acs-api-token
 //	        mountAs:

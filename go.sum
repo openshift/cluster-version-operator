@@ -114,8 +114,8 @@ github.com/openshift/client-go v0.0.0-20260416131737-a19e91702ab5 h1:R5gdIA+R7MO
 github.com/openshift/client-go v0.0.0-20260416131737-a19e91702ab5/go.mod h1:u56GmXEMF6bvws8ipkT1ZRNJH52RF5sZ/yRP+6PwkH4=
 github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1 h1:NdVGxmPGwWoMlhSmTxMMgp2SszLtAH3nJ6AMGBpXclY=
 github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1/go.mod h1:3bi4pLpYRdVd1aEhsHfRTJkwxwPLfRZ+ZePn3RmJd2k=
-github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260507160300-84a97541c3e0 h1:ORAZYemGOmlB+2ulDHqxuUg69FaoCe8cUdablBX7LNo=
-github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260507160300-84a97541c3e0/go.mod h1:tZlKXEZJ4/qxPPh6mamWrkwK+EQjudHt8AypudHttVs=
+github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260521135452-44bd61b9b92a h1:bUTmfSz1JIB8U8JiHsJ+8xWJH9jvrRBzSUWo0wbB9aU=
+github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260521135452-44bd61b9b92a/go.mod h1:tZlKXEZJ4/qxPPh6mamWrkwK+EQjudHt8AypudHttVs=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12 h1:AKx/w1qpS8We43bsRgf8Nll3CGlDHpr/WAXvuedTNZI=
 github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12/go.mod h1:7Du3c42kxCUegi0IImZ1wUQzMBVecgIHjR1C+NkhLQo=
 github.com/operator-framework/api v0.17.1 h1:J/6+Xj4IEV8C7hcirqUFwOiZAU3PbnJhWvB0/bB51c4=

@@ -85,10 +85,10 @@ type SecretMountSpec struct {
 }
 
 // SecretRequirement declares a Kubernetes Secret that the sandbox needs
-// at runtime. The cluster admin creates the actual Secret in the same
-// namespace as the Proposal.
+// at runtime. The Secret must exist in the operator namespace (where
+// sandbox pods run), not in the Proposal's namespace.
 type SecretRequirement struct {
-	// name of the Secret (must exist in the same namespace as the Proposal).
+	// name of the Secret (must exist in the operator namespace).
 	// Must be a valid RFC 1123 DNS subdomain.
 	// +required
 	// +kubebuilder:validation:MinLength=1
