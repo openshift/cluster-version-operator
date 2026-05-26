@@ -138,12 +138,15 @@ Update path: Recommended
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewController(tt.updatesGetterFunc, tt.client, tt.cvGetterFunc, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
-				return &corev1.ConfigMap{
-					Data: map[string]string{
-						"prompt": "prompt-abc",
-						"foo":    "bar",
-					},
-				}, nil
+				if namespace == "openshift-lightspeed" && name == "cluster-update-advisory-prompt" {
+					return &corev1.ConfigMap{
+						Data: map[string]string{
+							"prompt": "prompt-abc",
+							"foo":    "bar",
+						},
+					}, nil
+				}
+				return nil, fmt.Errorf("ConfigMap %s not found in namespace %s", name, namespace)
 			}, func() string {
 				return "4.22.1"
 			})
