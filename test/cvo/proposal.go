@@ -2,6 +2,8 @@ package cvo
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
@@ -13,6 +15,7 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
@@ -22,6 +25,7 @@ import (
 	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
+	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
@@ -36,6 +40,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 	var (
 		c                   *rest.Config
+		kubeClient          kubernetes.Interface
 		configClient        *configv1client.ConfigV1Client
 		apiExtensionsClient apiextensionsclientset.Interface
 		rtClient            ctrlruntimeclient.Client
@@ -53,6 +58,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(util.SkipIfHypershift(ctx, c)).To(o.BeNil())
 		o.Expect(util.SkipIfMicroshift(ctx, c)).To(o.BeNil())
 
+		kubeClient, err = util.GetKubeClient(c)
+		o.Expect(err).To(o.BeNil())
 		configClient, err = configv1client.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
 
@@ -92,7 +99,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should create proposals", g.Label("Serial"), oteginkgo.Informing(), func() {
+	g.It("should create proposals", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
 
@@ -101,21 +108,32 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		g.By("Using fauxinnati as the upstream and its simple channel")
 		cv.Spec.Upstream = util.FauxinnatiAPIURL
-		cv.Spec.Channel = "simple"
+		channel := "simple"
+		cv.Spec.Channel = channel
 
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 		needRecover = true
+		now := time.Now()
+
+		g.By("Checking if the namespace exists")
+		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, proposal.DefaultConfig().Namespace, metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		g.By("Checking if the proposal are created")
+		var proposals proposalv1alpha1.ProposalList
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			proposals := proposalv1alpha1.ProposalList{}
-			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(external.DefaultCVONamespace))
+			proposals = proposalv1alpha1.ProposalList{}
+			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(proposal.DefaultConfig().Namespace),
+				ctrlruntimeclient.MatchingLabels(proposal.CVOProposalLabels))
 			o.Expect(err).NotTo(o.HaveOccurred())
-			if len(proposals.Items) == 0 {
-				return false, nil
+			for _, proposal := range proposals.Items {
+				if proposal.CreationTimestamp.After(now) ||
+					strings.Contains(proposal.Spec.Request, fmt.Sprintf("Channel: %s", channel)) {
+					return true, nil
+				}
 			}
-			return true, nil
-		})).NotTo(o.HaveOccurred(), "no proposals found")
+			return false, nil
+		})).NotTo(o.HaveOccurred(), "expected proposals not found", "now", now.Format(time.RFC3339), "proposals are:\n%s", getYaml(&proposals))
 	})
 })

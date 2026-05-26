@@ -380,7 +380,7 @@ github.com/openshift/library-go/pkg/verify/store/parallel
 github.com/openshift/library-go/pkg/verify/store/serial
 github.com/openshift/library-go/pkg/verify/store/sigstore
 github.com/openshift/library-go/pkg/verify/util
-# github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260507160300-84a97541c3e0
+# github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260521135452-44bd61b9b92a
 ## explicit; go 1.25.7
 github.com/openshift/lightspeed-agentic-operator/api/v1alpha1
 # github.com/operator-framework/api v0.17.1

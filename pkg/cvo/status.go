@@ -179,6 +179,12 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))
 	}
+	if optr.shouldEnableProposalController() {
+		if original != nil && len(config.Status.History) < len(original.Status.History) {
+			klog.V(internal.Normal).Infof("Reconciling proposals because ClusterVersion.status.history got pruned")
+			optr.proposalController.Queue().Add(optr.proposalController.QueueKey())
+		}
+	}
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)
 	optr.rememberLastUpdate(updated)
 	return err

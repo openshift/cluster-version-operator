@@ -211,6 +211,12 @@ func newOperator(url string, cluster release, promqlMock clusterconditions.Condi
 		fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
 			return &configv1.ClusterVersion{}, nil
 		},
+		func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
+			return &corev1.ConfigMap{}, nil
+		},
+		func() string {
+			return operator.release.Version
+		},
 	)
 	return availableUpdates, operator
 }

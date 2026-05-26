@@ -14,7 +14,7 @@ require (
 	github.com/openshift/api v0.0.0-20260416105050-3c6b218b8a80
 	github.com/openshift/client-go v0.0.0-20260416131737-a19e91702ab5
 	github.com/openshift/library-go v0.0.0-20260413093329-d2db42c961e1
-	github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260507160300-84a97541c3e0
+	github.com/openshift/lightspeed-agentic-operator/api v0.0.0-20260521135452-44bd61b9b92a
 	github.com/operator-framework/api v0.17.1
 	github.com/operator-framework/operator-lifecycle-manager v0.22.0
 	github.com/pkg/errors v0.9.1

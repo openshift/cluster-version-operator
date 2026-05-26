@@ -135,25 +135,18 @@ type MCPServerConfig struct {
 	Headers []MCPHeader `json:"headers,omitempty"`
 }
 
-// SkillsSource defines an OCI image containing skills and optionally which
-// paths within that image to mount. Skills are mounted as Kubernetes image
+// SkillsSource defines an OCI image containing skills and which paths
+// within that image to mount. Skills are mounted as Kubernetes image
 // volumes in the agent's sandbox pod.
 //
-// When paths is omitted, the entire image is mounted. When paths is specified,
-// only those directories are mounted (each as a separate subPath volumeMount),
-// allowing selective composition of skills from large shared images.
+// Each path is mounted as a separate subPath volumeMount, allowing
+// selective composition of skills from shared images.
 //
-// Example — mount all skills from a custom image:
-//
-//	skills:
-//	  - image: quay.io/my-org/my-skills:latest
-//
-// Example — selectively mount two skills from a shared image:
+// Example — mount specific skills from the agentic-skills image:
 //
 //	skills:
 //	  - image: registry.ci.openshift.org/ocp/5.0:agentic-skills
 //	    paths:
-//	      - /skills/prometheus
 //	      - /skills/cluster-update/update-advisor
 type SkillsSource struct {
 	// image is the OCI image reference containing skills.
@@ -174,7 +167,7 @@ type SkillsSource struct {
 	// +kubebuilder:validation:XValidation:rule="self.find('(@.*:)') != '' ? self.find(':.*$').matches(':[0-9A-Fa-f]*$') : true",message="digest must only contain hex characters (A-F, a-f, 0-9)"
 	Image string `json:"image,omitempty"`
 
-	// paths restricts which directories from the image are mounted.
+	// paths specifies which directories from the image are mounted.
 	// Each path is mounted as a separate subPath volumeMount into the agent's
 	// skills directory. The last segment of each path becomes the mount name
 	// (e.g., "/skills/prometheus" mounts as "prometheus").
@@ -183,9 +176,8 @@ type SkillsSource struct {
 	// or "." segments, no double slashes, no trailing slash, and only
 	// alphanumeric characters, hyphens, underscores, dots, and slashes.
 	//
-	// When omitted, the entire image is mounted as a single volume.
 	// Maximum 50 items.
-	// +optional
+	// +required
 	// +listType=atomic
 	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=50
@@ -197,5 +189,5 @@ type SkillsSource struct {
 	// +kubebuilder:validation:XValidation:rule="self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))",message="paths may only contain alphanumeric characters, '/', '_', '.', and '-'"
 	// +kubebuilder:validation:items:MinLength=2
 	// +kubebuilder:validation:items:MaxLength=512
-	Paths []string `json:"paths,omitempty"`
+	Paths []string `json:"paths"`
 }
