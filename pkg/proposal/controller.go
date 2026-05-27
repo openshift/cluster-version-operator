@@ -85,7 +85,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Namespace:       envOrDefault("LIGHTSPEED_PROPOSAL_NAMESPACE", "openshift-lightspeed"),
-		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "ota-advisory-prompt"),
+		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "cluster-update-advisory-prompt"),
 	}
 }
 

@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ota-advisory-prompt
+  name: cluster-update-advisory-prompt
   namespace: openshift-lightspeed
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"

@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: openshift-lightspeed
   annotations:
-    kubernetes.io/description: This manifest is only for testing purpose and will be removed when its own operator becomes available on the cluster.
+    kubernetes.io/description: This manifest is only for testing purpose and will be removed before 5.0 GA or figure out how to install the cluster-update-advisory-prompt ConfigMap on a cluster where the openshift-lightspeed Namespace is installed by the OLM-installed OpenShift Lightspeed operator.
     include.release.openshift.io/self-managed-high-availability: "true"
     workload.openshift.io/allowed: "management"
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
