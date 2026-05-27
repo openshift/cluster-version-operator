@@ -87,7 +87,7 @@ func (m *ProfileManager) updateSettings(apiServer *configv1.APIServer) error {
 	m.applyProfile = applyFunc
 	m.mu.Unlock()
 
-	klog.V(2).Info("Updated cached TLS profile")
+	klog.V(2).Info("Synced cached TLS profile")
 	return nil
 }
 
