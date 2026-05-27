@@ -117,7 +117,7 @@ func resolveTLSProfile(apiServer *configv1.APIServer) (func(*tls.Config), error)
 // ApplySettings applies the TLS configuration to the provided config.
 // Applies: crypto defaults → central profile → overrides
 func (m *ProfileManager) ApplySettings(config *tls.Config) {
-	crypto.SecureTLSConfig(config)
+	config = crypto.SecureTLSConfig(config)
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
