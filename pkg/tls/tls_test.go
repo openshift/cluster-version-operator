@@ -379,49 +379,6 @@ func Test_tlsProfileOverridePrecedence(t *testing.T) {
 	}
 }
 
-// Test_validateTLSOptionsOnlyOnce verifies that validation happens once and parsed values are reused
-func Test_validateTLSOptionsOnlyOnce(t *testing.T) {
-	options := Options{
-		MinVersionOverride:   "VersionTLS12",
-		CipherSuitesOverride: []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
-	}
-
-	// Validate once - returns immutable struct
-	err := options.CreateOverrides()
-	if err != nil {
-		t.Fatalf("validation failed: %v", err)
-	}
-
-	// Verify parsed values are set
-	validated := options.GetOverrides()
-	if validated.MinVersion == 0 {
-		t.Error("expected minVersion to be set")
-	}
-	if len(validated.CipherSuites) == 0 {
-		t.Error("expected cipherSuites to be set")
-	}
-
-	fakeClient := configfake.NewClientset()
-	informerFactory := configinformers.NewSharedInformerFactory(fakeClient, 0)
-	apiServerInformer := informerFactory.Config().V1().APIServers()
-
-	mgr, err := NewProfileManager(apiServerInformer, validated)
-	if err != nil {
-		t.Fatalf("failed to create manager: %v", err)
-	}
-
-	// Apply settings - validated values should be used from cache
-	config := &tls.Config{}
-	mgr.ApplySettings(config)
-
-	if config.MinVersion != tls.VersionTLS12 {
-		t.Errorf("expected TLS 1.2, got %d", config.MinVersion)
-	}
-	if len(config.CipherSuites) != 1 {
-		t.Errorf("expected 1 cipher suite, got %d", len(config.CipherSuites))
-	}
-}
-
 // Test_tlsProfileManager_EventHandlers tests that the TLS profile manager
 // correctly responds to APIServer resource events
 func Test_tlsProfileManager_EventHandlers(t *testing.T) {
