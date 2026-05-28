@@ -17,6 +17,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -109,6 +110,7 @@ type Operator struct {
 
 	client         clientset.Interface
 	kubeClient     kubernetes.Interface
+	dynamicClient  dynamic.Interface
 	operatorClient operatorclientset.Interface
 	eventRecorder  record.EventRecorder
 
@@ -235,6 +237,7 @@ func New(
 	featureGateInformer configinformersv1.FeatureGateInformer,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
+	dynamicClient dynamic.Interface,
 	operatorClient operatorclientset.Interface,
 	exclude string,
 	clusterProfile string,
@@ -267,6 +270,7 @@ func New(
 
 		client:                client,
 		kubeClient:            kubeClient,
+		dynamicClient:         dynamicClient,
 		operatorClient:        operatorClient,
 		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
@@ -354,6 +358,7 @@ func New(
 			return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
 		},
 		rtClient,
+		dynamicClient,
 		cvInformer.Lister().Get,
 		func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error) {
 			return kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, opts)

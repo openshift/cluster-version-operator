@@ -1,0 +1,105 @@
+{
+  "type": "object",
+  "required": ["analysisData"],
+  "properties": {
+    "analysisData": {
+      "type": "array",
+      "description": "Typed components describing upgrade readiness. Must include exactly one ota_readiness_summary. Include one ota_finding per blocker or warning. Include one ota_olm_operator_status if OLM operators are present.",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Overall upgrade readiness summary with per-check results.",
+            "properties": {
+              "type": { "type": "string", "const": "ota_readiness_summary" },
+              "decision": {
+                "type": "string",
+                "enum": ["recommend", "caution", "block", "escalate"],
+                "description": "recommend=all clear, caution=warnings only, block=blockers found, escalate=insufficient data"
+              },
+              "checks": {
+                "type": "array",
+                "description": "One entry per readiness check from the input JSON.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "description": "Check name, e.g. Cluster Conditions, Operator Health" },
+                    "status": { "type": "string", "enum": ["pass", "warn", "fail", "error"] },
+                    "detail": { "type": "string", "description": "One-line summary" }
+                  },
+                  "required": ["name", "status"]
+                }
+              }
+            },
+            "required": ["type", "decision", "checks"]
+          },
+          {
+            "type": "object",
+            "description": "A specific blocker, warning, or informational finding.",
+            "properties": {
+              "type": { "type": "string", "const": "ota_finding" },
+              "severity": { "type": "string", "enum": ["blocker", "warning", "info"] },
+              "check": { "type": "string", "description": "Which readiness check surfaced this" },
+              "detail": { "type": "string", "description": "Description for a cluster administrator" },
+              "affectedResources": { "type": "array", "items": { "type": "string" } },
+              "prerequisite": { "type": "string", "description": "Action to resolve before upgrading" },
+              "verifyCommand": { "type": "string", "description": "Command to verify the finding is resolved" }
+            },
+            "required": ["type", "severity", "check", "detail"]
+          },
+          {
+            "type": "object",
+            "description": "Per-operator OLM lifecycle status.",
+            "properties": {
+              "type": { "type": "string", "const": "ota_olm_operator_status" },
+              "operators": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string" },
+                    "namespace": { "type": "string" },
+                    "displayName": { "type": "string" },
+                    "installedVersion": { "type": "string" },
+                    "channel": { "type": "string" },
+                    "source": { "type": "string" },
+                    "installPlanApproval": { "type": "string", "enum": ["Automatic", "Manual"] },
+                    "pendingUpgrade": { "type": "boolean" },
+                    "pendingVersion": { "type": "string" },
+                    "compatibleWithTarget": { "type": "boolean" },
+                    "availableChannels": { "type": "array", "items": { "type": "string" } },
+                    "ocpCompat": {
+                      "type": "object",
+                      "properties": { "min": { "type": "string" }, "max": { "type": "string" } }
+                    },
+                    "lifecycle": {
+                      "type": "object",
+                      "properties": {
+                        "productName": { "type": "string" },
+                        "supportPhase": { "type": "string", "enum": ["Full Support", "Maintenance Support", "End of life"] },
+                        "ocpVersions": { "type": "string" },
+                        "maintenanceEnds": { "type": "string" }
+                      }
+                    }
+                  },
+                  "required": ["name", "namespace"]
+                }
+              },
+              "summary": {
+                "type": "object",
+                "properties": {
+                  "totalOperators": { "type": "integer" },
+                  "pendingUpgrades": { "type": "integer" },
+                  "manualApproval": { "type": "integer" },
+                  "incompatibleWithTarget": { "type": "integer" }
+                }
+              }
+            },
+            "required": ["type", "operators", "summary"]
+          }
+        ]
+      }
+    }
+  }
+}
