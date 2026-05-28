@@ -2,6 +2,8 @@ package proposal
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -17,6 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
@@ -24,13 +27,26 @@ import (
 	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/readiness"
 )
+
+//go:embed analysis_schema.json
+var analysisSchemaJSON []byte
+
+func analysisOutputSchema() *apiextensionsv1.JSONSchemaProps {
+	schema := &apiextensionsv1.JSONSchemaProps{}
+	if err := json.Unmarshal(analysisSchemaJSON, schema); err != nil {
+		panic(fmt.Sprintf("failed to unmarshal embedded analysis schema: %v", err))
+	}
+	return schema
+}
 
 type Controller struct {
 	queueKey              string
 	queue                 workqueue.TypedRateLimitingInterface[any]
 	updatesGetterFunc     updatesGetterFunc
 	client                ctrlruntimeclient.Client
+	dynamicClient         dynamic.Interface
 	cvGetterFunc          cvGetterFunc
 	configMapGetterFunc   configMapGetterFunc
 	getCurrentVersionFunc getCurrentVersionFunc
@@ -57,6 +73,7 @@ type configMapGetterFunc func(ctx context.Context, namespace, name string, opts 
 func NewController(
 	updatesGetterFunc updatesGetterFunc,
 	client ctrlruntimeclient.Client,
+	dynamicClient dynamic.Interface,
 	cvGetterFunc cvGetterFunc,
 	configMapGetterFunc configMapGetterFunc,
 	getCurrentVersionFunc getCurrentVersionFunc,
@@ -68,6 +85,7 @@ func NewController(
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: controllerName}),
 		updatesGetterFunc:     updatesGetterFunc,
 		client:                client,
+		dynamicClient:         dynamicClient,
 		cvGetterFunc:          cvGetterFunc,
 		configMapGetterFunc:   configMapGetterFunc,
 		getCurrentVersionFunc: getCurrentVersionFunc,
@@ -79,6 +97,7 @@ func NewController(
 type Config struct {
 	Namespace       string
 	PromptConfigMap string // ConfigMap name containing the system prompt
+	SkillsImage     string // OCI image containing agentic skills
 }
 
 // DefaultConfig returns the default configuration, checking env vars for overrides.
@@ -86,6 +105,7 @@ func DefaultConfig() Config {
 	return Config{
 		Namespace:       envOrDefault("LIGHTSPEED_PROPOSAL_NAMESPACE", "openshift-lightspeed"),
 		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "cluster-update-advisory-prompt"),
+		SkillsImage:     envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
 	}
 }
 
@@ -127,6 +147,15 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 
 	currentVersion := c.getCurrentVersionFunc()
 
+	// Don't create proposals while CVO is reconciling — readiness data would
+	// reflect the transient reconciliation state, not actual cluster health.
+	for _, cond := range cv.Status.Conditions {
+		if cond.Type == "Progressing" && cond.Status == configv1.ConditionTrue {
+			klog.V(i.Normal).Infof("Skipping proposal sync: cluster is progressing (%s)", cond.Message)
+			return nil
+		}
+	}
+
 	var errs []error
 	if err := deleteProposals(ctx, c.client, updates, conditionalUpdates, cv.Status.History, currentVersion); err != nil {
 		errs = append(errs, err)
@@ -152,9 +181,7 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		return kutilerrors.NewAggregate(errs)
 	}
 
-	// TODO: Implement it
-	readinessJSON := "{}"
-	proposals, err := getProposals(updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, readinessJSON)
+	proposals, err := getProposals(ctx, c.dynamicClient, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
 	if err != nil {
 		klog.V(i.Normal).Infof("Getting proposals hit an error: %v", err)
 		return kutilerrors.NewAggregate(append(errs, err))
@@ -277,18 +304,25 @@ func deleteProposal(ctx context.Context, client ctrlruntimeclient.Client, propos
 }
 
 func getProposals(
+	ctx context.Context,
+	dynamicClient dynamic.Interface,
 	availableUpdates []configv1.Release,
 	conditionalUpdates []configv1.ConditionalUpdate,
 	namespace string,
 	currentVersion, channel,
 	systemPrompt string,
-	readinessJSON string,
+	skillsImage string,
 ) ([]*proposalv1alpha1.Proposal, error) {
+	// TODO: Only 2 of 9 readiness checks (api_deprecations, olm_lifecycle) use the target version.
+	// The other 7 query cluster-wide state identical across targets. For clusters with many available
+	// updates, split into target-independent checks (run once) and target-dependent checks (run per
+	// target) to reduce redundant API calls.
 	var errs []error
 	var proposals []*proposalv1alpha1.Proposal
 	for _, au := range availableUpdates {
 		targetVersion := au.Version
-		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates); err != nil {
+		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
+		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
@@ -298,7 +332,8 @@ func getProposals(
 
 	for _, cu := range conditionalUpdates {
 		targetVersion := cu.Release.Version
-		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates); err != nil {
+		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
+		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
@@ -309,7 +344,7 @@ func getProposals(
 	return proposals, kutilerrors.NewAggregate(errs)
 }
 
-func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release) (*proposalv1alpha1.Proposal, error) {
+func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*proposalv1alpha1.Proposal, error) {
 
 	var errs []error
 	for _, v := range []string{currentVersion, targetVersion} {
@@ -344,35 +379,17 @@ func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, 
 			Tools: proposalv1alpha1.ToolsSpec{
 				Skills: []proposalv1alpha1.SkillsSource{
 					{
-						// TODO: OTA-1980: Use the Production image built from https://github.com/openshift/agentic-skills
-						Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
+						Image: skillsImage,
 						Paths: []string{
 							"/skills/cluster-update/update-advisor",
 							"/skills/cluster-update/product-lifecycle",
-							"/skills/documentation/openshift",
-							"/skills/documentation/kubernetes",
 						},
 					},
 				},
 			},
 			AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-				Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-				// TODO: sync up from https://github.com/openshift/cluster-update-console-plugin/blob/main/src/components/update-plan/ActivePlanView.tsx
-				// For now, it is an object with a required property analysisData that is a map from string to any.
-				Schema: &apiextensionsv1.JSONSchemaProps{
-					Type:        "object",
-					Description: "Proposal analysis — lightweight custom output",
-					Required:    []string{"analysisData"},
-					Properties: map[string]apiextensionsv1.JSONSchemaProps{
-						"analysisData": {
-							Type:        "object",
-							Description: "Analysis data",
-							AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-								Allows: true,
-							},
-						},
-					},
-				},
+				Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+				Schema: analysisOutputSchema(),
 			},
 		},
 	}, nil
@@ -435,6 +452,20 @@ func classifyUpdate(current, target string) string {
 		return i.UpdateTypeUnknown
 	}
 	return i.UpdateType(cv, tv)
+}
+
+func runReadinessJSON(ctx context.Context, dynamicClient dynamic.Interface, currentVersion, targetVersion string) string {
+	if dynamicClient == nil {
+		klog.V(i.Normal).Infof("Dynamic client is nil; skipping readiness checks for %s -> %s", currentVersion, targetVersion)
+		return "{}"
+	}
+	output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
+	data, err := json.Marshal(output)
+	if err != nil {
+		klog.V(i.Normal).Infof("Failed to marshal readiness output for %s -> %s: %v", currentVersion, targetVersion, err)
+		return "{}"
+	}
+	return string(data)
 }
 
 // buildRequest constructs the proposal request with system prompt, metadata, and readiness data.

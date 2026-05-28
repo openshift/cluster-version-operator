@@ -19,7 +19,7 @@ data:
 
     Use the ota-upgrade-advisor skill for the decision framework and
     blocker classification rules. When findings need deeper investigation,
-    use prometheus, platform-docs, redhat-support, or product-lifecycle
+    use prometheus metrics and product-lifecycle
     skills.
 
     When the readiness data includes olm_operator_lifecycle results, use

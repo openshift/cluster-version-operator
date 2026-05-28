@@ -111,6 +111,96 @@
     "environmentSelector": {}
   },
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should run all checks without errors",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should produce valid JSON that round-trips",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report node count matching the actual cluster",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report operator count matching actual ClusterOperators",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report etcd member count matching actual etcd pods",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report network type matching actual Network config",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report PDB count matching actual PodDisruptionBudgets",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report cluster conditions matching ClusterVersion status",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should complete all checks within 60 seconds",
+    "labels": {},
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator must get the APIServer when the TLS profile manager is created",
     "labels": {
       "Lifecycle:informing": {}

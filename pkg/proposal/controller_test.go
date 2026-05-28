@@ -2,6 +2,7 @@ package proposal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -13,15 +14,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	configv1 "github.com/openshift/api/config/v1"
 	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/internal"
+	"github.com/openshift/cluster-version-operator/pkg/readiness"
 )
 
 func init() {
@@ -102,28 +107,13 @@ Update path: Recommended
 											Paths: []string{
 												"/skills/cluster-update/update-advisor",
 												"/skills/cluster-update/product-lifecycle",
-												"/skills/documentation/openshift",
-												"/skills/documentation/kubernetes",
 											},
 										},
 									},
 								},
 								AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-									Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-									Schema: &apiextensionsv1.JSONSchemaProps{
-										Type:        "object",
-										Description: "Proposal analysis — lightweight custom output",
-										Required:    []string{"analysisData"},
-										Properties: map[string]apiextensionsv1.JSONSchemaProps{
-											"analysisData": {
-												Type:        "object",
-												Description: "Analysis data",
-												AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-													Allows: true,
-												},
-											},
-										},
-									},
+									Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+									Schema: analysisOutputSchema(),
 								},
 							},
 						},
@@ -137,7 +127,7 @@ Update path: Recommended
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewController(tt.updatesGetterFunc, tt.client, tt.cvGetterFunc, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
+			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
 				if namespace == "openshift-lightspeed" && name == "cluster-update-advisory-prompt" {
 					return &corev1.ConfigMap{
 						Data: map[string]string{
@@ -743,7 +733,6 @@ func TestGetProposals(t *testing.T) {
 		currentVersion     string
 		channel            string
 		systemPrompt       string
-		readinessJSON      string
 		expected           []*proposalv1alpha1.Proposal
 		expectError        error
 	}{
@@ -757,7 +746,6 @@ func TestGetProposals(t *testing.T) {
 			currentVersion: "4.15.3",
 			channel:        "stable-4.16",
 			systemPrompt:   "Test prompt",
-			readinessJSON:  `{"test": "data"}`,
 			expected: []*proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -787,7 +775,7 @@ Other recommended versions available:
 ## Cluster Readiness Data
 
 ` + "```json\n" +
-							`{"test": "data"}` + "\n```\n",
+							`{}` + "\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -798,28 +786,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -851,7 +824,7 @@ Other recommended versions available:
 ## Cluster Readiness Data
 
 ` + "```json\n" +
-							`{"test": "data"}` + "\n```\n",
+							`{}` + "\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -862,28 +835,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -924,7 +882,7 @@ Update path: Recommended
 Other recommended versions available:
   - 4.16.1
 
-`,
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -935,28 +893,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -981,7 +924,7 @@ Update path: Recommended
 Other recommended versions available:
   - 4.16.0
 
-`,
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -992,28 +935,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -1043,7 +971,7 @@ Other recommended versions available:
   - 4.16.0
   - 4.16.1
 
-`,
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -1054,28 +982,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -1105,7 +1018,7 @@ Other recommended versions available:
   - 4.16.0
   - 4.16.1
 
-`,
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
 						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
@@ -1116,28 +1029,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
-										"/skills/documentation/openshift",
-										"/skills/documentation/kubernetes",
 									},
 								},
 							},
 						},
 						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-							Mode: proposalv1alpha1.AnalysisOutputModeMinimal,
-							Schema: &apiextensionsv1.JSONSchemaProps{
-								Type:        "object",
-								Description: "Proposal analysis — lightweight custom output",
-								Required:    []string{"analysisData"},
-								Properties: map[string]apiextensionsv1.JSONSchemaProps{
-									"analysisData": {
-										Type:        "object",
-										Description: "Analysis data",
-										AdditionalProperties: &apiextensionsv1.JSONSchemaPropsOrBool{
-											Allows: true,
-										},
-									},
-								},
-							},
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+							Schema: analysisOutputSchema(),
 						},
 					},
 				},
@@ -1174,13 +1072,15 @@ Other recommended versions available:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			proposals, err := getProposals(
+				context.Background(),
+				nil,
 				tt.availableUpdates,
 				tt.conditionalUpdates,
 				tt.namespace,
 				tt.currentVersion,
 				tt.channel,
 				tt.systemPrompt,
-				tt.readinessJSON,
+				"quay.io/openshift/ci:ocp_5.0_agentic-skills",
 			)
 
 			if diff := cmp.Diff(err, tt.expectError, cmp.Transformer("Error", func(e error) string {
@@ -1234,5 +1134,285 @@ func Test_expired(t *testing.T) {
 				t.Errorf("expired() = %v, want %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
+	s := runtime.NewScheme()
+	gvrs := map[schema.GroupVersionResource]string{
+		readiness.GVRClusterVersion:    "ClusterVersionList",
+		readiness.GVRClusterOperator:   "ClusterOperatorList",
+		readiness.GVRMachineConfigPool: "MachineConfigPoolList",
+		readiness.GVRNode:              "NodeList",
+		readiness.GVRPod:               "PodList",
+		readiness.GVRPDB:               "PodDisruptionBudgetList",
+		readiness.GVRCRD:               "CustomResourceDefinitionList",
+		readiness.GVRSubscription:      "SubscriptionList",
+		readiness.GVRCSV:               "ClusterServiceVersionList",
+		readiness.GVRInstallPlan:       "InstallPlanList",
+		readiness.GVRPackageManifest:   "PackageManifestList",
+		readiness.GVRAPIRequestCount:   "APIRequestCountList",
+		readiness.GVRNetwork:           "NetworkList",
+		readiness.GVRProxy:             "ProxyList",
+		readiness.GVRAPIServer:         "APIServerList",
+	}
+	for gvr, listKind := range gvrs {
+		gvk := schema.GroupVersionKind{Group: gvr.Group, Version: gvr.Version, Kind: listKind}
+		s.AddKnownTypeWithName(gvk, &unstructured.UnstructuredList{})
+	}
+	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(s, gvrs, objects...)
+}
+
+func TestGetProposals_WithReadinessData(t *testing.T) {
+	dc := newFakeDynamicClient(
+		// ClusterVersion
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "ClusterVersion",
+			"metadata": map[string]interface{}{"name": "version"},
+			"spec":     map[string]interface{}{"channel": "stable-4.21", "clusterID": "test-id"},
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{"type": "Available", "status": "True"},
+					map[string]interface{}{"type": "Progressing", "status": "False"},
+					map[string]interface{}{"type": "Upgradeable", "status": "True"},
+				},
+				"history": []interface{}{
+					map[string]interface{}{"version": "4.21.5", "state": "Completed"},
+				},
+			},
+		}},
+		// ClusterOperators
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "ClusterOperator",
+			"metadata": map[string]interface{}{"name": "etcd"},
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{"type": "Available", "status": "True"},
+					map[string]interface{}{"type": "Degraded", "status": "False"},
+					map[string]interface{}{"type": "Upgradeable", "status": "True"},
+				},
+			},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "ClusterOperator",
+			"metadata": map[string]interface{}{"name": "dns"},
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{"type": "Available", "status": "True"},
+					map[string]interface{}{"type": "Degraded", "status": "False"},
+					map[string]interface{}{"type": "Upgradeable", "status": "True"},
+				},
+			},
+		}},
+		// MachineConfigPool
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "machineconfiguration.openshift.io/v1", "kind": "MachineConfigPool",
+			"metadata": map[string]interface{}{"name": "master"},
+			"spec":     map[string]interface{}{"paused": false},
+			"status": map[string]interface{}{
+				"machineCount": int64(3), "readyMachineCount": int64(3), "updatedMachineCount": int64(3),
+				"conditions": []interface{}{
+					map[string]interface{}{"type": "Degraded", "status": "False"},
+					map[string]interface{}{"type": "Updating", "status": "False"},
+				},
+			},
+		}},
+		// Etcd pods
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1", "kind": "Pod",
+			"metadata": map[string]interface{}{"name": "etcd-master-0", "namespace": "openshift-etcd", "labels": map[string]interface{}{"app": "etcd"}},
+			"spec":     map[string]interface{}{"nodeName": "master-0"}, "status": map[string]interface{}{"phase": "Running", "conditions": []interface{}{map[string]interface{}{"type": "Ready", "status": "True"}}},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1", "kind": "Pod",
+			"metadata": map[string]interface{}{"name": "etcd-master-1", "namespace": "openshift-etcd", "labels": map[string]interface{}{"app": "etcd"}},
+			"spec":     map[string]interface{}{"nodeName": "master-1"}, "status": map[string]interface{}{"phase": "Running", "conditions": []interface{}{map[string]interface{}{"type": "Ready", "status": "True"}}},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1", "kind": "Pod",
+			"metadata": map[string]interface{}{"name": "etcd-master-2", "namespace": "openshift-etcd", "labels": map[string]interface{}{"app": "etcd"}},
+			"spec":     map[string]interface{}{"nodeName": "master-2"}, "status": map[string]interface{}{"phase": "Running", "conditions": []interface{}{map[string]interface{}{"type": "Ready", "status": "True"}}},
+		}},
+		// Nodes
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1", "kind": "Node",
+			"metadata": map[string]interface{}{"name": "master-0"},
+			"status":   map[string]interface{}{"conditions": []interface{}{map[string]interface{}{"type": "Ready", "status": "True"}}},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "v1", "kind": "Node",
+			"metadata": map[string]interface{}{"name": "worker-0"},
+			"status":   map[string]interface{}{"conditions": []interface{}{map[string]interface{}{"type": "Ready", "status": "True"}}},
+		}},
+		// PDB
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "policy/v1", "kind": "PodDisruptionBudget",
+			"metadata": map[string]interface{}{"name": "etcd-guard", "namespace": "openshift-etcd"},
+			"spec":     map[string]interface{}{"maxUnavailable": "1"},
+			"status":   map[string]interface{}{"currentHealthy": int64(3), "desiredHealthy": int64(2), "disruptionsAllowed": int64(1)},
+		}},
+		// APIRequestCount with blocker
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "apiserver.openshift.io/v1", "kind": "APIRequestCount",
+			"metadata": map[string]interface{}{"name": "flowschemas.v1beta3.flowcontrol.apiserver.k8s.io"},
+			"status": map[string]interface{}{
+				"removedInRelease": "4.21.8", "requestCount": int64(100),
+				"conditions": []interface{}{map[string]interface{}{"type": "Deprecated", "status": "True"}},
+			},
+		}},
+		// CRD with version issue
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
+			"metadata": map[string]interface{}{"name": "widgets.example.com"},
+			"spec": map[string]interface{}{
+				"versions": []interface{}{
+					map[string]interface{}{"name": "v2", "served": true},
+					map[string]interface{}{"name": "v1", "served": false},
+				},
+			},
+			"status": map[string]interface{}{"storedVersions": []interface{}{"v1"}},
+		}},
+		// Network, Proxy, APIServer
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "Network",
+			"metadata": map[string]interface{}{"name": "cluster"},
+			"status":   map[string]interface{}{"networkType": "OVNKubernetes"},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "Proxy",
+			"metadata": map[string]interface{}{"name": "cluster"},
+			"spec":     map[string]interface{}{},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "APIServer",
+			"metadata": map[string]interface{}{"name": "cluster"},
+			"spec":     map[string]interface{}{},
+		}},
+		// OLM Subscription + CSV
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1", "kind": "Subscription",
+			"metadata": map[string]interface{}{"name": "elasticsearch-operator", "namespace": "openshift-operators-redhat"},
+			"spec":     map[string]interface{}{"channel": "stable-5.8", "name": "elasticsearch-operator", "source": "redhat-operators", "sourceNamespace": "openshift-marketplace"},
+			"status":   map[string]interface{}{"state": "AtLatestKnown", "installedCSV": "elasticsearch-operator.v5.8.6", "currentCSV": "elasticsearch-operator.v5.8.6"},
+		}},
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "operators.coreos.com/v1alpha1", "kind": "ClusterServiceVersion",
+			"metadata": map[string]interface{}{"name": "elasticsearch-operator.v5.8.6", "namespace": "openshift-operators-redhat"},
+			"spec":     map[string]interface{}{"version": "5.8.6", "displayName": "OpenShift Elasticsearch Operator"},
+			"status":   map[string]interface{}{"phase": "Succeeded"},
+		}},
+	)
+
+	proposals, err := getProposals(
+		context.Background(),
+		dc,
+		[]configv1.Release{{Version: "4.21.8"}},
+		nil,
+		"openshift-lightspeed",
+		"4.21.5",
+		"stable-4.21",
+		"Test prompt",
+		"quay.io/openshift/ci:ocp_5.0_agentic-skills",
+	)
+	if err != nil {
+		t.Fatalf("getProposals returned error: %v", err)
+	}
+	if len(proposals) != 1 {
+		t.Fatalf("expected 1 proposal, got %d", len(proposals))
+	}
+
+	request := proposals[0].Spec.Request
+
+	if !strings.Contains(request, "## Cluster Readiness Data") {
+		t.Fatal("proposal request missing readiness data section")
+	}
+
+	// Extract JSON from the request
+	start := strings.Index(request, "```json\n")
+	if start < 0 {
+		t.Fatal("could not find readiness JSON fence in request")
+	}
+	jsonStart := start + len("```json\n")
+	jsonEnd := strings.Index(request[jsonStart:], "\n```")
+	if jsonEnd < 0 {
+		t.Fatal("could not find closing fence for readiness JSON")
+	}
+	readinessJSON := request[jsonStart : jsonStart+jsonEnd]
+
+	// Unmarshal into raw map since CheckResult.Data is json:"-" (flattened during marshal)
+	var raw map[string]any
+	if err := json.Unmarshal([]byte(readinessJSON), &raw); err != nil {
+		t.Fatalf("readiness JSON is not valid: %v\nJSON: %s", err, readinessJSON)
+	}
+
+	if raw["current_version"] != "4.21.5" {
+		t.Errorf("readiness current_version = %v, want 4.21.5", raw["current_version"])
+	}
+	if raw["target_version"] != "4.21.8" {
+		t.Errorf("readiness target_version = %v, want 4.21.8", raw["target_version"])
+	}
+
+	meta, ok := raw["meta"].(map[string]any)
+	if !ok {
+		t.Fatal("readiness output missing 'meta'")
+	}
+	if meta["total_checks"] != float64(9) {
+		t.Errorf("readiness total_checks = %v, want 9", meta["total_checks"])
+	}
+	if meta["checks_ok"] != float64(9) {
+		t.Errorf("readiness checks_ok = %v, want 9 (all checks should succeed)", meta["checks_ok"])
+	}
+
+	checks, ok := raw["checks"].(map[string]any)
+	if !ok {
+		t.Fatal("readiness output missing 'checks'")
+	}
+
+	// Verify every check produced results with ok status
+	for _, name := range []string{
+		"cluster_conditions", "operator_health", "api_deprecations",
+		"node_capacity", "pdb_drain", "etcd_health", "network",
+		"crd_compat", "olm_operator_lifecycle",
+	} {
+		check, ok := checks[name].(map[string]any)
+		if !ok {
+			t.Errorf("readiness output missing %s check", name)
+			continue
+		}
+		if check["_status"] != "ok" {
+			t.Errorf("check %s status = %v, error = %v", name, check["_status"], check["_error"])
+		}
+	}
+
+	// Spot-check: api_deprecations found the blocker
+	if ad, ok := checks["api_deprecations"].(map[string]any); !ok {
+		t.Fatal("api_deprecations check missing or wrong type")
+	} else if adSummary, ok := ad["summary"].(map[string]any); !ok {
+		t.Fatal("api_deprecations summary missing or wrong type")
+	} else if adSummary["blockers"] != float64(1) {
+		t.Errorf("api_deprecations blockers = %v, want 1", adSummary["blockers"])
+	}
+
+	// Spot-check: olm found the subscription
+	if olm, ok := checks["olm_operator_lifecycle"].(map[string]any); !ok {
+		t.Fatal("olm_operator_lifecycle check missing or wrong type")
+	} else if olmSummary, ok := olm["summary"].(map[string]any); !ok {
+		t.Fatal("olm_operator_lifecycle summary missing or wrong type")
+	} else if olmSummary["total_operators"] != float64(1) {
+		t.Errorf("olm total_operators = %v, want 1", olmSummary["total_operators"])
+	}
+
+	// Spot-check: etcd has 3 healthy members
+	if etcd, ok := checks["etcd_health"].(map[string]any); !ok {
+		t.Fatal("etcd_health check missing or wrong type")
+	} else if etcd["total_members"] != float64(3) {
+		t.Errorf("etcd total_members = %v, want 3", etcd["total_members"])
+	}
+
+	// Spot-check: node_capacity found 2 nodes
+	if nc, ok := checks["node_capacity"].(map[string]any); !ok {
+		t.Fatal("node_capacity check missing or wrong type")
+	} else if nc["total_nodes"] != float64(2) {
+		t.Errorf("node_capacity total_nodes = %v, want 2", nc["total_nodes"])
 	}
 }
