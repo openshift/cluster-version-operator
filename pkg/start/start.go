@@ -364,6 +364,11 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 		}
 	}
 
+	// Initialize TLS profile manager after informers are synced
+	if err := controllerCtx.CVO.InitializeProfileManager(); err != nil {
+		klog.Fatalf("Failed to initialize TLS profile manager: %v", err)
+	}
+
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()

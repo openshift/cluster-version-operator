@@ -138,7 +138,9 @@ type Operator struct {
 	apiServerLister       configlistersv1.APIServerLister
 	cacheSynced           []cache.InformerSynced
 
-	profileMgr *cvotls.ProfileManager
+	apiServerInformer configinformersv1.APIServerInformer
+	tlsOverrides      *cvotls.Settings
+	profileMgr        *cvotls.ProfileManager
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.TypedRateLimitingInterface[any]
@@ -320,6 +322,10 @@ func New(
 	optr.apiServerLister = apiServerInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, apiServerInformer.Informer().HasSynced)
 
+	// Store for deferred TLS profile manager initialization (after informer sync)
+	optr.apiServerInformer = apiServerInformer
+	optr.tlsOverrides = overrides
+
 	// make sure this is initialized after all the listers are initialized
 	riskSourceCallback := func() { optr.availableUpdatesQueue.Add(optr.queueKey()) }
 
@@ -373,13 +379,18 @@ func New(
 		},
 	)
 
-	profileMgr, err := cvotls.NewProfileManager(apiServerInformer, overrides)
+	return optr, nil
+}
+
+// InitializeProfileManager initializes the TLS profile manager.
+// Must be called after informers are started and synced.
+func (optr *Operator) InitializeProfileManager() error {
+	profileMgr, err := cvotls.NewProfileManager(optr.apiServerInformer, optr.tlsOverrides)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize TLS profile manager: %w", err)
+		return fmt.Errorf("failed to initialize TLS profile manager: %w", err)
 	}
 	optr.profileMgr = profileMgr
-
-	return optr, nil
+	return nil
 }
 
 // LoadInitialPayload waits until a ClusterVersion object exists. It then retrieves the payload contents, verifies the
