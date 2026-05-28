@@ -656,6 +656,240 @@ func Test_tlsProfileManager_ErrorRecovery(t *testing.T) {
 	}
 }
 
+// Test_tlsSettingsChanged tests the TLS change detection function
+func Test_tlsSettingsChanged(t *testing.T) {
+	tests := []struct {
+		name     string
+		old      *configv1.APIServer
+		new      *configv1.APIServer
+		expected bool
+	}{
+		{
+			name: "no change",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "TLSAdherence changed",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyNoOpinion,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "TLSSecurityProfile type changed",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:   configv1.TLSProfileModernType,
+						Modern: &configv1.ModernTLSProfile{},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "custom TLSSecurityProfile details changed",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS12,
+								Ciphers:       []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+							},
+						},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS13,
+								Ciphers:       []string{"TLS_AES_128_GCM_SHA256"},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "TLSSecurityProfile nil to non-nil",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: nil,
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "TLSSecurityProfile non-nil to nil",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: nil,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "both TLSSecurityProfile nil",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: nil,
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence:       configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: nil,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "unrelated field changed (should not trigger TLS update)",
+			old: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "cluster",
+					Generation: 1,
+				},
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "cluster",
+					Generation: 2, // different generation
+				},
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type:         configv1.TLSProfileIntermediateType,
+						Intermediate: &configv1.IntermediateTLSProfile{},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "non-strict policy but cipher suites changed",
+			old: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyNoOpinion,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS12,
+								Ciphers:       []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+							},
+						},
+					},
+				},
+			},
+			new: &configv1.APIServer{
+				Spec: configv1.APIServerSpec{
+					TLSAdherence: configv1.TLSAdherencePolicyNoOpinion,
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS12,
+								Ciphers:       []string{"TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384"},
+							},
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tlsSettingsChanged(tt.old, tt.new)
+			if result != tt.expected {
+				t.Errorf("tlsSettingsChanged() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 // Test_tlsProfileManager_TLSAdherenceVariations tests different TLSAdherence
 // policy values
 func Test_tlsProfileManager_TLSAdherenceVariations(t *testing.T) {

@@ -3,6 +3,7 @@ package tls
 import (
 	"crypto/tls"
 	"fmt"
+	"reflect"
 	"sync"
 
 	"k8s.io/client-go/tools/cache"
@@ -55,8 +56,14 @@ func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, ov
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			if apiServer, ok := newObj.(*configv1.APIServer); ok {
-				if err := mgr.updateSettings(apiServer); err != nil {
+			newAPIServer, ok := newObj.(*configv1.APIServer)
+			if !ok {
+				return
+			}
+
+			oldAPIServer, oldOK := oldObj.(*configv1.APIServer)
+			if !oldOK || tlsSettingsChanged(oldAPIServer, newAPIServer) {
+				if err := mgr.updateSettings(newAPIServer); err != nil {
 					klog.Errorf("Failed to apply TLS settings on APIServer update: %v", err)
 				}
 			}
@@ -71,6 +78,18 @@ func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, ov
 	}
 
 	return mgr, nil
+}
+
+// tlsSettingsChanged returns true if TLS-related fields differ between old and new APIServer.
+func tlsSettingsChanged(old, new *configv1.APIServer) bool {
+	if old == nil && new == nil {
+		return false
+	}
+	if old == nil || new == nil {
+		return true
+	}
+	return old.Spec.TLSAdherence != new.Spec.TLSAdherence ||
+		!reflect.DeepEqual(old.Spec.TLSSecurityProfile, new.Spec.TLSSecurityProfile)
 }
 
 // updateSettings resolves and caches the TLS profile apply function.
