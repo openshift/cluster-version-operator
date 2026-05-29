@@ -46,7 +46,7 @@ func (b *builder) modifyDeployment(ctx context.Context, deployment *appsv1.Deplo
 		if err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		if !errors.IsNotFound(err) {
+		if err == nil {
 			lbURL, err := url.Parse(infrastructureConfig.Status.APIServerInternalURL)
 			if err != nil {
 				return err
