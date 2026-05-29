@@ -1211,6 +1211,9 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 					Version: "4.21.2",
 				},
 			},
+			Condition: configv1.ClusterOperatorStatusCondition{
+				Type: configv1.RetrievedUpdates,
+			},
 			// it becomes conditional because a firing alert
 			ConditionalUpdates: []configv1.ConditionalUpdate{
 				{
@@ -1232,6 +1235,7 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 				},
 			},
 		},
+		risks: &riskmock.Mock{InternalName: "Mock", InternalRisks: []configv1.ConditionalUpdateRisk{}},
 	}
 	optr.minimumUpdateCheckInterval = 10 * time.Minute
 	cvgGates := featuregates.CvoGatesFromFeatureGate(&configv1.FeatureGate{
@@ -1269,6 +1273,9 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 		Updates: []configv1.Release{{
 			Version: "4.21.2",
 		}},
+		Condition: configv1.ClusterOperatorStatusCondition{
+			Type: configv1.RetrievedUpdates,
+		},
 	}
 
 	if diff := cmp.Diff(expected, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
