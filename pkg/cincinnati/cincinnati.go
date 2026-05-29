@@ -160,7 +160,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	}
 	req.Header.Set("Accept", GraphMediaType)
 	if c.transport != nil && c.transport.TLSClientConfig != nil {
-		if c.transport.TLSClientConfig.ClientCAs == nil {
+		if c.transport.TLSClientConfig.RootCAs == nil {
 			klog.V(2).Infof("Using a root CA pool with 0 root CA subjects to request updates from %s", uri)
 		} else {
 			//nolint:staticcheck // SA1019: TLSClientConfig.RootCAs.Subjects() is deprecated because
