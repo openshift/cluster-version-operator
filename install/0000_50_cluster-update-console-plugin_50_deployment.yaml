@@ -49,6 +49,7 @@ spec:
           name: cluster-update-console-plugin-cert
           readOnly: true
       dnsPolicy: Default
+      hostUsers: false
       nodeSelector:
         node-role.kubernetes.io/infra: ""
       priorityClassName: system-cluster-critical
