@@ -50,8 +50,6 @@ spec:
           readOnly: true
       dnsPolicy: Default
       hostUsers: false
-      nodeSelector:
-        node-role.kubernetes.io/infra: ""
       priorityClassName: system-cluster-critical
       securityContext:
         runAsNonRoot: true
