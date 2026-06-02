@@ -1,6 +1,7 @@
 package resourcebuilder
 
 import (
+	"strings"
 	"testing"
 
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -96,7 +97,7 @@ func TestCheckCRDEstablished(t *testing.T) {
 				if err == nil {
 					t.Error("expected error, got nil")
 				} else if tt.errSubstr != "" {
-					if !containsSubstring(err.Error(), tt.errSubstr) {
+					if !strings.Contains(err.Error(), tt.errSubstr) {
 						t.Errorf("error %q does not contain %q", err.Error(), tt.errSubstr)
 					}
 				}
@@ -138,15 +139,3 @@ func TestCheckCustomResourceDefinitionHealthEstablished(t *testing.T) {
 	}
 }
 
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstringImpl(s, substr))
-}
-
-func containsSubstringImpl(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
