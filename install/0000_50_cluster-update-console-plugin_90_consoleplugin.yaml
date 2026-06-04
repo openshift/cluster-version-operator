@@ -17,5 +17,5 @@ spec:
     service:
       name: openshift-cluster-update-console-plugin
       namespace: openshift-cluster-update-console-plugin
-      port: https
+      port: 9001
       basePath: /

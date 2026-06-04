@@ -5,6 +5,7 @@ metadata:
   namespace: openshift-cluster-update-console-plugin
   annotations:
     kubernetes.io/description: The OpenShift cluster-update console plugin provides a web-console interface for managing ClusterVersion updates.
+    service.beta.openshift.io/serving-cert-secret-name: cluster-update-console-plugin-cert
     capability.openshift.io/name: Console
     release.openshift.io/feature-set: TechPreviewNoUpgrade
     exclude.release.openshift.io/internal-openshift-hosted: "true"
