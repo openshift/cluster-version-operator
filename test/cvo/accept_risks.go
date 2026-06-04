@@ -19,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 
-	oteginkgo "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
@@ -61,7 +60,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 		if du := cv.Spec.DesiredUpdate; du != nil {
 			logger.WithValues("AcceptRisks", du.AcceptRisks).Info("Accept risks before testing")
-			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks")
+			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks in Cluster/version before testing")
 		}
 		backup = *cv.Spec.DeepCopy()
 	})
@@ -72,15 +71,25 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			o.Expect(err).To(o.BeNil())
 		}
 		if needRecover {
-			cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
-			o.Expect(err).NotTo(o.HaveOccurred())
-			cv.Spec = backup
-			_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
-			o.Expect(err).NotTo(o.HaveOccurred())
+			var updateErr error
+			err := wait.PollUntilContextTimeout(ctx, 10*time.Second, 2*time.Minute, true, func(context.Context) (done bool, err error) {
+				cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+				o.Expect(err).NotTo(o.HaveOccurred())
+				cv.Spec = backup
+				_, updateErr = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
+				if errors.IsConflict(updateErr) {
+					return false, nil
+				}
+				if updateErr != nil {
+					return false, updateErr
+				}
+				return true, nil
+			})
+			o.Expect(err).NotTo(o.HaveOccurred(), "failed to recover cluster version with lastErr=%v while waiting", updateErr)
 		}
 	})
 
-	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), oteginkgo.Informing(), func() {
+	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), func() {
 		// This test case relies on a public service util.FauxinnatiAPIURL
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 
