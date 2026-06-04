@@ -5,7 +5,7 @@ RUN hack/build-go.sh; \
     mkdir -p /tmp/build; \
     cp _output/linux/$(go env GOARCH)/cluster-version-operator _output/linux/$(go env GOARCH)/cluster-version-operator-tests.gz /tmp/build/
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
 COPY --from=builder /tmp/build/cluster-version-operator /tmp/build/cluster-version-operator-tests.gz /usr/bin/
 COPY install /manifests
 COPY vendor/github.com/openshift/api/config/v1/zz_generated.crd-manifests/0000_00_cluster-version-operator_* /manifests/
