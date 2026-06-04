@@ -15,7 +15,7 @@ spec:
   backend:
     type: Service
     service:
-      name: cluster-update-console-plugin
+      name: openshift-cluster-update-console-plugin
       namespace: openshift-cluster-update-console-plugin
       port: https
       basePath: /
