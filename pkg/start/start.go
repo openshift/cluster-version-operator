@@ -49,6 +49,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
+	"github.com/openshift/cluster-version-operator/pkg/tls"
 )
 
 const (
@@ -60,6 +61,7 @@ type Options struct {
 	ReleaseImage string
 
 	MetricsOptions cvo.MetricsOptions
+	TLSOptions     tls.Options
 
 	Kubeconfig string
 	NodeName   string
@@ -168,6 +170,20 @@ func (o *Options) ValidateAndComplete() error {
 		return fmt.Errorf("--always-enable-capabilities: %w", err)
 	}
 
+	// Validate and parse TLS overrides once at startup
+	err := o.TLSOptions.CreateOverrides()
+	if err != nil {
+		return fmt.Errorf("invalid TLS configuration: %w", err)
+	}
+
+	if overrides := o.TLSOptions.GetOverrides(); overrides != nil {
+		if overrides.MinVersion != 0 {
+			klog.V(2).Infof("TLS min version override: %d (will override central TLS profile)", overrides.MinVersion)
+		}
+		if len(overrides.CipherSuites) > 0 {
+			klog.V(2).Infof("TLS cipher suites override: %v (will override central TLS profile)", overrides.CipherSuites)
+		}
+	}
 	return nil
 }
 
@@ -341,6 +357,18 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 		}
 	}
 
+	configSynced := controllerCtx.ConfigInformerFactory.WaitForCacheSync(informersDone)
+	for _, synced := range configSynced {
+		if !synced {
+			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
+		}
+	}
+
+	// Initialize TLS profile manager after informers are synced
+	if err := controllerCtx.CVO.InitializeProfileManager(); err != nil {
+		klog.Fatalf("Failed to initialize TLS profile manager: %v", err)
+	}
+
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
@@ -358,7 +386,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, o.MetricsOptions)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, controllerCtx.CVO.ApplySettings(), o.MetricsOptions)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
@@ -637,6 +665,8 @@ func (o *Options) NewControllerContext(
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		configInformerFactory.Config().V1().FeatureGates(),
+		configInformerFactory.Config().V1().APIServers(),
+		o.TLSOptions.GetOverrides(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		operatorClient,

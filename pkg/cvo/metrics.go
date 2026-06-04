@@ -276,7 +276,7 @@ type MetricsOptions struct {
 // Continues serving until runContext.Done() and then attempts a clean
 // shutdown limited by shutdownContext.Done(). Assumes runContext.Done()
 // occurs before or simultaneously with shutdownContext.Done().
-func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, options MetricsOptions) error {
+func RunMetrics(runContext context.Context, shutdownContext context.Context, restConfig *rest.Config, applySettings func(config *tls.Config), options MetricsOptions) error {
 	if options.ListenAddress == "" {
 		return errors.New("listen address is required to serve metrics")
 	}
@@ -388,6 +388,7 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 	}()
 
 	server := createHttpServer(options, clientCA)
+
 	tlsConfig := crypto.SecureTLSConfig(&tls.Config{
 		GetConfigForClient: func(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, err := servingCertController.GetConfigForClient(clientHello)
@@ -399,6 +400,9 @@ func RunMetrics(runContext context.Context, shutdownContext context.Context, res
 				err := fmt.Errorf("serving certificate controller returned nil TLS configuration")
 				return nil, err
 			}
+
+			applySettings(config)
+
 			return config, nil
 		},
 	})
