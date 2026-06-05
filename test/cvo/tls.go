@@ -6,13 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
 	g "github.com/onsi/ginkgo/v2"
 	o "github.com/onsi/gomega"
-	"github.com/openshift/cluster-version-operator/pkg/tls"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -29,8 +27,7 @@ import (
 	"github.com/openshift/library-go/pkg/crypto"
 
 	"github.com/openshift/cluster-version-operator/pkg/external"
-	"github.com/openshift/cluster-version-operator/test/oc"
-	ocapi "github.com/openshift/cluster-version-operator/test/oc/api"
+	"github.com/openshift/cluster-version-operator/pkg/tls"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
@@ -41,7 +38,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		kubeClient   kubernetes.Interface
 		configClient *configv1client.ConfigV1Client
 		routeClient  *routev1client.Clientset
-		ocClient     ocapi.OC
 		err          error
 
 		ctx         = context.Background()
@@ -49,7 +45,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		backup      configv1.APIServerSpec
 
 		prometheusURL, bearerToken string
-		waitStable                 bool
 	)
 
 	g.BeforeEach(func() {
@@ -67,22 +62,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		routeClient, err = routev1client.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
-
-		waitStable = strings.ToLower(os.Getenv("WAIT_STABLE")) == "true"
-
-		timeout := 2 * time.Minute
-		if waitStable {
-			timeout = 61 * time.Minute
-		}
-		ocClient, err = oc.NewOC(ocapi.Options{Logger: logger, Timeout: timeout})
-		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(ocClient).NotTo(o.BeNil())
-
-		if waitStable {
-			// check if cluster is stable before testing
-			_, err = ocClient.AdmWaitForStableCluster("1m0s", "5m0s")
-			o.Expect(err).NotTo(o.HaveOccurred(), "The cluster isn't stable before testing")
-		}
 
 		prometheusURL, err = util.PrometheusRouteURL(ctx, routeClient)
 		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get public url of prometheus")
@@ -104,12 +83,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			apiServer.Spec = backup
 			_, err = configClient.APIServers().Update(ctx, apiServer, metav1.UpdateOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
-
-			if waitStable {
-				// wait before handing the cluster over to other tests
-				_, err = ocClient.AdmWaitForStableCluster("5m0s", "1h0m0s")
-				o.Expect(err).NotTo(o.HaveOccurred())
-			}
 		}
 	})
 
@@ -201,27 +174,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 		needRecover = true
 
-		g.By("Waiting for the cluster to stabilize")
-		// It takes too long in CI to wait until the cluster is stable
-		// co/authentication is about 5-8 mins
-		// co/openshift-apiserver is about 50 - 60 mins
-		if waitStable {
-			_, err = ocClient.AdmWaitForStableCluster("5m0s", "1h0m0s")
-			o.Expect(err).NotTo(o.HaveOccurred())
-		} else {
-			logger.Info("Did not waiting for the cluster to stabilize after updating API server", "waitStable", waitStable)
-		}
-
 		g.By("Checking if the CVO target is still up in Prometheus")
-		count := 1
-		if !waitStable {
-			// checking 3 times in total; 30s once
-			count = 3
-		}
+		count := 3
 		for i := 0; i < count; i++ {
-			if !waitStable {
-				time.Sleep(30 * time.Second)
-			}
+			time.Sleep(30 * time.Second)
 			var errUp error
 			errWait := wait.PollUntilContextTimeout(context.Background(), 10*time.Second, 2*time.Minute, true, func(context.Context) (bool, error) {
 				targets, err = promTargets()
