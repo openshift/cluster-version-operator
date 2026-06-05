@@ -10,11 +10,10 @@ gotestsum:
 .PHONY: gotestsum
 
 JUNIT_DIR := "_output"
-PACKAGES := "./..."
+# tests in github.com/openshift/cluster-version-operator/test/ are e2e tests executed separately
+PACKAGES := $(shell go list ./... | grep -v "github.com/openshift/cluster-version-operator/test/" | xargs)
 ifeq ($(CI),true)
 JUNIT_DIR := "$(ARTIFACT_DIR)"
-# tests in github.com/openshift/cluster-version-operator/test/ will be executed separately in CI
-PACKAGES := $(shell go list ./... | grep -v "github.com/openshift/cluster-version-operator/test/" | xargs)
 endif
 
 test: gotestsum
