@@ -1,8 +1,0 @@
-kind: ImageStream
-apiVersion: image.openshift.io/v1
-spec:
-  tags:
-  - name: cluster-update-console-plugin
-    from:
-      kind: DockerImage
-      name: placeholder.url.oc.will.replace.this.example.org:cluster-update-console-plugin
