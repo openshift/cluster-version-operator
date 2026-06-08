@@ -60,7 +60,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		o.Expect(err).NotTo(o.HaveOccurred())
 		if du := cv.Spec.DesiredUpdate; du != nil {
 			logger.WithValues("AcceptRisks", du.AcceptRisks).Info("Accept risks before testing")
-			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks in Cluster/version before testing")
+			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks in ClusterVersion before testing")
 		}
 		backup = *cv.Spec.DeepCopy()
 	})
