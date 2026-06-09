@@ -2756,7 +2756,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			ctx := context.Background()
 			optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
 				return nil, nil, nil
-			}, ctrlruntimefake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+			}, ctrlruntimefake.NewClientBuilder().Build(), nil, func(_ string) (*configv1.ClusterVersion, error) {
 				return &configv1.ClusterVersion{}, nil
 			}, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
 				return &corev1.ConfigMap{}, nil
