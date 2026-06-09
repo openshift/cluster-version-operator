@@ -30,6 +30,11 @@ type Settings struct {
 	CipherSuites []uint16
 }
 
+const (
+	APIServerNotAvailableAtStartupLogKeyword = "APIServer resource not available at startup"
+	SyncedCachedTLSProfileLogKeyword         = "Synced cached TLS profile"
+)
+
 // NewProfileManager creates a new TLS profile manager and performs initial resolution.
 // Falls back to safe defaults on any error to prioritize availability.
 func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, overrides *Settings) (*ProfileManager, error) {
@@ -39,7 +44,7 @@ func NewProfileManager(apiServerInformer configinformersv1.APIServerInformer, ov
 
 	apiServer, err := apiServerInformer.Lister().Get(tlsprofile.APIServerName)
 	if err != nil {
-		klog.Warningf("APIServer resource not available at startup: %v, using fallback defaults", err)
+		klog.Warningf("%s: %v, using fallback defaults", APIServerNotAvailableAtStartupLogKeyword, err)
 		apiServer = nil
 	}
 
@@ -106,7 +111,7 @@ func (m *ProfileManager) updateSettings(apiServer *configv1.APIServer) error {
 	m.applyProfile = applyFunc
 	m.mu.Unlock()
 
-	klog.V(2).Info("Synced cached TLS profile")
+	klog.V(2).Info(SyncedCachedTLSProfileLogKeyword)
 	return nil
 }
 

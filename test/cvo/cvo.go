@@ -18,7 +18,7 @@ import (
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
-var logger = g.GinkgoLogr.WithName("cluster-version-operator-tests")
+var logger = util.Logger
 
 var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator-tests`, func() {
 	g.It("should support passing tests", func() {

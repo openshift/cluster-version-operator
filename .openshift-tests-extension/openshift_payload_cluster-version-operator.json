@@ -109,5 +109,30 @@
     "source": "openshift:payload:cluster-version-operator",
     "lifecycle": "informing",
     "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator must get the APIServer when the TLS profile manager is created",
+    "labels": {
+      "Lifecycle:informing": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "informing",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should update TLS profile",
+    "labels": {
+      "Local": {},
+      "OTA-1996": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
   }
 ]
