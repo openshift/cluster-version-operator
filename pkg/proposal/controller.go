@@ -22,6 +22,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
+	"k8s.io/client-go/kubernetes/scheme"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
 )
@@ -46,6 +47,12 @@ type cvGetterFunc func(name string) (*configv1.ClusterVersion, error)
 type getCurrentVersionFunc func() string
 
 type configMapGetterFunc func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error)
+
+func init() {
+	if err := proposalv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		panic(err)
+	}
+}
 
 // NewController returns Controller to manage Proposals.
 // It monitors available and conditional updates, and creates a LightspeedProposal for every target version of them.

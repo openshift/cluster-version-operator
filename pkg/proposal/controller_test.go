@@ -17,18 +17,10 @@ import (
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kutilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/kubernetes/scheme"
 
 	configv1 "github.com/openshift/api/config/v1"
 	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 )
-
-func init() {
-	err := proposalv1alpha1.AddToScheme(scheme.Scheme)
-	if err != nil {
-		panic(err)
-	}
-}
 
 func TestController_Sync(t *testing.T) {
 	tests := []struct {
