@@ -40,7 +40,6 @@ import (
 	operatorinformers "github.com/openshift/client-go/operator/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
-	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
@@ -615,13 +614,6 @@ type Context struct {
 	OperatorInformerFactory operatorinformers.SharedInformerFactory
 }
 
-func addSchemes() error {
-	if err := proposalv1alpha1.AddToScheme(scheme.Scheme); err != nil {
-		return fmt.Errorf("failed to add proposalv1alpha1 to scheme: %w", err)
-	}
-	return nil
-}
-
 // NewControllerContext initializes the default Context for the current Options. It does
 // not start any background processes.
 func (o *Options) NewControllerContext(
@@ -647,7 +639,7 @@ func (o *Options) NewControllerContext(
 	cvoKubeClient := cb.KubeClientOrDie(o.Namespace, useProtobuf)
 	o.PromQLTarget.KubeClient = cvoKubeClient
 
-	if err := addSchemes(); err != nil {
+	if err := internal.AddSchemes(); err != nil {
 		return nil, err
 	}
 	rtClient := cb.RuntimeControllerClientOrDie("runtime-controller-client")
