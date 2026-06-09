@@ -261,6 +261,9 @@ func PrometheusRouteURL(ctx context.Context, routeClient *routev1client.Clientse
 	if err != nil {
 		return "", fmt.Errorf("unable to get the %s route in the %s namespace: %w", prometheusName, namespaceOpenshiftMonitoring, err)
 	}
+	if len(rte.Status.Ingress) == 0 {
+		return "", fmt.Errorf("unable to get any ingress in the status of the %s route in the %s namespace: %w", prometheusName, namespaceOpenshiftMonitoring, err)
+	}
 	return "https://" + rte.Status.Ingress[0].Host, nil
 }
 

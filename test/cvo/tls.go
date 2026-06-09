@@ -234,7 +234,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 			}
 		}
-		o.Expect(found).To(o.BeTrue(), "Failed to find logs about updating TCP profile when ShouldHonorClusterTLSProfile=%t after %s",
+		o.Expect(found).To(o.BeTrue(), "Failed to find logs about updating TLS profile when ShouldHonorClusterTLSProfile=%t after %s",
 			crypto.ShouldHonorClusterTLSProfile(apiServer.Spec.TLSAdherence), t.Format(time.RFC3339))
 	})
 })
