@@ -153,7 +153,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 		return nil, err
 	}
 
-	tasks := loadPayloadTasks(releaseDir, cvoDir, releaseImage, profile)
+	tasks := loadPayloadTasks(releaseDir, cvoDir, releaseImage, profile, payload.ImageRef)
 
 	var onlyKnownCaps *configv1.ClusterVersionCapabilitiesStatus
 
@@ -317,13 +317,14 @@ type payloadTasks struct {
 	skipFiles  sets.Set[string]
 }
 
-func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []payloadTasks {
+func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string, imageRef *imagev1.ImageStream) []payloadTasks {
 	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 
 	mrc := manifestRenderConfig{
 		ReleaseImage:   releaseImage,
 		ClusterProfile: clusterProfile,
+		Images:         imagesFromImageRef(imageRef),
 	}
 
 	return []payloadTasks{{

@@ -313,6 +313,9 @@ func Test_cvoManifests(t *testing.T) {
 	config := manifestRenderConfig{
 		ReleaseImage:   "quay.io/cvo/release:latest",
 		ClusterProfile: "some-profile",
+		Images: map[string]string{
+			"cluster-update-console-plugin": "quay.io/openshift/cluster-update-console-plugin:latest",
+		},
 	}
 
 	tests := []struct {
@@ -338,6 +341,10 @@ func Test_cvoManifests(t *testing.T) {
 				}
 
 				if d.IsDir() {
+					return nil
+				}
+
+				if _, fileName := filepath.Split(path); fileName == "image-references" {
 					return nil
 				}
 
