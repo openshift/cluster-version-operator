@@ -65,7 +65,6 @@ import (
 	overridesrisk "github.com/openshift/cluster-version-operator/pkg/risk/overrides"
 	updatingrisk "github.com/openshift/cluster-version-operator/pkg/risk/updating"
 	upgradeablerisk "github.com/openshift/cluster-version-operator/pkg/risk/upgradeable"
-	cvotls "github.com/openshift/cluster-version-operator/pkg/tls"
 )
 
 const (
@@ -135,12 +134,9 @@ type Operator struct {
 	cmConfigManagedLister listerscorev1.ConfigMapNamespaceLister
 	proxyLister           configlistersv1.ProxyLister
 	featureGateLister     configlistersv1.FeatureGateLister
-	apiServerLister       configlistersv1.APIServerLister
 	cacheSynced           []cache.InformerSynced
 
-	apiServerInformer configinformersv1.APIServerInformer
-	tlsOverrides      *cvotls.Settings
-	profileMgr        *cvotls.ProfileManager
+	applyTLSSettings func(config *tls.Config)
 
 	// queue tracks applying updates to a cluster.
 	queue workqueue.TypedRateLimitingInterface[any]
@@ -240,8 +236,7 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	operatorInformerFactory operatorexternalversions.SharedInformerFactory,
 	featureGateInformer configinformersv1.FeatureGateInformer,
-	apiServerInformer configinformersv1.APIServerInformer,
-	overrides *cvotls.Settings,
+	applyTLSSettings func(config *tls.Config),
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
 	operatorClient operatorclientset.Interface,
@@ -292,6 +287,8 @@ func New(
 		enabledManifestFeatureGates: startingEnabledManifestFeatureGates,
 
 		alwaysEnableCapabilities: alwaysEnableCapabilities,
+
+		applyTLSSettings: applyTLSSettings,
 	}
 
 	if _, err := cvInformer.Informer().AddEventHandler(optr.clusterVersionEventHandler()); err != nil {
@@ -318,13 +315,6 @@ func New(
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.cacheSynced = append(optr.cacheSynced, featureGateInformer.Informer().HasSynced)
-
-	optr.apiServerLister = apiServerInformer.Lister()
-	optr.cacheSynced = append(optr.cacheSynced, apiServerInformer.Informer().HasSynced)
-
-	// Store for deferred TLS profile manager initialization (after informer sync)
-	optr.apiServerInformer = apiServerInformer
-	optr.tlsOverrides = overrides
 
 	// make sure this is initialized after all the listers are initialized
 	riskSourceCallback := func() { optr.availableUpdatesQueue.Add(optr.queueKey()) }
@@ -380,17 +370,6 @@ func New(
 	)
 
 	return optr, nil
-}
-
-// InitializeProfileManager initializes the TLS profile manager.
-// Must be called after informers are started and synced.
-func (optr *Operator) InitializeProfileManager() error {
-	profileMgr, err := cvotls.NewProfileManager(optr.apiServerInformer, optr.tlsOverrides)
-	if err != nil {
-		return fmt.Errorf("failed to initialize TLS profile manager: %w", err)
-	}
-	optr.profileMgr = profileMgr
-	return nil
 }
 
 // LoadInitialPayload waits until a ClusterVersion object exists. It then retrieves the payload contents, verifies the
@@ -1245,7 +1224,7 @@ func (optr *Operator) shouldEnableProposalController() bool {
 	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
 }
 
-// ApplySettings returns the ApplySettings function of the TLS profile manager
-func (optr *Operator) ApplySettings() func(config *tls.Config) {
-	return optr.profileMgr.ApplySettings
+// ApplyTLSSettings returns the function that applies TLS settings to the TLS config
+func (optr *Operator) ApplyTLSSettings() func(config *tls.Config) {
+	return optr.applyTLSSettings
 }
