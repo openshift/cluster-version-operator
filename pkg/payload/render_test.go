@@ -341,6 +341,10 @@ func Test_cvoManifests(t *testing.T) {
 					return nil
 				}
 
+				if _, fileName := filepath.Split(path); fileName == "image-references" {
+					return nil
+				}
+
 				var manifestsWithoutIncludeAnnotation []manifest.Manifest
 				data, err := os.ReadFile(path)
 				if err != nil {
