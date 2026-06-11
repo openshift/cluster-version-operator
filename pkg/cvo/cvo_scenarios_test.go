@@ -29,6 +29,7 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
@@ -38,11 +39,19 @@ import (
 )
 
 var architecture string
-var sortedCaps = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
-var sortedKnownCaps = configv1.KnownClusterVersionCapabilities
+var sortedCaps []configv1.ClusterVersionCapability
+var sortedKnownCaps []configv1.ClusterVersionCapability
 
 func init() {
 	architecture = runtime.GOARCH
+
+	// The scenario tests run without feature gates enabled, so filter out
+	// capabilities gated behind disabled feature gates to match runtime behavior.
+	noGates := sets.New[string]()
+	sortedCaps = capability.FilterByFeatureGates(
+		configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], noGates)
+	sortedKnownCaps = capability.FilterByFeatureGates(
+		configv1.KnownClusterVersionCapabilities, noGates)
 
 	sort.Slice(sortedCaps, func(i, j int) bool {
 		return sortedCaps[i] < sortedCaps[j]

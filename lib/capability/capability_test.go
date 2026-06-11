@@ -11,26 +11,42 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+// allFeatureGates returns a feature gate set with all gates that gate capabilities enabled.
+func allFeatureGates() sets.Set[string] {
+	gates := sets.New[string]()
+	for _, capGates := range featureGatedCapabilities {
+		gates.Insert(capGates...)
+	}
+	return gates
+}
+
 func TestSetCapabilities(t *testing.T) {
 	tests := []struct {
-		name            string
-		config          *configv1.ClusterVersion
-		wantKnownKeys   []configv1.ClusterVersionCapability
-		wantEnabledKeys []configv1.ClusterVersionCapability
+		name              string
+		config            *configv1.ClusterVersion
+		enabledGates      sets.Set[string]
+		wantKnownKeys     []configv1.ClusterVersionCapability
+		wantEnabledKeys   []configv1.ClusterVersionCapability
+		setDefaultKnown   bool
+		setDefaultEnabled bool
 	}{
-		{name: "capabilities nil",
-			config: &configv1.ClusterVersion{},
-			// wantKnownKeys and wantEnabledKeys will be set to default set of capabilities by test
+		{name: "capabilities nil, all gates enabled",
+			config:            &configv1.ClusterVersion{},
+			enabledGates:      allFeatureGates(),
+			setDefaultKnown:   true,
+			setDefaultEnabled: true,
 		},
-		{name: "capabilities set not set",
+		{name: "capabilities set not set, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{},
 				},
 			},
-			// wantKnownKeys and wantEnabledKeys will be set to default set of capabilities by test
+			enabledGates:      allFeatureGates(),
+			setDefaultKnown:   true,
+			setDefaultEnabled: true,
 		},
-		{name: "set capabilities None",
+		{name: "set capabilities None, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
@@ -38,10 +54,11 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
+			enabledGates:    allFeatureGates(),
 			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{},
 		},
-		{name: "set capabilities 4_11",
+		{name: "set capabilities 4_11, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
@@ -50,6 +67,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
+			enabledGates:  allFeatureGates(),
 			wantKnownKeys: configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapabilityBaremetal,
@@ -58,7 +76,7 @@ func TestSetCapabilities(t *testing.T) {
 				configv1.ClusterVersionCapabilityMachineAPI,
 			},
 		},
-		{name: "set capabilities vCurrent",
+		{name: "set capabilities vCurrent, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
@@ -67,10 +85,11 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
+			enabledGates:    allFeatureGates(),
 			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
 		},
-		{name: "set capabilities None with additional",
+		{name: "set capabilities None with additional, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
@@ -79,10 +98,11 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
+			enabledGates:    allFeatureGates(),
 			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3"},
 		},
-		{name: "set capabilities 4_11 with additional",
+		{name: "set capabilities 4_11 with additional, all gates enabled",
 			config: &configv1.ClusterVersion{
 				Spec: configv1.ClusterVersionSpec{
 					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
@@ -91,6 +111,7 @@ func TestSetCapabilities(t *testing.T) {
 					},
 				},
 			},
+			enabledGates:  allFeatureGates(),
 			wantKnownKeys: configv1.KnownClusterVersionCapabilities,
 			wantEnabledKeys: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapabilityBaremetal,
@@ -102,30 +123,85 @@ func TestSetCapabilities(t *testing.T) {
 				"cap3",
 			},
 		},
+		{name: "capabilities nil, no gates enabled",
+			config:       &configv1.ClusterVersion{},
+			enabledGates: sets.New[string](),
+			wantKnownKeys: FilterByFeatureGates(
+				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
+			wantEnabledKeys: FilterByFeatureGates(
+				configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], sets.New[string]()),
+		},
+		{name: "set capabilities vCurrent, no gates enabled",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+						BaselineCapabilitySet:         configv1.ClusterVersionCapabilitySetCurrent,
+						AdditionalEnabledCapabilities: []configv1.ClusterVersionCapability{},
+					},
+				},
+			},
+			enabledGates: sets.New[string](),
+			wantKnownKeys: FilterByFeatureGates(
+				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
+			wantEnabledKeys: FilterByFeatureGates(
+				configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], sets.New[string]()),
+		},
+		{name: "gated capability in additional, gate disabled",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetNone,
+						AdditionalEnabledCapabilities: []configv1.ClusterVersionCapability{
+							configv1.ClusterVersionCapabilityBaremetal,
+							configv1.ClusterVersionCapabilityClusterAPI,
+						},
+					},
+				},
+			},
+			enabledGates: sets.New[string](),
+			wantKnownKeys: FilterByFeatureGates(
+				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
+			wantEnabledKeys: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapabilityBaremetal,
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, nil)
-			if test.config.Spec.Capabilities == nil || (test.config.Spec.Capabilities != nil &&
-				len(test.config.Spec.Capabilities.BaselineCapabilitySet) == 0) {
-
-				test.wantKnownKeys = configv1.KnownClusterVersionCapabilities
-				test.wantEnabledKeys = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
+			caps := SetCapabilities(test.config, nil, test.enabledGates)
+			wantKnown := test.wantKnownKeys
+			wantEnabled := test.wantEnabledKeys
+			if test.setDefaultKnown {
+				wantKnown = configv1.KnownClusterVersionCapabilities
 			}
-			if len(caps.Known) != len(test.wantKnownKeys) {
-				t.Errorf("Incorrect number of Known keys, wanted: %q. Known returned: %v", test.wantKnownKeys, caps.Known)
+			if test.setDefaultEnabled {
+				wantEnabled = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
 			}
-			for _, v := range test.wantKnownKeys {
+			if len(caps.Known) != len(wantKnown) {
+				t.Errorf("Incorrect number of Known keys, wanted: %q. Known returned: %v", wantKnown, caps.Known)
+			}
+			for _, v := range wantKnown {
 				if _, ok := caps.Known[v]; !ok {
 					t.Errorf("Missing Known key %q. Known returned : %v", v, caps.Known)
 				}
 			}
-			if len(caps.Enabled) != len(test.wantEnabledKeys) {
-				t.Errorf("Incorrect number of Enabled keys, wanted: %q. Enabled returned: %v", test.wantEnabledKeys, caps.Enabled)
+			if len(caps.Enabled) != len(wantEnabled) {
+				t.Errorf("Incorrect number of Enabled keys, wanted: %q. Enabled returned: %v", wantEnabled, caps.Enabled)
 			}
-			for _, v := range test.wantEnabledKeys {
+			for _, v := range wantEnabled {
 				if _, ok := caps.Enabled[v]; !ok {
 					t.Errorf("Missing Enabled key %q. Enabled returned : %v", v, caps.Enabled)
+				}
+			}
+
+			// Verify gated capabilities are absent when gate is disabled
+			excluded := gatedCapabilities(test.enabledGates)
+			for cap := range excluded {
+				if caps.Known.Has(cap) {
+					t.Errorf("Gated capability %q should not be in Known when gate is disabled", cap)
+				}
+				if caps.Enabled.Has(cap) {
+					t.Errorf("Gated capability %q should not be in Enabled when gate is disabled", cap)
 				}
 			}
 		})
@@ -136,6 +212,7 @@ func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 	tests := []struct {
 		name         string
 		config       *configv1.ClusterVersion
+		enabledGates sets.Set[string]
 		wantImplicit sets.Set[configv1.ClusterVersionCapability]
 		priorEnabled []configv1.ClusterVersionCapability
 	}{
@@ -147,13 +224,29 @@ func TestSetCapabilitiesWithImplicitlyEnabled(t *testing.T) {
 					},
 				},
 			},
+			enabledGates: allFeatureGates(),
 			priorEnabled: []configv1.ClusterVersionCapability{"cap1", "cap2", "cap3", "cap2"},
 			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap1", "cap2", "cap3"),
+		},
+		{name: "prior-enabled gated capability with gate disabled",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					Capabilities: &configv1.ClusterVersionCapabilitiesSpec{
+						BaselineCapabilitySet: configv1.ClusterVersionCapabilitySetCurrent,
+					},
+				},
+			},
+			enabledGates: sets.New[string](),
+			priorEnabled: []configv1.ClusterVersionCapability{
+				configv1.ClusterVersionCapabilityClusterAPI,
+				"cap1",
+			},
+			wantImplicit: sets.New[configv1.ClusterVersionCapability]("cap1"),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caps := SetCapabilities(test.config, test.priorEnabled)
+			caps := SetCapabilities(test.config, test.priorEnabled, test.enabledGates)
 			if diff := cmp.Diff(test.wantImplicit, caps.ImplicitlyEnabled); diff != "" {
 				t.Errorf("%s: wantImplicit differs from expected:\n%s", test.name, diff)
 			}
@@ -284,5 +377,29 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 				t.Fatalf("unexpected: %#v", caps)
 			}
 		})
+	}
+}
+
+func TestFilterByFeatureGates(t *testing.T) {
+	all := configv1.KnownClusterVersionCapabilities
+	allGates := allFeatureGates()
+
+	// With all gates enabled, nothing is filtered
+	filtered := FilterByFeatureGates(all, allGates)
+	if len(filtered) != len(all) {
+		t.Errorf("expected %d capabilities with all gates, got %d", len(all), len(filtered))
+	}
+
+	// With no gates enabled, gated capabilities are removed
+	filtered = FilterByFeatureGates(all, sets.New[string]())
+	excluded := gatedCapabilities(sets.New[string]())
+	expectedLen := len(all) - excluded.Len()
+	if len(filtered) != expectedLen {
+		t.Errorf("expected %d capabilities with no gates, got %d", expectedLen, len(filtered))
+	}
+	for _, c := range filtered {
+		if excluded.Has(c) {
+			t.Errorf("gated capability %q should have been filtered out", c)
+		}
 	}
 }
