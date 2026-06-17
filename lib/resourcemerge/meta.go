@@ -1,18 +1,42 @@
 package resourcemerge
 
 import (
+	"github.com/google/go-cmp/cmp"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 )
 
 // EnsureObjectMeta ensures that the existing matches the required.
 // modified is set to true when existing had to be updated with required.
 func EnsureObjectMeta(modified *bool, existing *metav1.ObjectMeta, required metav1.ObjectMeta) {
+	mod := *modified
+	*modified = false
 	setStringIfSet(modified, &existing.Namespace, required.Namespace)
+	if *modified {
+		klog.V(2).Infof("EFRIED: Namespaces differ")
+		*modified = false
+	}
 	setStringIfSet(modified, &existing.Name, required.Name)
+	if *modified {
+		klog.V(2).Infof("EFRIED: Names differ")
+		*modified = false
+	}
 	mergeMap(modified, &existing.Labels, required.Labels)
+	if *modified {
+		klog.V(2).Infof("EFRIED: Labels differ")
+		*modified = false
+	}
 	mergeMap(modified, &existing.Annotations, required.Annotations)
+	if *modified {
+		klog.V(2).Infof("EFRIED: Annotations differ")
+		*modified = false
+	}
 	mergeOwnerRefs(modified, &existing.OwnerReferences, required.OwnerReferences)
+	if *modified {
+		klog.V(2).Infof("EFRIED: OwnerRefs differ")
+	}
+	*modified = mod
 }
 
 func setStringIfSet(modified *bool, existing *string, required string) {
@@ -20,6 +44,7 @@ func setStringIfSet(modified *bool, existing *string, required string) {
 		return
 	}
 	if required != *existing {
+		klog.V(2).Infof("EFRIED: %s != %s", *existing, required)
 		*existing = required
 		*modified = true
 	}
@@ -34,6 +59,7 @@ func mergeMap(modified *bool, existing *map[string]string, required map[string]s
 	}
 	for k, v := range required {
 		if existingV, ok := (*existing)[k]; !ok || v != existingV {
+			klog.V(2).Infof("EFRIED: map[%s]: %s != %s", k, existingV, v)
 			*modified = true
 			(*existing)[k] = v
 		}
@@ -47,6 +73,7 @@ func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required 
 			if required[ridx].UID == (*existing)[eidx].UID {
 				found = true
 				if !equality.Semantic.DeepEqual((*existing)[eidx], required[ridx]) {
+					klog.V(2).Infof("EFRIED: OwnerReferences differ: %s", cmp.Diff((*existing)[eidx], required[ridx]))
 					*modified = true
 					(*existing)[eidx] = required[ridx]
 				}
@@ -54,6 +81,7 @@ func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required 
 			}
 		}
 		if !found {
+			klog.V(2).Infof("EFRIED: OwnerReference not found: %v", required[ridx])
 			*modified = true
 			*existing = append(*existing, required[ridx])
 		}
