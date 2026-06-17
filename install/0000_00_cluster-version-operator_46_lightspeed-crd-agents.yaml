@@ -5,7 +5,7 @@ metadata:
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/feature-set: TechPreviewNoUpgrade
-    controller-gen.kubebuilder.io/version: v0.20.1
+    controller-gen.kubebuilder.io/version: v0.19.0
   name: agents.agentic.openshift.io
 spec:
   group: agentic.openshift.io
@@ -19,6 +19,9 @@ spec:
   - additionalPrinterColumns:
     - jsonPath: .spec.llmProvider.name
       name: LLM
+      type: string
+    - jsonPath: .spec.model
+      name: Model
       type: string
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
@@ -37,12 +40,12 @@ spec:
           are optional (the\noperator auto-links to \"default\" if absent).\n\nExample
           — a high-capability agent tier:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
           Agent\n\tmetadata:\n\t  name: smart\n\tspec:\n\t  llmProvider:\n\t    name:
-          vertex-opus\n\t  timeouts:\n\t    analysisSeconds: 300\n\t    executionSeconds:
-          600\n\t  maxTurns: 200\n\t  providerSettings:\n\t    reasoningEffort: \"high\"\n\nExample
-          — a fast, cost-efficient agent tier:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
+          vertex-ai\n\t  model: claude-opus-4-6\n\t  timeouts:\n\t    analysisSeconds:
+          300\n\t    executionSeconds: 600\n\t  maxTurns: 200\n\nExample — a fast,
+          cost-efficient agent tier:\n\n\tapiVersion: agentic.openshift.io/v1alpha1\n\tkind:
           Agent\n\tmetadata:\n\t  name: fast\n\tspec:\n\t  llmProvider:\n\t    name:
-          vertex-haiku\n\t  timeouts:\n\t    analysisSeconds: 120\n\t    executionSeconds:
-          300\n\t  maxTurns: 100\n\t  providerSettings:\n\t    reasoningEffort: \"low\""
+          vertex-ai\n\t  model: claude-haiku-4-5\n\t  timeouts:\n\t    analysisSeconds:
+          120\n\t    executionSeconds: 300\n\t  maxTurns: 100"
         properties:
           apiVersion:
             description: |-
@@ -70,10 +73,15 @@ spec:
                   LLM backend for this agent tier.
                 properties:
                   name:
-                    description: name of the LLMProvider.
+                    description: name of the LLMProvider. Must be a valid RFC 1123
+                      DNS subdomain.
                     maxLength: 253
                     minLength: 1
                     type: string
+                    x-kubernetes-validations:
+                    - message: 'must be a valid DNS subdomain: lowercase alphanumeric
+                        characters, hyphens, and dots'
+                      rule: '!format.dns1123Subdomain().validate(self).hasValue()'
                 required:
                 - name
                 type: object
@@ -81,21 +89,32 @@ spec:
                 description: |-
                   maxTurns is the maximum number of tool-use turns the agent may take
                   in a single step invocation. Prevents runaway loops.
+                  When omitted, the agent sandbox uses its built-in default.
+                  Minimum 1, maximum 500.
                 format: int32
                 maximum: 500
                 minimum: 1
                 type: integer
-              providerSettings:
-                additionalProperties:
-                  type: string
+              model:
                 description: |-
-                  providerSettings is a freeform key-value map passed through to the
-                  LLM SDK. Use this for provider-specific tuning parameters such as
-                  temperature, reasoningEffort, topP, etc. The operator does not
-                  validate these keys — they are forwarded as-is to the SDK.
-                type: object
+                  model is the LLM model identifier as recognized by the provider
+                  (e.g., "claude-opus-4-6", "claude-haiku-4-5", "gpt-4o").
+                  Must start with an alphanumeric character and may contain
+                  alphanumerics, dots, hyphens, underscores, slashes, colons,
+                  and at-signs. Maximum 256 characters.
+                maxLength: 256
+                minLength: 1
+                type: string
+                x-kubernetes-validations:
+                - message: model must start with an alphanumeric character and contain
+                    only alphanumerics, dots, hyphens, underscores, slashes, colons,
+                    and at-signs
+                  rule: self.matches('^[a-zA-Z0-9][a-zA-Z0-9._\\-/:@]*$')
               timeouts:
-                description: timeouts configures per-step and per-turn timeout limits.
+                description: |-
+                  timeouts configures per-step and per-turn timeout limits.
+                  When omitted, the agent sandbox uses its built-in defaults.
+                minProperties: 1
                 properties:
                   analysisSeconds:
                     description: analysisSeconds is the timeout for the analysis step
@@ -128,16 +147,17 @@ spec:
                 type: object
             required:
             - llmProvider
+            - model
             type: object
           status:
             description: status defines the observed state of Agent.
+            minProperties: 1
             properties:
               conditions:
                 description: |-
                   conditions represent the latest available observations of the
                   Agent's state. The Ready condition summarizes whether all
                   referenced resources (LLMProvider, Secrets) are present.
-                  Empty until the operator's first reconcile.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -193,6 +213,7 @@ spec:
                   - type
                   type: object
                 maxItems: 8
+                minItems: 1
                 type: array
                 x-kubernetes-list-map-keys:
                 - type

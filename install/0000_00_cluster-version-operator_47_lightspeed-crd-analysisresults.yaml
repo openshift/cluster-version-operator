@@ -146,9 +146,9 @@ spec:
                     RemediationOption represents a single remediation approach produced by
                     the analysis agent. The agent may return multiple options, each with
                     its own diagnosis, remediation plan, verification strategy, and RBAC
-                    requirements. The user selects one option after analysis
-                    (recorded in AnalysisStepStatus.selectedOption), and the operator uses
-                    that option's RBAC and plan for the execution step.
+                    requirements. When the user approves execution, the operator trims
+                    the AnalysisResult to keep only the approved option and uses its
+                    RBAC and plan for the execution step.
 
                     The components field is an extensibility point for adapter-specific UI
                     data. For example, an ACS adapter might include violation details or
@@ -158,13 +158,15 @@ spec:
                     components:
                       description: |-
                         components contains optional adapter-defined structured data whose
-                        shape is determined by spec.outputSchema on the Proposal. The
-                        operator passes this through to the AnalysisResult CR; the console
-                        renders it using adapter-specific UI components.
+                        shape is determined by spec.analysisOutput.schema on the Proposal.
+                        The operator passes this through to the AnalysisResult CR; the
+                        console renders it using adapter-specific UI components.
                       x-kubernetes-preserve-unknown-fields: true
                     diagnosis:
-                      description: diagnosis contains the root cause analysis specific
-                        to this option.
+                      description: |-
+                        diagnosis contains the root cause analysis specific to this option.
+                        Present when analysisOutput mode is Default (or omitted). Omitted
+                        when mode is Minimal.
                       properties:
                         confidence:
                           description: |-
@@ -197,8 +199,10 @@ spec:
                       - summary
                       type: object
                     proposal:
-                      description: proposal contains the remediation plan for this
-                        option.
+                      description: |-
+                        proposal contains the remediation plan for this option.
+                        Present when analysisOutput mode is Default (or omitted). Omitted
+                        when mode is Minimal without an execution step.
                       properties:
                         actions:
                           description: |-
@@ -576,10 +580,13 @@ spec:
                       - description
                       type: object
                   required:
-                  - diagnosis
-                  - proposal
                   - title
                   type: object
+                  x-kubernetes-validations:
+                  - message: proposal is required when diagnosis is present
+                    rule: '!has(self.diagnosis) || has(self.proposal)'
+                  - message: diagnosis is required when proposal is present
+                    rule: '!has(self.proposal) || has(self.diagnosis)'
                 maxItems: 10
                 minItems: 1
                 type: array
