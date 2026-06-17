@@ -3,7 +3,8 @@
 set -eu
 
 # Go to the root of the repo
-cd "$(git rev-parse --show-cdup)"
+rel="$(git rev-parse --show-cdup)"
+[ $rel ] && cd $rel
 
 # Source build variables
 source hack/build-info.sh

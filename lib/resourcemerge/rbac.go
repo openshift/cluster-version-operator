@@ -3,6 +3,8 @@ package resourcemerge
 import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/klog/v2"
+	"github.com/google/go-cmp/cmp"
 )
 
 // EnsureClusterRoleBinding ensures that the existing matches the required.
@@ -11,10 +13,12 @@ func EnsureClusterRoleBinding(modified *bool, existing *rbacv1.ClusterRoleBindin
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	ensureRoleRefDefaultsv1(&required.RoleRef)
 	if !equality.Semantic.DeepEqual(existing.Subjects, required.Subjects) {
+		klog.V(2).Infof("EFRIED: Subjects differ: %s", cmp.Diff(existing.Subjects, required.Subjects))
 		*modified = true
 		existing.Subjects = required.Subjects
 	}
 	if !equality.Semantic.DeepEqual(existing.RoleRef, required.RoleRef) {
+		klog.V(2).Infof("EFRIED: RoleRefs differ: %s", cmp.Diff(existing.RoleRef, required.RoleRef))
 		*modified = true
 		existing.RoleRef = required.RoleRef
 	}
