@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -31,13 +29,15 @@ func ApplySecurityContextConstraintsv1(ctx context.Context, client securityclien
 		return nil, false, nil
 	}
 
+	var original securityv1.SecurityContextConstraints
+	existing.DeepCopyInto(&original)
 	reconcile := resourcemerge.EnsureSecurityContextConstraints(*existing, *required)
 	if reconcile == nil {
 		return existing, false, nil
 	}
 
 	if reconciling {
-		if diff := cmp.Diff(existing, reconcile); diff != "" {
+		if diff := ManifestDiff(&original, reconcile); diff != "" {
 			klog.V(2).Infof("Updating SCC %s/%s due to diff: %v", required.Namespace, required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating SCC %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)

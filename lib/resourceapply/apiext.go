@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextclientv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -39,7 +37,7 @@ func ApplyCustomResourceDefinitionv1(ctx context.Context, client apiextclientv1.
 		return existing, false, nil
 	}
 	if reconciling {
-		if diff := cmp.Diff(&original, existing); diff != "" {
+		if diff := ManifestDiff(&original, existing); diff != "" {
 			klog.V(2).Infof("Updating CRD %s due to diff: %v", required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating CRD %s with empty diff: possible hotloop after wrong comparison", required.Name)

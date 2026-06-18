@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -39,7 +37,7 @@ func ApplyClusterVersionFromCache(ctx context.Context, lister configlistersv1.Cl
 		return existing, false, nil
 	}
 
-	klog.V(2).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+	klog.V(2).Infof("Updating ClusterVersion %s due to diff: %v", required.Name, ManifestDiff(obj, existing))
 
 	actual, err := client.ClusterVersions().Update(ctx, existing, metav1.UpdateOptions{})
 	return actual, true, err
