@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: valid-manifest
+  namespace: test
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+data:
+  release-image: '{{.ReleaseImage}}'

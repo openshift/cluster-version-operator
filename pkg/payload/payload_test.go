@@ -150,6 +150,28 @@ func TestLoadUpdate(t *testing.T) {
 	}
 }
 
+func TestLoadUpdateSkipsUnknownTemplateFields(t *testing.T) {
+	update, err := LoadUpdate("testdata/payload-unknown-template", "image:test", "", "", DefaultClusterProfile, nil, sets.Set[string]{})
+	if err != nil {
+		t.Fatalf("LoadUpdate should not fail when a manifest uses unknown template fields, got: %v", err)
+	}
+
+	// The valid manifest (using known .ReleaseImage) should be loaded
+	var foundValid bool
+	for _, m := range update.Manifests {
+		if m.OriginalFilename == "0000_00_valid.yaml" {
+			foundValid = true
+		}
+		// The manifest with unknown .FutureField should be skipped (not loaded)
+		if m.OriginalFilename == "0000_50_unknown-field.yaml" {
+			t.Error("manifest with unknown template field should have been skipped, but was loaded")
+		}
+	}
+	if !foundValid {
+		t.Error("expected valid manifest (0000_00_valid.yaml) to be loaded")
+	}
+}
+
 func TestLoadUpdateArchitecture(t *testing.T) {
 	type args struct {
 		dir          string

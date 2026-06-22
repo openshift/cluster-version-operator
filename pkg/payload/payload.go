@@ -153,7 +153,7 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 		return nil, err
 	}
 
-	tasks := loadPayloadTasks(releaseDir, cvoDir, releaseImage, profile)
+	tasks := loadPayloadTasks(releaseDir, cvoDir, releaseImage, profile, payload.ImageRef)
 
 	var onlyKnownCaps *configv1.ClusterVersionCapabilitiesStatus
 
@@ -195,7 +195,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			if task.preprocess != nil {
 				raw, err = task.preprocess(raw)
 				if err != nil {
-					errs = append(errs, fmt.Errorf("preprocess %s: %w", file.Name(), err))
+					// Template rendering may fail when an older CVO binary
+					// loads a newer payload that uses template fields the
+					// older binary does not know about (e.g. .Images). Skip
+					// the manifest with a warning — the new CVO binary will
+					// re-load the full payload after it replaces the old one
+					// at run-level 0.
+					klog.Warningf("Skipping manifest %s: template rendering failed (may require newer CVO): %v", file.Name(), err)
 					continue
 				}
 			}
@@ -317,13 +323,14 @@ type payloadTasks struct {
 	skipFiles  sets.Set[string]
 }
 
-func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string) []payloadTasks {
+func loadPayloadTasks(releaseDir, cvoDir, releaseImage, clusterProfile string, imageRef *imagev1.ImageStream) []payloadTasks {
 	cjf := filepath.Join(releaseDir, cincinnatiJSONFile)
 	irf := filepath.Join(releaseDir, imageReferencesFile)
 
 	mrc := manifestRenderConfig{
 		ReleaseImage:   releaseImage,
 		ClusterProfile: clusterProfile,
+		Images:         imagesFromImageRef(imageRef),
 	}
 
 	return []payloadTasks{{
