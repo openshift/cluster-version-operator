@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	batchv1 "k8s.io/api/batch/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +37,7 @@ func ApplyJobv1(ctx context.Context, client batchclientv1.JobsGetter, required *
 		return existing, false, nil
 	}
 	if reconciling {
-		if diff := cmp.Diff(&original, existing); diff != "" {
+		if diff := ManifestDiff(&original, existing); diff != "" {
 			klog.V(2).Infof("Updating Job %s/%s due to diff: %v", required.Namespace, required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating Job %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)
@@ -74,7 +72,7 @@ func ApplyCronJobv1(ctx context.Context, client batchclientv1.CronJobsGetter, re
 		return existing, false, nil
 	}
 	if reconciling {
-		if diff := cmp.Diff(&original, existing); diff != "" {
+		if diff := ManifestDiff(&original, existing); diff != "" {
 			klog.V(2).Infof("Updating CronJob %s/%s due to diff: %v", required.Namespace, required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating CronJob %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)

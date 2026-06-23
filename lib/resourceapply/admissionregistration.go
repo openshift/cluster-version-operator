@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	admissionregv1 "k8s.io/api/admissionregistration/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +36,7 @@ func ApplyValidatingWebhookConfigurationv1(ctx context.Context, client admission
 		return existing, false, nil
 	}
 	if reconciling {
-		if diff := cmp.Diff(&original, existing); diff != "" {
+		if diff := ManifestDiff(&original, existing); diff != "" {
 			klog.V(2).Infof("Updating ValidatingWebhookConfiguration %s/%s due to diff: %v", required.Namespace, required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating ValidatingWebhookConfiguration %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)

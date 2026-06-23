@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -32,13 +30,15 @@ func ApplyNamespacev1(ctx context.Context, client coreclientv1.NamespacesGetter,
 		return nil, false, nil
 	}
 
+	var original corev1.Namespace
+	existing.DeepCopyInto(&original)
 	modified := ptr.To(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	if !*modified {
 		return existing, false, nil
 	}
 	if reconciling {
-		klog.V(2).Infof("Updating Namespace %s due to diff: %v", required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Namespace %s due to diff: %v", required.Name, ManifestDiff(&original, existing))
 	}
 
 	actual, err := client.Namespaces().Update(ctx, existing, metav1.UpdateOptions{})
@@ -63,6 +63,8 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 		return nil, false, nil
 	}
 
+	var original corev1.Service
+	existing.DeepCopyInto(&original)
 	modified := ptr.To(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 	resourcemerge.EnsureServicePorts(modified, &existing.Spec.Ports, required.Spec.Ports)
@@ -75,7 +77,7 @@ func ApplyServicev1(ctx context.Context, client coreclientv1.ServicesGetter, req
 	existing.Spec.Selector = required.Spec.Selector
 
 	if reconciling {
-		klog.V(2).Infof("Updating Service %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating Service %s/%s due to diff: %v", required.Namespace, required.Name, ManifestDiff(&original, existing))
 	}
 
 	actual, err := client.Services(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -98,6 +100,8 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 		return nil, false, nil
 	}
 
+	var original corev1.ServiceAccount
+	existing.DeepCopyInto(&original)
 	modified := ptr.To(false)
 	resourcemerge.EnsureServiceAccount(modified, existing, *required)
 	if !*modified {
@@ -105,7 +109,7 @@ func ApplyServiceAccountv1(ctx context.Context, client coreclientv1.ServiceAccou
 	}
 
 	if reconciling {
-		klog.V(2).Infof("Updating ServiceAccount %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ServiceAccount %s/%s due to diff: %v", required.Namespace, required.Name, ManifestDiff(&original, existing))
 	}
 
 	actual, err := client.ServiceAccounts(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})
@@ -128,6 +132,8 @@ func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter,
 		return nil, false, nil
 	}
 
+	var original corev1.ConfigMap
+	existing.DeepCopyInto(&original)
 	modified := ptr.To(false)
 	resourcemerge.EnsureConfigMap(modified, existing, *required)
 	if !*modified {
@@ -135,7 +141,7 @@ func ApplyConfigMapv1(ctx context.Context, client coreclientv1.ConfigMapsGetter,
 	}
 
 	if reconciling {
-		klog.V(2).Infof("Updating ConfigMap %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating ConfigMap %s/%s due to diff: %v", required.Namespace, required.Name, ManifestDiff(&original, existing))
 	}
 
 	actual, err := client.ConfigMaps(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})

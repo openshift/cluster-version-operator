@@ -6,8 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/go-cmp/cmp"
-
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +17,7 @@ import (
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
@@ -134,7 +133,7 @@ func (b *clusterOperatorBuilder) Do(ctx context.Context) error {
 		var modified bool
 		resourcemerge.EnsureObjectMeta(&modified, &existing.ObjectMeta, co.ObjectMeta)
 		if modified {
-			if diff := cmp.Diff(&original, existing); diff != "" {
+			if diff := resourceapply.ManifestDiff(&original, existing); diff != "" {
 				klog.V(2).Infof("Updating ClusterOperator metadata %s due to diff: %v", co.Name, diff)
 			} else {
 				klog.V(2).Infof("Updating ClusterOperator metadata %s with empty diff: possible hotloop after wrong comparison", co.Name)

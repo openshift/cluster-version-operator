@@ -3,8 +3,6 @@ package resourceapply
 import (
 	"context"
 
-	"github.com/google/go-cmp/cmp"
-
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,7 +37,7 @@ func ApplyDeploymentv1(ctx context.Context, client appsclientv1.DeploymentsGette
 		return existing, false, nil
 	}
 	if reconciling {
-		if diff := cmp.Diff(&original, existing); diff != "" {
+		if diff := ManifestDiff(&original, existing); diff != "" {
 			klog.V(2).Infof("Updating Deployment %s/%s due to diff: %v", required.Namespace, required.Name, diff)
 		} else {
 			klog.V(2).Infof("Updating Deployment %s/%s with empty diff: possible hotloop after wrong comparison", required.Namespace, required.Name)
@@ -66,6 +64,8 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 		return nil, false, nil
 	}
 
+	var original appsv1.DaemonSet
+	existing.DeepCopyInto(&original)
 	modified := ptr.To(false)
 	resourcemerge.EnsureDaemonSet(modified, existing, *required)
 	if !*modified {
@@ -73,7 +73,7 @@ func ApplyDaemonSetv1(ctx context.Context, client appsclientv1.DaemonSetsGetter,
 	}
 
 	if reconciling {
-		klog.V(2).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, cmp.Diff(existing, required))
+		klog.V(2).Infof("Updating DaemonSet %s/%s due to diff: %v", required.Namespace, required.Name, ManifestDiff(&original, existing))
 	}
 
 	actual, err := client.DaemonSets(required.Namespace).Update(ctx, existing, metav1.UpdateOptions{})

@@ -77,10 +77,10 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 		return nil, false, nil
 	}
 
-	skipKeys := sets.New[string]("apiVersion", "kind", "metadata", "status")
+	skipKeys := sets.New("apiVersion", "kind", "metadata", "status")
 
-	// create a copy of required, but copy skipKeys from existing
-	// this would copy skipKeys data into expected from existing
+	// create a copy of required, but copy skipKeys -- the parts that don't matter if they differ -- from existing
+	// so that our comparison only triggers on differences in the remaining fields
 	expected := required.DeepCopy()
 	for k, v := range existing.Object {
 		if skipKeys.Has(k) {
@@ -90,7 +90,7 @@ func applyUnstructured(ctx context.Context, client dynamic.ResourceInterface, re
 
 	objDiff := cmp.Diff(expected, existing)
 	if objDiff == "" {
-		// Skip update, as no changes found
+		// Skip update, as no relevant changes found
 		return existing, false, nil
 	}
 
