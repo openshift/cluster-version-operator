@@ -20,6 +20,7 @@ import (
 
 	"github.com/openshift/api/config"
 	configv1 "github.com/openshift/api/config/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 )
 
@@ -37,6 +38,12 @@ func Render(outputDir, releaseImage, clusterVersionManifestPath, featureGateMani
 			ClusterProfile: clusterProfile,
 		}
 	)
+
+	imageRef, err := loadImageReferences(releaseManifestsDir)
+	if err != nil {
+		return fmt.Errorf("error loading image references for manifest rendering: %w", err)
+	}
+	renderConfig.Images = imagesFromImageRef(imageRef)
 
 	overrides, err := parseClusterVersionManifest(clusterVersionManifestPath)
 	if err != nil {
@@ -181,6 +188,21 @@ func renderDir(renderConfig manifestRenderConfig, idir, odir string, overrides [
 type manifestRenderConfig struct {
 	ReleaseImage   string
 	ClusterProfile string
+	Images         map[string]string
+}
+
+// imagesFromImageRef builds a map from image short names to their resolved URIs.
+func imagesFromImageRef(imageRef *imagev1.ImageStream) map[string]string {
+	images := make(map[string]string)
+	if imageRef == nil {
+		return images
+	}
+	for _, tag := range imageRef.Spec.Tags {
+		if tag.From != nil && tag.From.Kind == "DockerImage" {
+			images[tag.Name] = tag.From.Name
+		}
+	}
+	return images
 }
 
 // renderManifest Executes go text template from `manifestBytes` with `config`.

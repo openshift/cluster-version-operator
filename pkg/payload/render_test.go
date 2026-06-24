@@ -11,13 +11,81 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	configv1 "github.com/openshift/api/config/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 	"github.com/openshift/library-go/pkg/manifest"
 )
+
+func TestImagesFromImageRef(t *testing.T) {
+	tests := []struct {
+		name     string
+		imageRef *imagev1.ImageStream
+		expected map[string]string
+	}{
+		{
+			name:     "nil ImageStream returns empty map",
+			imageRef: nil,
+			expected: map[string]string{},
+		},
+		{
+			name: "maps DockerImage tags to their names",
+			imageRef: &imagev1.ImageStream{
+				Spec: imagev1.ImageStreamSpec{
+					Tags: []imagev1.TagReference{
+						{
+							Name: "console",
+							From: &corev1.ObjectReference{Kind: "DockerImage", Name: "quay.io/openshift/console:latest"},
+						},
+						{
+							Name: "cluster-update-console-plugin",
+							From: &corev1.ObjectReference{Kind: "DockerImage", Name: "quay.io/openshift/plugin:v1"},
+						},
+					},
+				},
+			},
+			expected: map[string]string{
+				"console":                       "quay.io/openshift/console:latest",
+				"cluster-update-console-plugin": "quay.io/openshift/plugin:v1",
+			},
+		},
+		{
+			name: "skips non-DockerImage tags",
+			imageRef: &imagev1.ImageStream{
+				Spec: imagev1.ImageStreamSpec{
+					Tags: []imagev1.TagReference{
+						{
+							Name: "docker-tag",
+							From: &corev1.ObjectReference{Kind: "DockerImage", Name: "example.com/img:v1"},
+						},
+						{
+							Name: "image-stream-tag",
+							From: &corev1.ObjectReference{Kind: "ImageStreamTag", Name: "other:latest"},
+						},
+						{
+							Name: "no-from",
+						},
+					},
+				},
+			},
+			expected: map[string]string{
+				"docker-tag": "example.com/img:v1",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := imagesFromImageRef(tt.imageRef)
+			if diff := cmp.Diff(tt.expected, actual); diff != "" {
+				t.Errorf("imagesFromImageRef mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
 
 func TestRenderManifest(t *testing.T) {
 
