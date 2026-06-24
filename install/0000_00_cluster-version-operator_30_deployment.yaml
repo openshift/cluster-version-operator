@@ -22,7 +22,6 @@ spec:
       labels:
         k8s-app: cluster-version-operator
     spec:
-      automountServiceAccountToken: false
       serviceAccountName: cluster-version-operator
       containers:
       - name: cluster-version-operator
@@ -59,9 +58,6 @@ spec:
           readOnly: true
         - mountPath: /etc/tls/service-ca
           name: service-ca
-          readOnly: true
-        - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
-          name: kube-api-access
           readOnly: true
         env:
         # Unfortunately the placeholder is not replaced, reported as OCPBUGS-30080
@@ -116,21 +112,3 @@ spec:
       - name: service-ca
         configMap:
           name: openshift-service-ca.crt
-      - name: kube-api-access
-        projected:
-          defaultMode: 420
-          sources:
-          - serviceAccountToken:
-              expirationSeconds: 3600
-              path: token
-          - configMap:
-              items:
-              - key: ca.crt
-                path: ca.crt
-              name: kube-root-ca.crt
-          - downwardAPI:
-              items:
-              - fieldRef:
-                  apiVersion: v1
-                  fieldPath: metadata.namespace
-                path: namespace
