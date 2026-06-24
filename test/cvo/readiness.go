@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 
@@ -24,6 +25,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 		kubeClient     kubernetes.Interface
 		configClient   *configv1client.ConfigV1Client
 		ctx            context.Context
+		restCfg        *rest.Config
 		currentVersion string
 		targetVersion  string
 	)
@@ -33,7 +35,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 		ctx, cancel = context.WithTimeout(context.Background(), 2*time.Minute)
 		g.DeferCleanup(cancel)
 
-		restCfg, err := util.GetRestConfig()
+		var err error
+		restCfg, err = util.GetRestConfig()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
 		dynamicClient, err = dynamic.NewForConfig(restCfg)
@@ -138,6 +141,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 	})
 
 	g.It("should report etcd member count matching actual etcd pods", func() {
+		o.Expect(util.SkipIfHypershift(ctx, restCfg)).To(o.BeNil())
+
 		// Ground truth: list etcd pods via typed client
 		podList, err := kubeClient.CoreV1().Pods("openshift-etcd").List(ctx, metav1.ListOptions{
 			LabelSelector: "app=etcd",
