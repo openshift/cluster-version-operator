@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/dynamic"
 )
 
@@ -16,9 +17,17 @@ func (c *EtcdHealthCheck) Run(ctx context.Context, dc dynamic.Interface, current
 	result := map[string]any{}
 	var sectionErrors []map[string]any
 
-	// Check etcd ClusterOperator
+	// Check etcd ClusterOperator — on HyperShift hosted clusters etcd is
+	// managed externally and the CO does not exist on the guest cluster.
 	etcdCO, err := GetResource(ctx, dc, GVRClusterOperator, "etcd")
 	if err != nil {
+		if kerrors.IsNotFound(err) {
+			return map[string]any{
+				"externally_managed": true,
+				"total_members":     0,
+				"healthy_members":   0,
+			}, nil
+		}
 		return nil, fmt.Errorf("failed to get etcd ClusterOperator: %w", err)
 	}
 
