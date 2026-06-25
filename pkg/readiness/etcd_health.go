@@ -24,8 +24,8 @@ func (c *EtcdHealthCheck) Run(ctx context.Context, dc dynamic.Interface, current
 		if kerrors.IsNotFound(err) {
 			return map[string]any{
 				"externally_managed": true,
-				"total_members":     0,
-				"healthy_members":   0,
+				"total_members":      0,
+				"healthy_members":    0,
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to get etcd ClusterOperator: %w", err)
