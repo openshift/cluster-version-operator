@@ -36,6 +36,9 @@ func main() {
 			`(name.contains("[Serial]") || "Serial" in labels) && !("Local" in labels)`,
 		},
 	})
+	ext.IgnoreObsoleteTests(
+		`[Jira:"Cluster Version Operator"] cluster-version-operator should install light speed CRDs correctly`,
+	)
 
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
