@@ -209,7 +209,7 @@ func newOperator(url string, cluster release, promqlMock clusterconditions.Condi
 		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
 			return nil, nil, nil
 		},
-		fake.NewClientBuilder().Build(), func(_ string) (*configv1.ClusterVersion, error) {
+		fake.NewClientBuilder().Build(), nil, func(_ string) (*configv1.ClusterVersion, error) {
 			return &configv1.ClusterVersion{}, nil
 		},
 		func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {

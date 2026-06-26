@@ -73,6 +73,8 @@ spec:
               fieldPath: spec.nodeName
         - name: CLUSTER_PROFILE
           value: '{{ .ClusterProfile }}'
+        - name: LIGHTSPEED_SKILLS_IMAGE
+          value: "quay.io/openshift/ci:ocp_5.0_agentic-skills"
       # this pod is hostNetwork and uses the internal LB DNS name when possible, which the kubelet also uses.
       # this dnsPolicy allows us to use the same dnsConfig as the kubelet, without access to read it ourselves.
       dnsPolicy: Default

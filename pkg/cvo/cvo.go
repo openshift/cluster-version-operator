@@ -18,6 +18,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	informerscorev1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -111,6 +112,7 @@ type Operator struct {
 
 	client         clientset.Interface
 	kubeClient     kubernetes.Interface
+	dynamicClient  dynamic.Interface
 	operatorClient operatorclientset.Interface
 	eventRecorder  record.EventRecorder
 
@@ -244,6 +246,7 @@ func New(
 	overrides *cvotls.Settings,
 	client clientset.Interface,
 	kubeClient kubernetes.Interface,
+	dynamicClient dynamic.Interface,
 	operatorClient operatorclientset.Interface,
 	exclude string,
 	clusterProfile string,
@@ -276,6 +279,7 @@ func New(
 
 		client:                client,
 		kubeClient:            kubeClient,
+		dynamicClient:         dynamicClient,
 		operatorClient:        operatorClient,
 		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: namespace}),
 		queue:                 workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[any](), workqueue.TypedRateLimitingQueueConfig[any]{Name: "clusterversion"}),
@@ -370,6 +374,7 @@ func New(
 			return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
 		},
 		rtClient,
+		dynamicClient,
 		cvInformer.Lister().Get,
 		func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error) {
 			return kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, opts)
@@ -1240,8 +1245,7 @@ func (optr *Operator) shouldReconcileAcceptRisks() bool {
 
 // shouldEnableProposalController returns whether the CVO should enable the proposal controller
 func (optr *Operator) shouldEnableProposalController() bool {
-	// We do not have a specific gate for the Proposal feature and use the TechPreviewNoUpgrade instead.
-	// It can ensure that featuregates.ChangeStopper restarts CVO when the returns of this function flips.
+	// Gated behind a feature set so featuregates.ChangeStopper restarts CVO when the return of this function flips.
 	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
 }
 

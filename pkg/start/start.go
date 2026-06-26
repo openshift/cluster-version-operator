@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/dynamic"
 	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -534,6 +535,10 @@ func (cb *ClientBuilder) OperatorClientOrDie(name string, configFns ...func(*res
 	return operatorclientset.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
 }
 
+func (cb *ClientBuilder) DynamicClientOrDie(name string, configFns ...func(*rest.Config)) dynamic.Interface {
+	return dynamic.NewForConfigOrDie(rest.AddUserAgent(cb.RestConfig(configFns...), name))
+}
+
 func (cb *ClientBuilder) RuntimeControllerClientOrDie(name string, configFns ...func(*rest.Config)) runtimeclient.Client {
 	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{})
 	if err != nil {
@@ -643,6 +648,7 @@ func (o *Options) NewControllerContext(
 		return nil, err
 	}
 	rtClient := cb.RuntimeControllerClientOrDie("runtime-controller-client")
+	dynamicClient := cb.DynamicClientOrDie("dynamic-client")
 
 	cvo, err := cvo.New(
 		o.NodeName,
@@ -661,6 +667,7 @@ func (o *Options) NewControllerContext(
 		o.TLSOptions.GetOverrides(),
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
+		dynamicClient,
 		operatorClient,
 		o.Exclude,
 		o.ClusterProfile,
