@@ -22,7 +22,6 @@ var (
 	GVRPDB               = schema.GroupVersionResource{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"}
 	GVRPV                = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "persistentvolumes"}
 	GVRSecret            = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
-	GVRCRD               = schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"}
 	GVRCSV               = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversions"}
 	GVRSubscription      = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "subscriptions"}
 	GVRInstallPlan       = schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"}

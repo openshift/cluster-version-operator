@@ -64,7 +64,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 	g.It("should run all checks without errors", func() {
 		output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
 
-		o.Expect(output.Meta.TotalChecks).To(o.Equal(9))
+		o.Expect(output.Meta.TotalChecks).To(o.Equal(8))
 		o.Expect(output.Meta.ChecksErrored).To(o.Equal(0),
 			"no check should error on a healthy cluster")
 	})
