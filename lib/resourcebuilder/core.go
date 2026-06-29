@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 
@@ -40,13 +39,15 @@ type tlsConfig struct {
 	cipherSuites  optional[[]string]
 }
 
+// modifyConfigMap sets/clears minTLSVersion and cipherSuites in the CM's data entries if
+// * ConfigMapInjectTLSAnnotation is "true"
+// * Data entry kind is GenericOperatorConfig or GenericControllerConfig
 func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) error {
 	// Check for TLS injection annotation
 	if value, ok := cm.Annotations[ConfigMapInjectTLSAnnotation]; !ok || value != "true" {
 		return nil
 	}
-
-	klog.V(2).Infof("ConfigMap %s/%s has %s annotation set to true", cm.Namespace, cm.Name, ConfigMapInjectTLSAnnotation)
+	klog.V(2).Infof("ConfigMap %s/%s has annotation %s: true", cm.Namespace, cm.Name, ConfigMapInjectTLSAnnotation)
 
 	// Empty data, nothing to inject into
 	if cm.Data == nil {
@@ -68,10 +69,10 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 	if tlsConf.cipherSuites.found {
 		cipherSuitesLog = fmt.Sprintf("%v", tlsConf.cipherSuites.value)
 	}
-	klog.V(4).Infof("ConfigMap %s/%s: observed minTLSVersion=%v, cipherSuites=%v",
+	klog.V(4).Infof("ConfigMap %s/%s will apply observed minTLSVersion=%v, cipherSuites=%v",
 		cm.Namespace, cm.Name, minTLSLog, cipherSuitesLog)
 
-	// Process each data entry that contains GenericOperatorConfig
+	// Process each data key
 	for key, value := range cm.Data {
 		klog.V(4).Infof("Processing %q key", key)
 		// Parse YAML into RNode to preserve formatting and field order
@@ -82,18 +83,19 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 			continue
 		}
 
-		// Check if this is a supported config kind
+		// Check if this is a supported data node kind
+		rnodeKind := rnode.GetKind()
 		switch {
-		case rnode.GetKind() == "GenericOperatorConfig" && rnode.GetApiVersion() == operatorv1alpha1.GroupVersion.String():
-		case rnode.GetKind() == "GenericControllerConfig" && rnode.GetApiVersion() == configv1.GroupVersion.String():
+		case rnodeKind == "GenericOperatorConfig" && rnode.GetApiVersion() == operatorv1alpha1.GroupVersion.String():
+		case rnodeKind == "GenericControllerConfig" && rnode.GetApiVersion() == configv1.GroupVersion.String():
 		default:
 			klog.V(4).Infof("ConfigMap's %q entry is not a supported config type. Only GenericOperatorConfig (%v) and GenericControllerConfig (%v) are. Skipping this entry", key, operatorv1alpha1.GroupVersion.String(), configv1.GroupVersion.String())
 			continue
 		}
 
-		klog.V(2).Infof("ConfigMap %s/%s processing GenericOperatorConfig in key %s", cm.Namespace, cm.Name, key)
+		klog.V(2).Infof("ConfigMap %s/%s processing %s in key %s", cm.Namespace, cm.Name, rnodeKind, key)
 
-		// Inject TLS settings into the GenericOperatorConfig while preserving structure
+		// Inject TLS settings into the data node while preserving structure
 		if err := updateRNodeWithTLSSettings(rnode, tlsConf); err != nil {
 			return fmt.Errorf("failed to inject the TLS configuration: %v", err)
 		}
@@ -106,7 +108,7 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 
 		// Update the ConfigMap data entry with the modified YAML
 		cm.Data[key] = modifiedYAML
-		klog.V(2).Infof("ConfigMap %s/%s updated GenericOperatorConfig with TLS profile in key %s", cm.Namespace, cm.Name, key)
+		klog.V(2).Infof("ConfigMap %s/%s updated TLS profile of %s in key %s", cm.Namespace, cm.Name, rnodeKind, key)
 	}
 	return nil
 }
@@ -142,18 +144,19 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	}
 
 	// Extract cipherSuites from the observed config
+	// We pass the list as-is, even though TLS implementations may ignore the order and/or content (Go currently does).
+	// This future-proofs for other implementations, and avoids inconsistencies between the CVO-injected list and the original.
 	if cipherSuites, ciphersFound, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "cipherSuites"); err != nil {
 		return nil, err
 	} else if ciphersFound {
-		// Sort cipher suites for consistent ordering
-		sort.Strings(cipherSuites)
 		config.cipherSuites = optional[[]string]{value: cipherSuites, found: true}
 	}
 
 	return config, nil
 }
 
-// updateRNodeWithTLSSettings injects TLS settings into a GenericOperatorConfig RNode while preserving structure.
+// updateRNodeWithTLSSettings injects TLS settings into an RNode while preserving structure.
+// Assumes a GenericOperatorConfig or GenericControllerConfig schema.
 // If a field in tlsConf is not found, the corresponding field will be deleted from the RNode.
 func updateRNodeWithTLSSettings(rnode *yaml.RNode, tlsConf *tlsConfig) error {
 	servingInfo, err := rnode.Pipe(yaml.LookupCreate(yaml.MappingNode, "servingInfo"))
