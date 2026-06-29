@@ -15,7 +15,9 @@ import (
 func allFeatureGates() sets.Set[string] {
 	gates := sets.New[string]()
 	for _, capGates := range featureGatedCapabilities {
-		gates.Insert(capGates...)
+		for _, g := range capGates {
+			gates.Insert(string(g))
+		}
 	}
 	return gates
 }
@@ -195,7 +197,7 @@ func TestSetCapabilities(t *testing.T) {
 			}
 
 			// Verify gated capabilities are absent when gate is disabled
-			excluded := gatedCapabilities(test.enabledGates)
+			excluded := excludedCapabilities(test.enabledGates)
 			for cap := range excluded {
 				if caps.Known.Has(cap) {
 					t.Errorf("Gated capability %q should not be in Known when gate is disabled", cap)
@@ -392,7 +394,7 @@ func TestFilterByFeatureGates(t *testing.T) {
 
 	// With no gates enabled, gated capabilities are removed
 	filtered = FilterByFeatureGates(all, sets.New[string]())
-	excluded := gatedCapabilities(sets.New[string]())
+	excluded := excludedCapabilities(sets.New[string]())
 	expectedLen := len(all) - excluded.Len()
 	if len(filtered) != expectedLen {
 		t.Errorf("expected %d capabilities with no gates, got %d", expectedLen, len(filtered))

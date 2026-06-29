@@ -7,35 +7,33 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 )
 
 // featureGatedCapabilities maps each gated capability to the feature gates
 // that can make it available. A capability is included when ANY of its listed
 // gates is present in the enabled set. This mirrors the FeatureGateAwareEnum
 // annotations on ClusterVersionCapability in the openshift/api types.
-var featureGatedCapabilities = map[configv1.ClusterVersionCapability][]string{
+var featureGatedCapabilities = map[configv1.ClusterVersionCapability][]configv1.FeatureGateName{
 	configv1.ClusterVersionCapabilityCompatibilityRequirements: {
-		"CRDCompatibilityRequirementOperator",
-		"ClusterAPIMachineManagement",
+		features.FeatureGateCRDCompatibilityRequirementOperator,
+		features.FeatureGateClusterAPIMachineManagement,
 	},
 	configv1.ClusterVersionCapabilityClusterAPI: {
-		"ClusterAPIMachineManagement",
+		features.FeatureGateClusterAPIMachineManagement,
 	},
 }
 
-// gatedCapabilities returns the set of capabilities that should be excluded
+// excludedCapabilities returns the set of capabilities that should be excluded
 // because none of their enabling feature gates are in enabledFeatureGates.
-func gatedCapabilities(enabledFeatureGates sets.Set[string]) sets.Set[configv1.ClusterVersionCapability] {
+func excludedCapabilities(enabledFeatureGates sets.Set[string]) sets.Set[configv1.ClusterVersionCapability] {
 	excluded := sets.New[configv1.ClusterVersionCapability]()
 	for cap, gates := range featureGatedCapabilities {
-		enabled := false
-		for _, gate := range gates {
-			if enabledFeatureGates.Has(gate) {
-				enabled = true
-				break
-			}
+		gateStrings := make([]string, len(gates))
+		for i, g := range gates {
+			gateStrings[i] = string(g)
 		}
-		if !enabled {
+		if enabledFeatureGates.Intersection(sets.New[string](gateStrings...)).Len() == 0 {
 			excluded.Insert(cap)
 		}
 	}
@@ -47,7 +45,7 @@ func gatedCapabilities(enabledFeatureGates sets.Set[string]) sets.Set[configv1.C
 func FilterByFeatureGates(capabilities []configv1.ClusterVersionCapability,
 	enabledFeatureGates sets.Set[string]) []configv1.ClusterVersionCapability {
 
-	excluded := gatedCapabilities(enabledFeatureGates)
+	excluded := excludedCapabilities(enabledFeatureGates)
 	var filtered []configv1.ClusterVersionCapability
 	for _, c := range capabilities {
 		if !excluded.Has(c) {
@@ -84,18 +82,26 @@ func SortedList(s sets.Set[configv1.ClusterVersionCapability]) []configv1.Cluste
 // collection of capabilities that are enabled including implicitly enabled.
 // It ensures that each capability in the collection is still enabled in the returned cluster capabilities
 // and recognizes all implicitly enabled ones. Capabilities gated behind feature gates that are not in
-// enabledFeatureGates are excluded from both Known and Enabled sets.
+// enabledFeatureGates are excluded from Known, Enabled, and ImplicitlyEnabled sets.
 func SetCapabilities(config *configv1.ClusterVersion,
 	capabilities []configv1.ClusterVersionCapability,
 	enabledFeatureGates sets.Set[string]) ClusterCapabilities {
 
-	excluded := gatedCapabilities(enabledFeatureGates)
+	excluded := excludedCapabilities(enabledFeatureGates)
 
 	var clusterCapabilities ClusterCapabilities
 	clusterCapabilities.Known = sets.New[configv1.ClusterVersionCapability](configv1.KnownClusterVersionCapabilities...).Difference(excluded)
 
 	clusterCapabilities.Enabled, clusterCapabilities.ImplicitlyEnabled =
-		categorizeEnabledCapabilities(config.Spec.Capabilities, capabilities, excluded)
+		categorizeEnabledCapabilities(config.Spec.Capabilities, capabilities)
+
+	clusterCapabilities.Enabled = clusterCapabilities.Enabled.Difference(excluded)
+	if clusterCapabilities.ImplicitlyEnabled != nil {
+		clusterCapabilities.ImplicitlyEnabled = clusterCapabilities.ImplicitlyEnabled.Difference(excluded)
+		if clusterCapabilities.ImplicitlyEnabled.Len() == 0 {
+			clusterCapabilities.ImplicitlyEnabled = nil
+		}
+	}
 
 	return clusterCapabilities
 }
@@ -139,10 +145,8 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 
 // categorizeEnabledCapabilities categorizes enabled capabilities by implicitness from cluster version's
 // capabilities specification and a collection of capabilities that are enabled including implicitly enabled.
-// Capabilities in the excluded set are filtered from all sources (baseline set, additional, and prior enabled).
 func categorizeEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitiesSpec,
-	capabilities []configv1.ClusterVersionCapability,
-	excluded sets.Set[configv1.ClusterVersionCapability]) (sets.Set[configv1.ClusterVersionCapability],
+	capabilities []configv1.ClusterVersionCapability) (sets.Set[configv1.ClusterVersionCapability],
 	sets.Set[configv1.ClusterVersionCapability]) {
 
 	capSet := configv1.ClusterVersionCapabilitySetCurrent
@@ -150,20 +154,15 @@ func categorizeEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapa
 	if capabilitiesSpec != nil && len(capabilitiesSpec.BaselineCapabilitySet) > 0 {
 		capSet = capabilitiesSpec.BaselineCapabilitySet
 	}
-	enabled := sets.New[configv1.ClusterVersionCapability](configv1.ClusterVersionCapabilitySets[capSet]...).Difference(excluded)
+	enabled := sets.New[configv1.ClusterVersionCapability](configv1.ClusterVersionCapabilitySets[capSet]...)
 
 	if capabilitiesSpec != nil {
 		for _, c := range capabilitiesSpec.AdditionalEnabledCapabilities {
-			if !excluded.Has(c) {
-				enabled.Insert(c)
-			}
+			enabled.Insert(c)
 		}
 	}
 	implicitlyEnabled := sets.New[configv1.ClusterVersionCapability]()
 	for _, k := range capabilities {
-		if excluded.Has(k) {
-			continue
-		}
 		if !enabled.Has(k) {
 			implicitlyEnabled.Insert(k)
 			enabled.Insert(k)
