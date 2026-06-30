@@ -22,6 +22,17 @@ func allFeatureGates() sets.Set[string] {
 	return gates
 }
 
+func filterExcluded(capabilities []configv1.ClusterVersionCapability, enabledGates sets.Set[string]) []configv1.ClusterVersionCapability {
+	excluded := excludedCapabilities(enabledGates)
+	var filtered []configv1.ClusterVersionCapability
+	for _, c := range capabilities {
+		if !excluded.Has(c) {
+			filtered = append(filtered, c)
+		}
+	}
+	return filtered
+}
+
 func TestSetCapabilities(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -128,9 +139,9 @@ func TestSetCapabilities(t *testing.T) {
 		{name: "capabilities nil, no gates enabled",
 			config:       &configv1.ClusterVersion{},
 			enabledGates: sets.New[string](),
-			wantKnownKeys: FilterByFeatureGates(
+			wantKnownKeys: filterExcluded(
 				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
-			wantEnabledKeys: FilterByFeatureGates(
+			wantEnabledKeys: filterExcluded(
 				configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], sets.New[string]()),
 		},
 		{name: "set capabilities vCurrent, no gates enabled",
@@ -143,9 +154,9 @@ func TestSetCapabilities(t *testing.T) {
 				},
 			},
 			enabledGates: sets.New[string](),
-			wantKnownKeys: FilterByFeatureGates(
+			wantKnownKeys: filterExcluded(
 				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
-			wantEnabledKeys: FilterByFeatureGates(
+			wantEnabledKeys: filterExcluded(
 				configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], sets.New[string]()),
 		},
 		{name: "gated capability in additional, gate disabled",
@@ -161,7 +172,7 @@ func TestSetCapabilities(t *testing.T) {
 				},
 			},
 			enabledGates: sets.New[string](),
-			wantKnownKeys: FilterByFeatureGates(
+			wantKnownKeys: filterExcluded(
 				configv1.KnownClusterVersionCapabilities, sets.New[string]()),
 			wantEnabledKeys: []configv1.ClusterVersionCapability{
 				configv1.ClusterVersionCapabilityBaremetal,
@@ -379,29 +390,5 @@ func TestSetFromImplicitlyEnabledCapabilities(t *testing.T) {
 				t.Fatalf("unexpected: %#v", caps)
 			}
 		})
-	}
-}
-
-func TestFilterByFeatureGates(t *testing.T) {
-	all := configv1.KnownClusterVersionCapabilities
-	allGates := allFeatureGates()
-
-	// With all gates enabled, nothing is filtered
-	filtered := FilterByFeatureGates(all, allGates)
-	if len(filtered) != len(all) {
-		t.Errorf("expected %d capabilities with all gates, got %d", len(all), len(filtered))
-	}
-
-	// With no gates enabled, gated capabilities are removed
-	filtered = FilterByFeatureGates(all, sets.New[string]())
-	excluded := excludedCapabilities(sets.New[string]())
-	expectedLen := len(all) - excluded.Len()
-	if len(filtered) != expectedLen {
-		t.Errorf("expected %d capabilities with no gates, got %d", expectedLen, len(filtered))
-	}
-	for _, c := range filtered {
-		if excluded.Has(c) {
-			t.Errorf("gated capability %q should have been filtered out", c)
-		}
 	}
 }

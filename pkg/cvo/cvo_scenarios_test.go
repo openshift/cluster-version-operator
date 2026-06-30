@@ -45,13 +45,12 @@ var sortedKnownCaps []configv1.ClusterVersionCapability
 func init() {
 	architecture = runtime.GOARCH
 
-	// The scenario tests run without feature gates enabled, so filter out
-	// capabilities gated behind disabled feature gates to match runtime behavior.
+	// The scenario tests run without feature gates enabled, so derive the
+	// expected capability lists from SetCapabilities directly.
 	noGates := sets.New[string]()
-	sortedCaps = capability.FilterByFeatureGates(
-		configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent], noGates)
-	sortedKnownCaps = capability.FilterByFeatureGates(
-		configv1.KnownClusterVersionCapabilities, noGates)
+	caps := capability.SetCapabilities(&configv1.ClusterVersion{}, nil, noGates)
+	sortedCaps = capability.SortedList(caps.Enabled)
+	sortedKnownCaps = capability.SortedList(caps.Known)
 
 	sort.Slice(sortedCaps, func(i, j int) bool {
 		return sortedCaps[i] < sortedCaps[j]

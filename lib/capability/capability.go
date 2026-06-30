@@ -40,21 +40,6 @@ func excludedCapabilities(enabledFeatureGates sets.Set[string]) sets.Set[configv
 	return excluded
 }
 
-// FilterByFeatureGates returns the subset of capabilities whose required
-// feature gates are enabled.
-func FilterByFeatureGates(capabilities []configv1.ClusterVersionCapability,
-	enabledFeatureGates sets.Set[string]) []configv1.ClusterVersionCapability {
-
-	excluded := excludedCapabilities(enabledFeatureGates)
-	var filtered []configv1.ClusterVersionCapability
-	for _, c := range capabilities {
-		if !excluded.Has(c) {
-			filtered = append(filtered, c)
-		}
-	}
-	return filtered
-}
-
 type ClusterCapabilities struct {
 	Known             sets.Set[configv1.ClusterVersionCapability]
 	Enabled           sets.Set[configv1.ClusterVersionCapability]
