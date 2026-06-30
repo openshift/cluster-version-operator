@@ -218,6 +218,7 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 				corev1.ResourceEphemeralStorage: resource.MustParse("2Mi"),
 			},
 		}
+		container.TerminationMessagePolicy = corev1.TerminationMessageFallbackToLogsOnError
 		return container
 	}
 
