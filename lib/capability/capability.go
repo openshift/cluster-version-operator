@@ -80,13 +80,8 @@ func SetCapabilities(config *configv1.ClusterVersion,
 	clusterCapabilities.Enabled, clusterCapabilities.ImplicitlyEnabled =
 		categorizeEnabledCapabilities(config.Spec.Capabilities, capabilities)
 
-	clusterCapabilities.Enabled = clusterCapabilities.Enabled.Difference(excluded)
-	if clusterCapabilities.ImplicitlyEnabled != nil {
-		clusterCapabilities.ImplicitlyEnabled = clusterCapabilities.ImplicitlyEnabled.Difference(excluded)
-		if clusterCapabilities.ImplicitlyEnabled.Len() == 0 {
-			clusterCapabilities.ImplicitlyEnabled = nil
-		}
-	}
+	clusterCapabilities.Enabled = differenceOrNil(clusterCapabilities.Enabled, excluded)
+	clusterCapabilities.ImplicitlyEnabled = differenceOrNil(clusterCapabilities.ImplicitlyEnabled, excluded)
 
 	return clusterCapabilities
 }
@@ -128,6 +123,17 @@ func GetCapabilitiesStatus(capabilities ClusterCapabilities) configv1.ClusterVer
 	return status
 }
 
+func differenceOrNil(current, excluded sets.Set[configv1.ClusterVersionCapability]) sets.Set[configv1.ClusterVersionCapability] {
+	if current == nil {
+		return nil
+	}
+	ret := current.Difference(excluded)
+	if ret.Len() == 0 {
+		return nil
+	}
+	return ret
+}
+
 // categorizeEnabledCapabilities categorizes enabled capabilities by implicitness from cluster version's
 // capabilities specification and a collection of capabilities that are enabled including implicitly enabled.
 func categorizeEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapabilitiesSpec,
@@ -142,9 +148,7 @@ func categorizeEnabledCapabilities(capabilitiesSpec *configv1.ClusterVersionCapa
 	enabled := sets.New[configv1.ClusterVersionCapability](configv1.ClusterVersionCapabilitySets[capSet]...)
 
 	if capabilitiesSpec != nil {
-		for _, c := range capabilitiesSpec.AdditionalEnabledCapabilities {
-			enabled.Insert(c)
-		}
+		enabled.Insert(capabilitiesSpec.AdditionalEnabledCapabilities...)
 	}
 	implicitlyEnabled := sets.New[configv1.ClusterVersionCapability]()
 	for _, k := range capabilities {

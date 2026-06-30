@@ -47,17 +47,11 @@ func init() {
 
 	// The scenario tests run without feature gates enabled, so derive the
 	// expected capability lists from SetCapabilities directly.
+	// SortedList returns capabilities in sorted order.
 	noGates := sets.New[string]()
 	caps := capability.SetCapabilities(&configv1.ClusterVersion{}, nil, noGates)
 	sortedCaps = capability.SortedList(caps.Enabled)
 	sortedKnownCaps = capability.SortedList(caps.Known)
-
-	sort.Slice(sortedCaps, func(i, j int) bool {
-		return sortedCaps[i] < sortedCaps[j]
-	})
-	sort.Slice(sortedKnownCaps, func(i, j int) bool {
-		return sortedKnownCaps[i] < sortedKnownCaps[j]
-	})
 }
 
 func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
