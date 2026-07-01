@@ -524,7 +524,7 @@ func (w *SyncWorker) Update(ctx context.Context, generation int64, desired confi
 
 	// ensureEnabledCapabilities includes both explicitly and implicitly enabled capabilities
 	ensureEnabledCapabilities := append(slices.Collect(maps.Keys(priorCaps)), w.alwaysEnableCapabilities...)
-	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities)
+	work.Capabilities = capability.SetCapabilities(config, ensureEnabledCapabilities, work.EnabledFeatureGates)
 
 	versionEqual, overridesEqual, capabilitiesEqual, featureGatesEqual :=
 		equalSyncWork(w.work, work, fmt.Sprintf("considering cluster version generation %d", generation))
