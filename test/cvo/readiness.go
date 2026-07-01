@@ -39,6 +39,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 		restCfg, err = util.GetRestConfig()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
 		dynamicClient, err = dynamic.NewForConfig(restCfg)
 		o.Expect(err).NotTo(o.HaveOccurred())
 
