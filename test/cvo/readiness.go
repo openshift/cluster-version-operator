@@ -185,7 +185,14 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 	})
 
 	g.It("should report PDB count matching actual PodDisruptionBudgets", func() {
-		// Ground truth: list PDBs across all namespaces
+		// Run the readiness check first to capture cluster state at a specific point in time
+		output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
+		result := output.Checks["pdb_drain"]
+		o.Expect(result.Status).To(o.Equal("ok"))
+
+		// Immediately list PDBs to minimize timing drift between the check and verification.
+		// PDBs can be created or deleted by controllers during test execution, so we list
+		// after the check to reduce the window for discrepancies caused by cluster state changes.
 		pdbList, err := kubeClient.PolicyV1().PodDisruptionBudgets("").List(ctx, metav1.ListOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
@@ -197,10 +204,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 			}
 		}
 
-		// Our check
-		output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
-		result := output.Checks["pdb_drain"]
-		o.Expect(result.Status).To(o.Equal("ok"))
 		o.Expect(result.Data["total_pdbs"]).To(o.Equal(expectedTotal),
 			"PDB count should match actual PDBs in cluster")
 
