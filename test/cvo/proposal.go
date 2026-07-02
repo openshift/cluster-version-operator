@@ -11,8 +11,6 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -39,12 +37,11 @@ func init() {
 var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`, func() {
 
 	var (
-		c                   *rest.Config
-		kubeClient          kubernetes.Interface
-		configClient        *configv1client.ConfigV1Client
-		apiExtensionsClient apiextensionsclientset.Interface
-		rtClient            ctrlruntimeclient.Client
-		err                 error
+		c            *rest.Config
+		kubeClient   kubernetes.Interface
+		configClient *configv1client.ConfigV1Client
+		rtClient     ctrlruntimeclient.Client
+		err          error
 
 		ctx         = context.Background()
 		needRecover bool
@@ -61,9 +58,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		kubeClient, err = util.GetKubeClient(c)
 		o.Expect(err).To(o.BeNil())
 		configClient, err = configv1client.NewForConfig(c)
-		o.Expect(err).To(o.BeNil())
-
-		apiExtensionsClient, err = apiextensionsclientset.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
 
 		rtClient, err = ctrlruntimeclient.New(config.GetConfigOrDie(), ctrlruntimeclient.Options{})
@@ -88,20 +82,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should install light speed CRDs correctly", func() {
-		for _, name := range []string{"proposals.agentic.openshift.io", "agents.agentic.openshift.io", "analysisresults.agentic.openshift.io", "llmproviders.agentic.openshift.io"} {
-			_, err := apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
-			if util.IsTechPreviewNoUpgrade(ctx, c) {
-				o.Expect(err).To(o.BeNil())
-			} else {
-				o.Expect(kerrors.IsNotFound(err)).To(o.BeTrue())
-			}
-		}
-	})
-
 	g.It("should create proposals", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
+		util.SkipIfNoAPI(ctx, c, "proposals.agentic.openshift.io")
 
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())

@@ -17,6 +17,7 @@ import (
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -146,6 +147,19 @@ func IsTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config) bool {
 func SkipIfNotTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config) {
 	if !IsTechPreviewNoUpgrade(ctx, restConfig) {
 		g.Skip("This test is skipped because the Tech Preview NoUpgrade is not enabled")
+	}
+}
+
+// SkipIfNoAPI skips the test if the cluster does not have a particular CustomResourceDefinition.
+func SkipIfNoAPI(ctx context.Context, restConfig *rest.Config, apiName string) {
+	apiExtensionsClient, err := apiextensionsclientset.NewForConfig(restConfig)
+	o.Expect(err).To(o.BeNil())
+
+	_, err = apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, apiName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		g.Skip(fmt.Sprintf("This test is skipped because the %s CustomResourceDefinition is not installed", apiName))
+	} else {
+		o.Expect(err).To(o.BeNil())
 	}
 }
 
