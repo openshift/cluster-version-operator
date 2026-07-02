@@ -1146,7 +1146,6 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 		readiness.GVRNode:              "NodeList",
 		readiness.GVRPod:               "PodList",
 		readiness.GVRPDB:               "PodDisruptionBudgetList",
-		readiness.GVRCRD:               "CustomResourceDefinitionList",
 		readiness.GVRSubscription:      "SubscriptionList",
 		readiness.GVRCSV:               "ClusterServiceVersionList",
 		readiness.GVRInstallPlan:       "InstallPlanList",
@@ -1260,18 +1259,6 @@ func TestGetProposals_WithReadinessData(t *testing.T) {
 				"conditions": []interface{}{map[string]interface{}{"type": "Deprecated", "status": "True"}},
 			},
 		}},
-		// CRD with version issue
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
-			"metadata": map[string]interface{}{"name": "widgets.example.com"},
-			"spec": map[string]interface{}{
-				"versions": []interface{}{
-					map[string]interface{}{"name": "v2", "served": true},
-					map[string]interface{}{"name": "v1", "served": false},
-				},
-			},
-			"status": map[string]interface{}{"storedVersions": []interface{}{"v1"}},
-		}},
 		// Network, Proxy, APIServer
 		&unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "config.openshift.io/v1", "kind": "Network",
@@ -1356,11 +1343,11 @@ func TestGetProposals_WithReadinessData(t *testing.T) {
 	if !ok {
 		t.Fatal("readiness output missing 'meta'")
 	}
-	if meta["total_checks"] != float64(9) {
-		t.Errorf("readiness total_checks = %v, want 9", meta["total_checks"])
+	if meta["total_checks"] != float64(8) {
+		t.Errorf("readiness total_checks = %v, want 8", meta["total_checks"])
 	}
-	if meta["checks_ok"] != float64(9) {
-		t.Errorf("readiness checks_ok = %v, want 9 (all checks should succeed)", meta["checks_ok"])
+	if meta["checks_ok"] != float64(8) {
+		t.Errorf("readiness checks_ok = %v, want 8 (all checks should succeed)", meta["checks_ok"])
 	}
 
 	checks, ok := raw["checks"].(map[string]any)
@@ -1372,7 +1359,7 @@ func TestGetProposals_WithReadinessData(t *testing.T) {
 	for _, name := range []string{
 		"cluster_conditions", "operator_health", "api_deprecations",
 		"node_capacity", "pdb_drain", "etcd_health", "network",
-		"crd_compat", "olm_operator_lifecycle",
+		"olm_operator_lifecycle",
 	} {
 		check, ok := checks[name].(map[string]any)
 		if !ok {

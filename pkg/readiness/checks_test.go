@@ -20,7 +20,6 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 		GVRNode:              "NodeList",
 		GVRPod:               "PodList",
 		GVRPDB:               "PodDisruptionBudgetList",
-		GVRCRD:               "CustomResourceDefinitionList",
 		GVRSubscription:      "SubscriptionList",
 		GVRCSV:               "ClusterServiceVersionList",
 		GVRInstallPlan:       "InstallPlanList",
@@ -621,103 +620,6 @@ func TestAPIDeprecationsCheck_NoBlockers(t *testing.T) {
 	}
 }
 
-func TestCRDCompatCheck(t *testing.T) {
-	objects := []runtime.Object{
-		// CRD with stored version that is still served — ok
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
-			"metadata": map[string]interface{}{"name": "widgets.example.com"},
-			"spec": map[string]interface{}{
-				"versions": []interface{}{
-					map[string]interface{}{"name": "v1", "served": true},
-					map[string]interface{}{"name": "v1beta1", "served": true},
-				},
-			},
-			"status": map[string]interface{}{
-				"storedVersions": []interface{}{"v1", "v1beta1"},
-			},
-		}},
-		// CRD with stored version that is NO LONGER served — issue
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
-			"metadata": map[string]interface{}{"name": "gadgets.example.com"},
-			"spec": map[string]interface{}{
-				"versions": []interface{}{
-					map[string]interface{}{"name": "v2", "served": true},
-					map[string]interface{}{"name": "v1", "served": false},
-				},
-			},
-			"status": map[string]interface{}{
-				"storedVersions": []interface{}{"v1"},
-			},
-		}},
-	}
-
-	client := newFakeDynamicClient(objects...)
-	check := &CRDCompatCheck{}
-
-	result, err := check.Run(context.Background(), client, "4.21.5", "4.21.8")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if result["total_crds"] != 2 {
-		t.Errorf("total_crds = %v, want 2", result["total_crds"])
-	}
-
-	issues, ok := result["version_issues"].([]map[string]any)
-	if !ok {
-		t.Fatal("version_issues not a slice")
-	}
-	if len(issues) != 1 {
-		t.Fatalf("version_issues len = %d, want 1", len(issues))
-	}
-	if issues[0]["crd"] != "gadgets.example.com" {
-		t.Errorf("crd = %v, want gadgets.example.com", issues[0]["crd"])
-	}
-	if issues[0]["stored_version"] != "v1" {
-		t.Errorf("stored_version = %v, want v1", issues[0]["stored_version"])
-	}
-
-	summary, ok := result["summary"].(map[string]any)
-	if !ok {
-		t.Fatal("summary not a map")
-	}
-	if summary["version_issues"] != 1 {
-		t.Errorf("summary.version_issues = %v, want 1", summary["version_issues"])
-	}
-}
-
-func TestCRDCompatCheck_NoIssues(t *testing.T) {
-	objects := []runtime.Object{
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
-			"metadata": map[string]interface{}{"name": "things.example.com"},
-			"spec": map[string]interface{}{
-				"versions": []interface{}{
-					map[string]interface{}{"name": "v1", "served": true},
-				},
-			},
-			"status": map[string]interface{}{
-				"storedVersions": []interface{}{"v1"},
-			},
-		}},
-	}
-
-	client := newFakeDynamicClient(objects...)
-	check := &CRDCompatCheck{}
-
-	result, err := check.Run(context.Background(), client, "4.21.5", "4.21.8")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	issues := result["version_issues"].([]map[string]any)
-	if len(issues) != 0 {
-		t.Errorf("expected no version issues, got %d", len(issues))
-	}
-}
-
 func TestNetworkCheck(t *testing.T) {
 	objects := []runtime.Object{
 		&unstructured.Unstructured{Object: map[string]interface{}{
@@ -912,19 +814,6 @@ func fakeClusterObjects() []runtime.Object {
 			},
 		}},
 
-		// --- CRDs (crd_compat) ---
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
-			"metadata": map[string]interface{}{"name": "widgets.example.com"},
-			"spec": map[string]interface{}{
-				"versions": []interface{}{
-					map[string]interface{}{"name": "v1", "served": true},
-					map[string]interface{}{"name": "v1beta1", "served": false},
-				},
-			},
-			"status": map[string]interface{}{"storedVersions": []interface{}{"v1beta1"}},
-		}},
-
 		// --- Network, Proxy, APIServer (network) ---
 		&unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "config.openshift.io/v1", "kind": "Network",
@@ -979,14 +868,14 @@ func TestRunAllWithFakeCluster(t *testing.T) {
 	if output.TargetVersion != "4.21.8" {
 		t.Errorf("TargetVersion = %q, want 4.21.8", output.TargetVersion)
 	}
-	if output.Meta.TotalChecks != 9 {
-		t.Errorf("TotalChecks = %d, want 9", output.Meta.TotalChecks)
+	if output.Meta.TotalChecks != 8 {
+		t.Errorf("TotalChecks = %d, want 8", output.Meta.TotalChecks)
 	}
 
 	for _, name := range []string{
 		"cluster_conditions", "operator_health", "api_deprecations",
 		"node_capacity", "pdb_drain", "etcd_health", "network",
-		"crd_compat", "olm_operator_lifecycle",
+		"olm_operator_lifecycle",
 	} {
 		r, ok := output.Checks[name]
 		if !ok {
@@ -1054,13 +943,6 @@ func TestRunAllWithFakeCluster(t *testing.T) {
 	adSummary := ad.Data["summary"].(map[string]any)
 	if adSummary["blockers"] != 1 {
 		t.Errorf("api_deprecations blockers = %v, want 1", adSummary["blockers"])
-	}
-
-	// crd_compat: 1 CRD with stored version no longer served
-	crd := output.Checks["crd_compat"]
-	crdSummary := crd.Data["summary"].(map[string]any)
-	if crdSummary["version_issues"] != 1 {
-		t.Errorf("crd_compat version_issues = %v, want 1", crdSummary["version_issues"])
 	}
 
 	// network: OVN, proxy configured
