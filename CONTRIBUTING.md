@@ -26,7 +26,10 @@ For contributors who want to work up pull requests, the workflow is roughly:
 5. Make sure the [tests pass][test-cvo] and add any new tests as appropriate.
 6. Push your changes to a topic branch in your fork of the repository.
 7. Submit a pull request to the original repository.
-8. The [repo owners](OWNERS) will respond to your issue promptly, following [the usual Prow workflow][prow-review].
+8. The [repo owners](OWNERS) will respond following [the usual Prow workflow][prow-review]. Please note that this repository
+   does not use automated reviewer assignment. While your pull request may be noticed, proactively coordinating with
+   reviewers or reaching out in the [#forum-ocp-updates][forum-ocp-updates] Slack channel will help ensure your contribution
+   receives timely attention.
 
 Thanks for your contributions!
 
@@ -74,3 +77,4 @@ contributing to understand the standards enforced during automated review.
 [security]: https://access.redhat.com/security/team/contact
 [build-cvo]: ./docs/dev/README.md#building-cvo
 [test-cvo]: ./docs/dev/README.md#testing-cvo
+[forum-ocp-updates]: https://redhat.enterprise.slack.com/archives/CEGKQ43CP
