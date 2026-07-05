@@ -207,6 +207,9 @@ func (o *Options) Run(ctx context.Context) error {
 	}
 
 	clusterVersionConfigInformerFactory, configInformerFactory := o.prepareConfigInformerFactories(cb)
+	// This is to ensure that APIServers get loaded when configInformerFactory is started and synced in o.processInitialFeatureGate().
+	// It is important when creating TLS profile manager later.
+	configInformerFactory.Config().V1().APIServers().Lister()
 	startingFeatureSet, startingCvoGates, startingEnabledManifestFeatureGates, err := o.processInitialFeatureGate(ctx, configInformerFactory)
 	if err != nil {
 		return fmt.Errorf("error processing feature gates: %w", err)
@@ -357,18 +360,6 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 		}
 	}
 
-	configSynced := controllerCtx.ConfigInformerFactory.WaitForCacheSync(informersDone)
-	for _, synced := range configSynced {
-		if !synced {
-			klog.Fatalf("Caches never synchronized: %v", postMainContext.Err())
-		}
-	}
-
-	// Initialize TLS profile manager after informers are synced
-	if err := controllerCtx.CVO.InitializeProfileManager(); err != nil {
-		klog.Fatalf("Failed to initialize TLS profile manager: %v", err)
-	}
-
 	resultChannelCount++
 	go func() {
 		defer utilruntime.HandleCrash()
@@ -386,7 +377,7 @@ func (o *Options) run(ctx context.Context, controllerCtx *Context, lock resource
 						resultChannelCount++
 						go func() {
 							defer utilruntime.HandleCrash()
-							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, controllerCtx.CVO.ApplySettings(), o.MetricsOptions)
+							err := cvo.RunMetrics(postMainContext, shutdownContext, restConfig, controllerCtx.CVO.ApplyTLSSettings(), o.MetricsOptions)
 							resultChannel <- asyncResult{name: "metrics server", error: err}
 						}()
 					}
@@ -650,6 +641,11 @@ func (o *Options) NewControllerContext(
 	rtClient := cb.RuntimeControllerClientOrDie("runtime-controller-client")
 	dynamicClient := cb.DynamicClientOrDie("dynamic-client")
 
+	tlsProfileMgr, err := tls.NewProfileManager(configInformerFactory.Config().V1().APIServers(), o.TLSOptions.GetOverrides())
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize TLS profile manager: %w", err)
+	}
+
 	cvo, err := cvo.New(
 		o.NodeName,
 		o.Namespace, o.Name,
@@ -663,8 +659,7 @@ func (o *Options) NewControllerContext(
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		configInformerFactory.Config().V1().FeatureGates(),
-		configInformerFactory.Config().V1().APIServers(),
-		o.TLSOptions.GetOverrides(),
+		tlsProfileMgr.ApplySettings,
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		dynamicClient,
