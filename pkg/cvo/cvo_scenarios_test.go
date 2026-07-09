@@ -29,6 +29,7 @@ import (
 	"github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/manifest"
 
+	"github.com/openshift/cluster-version-operator/lib/capability"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
@@ -38,18 +39,18 @@ import (
 )
 
 var architecture string
-var sortedCaps = configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]
-var sortedKnownCaps = configv1.KnownClusterVersionCapabilities
+var sortedCaps []configv1.ClusterVersionCapability
+var sortedKnownCaps []configv1.ClusterVersionCapability
 
 func init() {
 	architecture = runtime.GOARCH
 
-	sort.Slice(sortedCaps, func(i, j int) bool {
-		return sortedCaps[i] < sortedCaps[j]
-	})
-	sort.Slice(sortedKnownCaps, func(i, j int) bool {
-		return sortedKnownCaps[i] < sortedKnownCaps[j]
-	})
+	// The scenario tests run without feature gates enabled, so derive the
+	// expected capability lists from SetCapabilities directly.
+	// SortedList returns capabilities in sorted order.
+	caps := capability.SetCapabilities(&configv1.ClusterVersion{}, nil, nil)
+	sortedCaps = capability.SortedList(caps.Enabled)
+	sortedKnownCaps = capability.SortedList(caps.Known)
 }
 
 func setupCVOTest(payloadDir string) (*Operator, map[string]apiruntime.Object, *fake.Clientset, *dynamicfake.FakeDynamicClient, func()) {
