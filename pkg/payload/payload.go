@@ -195,7 +195,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 			if task.preprocess != nil {
 				raw, err = task.preprocess(raw)
 				if err != nil {
-					errs = append(errs, fmt.Errorf("preprocess %s: %w", file.Name(), err))
+					// Template rendering may fail when an older CVO binary
+					// loads a newer payload that uses template fields the
+					// older binary does not know about (e.g. .Images). Skip
+					// the manifest with a warning — the new CVO binary will
+					// re-load the full payload after it replaces the old one
+					// at run-level 0.
+					klog.Warningf("Skipping manifest %s: template rendering failed (may require newer CVO): %v", file.Name(), err)
 					continue
 				}
 			}
