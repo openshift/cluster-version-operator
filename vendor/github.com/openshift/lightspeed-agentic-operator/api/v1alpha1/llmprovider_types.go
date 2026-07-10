@@ -72,6 +72,20 @@ type AnthropicConfig struct {
 	URL string `json:"url,omitempty"`
 }
 
+// GoogleCloudVertexModelProvider selects which model provider stack talks to Vertex AI.
+//
+// +kubebuilder:validation:Enum=Anthropic;Google;OpenAI
+type GoogleCloudVertexModelProvider string
+
+const (
+	// GoogleCloudVertexModelProviderAnthropic uses Anthropic models on Vertex (Claude SDK).
+	GoogleCloudVertexModelProviderAnthropic GoogleCloudVertexModelProvider = "Anthropic"
+	// GoogleCloudVertexModelProviderGoogle uses Google models on Vertex (GenAI SDK).
+	GoogleCloudVertexModelProviderGoogle GoogleCloudVertexModelProvider = "Google"
+	// GoogleCloudVertexModelProviderOpenAI uses OpenAI-compatible models on Vertex (OpenAI SDK).
+	GoogleCloudVertexModelProviderOpenAI GoogleCloudVertexModelProvider = "OpenAI"
+)
+
 // GoogleCloudVertexConfig contains configuration for the Google Cloud Vertex AI provider.
 type GoogleCloudVertexConfig struct {
 	// credentialsSecret references a Secret in the operator namespace
@@ -99,6 +113,13 @@ type GoogleCloudVertexConfig struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:XValidation:rule="self.matches('^[a-z][a-z0-9-]*[a-z0-9]$')",message="region must contain only lowercase letters, digits, and hyphens, start with a letter, and not end with a hyphen"
 	Region string `json:"region,omitempty"`
+
+	// modelProvider selects which model provider stack talks to Vertex AI (required).
+	// "Anthropic" uses Anthropic models on Vertex; "Google" uses Google models on Vertex;
+	// "OpenAI" uses OpenAI-compatible models on Vertex.
+	// Enum is defined on GoogleCloudVertexModelProvider.
+	// +required
+	ModelProvider GoogleCloudVertexModelProvider `json:"modelProvider,omitempty"`
 
 	// url is an optional override for the Vertex AI API endpoint.
 	// Only needed for custom deployments or API proxies.
@@ -288,7 +309,7 @@ type LLMProviderSpec struct {
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // LLMProvider defines an LLM provider configuration. It is the first link in
-// the CRD chain (LLMProvider -> Agent -> Workflow -> Proposal) and is
+// the CRD chain (LLMProvider -> Agent -> Workflow -> AgenticRun) and is
 // referenced by Agent resources via spec.llmProvider.
 //
 // LLMProvider is cluster-scoped — the cluster admin manages LLM infrastructure
@@ -312,6 +333,7 @@ type LLMProviderSpec struct {
 //	      name: llm-credentials
 //	    projectID: my-gcp-project
 //	    region: us-central1
+//	    modelProvider: Anthropic
 type LLMProvider struct {
 	metav1.TypeMeta `json:",inline"`
 

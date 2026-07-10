@@ -54,23 +54,23 @@ type AnalysisResultStatus struct {
 
 // AnalysisResultSpec contains the immutable identity fields for an AnalysisResult.
 type AnalysisResultSpec struct {
-	// proposalName is the name of the parent Proposal in the same namespace.
+	// agenticRunName is the name of the parent AgenticRun in the same namespace.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	ProposalName string `json:"proposalName,omitempty"`
+	AgenticRunName string `json:"agenticRunName,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Proposal",type=string,JSONPath=`.spec.proposalName`
+// +kubebuilder:printcolumn:name="AgenticRun",type=string,JSONPath=`.spec.agenticRunName`
 // +kubebuilder:printcolumn:name="Outcome",type=string,JSONPath=`.status.conditions[?(@.type=="Completed")].reason`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // AnalysisResult records the output of a single analysis step execution.
 // Created by the operator after the analysis agent completes. Owned by
-// the parent Proposal for garbage collection.
+// the parent AgenticRun for garbage collection.
 type AnalysisResult struct {
 	metav1.TypeMeta `json:",inline"`
 

@@ -1,4 +1,4 @@
-package proposal
+package agenticrun
 
 import (
 	"context"
@@ -24,7 +24,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
+	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/readiness"
@@ -53,7 +53,7 @@ type Controller struct {
 	config                Config
 }
 
-const controllerName = "proposal-lifecycle-controller"
+const controllerName = "agenticrun-lifecycle-controller"
 
 type updatesGetterFunc func() ([]configv1.Release, []configv1.ConditionalUpdate, error)
 
@@ -63,12 +63,12 @@ type getCurrentVersionFunc func() string
 
 type configMapGetterFunc func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error)
 
-// NewController returns Controller to manage Proposals.
-// It monitors available and conditional updates, and creates a LightspeedProposal for every target version of them.
-// It expires (and replace) any previous LightspeedProposals owned by the CVO after 24h.
-// It deletes any CVO-owned LightspeedProposals (without replacement) that are associated with target releases
+// NewController returns Controller to manage AgenticRuns.
+// It monitors available and conditional updates, and creates an AgenticRun for every target version of them.
+// It expires (and replaces) any previous AgenticRuns owned by the CVO after 24h.
+// It deletes any CVO-owned AgenticRuns (without replacement) that are associated with target releases
 // that are no longer supported next-hop options (e.g. because a channel change or cluster update), but preserves
-// LightspeedProposals associated with versions in the ClusterVersion status.history (history already has its own
+// AgenticRuns associated with versions in the ClusterVersion status.history (history already has its own
 // garbage-collection).
 func NewController(
 	updatesGetterFunc updatesGetterFunc,
@@ -93,7 +93,7 @@ func NewController(
 	}
 }
 
-// Config holds configuration for proposal creation.
+// Config holds configuration for agentic run creation.
 type Config struct {
 	Namespace       string
 	PromptConfigMap string // ConfigMap name containing the system prompt
@@ -103,7 +103,7 @@ type Config struct {
 // DefaultConfig returns the default configuration, checking env vars for overrides.
 func DefaultConfig() Config {
 	return Config{
-		Namespace:       envOrDefault("LIGHTSPEED_PROPOSAL_NAMESPACE", "openshift-lightspeed"),
+		Namespace:       envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
 		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "cluster-update-advisory-prompt"),
 		SkillsImage:     envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
 	}
@@ -147,17 +147,17 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 
 	currentVersion := c.getCurrentVersionFunc()
 
-	// Don't create proposals while CVO is reconciling — readiness data would
+	// Don't create agentic runs while CVO is reconciling — readiness data would
 	// reflect the transient reconciliation state, not actual cluster health.
 	for _, cond := range cv.Status.Conditions {
 		if cond.Type == "Progressing" && cond.Status == configv1.ConditionTrue {
-			klog.V(i.Normal).Infof("Skipping proposal sync: cluster is progressing (%s)", cond.Message)
+			klog.V(i.Normal).Infof("Skipping agentic run sync: cluster is progressing (%s)", cond.Message)
 			return nil
 		}
 	}
 
 	var errs []error
-	if err := deleteProposals(ctx, c.client, updates, conditionalUpdates, cv.Status.History, currentVersion); err != nil {
+	if err := deleteAgenticRuns(ctx, c.client, updates, conditionalUpdates, cv.Status.History, currentVersion); err != nil {
 		errs = append(errs, err)
 	}
 
@@ -181,67 +181,67 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		return kutilerrors.NewAggregate(errs)
 	}
 
-	proposals, err := getProposals(ctx, c.dynamicClient, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
+	agenticRuns, err := getAgenticRuns(ctx, c.dynamicClient, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
 	if err != nil {
-		klog.V(i.Normal).Infof("Getting proposals hit an error: %v", err)
+		klog.V(i.Normal).Infof("Getting agentic runs hit an error: %v", err)
 		return kutilerrors.NewAggregate(append(errs, err))
 	}
 
-	for _, proposal := range proposals {
-		existing := &proposalv1alpha1.Proposal{}
-		err := c.client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: proposal.Name, Namespace: proposal.Namespace}, existing)
+	for _, agenticRun := range agenticRuns {
+		existing := &agenticrunv1alpha1.AgenticRun{}
+		err := c.client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: agenticRun.Name, Namespace: agenticRun.Namespace}, existing)
 		if err != nil {
 			if !kerrors.IsNotFound(err) {
-				klog.V(i.Normal).Infof("Failed to get proposal %s/%s: %v", proposal.Namespace, proposal.Name, err)
+				klog.V(i.Normal).Infof("Failed to get agentic run %s/%s: %v", agenticRun.Namespace, agenticRun.Name, err)
 				errs = append(errs, err)
 				continue
 			}
 		} else {
 			if !ownedByCVO(existing) {
-				klog.V(i.Normal).Infof("Ignored proposal %s/%s not owned by CVO", proposal.Namespace, proposal.Name)
+				klog.V(i.Normal).Infof("Ignored agentic run %s/%s not owned by CVO", agenticRun.Namespace, agenticRun.Name)
 				continue
 			}
 			if expired(existing) {
-				if err := deleteProposal(ctx, c.client, existing, "expired"); err != nil {
+				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
 					errs = append(errs, err)
 					continue
 				}
 			} else {
-				klog.V(i.Debug).Infof("The existing proposal %s/%s is not expired", proposal.Namespace, proposal.Name)
+				klog.V(i.Debug).Infof("The existing agentic run %s/%s is not expired", agenticRun.Namespace, agenticRun.Name)
 				continue
 			}
 		}
 
-		if err := c.client.Create(ctx, proposal); err != nil {
+		if err := c.client.Create(ctx, agenticRun); err != nil {
 			if !kerrors.IsAlreadyExists(err) {
-				klog.V(i.Normal).Infof("Failed to create proposal %s/%s: %v", proposal.Namespace, proposal.Name, err)
+				klog.V(i.Normal).Infof("Failed to create agentic run %s/%s: %v", agenticRun.Namespace, agenticRun.Name, err)
 				errs = append(errs, err)
 			} else {
-				klog.V(i.Debug).Infof("The proposal %s/%s existed already", proposal.Namespace, proposal.Name)
+				klog.V(i.Debug).Infof("The agentic run %s/%s existed already", agenticRun.Namespace, agenticRun.Name)
 			}
 		} else {
-			klog.V(i.Debug).Infof("Created proposal %s/%s", proposal.Namespace, proposal.Name)
+			klog.V(i.Debug).Infof("Created agentic run %s/%s", agenticRun.Namespace, agenticRun.Name)
 		}
 	}
 
 	return kutilerrors.NewAggregate(errs)
 }
 
-func ownedByCVO(p *proposalv1alpha1.Proposal) bool {
+func ownedByCVO(p *agenticrunv1alpha1.AgenticRun) bool {
 	if p == nil {
 		return false
 	}
 	return p.Labels[labelKeySource] == labelValueSource
 }
 
-func expired(p *proposalv1alpha1.Proposal) bool {
+func expired(p *agenticrunv1alpha1.AgenticRun) bool {
 	if p == nil {
 		return false
 	}
-	return time.Now().After(p.CreationTimestamp.Add(proposalExpiration))
+	return time.Now().After(p.CreationTimestamp.Add(agenticRunExpiration))
 }
 
-func deleteProposals(ctx context.Context, client ctrlruntimeclient.Client, availableUpdates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, history []configv1.UpdateHistory, currentVersion string) error {
+func deleteAgenticRuns(ctx context.Context, client ctrlruntimeclient.Client, availableUpdates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, history []configv1.UpdateHistory, currentVersion string) error {
 	targets := sets.New[string]()
 	for _, update := range availableUpdates {
 		targets.Insert(labelValueFromVersion(update.Version))
@@ -254,27 +254,27 @@ func deleteProposals(ctx context.Context, client ctrlruntimeclient.Client, avail
 		associatedWithHistory.Insert(labelValueFromVersion(h.Version))
 	}
 
-	list := &proposalv1alpha1.ProposalList{}
-	if err := client.List(ctx, list, ctrlruntimeclient.MatchingLabels(CVOProposalLabels)); err != nil {
-		return fmt.Errorf("failed to list proposals: %w", err)
+	list := &agenticrunv1alpha1.AgenticRunList{}
+	if err := client.List(ctx, list, ctrlruntimeclient.MatchingLabels(CVOAgenticRunLabels)); err != nil {
+		return fmt.Errorf("failed to list agentic runs: %w", err)
 	}
 	var errs []error
-	for _, proposal := range list.Items {
-		if !ownedByCVO(&proposal) {
-			klog.V(i.Debug).Infof("Keeping proposal %s/%s not owned by CVO", proposal.Namespace, proposal.Name)
+	for _, agenticRun := range list.Items {
+		if !ownedByCVO(&agenticRun) {
+			klog.V(i.Debug).Infof("Keeping agentic run %s/%s not owned by CVO", agenticRun.Namespace, agenticRun.Name)
 			continue
 		}
-		cv, cvOk := proposal.Labels[labelKeyCurrentVersion]
-		tv, tvOk := proposal.Labels[labelKeyTargetVersion]
+		cv, cvOk := agenticRun.Labels[labelKeyCurrentVersion]
+		tv, tvOk := agenticRun.Labels[labelKeyTargetVersion]
 		if cvOk && tvOk && cv == currentVersion && targets.Has(tv) {
-			klog.V(i.Debug).Infof("Keeping relevant proposal %s/%s from %s to %s", proposal.Namespace, proposal.Name, cv, tv)
+			klog.V(i.Debug).Infof("Keeping relevant agentic run %s/%s from %s to %s", agenticRun.Namespace, agenticRun.Name, cv, tv)
 			continue
 		}
 		if tvOk && associatedWithHistory.Has(tv) {
-			klog.V(i.Debug).Infof("Keeping proposal %s/%s for a version %s associated with history", proposal.Namespace, proposal.Name, tv)
+			klog.V(i.Debug).Infof("Keeping agentic run %s/%s for a version %s associated with history", agenticRun.Namespace, agenticRun.Name, tv)
 			continue
 		}
-		err := deleteProposal(ctx, client, &proposal, "irrelevant")
+		err := deleteAgenticRun(ctx, client, &agenticRun, "irrelevant")
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -283,27 +283,27 @@ func deleteProposals(ctx context.Context, client ctrlruntimeclient.Client, avail
 	return kutilerrors.NewAggregate(errs)
 }
 
-func deleteProposal(ctx context.Context, client ctrlruntimeclient.Client, proposal *proposalv1alpha1.Proposal, adjective string) error {
-	if proposal == nil {
+func deleteAgenticRun(ctx context.Context, client ctrlruntimeclient.Client, agenticRun *agenticrunv1alpha1.AgenticRun, adjective string) error {
+	if agenticRun == nil {
 		return nil
 	}
-	klog.V(i.Normal).Infof("Deleting %s proposal %s/%s ...", adjective, proposal.Namespace, proposal.Name)
-	err := client.Delete(ctx, proposal)
+	klog.V(i.Normal).Infof("Deleting %s agentic run %s/%s ...", adjective, agenticRun.Namespace, agenticRun.Name)
+	err := client.Delete(ctx, agenticRun)
 	if err == nil {
-		klog.V(i.Normal).Infof("Deleted %s proposal %s/%s", adjective, proposal.Namespace, proposal.Name)
+		klog.V(i.Normal).Infof("Deleted %s agentic run %s/%s", adjective, agenticRun.Namespace, agenticRun.Name)
 		return nil
 	}
 
 	if !kerrors.IsNotFound(err) {
-		klog.V(i.Normal).Infof("Failed to delete %s proposal %s/%s: %v", adjective, proposal.Namespace, proposal.Name, err)
+		klog.V(i.Normal).Infof("Failed to delete %s agentic run %s/%s: %v", adjective, agenticRun.Namespace, agenticRun.Name, err)
 		return err
 	}
 
-	klog.V(i.Normal).Infof("Failed to delete not-found proposal %s/%s", proposal.Namespace, proposal.Name)
+	klog.V(i.Normal).Infof("Failed to delete not-found agentic run %s/%s", agenticRun.Namespace, agenticRun.Name)
 	return nil
 }
 
-func getProposals(
+func getAgenticRuns(
 	ctx context.Context,
 	dynamicClient dynamic.Interface,
 	availableUpdates []configv1.Release,
@@ -312,39 +312,39 @@ func getProposals(
 	currentVersion, channel,
 	systemPrompt string,
 	skillsImage string,
-) ([]*proposalv1alpha1.Proposal, error) {
+) ([]*agenticrunv1alpha1.AgenticRun, error) {
 	// TODO: Only 2 of 9 readiness checks (api_deprecations, olm_lifecycle) use the target version.
 	// The other 7 query cluster-wide state identical across targets. For clusters with many available
 	// updates, split into target-independent checks (run once) and target-dependent checks (run per
 	// target) to reduce redundant API calls.
 	var errs []error
-	var proposals []*proposalv1alpha1.Proposal
+	var agenticRuns []*agenticrunv1alpha1.AgenticRun
 	for _, au := range availableUpdates {
 		targetVersion := au.Version
 		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
+		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
-			proposals = append(proposals, proposal)
+			agenticRuns = append(agenticRuns, agenticRun)
 		}
 	}
 
 	for _, cu := range conditionalUpdates {
 		targetVersion := cu.Release.Version
 		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if proposal, err := getProposal(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
+		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
-			proposals = append(proposals, proposal)
+			agenticRuns = append(agenticRuns, agenticRun)
 		}
 	}
 
-	return proposals, kutilerrors.NewAggregate(errs)
+	return agenticRuns, kutilerrors.NewAggregate(errs)
 }
 
-func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*proposalv1alpha1.Proposal, error) {
+func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*agenticrunv1alpha1.AgenticRun, error) {
 
 	var errs []error
 	for _, v := range []string{currentVersion, targetVersion} {
@@ -356,10 +356,10 @@ func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, 
 		return nil, kutilerrors.NewAggregate(errs)
 	}
 
-	name := proposalName(currentVersion, targetVersion)
+	name := agenticRunName(currentVersion, targetVersion)
 	updateType := classifyUpdate(currentVersion, targetVersion)
 	request := buildRequest(systemPrompt, currentVersion, targetVersion, channel, updateType, updateKind, availableUpdates, readinessJSON)
-	return &proposalv1alpha1.Proposal{
+	return &agenticrunv1alpha1.AgenticRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -370,14 +370,14 @@ func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, 
 				"agentic.openshift.io/update-type": updateType,
 			},
 		},
-		Spec: proposalv1alpha1.ProposalSpec{
+		Spec: agenticrunv1alpha1.AgenticRunSpec{
 			Request: request,
 			// CVO consumes some Agent maintained by the cluster admin
-			Analysis: proposalv1alpha1.ProposalStep{
+			Analysis: agenticrunv1alpha1.AgenticRunStep{
 				Agent: "smart",
 			},
-			Tools: proposalv1alpha1.ToolsSpec{
-				Skills: []proposalv1alpha1.SkillsSource{
+			Tools: agenticrunv1alpha1.ToolsSpec{
+				Skills: []agenticrunv1alpha1.SkillsSource{
 					{
 						Image: skillsImage,
 						Paths: []string{
@@ -387,8 +387,8 @@ func getProposal(namespace, currentVersion, targetVersion, channel, updateKind, 
 					},
 				},
 			},
-			AnalysisOutput: proposalv1alpha1.AnalysisOutput{
-				Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
+			AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
+				Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
 				Schema: analysisOutputSchema(),
 			},
 		},
@@ -407,8 +407,8 @@ func trim63(value string) string {
 	return value
 }
 
-// proposalName generates a deterministic proposal name from the version pair.
-func proposalName(current, target string) string {
+// agenticRunName generates a deterministic agentic run name from the version pair.
+func agenticRunName(current, target string) string {
 	return toDNS1035(fmt.Sprintf("ota-%s-to-%s", current, target))
 }
 
@@ -437,11 +437,11 @@ const (
 	updateKindRecommended = "Recommended"
 	updateKindConditional = "Conditional"
 
-	proposalExpiration = 24 * time.Hour
+	agenticRunExpiration = 24 * time.Hour
 )
 
 var (
-	CVOProposalLabels = map[string]string{labelKeySource: labelValueSource}
+	CVOAgenticRunLabels = map[string]string{labelKeySource: labelValueSource}
 )
 
 // classifyUpdate returns "z-stream" if major.minor match, otherwise "minor".
@@ -468,7 +468,7 @@ func runReadinessJSON(ctx context.Context, dynamicClient dynamic.Interface, curr
 	return string(data)
 }
 
-// buildRequest constructs the proposal request with system prompt, metadata, and readiness data.
+// buildRequest constructs the agentic run request with system prompt, metadata, and readiness data.
 func buildRequest(systemPrompt, current, target, channel, updateType, targetType string,
 	updates []configv1.Release, readinessJSON string) string {
 

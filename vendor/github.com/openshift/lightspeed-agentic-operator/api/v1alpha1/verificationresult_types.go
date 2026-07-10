@@ -60,11 +60,11 @@ type VerificationResultStatus struct {
 
 // VerificationResultSpec contains the immutable identity fields for a VerificationResult.
 type VerificationResultSpec struct {
-	// proposalName is the name of the parent Proposal in the same namespace.
+	// agenticRunName is the name of the parent AgenticRun in the same namespace.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=253
-	ProposalName string `json:"proposalName,omitempty"`
+	AgenticRunName string `json:"agenticRunName,omitempty"`
 
 	// retryIndex is the 0-based retry index within the current analysis.
 	// +required
@@ -76,14 +76,14 @@ type VerificationResultSpec struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Proposal",type=string,JSONPath=`.spec.proposalName`
+// +kubebuilder:printcolumn:name="AgenticRun",type=string,JSONPath=`.spec.agenticRunName`
 // +kubebuilder:printcolumn:name="Retry",type=integer,JSONPath=`.spec.retryIndex`
 // +kubebuilder:printcolumn:name="Outcome",type=string,JSONPath=`.status.conditions[?(@.type=="Completed")].reason`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // VerificationResult records the output of a single verification step
 // execution. Created by the operator after the verification agent
-// completes. Owned by the parent Proposal for garbage collection.
+// completes. Owned by the parent AgenticRun for garbage collection.
 type VerificationResult struct {
 	metav1.TypeMeta `json:",inline"`
 

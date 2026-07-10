@@ -20,6 +20,31 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ApproverInfo captures the authenticated identity of the user who approved
+// an agentic run stage. Fields are set by the mutating admission webhook and
+// are webhook-authoritative — any client-submitted values are overwritten.
+// +kubebuilder:validation:MinProperties=1
+type ApproverInfo struct {
+	// uid is the Kubernetes user UID from the AdmissionReview userInfo.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	UID string `json:"uid,omitempty"`
+
+	// username is the Kubernetes username from the AdmissionReview userInfo.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Username string `json:"username,omitempty"`
+
+	// approvedAt is the server-side time (RFC 3339) when the webhook processed
+	// the approval request.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=64
+	ApprovedAt string `json:"approvedAt,omitempty"`
+}
+
 // ApprovalDecision indicates whether a stage is approved or denied.
 // +kubebuilder:validation:Enum=Approved;Denied
 type ApprovalDecision string
@@ -72,7 +97,7 @@ type ExecutionApproval struct {
 	Option *int32 `json:"option,omitempty"`
 
 	// maxAttempts is the number of execution retry attempts approved
-	// for this proposal. Must not exceed ApprovalPolicy.spec.maxAttempts.
+	// for this agentic run. Must not exceed ApprovalPolicy.spec.maxAttempts.
 	// Defaults to 1 if unset.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
@@ -120,7 +145,7 @@ type ApprovalStage struct {
 	Type ApprovalStageType `json:"type,omitempty"`
 
 	// decision indicates whether this stage is approved or denied.
-	// Denying any stage terminates the entire proposal, even if
+	// Denying any stage terminates the entire agentic run, even if
 	// earlier stages were already approved. Once set to Denied,
 	// it cannot be changed.
 	// +optional
@@ -147,7 +172,7 @@ type ApprovalStage struct {
 	Escalation EscalationApproval `json:"escalation,omitzero"`
 }
 
-// ProposalApprovalSpec defines the desired state of ProposalApproval.
+// AgenticRunApprovalSpec defines the desired state of AgenticRunApproval.
 //
 // spec.stages is append-only: once a stage is added, it cannot be removed.
 // Decisions once set cannot be changed. maxAttempts once set cannot be reduced.
@@ -156,7 +181,13 @@ type ApprovalStage struct {
 // +kubebuilder:validation:XValidation:rule="oldSelf.stages.all(old, !(has(old.decision) && old.decision == 'Denied') || self.stages.exists(s, s.type == old.type && has(s.decision) && s.decision == 'Denied'))",message="decisions once set cannot be changed"
 // +kubebuilder:validation:XValidation:rule="oldSelf.stages.all(old, old.type != 'Execution' || !has(old.execution) || !has(old.execution.maxAttempts) || old.execution.maxAttempts == 0 || self.stages.exists(s, s.type == 'Execution' && has(s.execution) && has(s.execution.maxAttempts) && s.execution.maxAttempts == old.execution.maxAttempts))",message="maxAttempts once set cannot be changed"
 // +kubebuilder:validation:MinProperties=1
-type ProposalApprovalSpec struct {
+type AgenticRunApprovalSpec struct {
+	// approver captures the authenticated identity of the user who last
+	// modified this resource. Set by the mutating admission webhook;
+	// client-submitted values are overwritten.
+	// +optional
+	Approver ApproverInfo `json:"approver,omitempty,omitzero"`
+
 	// stages lists the approved (or denied) workflow steps. Each entry is
 	// a discriminated union keyed by type. Users add stages one at a time
 	// via patch as they approve each step.
@@ -187,10 +218,10 @@ type ApprovalStageStatus struct {
 	Name string `json:"name,omitempty"`
 }
 
-// ProposalApprovalStatus defines the observed state of ProposalApproval.
+// AgenticRunApprovalStatus defines the observed state of AgenticRunApproval.
 //
 // +kubebuilder:validation:MinProperties=1
-type ProposalApprovalStatus struct {
+type AgenticRunApprovalStatus struct {
 	// stages contains the per-stage approval status set by the controller.
 	// +optional
 	// +listType=atomic
@@ -204,26 +235,30 @@ type ProposalApprovalStatus struct {
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// ProposalApproval tracks per-step approval state for a Proposal. The
-// operator creates it when a Proposal is created. Users update it to
+// AgenticRunApproval tracks per-step approval state for an AgenticRun. The
+// operator creates it when an AgenticRun is created. Users update it to
 // approve or deny individual workflow steps.
 //
-// ProposalApproval has a 1:1 relationship with its Proposal (same name,
-// same namespace) and is owned by the Proposal via an owner reference
+// AgenticRunApproval has a 1:1 relationship with its AgenticRun (same name,
+// same namespace) and is owned by the AgenticRun via an owner reference
 // for garbage collection.
 //
 // Example:
 //
 //	apiVersion: agentic.openshift.io/v1alpha1
-//	kind: ProposalApproval
+//	kind: AgenticRunApproval
 //	metadata:
 //	  name: fix-crash
 //	  namespace: my-namespace
 //	  ownerReferences:
 //	    - apiVersion: agentic.openshift.io/v1alpha1
-//	      kind: Proposal
+//	      kind: AgenticRun
 //	      name: fix-crash
 //	spec:
+//	  approver:
+//	    uid: "abc123"
+//	    username: "admin@example.com"
+//	    approvedAt: "2026-06-22T10:00:00Z"
 //	  stages:
 //	    - type: Analysis
 //	      analysis: {}
@@ -231,7 +266,7 @@ type ProposalApprovalStatus struct {
 //	      execution:
 //	        option: 0
 //	        agent: fast
-type ProposalApproval struct {
+type AgenticRunApproval struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is the standard object metadata.
@@ -240,22 +275,22 @@ type ProposalApproval struct {
 
 	// spec defines the desired approval state.
 	// +optional
-	Spec ProposalApprovalSpec `json:"spec,omitzero"`
+	Spec AgenticRunApprovalSpec `json:"spec,omitzero"`
 
 	// status defines the observed approval state.
 	// +optional
-	Status ProposalApprovalStatus `json:"status,omitzero"`
+	Status AgenticRunApprovalStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// ProposalApprovalList contains a list of ProposalApproval.
-type ProposalApprovalList struct {
+// AgenticRunApprovalList contains a list of AgenticRunApproval.
+type AgenticRunApprovalList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ProposalApproval `json:"items"`
+	Items           []AgenticRunApproval `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ProposalApproval{}, &ProposalApprovalList{})
+	SchemeBuilder.Register(&AgenticRunApproval{}, &AgenticRunApprovalList{})
 }

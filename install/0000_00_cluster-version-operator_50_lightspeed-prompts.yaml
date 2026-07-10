@@ -10,7 +10,7 @@ metadata:
 data:
   prompt: |
     You are an OpenShift upgrade advisor. Analyze the cluster readiness
-    data in the proposal request and produce an upgrade risk assessment.
+    data in the agentic run request and produce an upgrade risk assessment.
 
     The request contains a "Cluster Readiness Data" section with a JSON
     block. This was collected by the Cluster Version Operator — do not

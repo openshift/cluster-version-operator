@@ -46,6 +46,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/lib/validation"
+	"github.com/openshift/cluster-version-operator/pkg/agenticrun"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/standard"
 	"github.com/openshift/cluster-version-operator/pkg/customsignaturestore"
@@ -57,7 +58,6 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 	preconditioncv "github.com/openshift/cluster-version-operator/pkg/payload/precondition/clusterversion"
-	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	"github.com/openshift/cluster-version-operator/pkg/risk/adminack"
 	"github.com/openshift/cluster-version-operator/pkg/risk/aggregate"
@@ -220,8 +220,8 @@ type Operator struct {
 	// that will be aggregated into conditional update risks.
 	risks risk.Source
 
-	// proposalController, if enabled, watches available and conditionals updates and manage proposals for them
-	proposalController *proposal.Controller
+	// agenticRunController, if enabled, watches available and conditionals updates and manages agentic runs for them
+	agenticRunController *agenticrun.Controller
 }
 
 // New returns a new cluster version operator.
@@ -355,7 +355,7 @@ func New(
 
 	optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
 
-	optr.proposalController = proposal.NewController(
+	optr.agenticRunController = agenticrun.NewController(
 		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
 			availableUpdates := optr.getAvailableUpdates()
 			if availableUpdates == nil {
@@ -526,7 +526,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	defer optr.queue.ShutDown()
 	defer optr.availableUpdatesQueue.ShutDown()
 	defer optr.configuration.Queue().ShutDown()
-	defer optr.proposalController.Queue().ShutDown()
+	defer optr.agenticRunController.Queue().ShutDown()
 	stopCh := runContext.Done()
 
 	klog.Infof("Starting ClusterVersionOperator with minimum reconcile period %s", optr.minimumUpdateCheckInterval)
@@ -582,17 +582,17 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or HyperShift is detected; the configuration sync routine will not run.")
 	}
 
-	if optr.shouldEnableProposalController() {
+	if optr.shouldEnableAgenticRunController() {
 		resultChannelCount++
 		go func() {
 			defer utilruntime.HandleCrash()
 			wait.UntilWithContext(runContext, func(runContext context.Context) {
-				optr.worker(runContext, optr.proposalController.Queue(), optr.proposalController.Sync)
+				optr.worker(runContext, optr.agenticRunController.Queue(), optr.agenticRunController.Sync)
 			}, time.Second)
-			resultChannel <- asyncResult{name: "proposal controller"}
+			resultChannel <- asyncResult{name: "agenticrun controller"}
 		}()
 	} else {
-		klog.Infof("The proposal controller is disabled.")
+		klog.Infof("The agenticrun controller is disabled.")
 	}
 
 	resultChannelCount++
@@ -651,7 +651,7 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 			optr.queue.ShutDown()
 			optr.availableUpdatesQueue.ShutDown()
 			optr.configuration.Queue().ShutDown()
-			optr.proposalController.Queue().ShutDown()
+			optr.agenticRunController.Queue().ShutDown()
 		}
 	}
 
@@ -1222,8 +1222,8 @@ func (optr *Operator) shouldReconcileAcceptRisks() bool {
 	return optr.enabledCVOFeatureGates.AcceptRisks() && !optr.hypershift
 }
 
-// shouldEnableProposalController returns whether the CVO should enable the proposal controller
-func (optr *Operator) shouldEnableProposalController() bool {
+// shouldEnableAgenticRunController returns whether the CVO should enable the agentic run controller
+func (optr *Operator) shouldEnableAgenticRunController() bool {
 	// Gated behind a feature set so featuregates.ChangeStopper restarts CVO when the return of this function flips.
 	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
 }

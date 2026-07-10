@@ -179,10 +179,10 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))
 	}
-	if optr.shouldEnableProposalController() {
+	if optr.shouldEnableAgenticRunController() {
 		if original != nil && len(config.Status.History) < len(original.Status.History) {
-			klog.V(internal.Normal).Infof("Reconciling proposals because ClusterVersion.status.history got pruned")
-			optr.proposalController.Queue().Add(optr.proposalController.QueueKey())
+			klog.V(internal.Normal).Infof("Reconciling agentic runs because ClusterVersion.status.history got pruned")
+			optr.agenticRunController.Queue().Add(optr.agenticRunController.QueueKey())
 		}
 	}
 	updated, err := applyClusterVersionStatus(ctx, optr.client.ConfigV1(), config, original)

@@ -40,12 +40,12 @@ import (
 	"github.com/openshift/library-go/pkg/verify/store/serial"
 	"github.com/openshift/library-go/pkg/verify/store/sigstore"
 
+	"github.com/openshift/cluster-version-operator/pkg/agenticrun"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
-	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	mockrisk "github.com/openshift/cluster-version-operator/pkg/risk/mock"
 )
 
@@ -2754,7 +2754,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 			old := optr.availableUpdates
 
 			ctx := context.Background()
-			optr.proposalController = proposal.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+			optr.agenticRunController = agenticrun.NewController(func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
 				return nil, nil, nil
 			}, ctrlruntimefake.NewClientBuilder().Build(), nil, func(_ string) (*configv1.ClusterVersion, error) {
 				return &configv1.ClusterVersion{}, nil
