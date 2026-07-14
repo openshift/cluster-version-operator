@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: openshift-cluster-update-console-plugin
+  namespace: openshift-cluster-update-console-plugin
+  annotations:
+    kubernetes.io/description: The OpenShift cluster-update console plugin provides a web-console interface for managing ClusterVersion updates.
+    service.beta.openshift.io/serving-cert-secret-name: cluster-update-console-plugin-cert
+    capability.openshift.io/name: Console
+    release.openshift.io/feature-set: TechPreviewNoUpgrade
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+spec:
+  type: ClusterIP
+  selector:
+    app: cluster-update-console-plugin
+  ports:
+  - name: https
+    port: 9001
+    targetPort: https
