@@ -294,7 +294,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-3-to-4-16-0",
+						Name:      "run-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -305,7 +305,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-3-to-4-16-1",
+						Name:      "run-4-15-3-to-4-16-1",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -315,7 +315,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"proposal-4-15-3-to-4-16-0", "proposal-4-15-3-to-4-16-1"},
+			expectedKept:    []string{"run-4-15-3-to-4-16-0", "run-4-15-3-to-4-16-1"},
 			expectedDeleted: []string{},
 		},
 		{
@@ -327,7 +327,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-2-to-4-16-0",
+						Name:      "run-4-15-2-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -338,7 +338,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"proposal-4-15-2-to-4-16-0"},
+			expectedDeleted: []string{"run-4-15-2-to-4-16-0"},
 		},
 		{
 			name: "deletes agentic runs for targets no longer in available updates",
@@ -349,7 +349,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-3-to-4-16-0",
+						Name:      "run-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -360,7 +360,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"proposal-4-15-3-to-4-16-0"},
+			expectedDeleted: []string{"run-4-15-3-to-4-16-0"},
 		},
 		{
 			name: "keeps agentic runs associated with history",
@@ -374,7 +374,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-old-to-4-16-1",
+						Name:      "run-old-to-4-16-1",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -385,7 +385,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-old-to-4-15-3",
+						Name:      "run-old-to-4-15-3",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -395,8 +395,8 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"proposal-old-to-4-16-1"},
-			expectedDeleted: []string{"proposal-old-to-4-15-3"},
+			expectedKept:    []string{"run-old-to-4-16-1"},
+			expectedDeleted: []string{"run-old-to-4-15-3"},
 		},
 		{
 			name: "keeps agentic runs not owned by CVO",
@@ -407,7 +407,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "user-created-proposal",
+						Name:      "user-created-run",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         "manual",
@@ -417,7 +417,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"user-created-proposal"},
+			expectedKept:    []string{"user-created-run"},
 			expectedDeleted: []string{},
 		},
 		{
@@ -429,7 +429,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-3-to-4-16-2",
+						Name:      "run-4-15-3-to-4-16-2",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -439,7 +439,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"proposal-4-15-3-to-4-16-2"},
+			expectedKept:    []string{"run-4-15-3-to-4-16-2"},
 			expectedDeleted: []string{},
 		},
 		{
@@ -451,7 +451,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-missing-labels",
+						Name:      "run-missing-labels",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource: labelValueSource,
@@ -461,7 +461,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"proposal-missing-labels"},
+			expectedDeleted: []string{"run-missing-labels"},
 		},
 		{
 			name:             "handles empty updates and history",
@@ -470,7 +470,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "proposal-4-15-3-to-4-16-0",
+						Name:      "run-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -481,7 +481,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"proposal-4-15-3-to-4-16-0"},
+			expectedDeleted: []string{"run-4-15-3-to-4-16-0"},
 		},
 		{
 			name: "mixed scenario: keep some, delete some",
@@ -551,7 +551,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			// Create fake client with existing proposals
+			// Create fake client with existing agentic runs
 			clientBuilder := fake.NewClientBuilder()
 			for _, p := range tt.existingAgenticRuns {
 				clientBuilder.WithObjects(&p)
