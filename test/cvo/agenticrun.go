@@ -83,7 +83,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should install light speed CRDs correctly", func() {
-		for _, name := range []string{"agenticruns.agentic.openshift.io", "agents.agentic.openshift.io", "analysisresults.agentic.openshift.io", "llmproviders.agentic.openshift.io"} {
+		for _, name := range []string{"agenticruns.agentic.openshift.io", "agenticrunapprovals.agentic.openshift.io", "agents.agentic.openshift.io", "analysisresults.agentic.openshift.io", "approvalpolicies.agentic.openshift.io", "llmproviders.agentic.openshift.io"} {
 			_, err := apiExtensionsClient.ApiextensionsV1().CustomResourceDefinitions().Get(ctx, name, metav1.GetOptions{})
 			if util.IsTechPreviewNoUpgrade(ctx, c) {
 				o.Expect(err).To(o.BeNil())
@@ -123,7 +123,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 				ctrlruntimeclient.MatchingLabels(agenticrun.CVOAgenticRunLabels))
 			o.Expect(err).NotTo(o.HaveOccurred())
 			for _, ar := range agenticRuns.Items {
-				if ar.CreationTimestamp.After(now) ||
+				if ar.CreationTimestamp.After(now) &&
 					strings.Contains(ar.Spec.Request, fmt.Sprintf("Channel: %s", channel)) {
 					return true, nil
 				}

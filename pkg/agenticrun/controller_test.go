@@ -576,6 +576,8 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name, Namespace: "openshift-lightspeed"}, agenticRun)
 				if err == nil {
 					t.Errorf("expected agentic run %s to be deleted, but it still exists", name)
+				} else if !kerrors.IsNotFound(err) {
+					t.Errorf("expected NotFound for agentic run %s, but got: %v", name, err)
 				}
 			}
 		})

@@ -147,18 +147,18 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 
 	currentVersion := c.getCurrentVersionFunc()
 
+	var errs []error
+	if err := deleteAgenticRuns(ctx, c.client, updates, conditionalUpdates, cv.Status.History, currentVersion); err != nil {
+		errs = append(errs, err)
+	}
+
 	// Don't create agentic runs while CVO is reconciling — readiness data would
 	// reflect the transient reconciliation state, not actual cluster health.
 	for _, cond := range cv.Status.Conditions {
 		if cond.Type == "Progressing" && cond.Status == configv1.ConditionTrue {
-			klog.V(i.Normal).Infof("Skipping agentic run sync: cluster is progressing (%s)", cond.Message)
-			return nil
+			klog.V(i.Normal).Infof("Skipping agentic run creation: cluster is progressing (%s)", cond.Message)
+			return kutilerrors.NewAggregate(errs)
 		}
-	}
-
-	var errs []error
-	if err := deleteAgenticRuns(ctx, c.client, updates, conditionalUpdates, cv.Status.History, currentVersion); err != nil {
-		errs = append(errs, err)
 	}
 
 	if len(updates) == 0 && len(conditionalUpdates) == 0 {
@@ -204,8 +204,8 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 			if expired(existing) {
 				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
 					errs = append(errs, err)
-					continue
 				}
+				continue
 			} else {
 				klog.V(i.Debug).Infof("The existing agentic run %s/%s is not expired", agenticRun.Namespace, agenticRun.Name)
 				continue
