@@ -93,7 +93,7 @@ type AgentSpec struct {
 
 // Agent defines a cluster-scoped agent tier (e.g., "default", "smart", "fast").
 // The cluster admin creates Agent resources to configure LLM infrastructure
-// and runtime settings. Proposals reference agents by name per step.
+// and runtime settings. AgenticRuns reference agents by name per step.
 //
 // Agent is cluster-scoped. The metadata.name serves as the tier identifier.
 // The "default" agent must exist; "smart" and "fast" are optional (the

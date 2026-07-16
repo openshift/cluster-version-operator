@@ -27,11 +27,11 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/api/features"
 
+	"github.com/openshift/cluster-version-operator/pkg/agenticrun"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/always"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions/mock"
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
-	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
 )
@@ -205,7 +205,7 @@ func newOperator(url string, cluster release, promqlMock clusterconditions.Condi
 	availableUpdates := &availableUpdates{
 		Current: configv1.Release{Version: cluster.version, Image: cluster.image},
 	}
-	operator.proposalController = proposal.NewController(
+	operator.agenticRunController = agenticrun.NewController(
 		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
 			return nil, nil, nil
 		},

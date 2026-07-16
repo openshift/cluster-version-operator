@@ -20,15 +20,15 @@ import (
 	oteginkgo "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
+	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
+	"github.com/openshift/cluster-version-operator/pkg/agenticrun"
 	"github.com/openshift/cluster-version-operator/pkg/external"
-	"github.com/openshift/cluster-version-operator/pkg/proposal"
 	"github.com/openshift/cluster-version-operator/test/util"
 )
 
 func init() {
-	err := proposalv1alpha1.AddToScheme(scheme.Scheme)
+	err := agenticrunv1alpha1.AddToScheme(scheme.Scheme)
 	if err != nil {
 		panic(err)
 	}
@@ -82,10 +82,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 
-	g.It("should create proposals", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
+	g.It("should create agentic runs", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
 		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
-		util.SkipIfNoAPI(ctx, c, "proposals.agentic.openshift.io")
+		util.SkipIfNoAPI(ctx, c, "agenticruns.agentic.openshift.io")
 
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
@@ -101,23 +101,23 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		now := time.Now()
 
 		g.By("Checking if the namespace exists")
-		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, proposal.DefaultConfig().Namespace, metav1.GetOptions{})
+		_, err = kubeClient.CoreV1().Namespaces().Get(ctx, agenticrun.DefaultConfig().Namespace, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Checking if the proposal are created")
-		var proposals proposalv1alpha1.ProposalList
+		g.By("Checking if the agentic runs are created")
+		var agenticRuns agenticrunv1alpha1.AgenticRunList
 		o.Expect(wait.PollUntilContextTimeout(ctx, 30*time.Second, 5*time.Minute, true, func(ctx context.Context) (done bool, err error) {
-			proposals = proposalv1alpha1.ProposalList{}
-			err = rtClient.List(ctx, &proposals, ctrlruntimeclient.InNamespace(proposal.DefaultConfig().Namespace),
-				ctrlruntimeclient.MatchingLabels(proposal.CVOProposalLabels))
+			agenticRuns = agenticrunv1alpha1.AgenticRunList{}
+			err = rtClient.List(ctx, &agenticRuns, ctrlruntimeclient.InNamespace(agenticrun.DefaultConfig().Namespace),
+				ctrlruntimeclient.MatchingLabels(agenticrun.CVOAgenticRunLabels))
 			o.Expect(err).NotTo(o.HaveOccurred())
-			for _, proposal := range proposals.Items {
-				if proposal.CreationTimestamp.After(now) ||
-					strings.Contains(proposal.Spec.Request, fmt.Sprintf("Channel: %s", channel)) {
+			for _, ar := range agenticRuns.Items {
+				if ar.CreationTimestamp.After(now) &&
+					strings.Contains(ar.Spec.Request, fmt.Sprintf("Channel: %s", channel)) {
 					return true, nil
 				}
 			}
 			return false, nil
-		})).NotTo(o.HaveOccurred(), "expected proposals not found", "now", now.Format(time.RFC3339), "proposals are:\n%s", getYaml(&proposals))
+		})).NotTo(o.HaveOccurred(), "expected agentic runs not found", "now", now.Format(time.RFC3339), "agentic runs are:\n%s", getYaml(&agenticRuns))
 	})
 })

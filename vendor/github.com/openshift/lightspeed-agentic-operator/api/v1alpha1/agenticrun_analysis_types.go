@@ -38,7 +38,7 @@ const (
 )
 
 // RiskLevel is the agent's assessment of how risky a remediation is.
-// Critical-risk proposals typically require explicit human review.
+// Critical-risk remediations typically require explicit human review.
 //
 //   - "Low"      — Minimal risk; safe to apply automatically.
 //   - "Medium"   — Moderate risk; review recommended.
@@ -58,7 +58,7 @@ const (
 // DiagnosisResult contains the root cause analysis from the analysis agent.
 // This is populated by the agent during the analysis step and stored in
 // the AnalysisStepStatus as part of a RemediationOption. Users see this
-// in the console UI when reviewing the proposal.
+// in the console UI when reviewing the agentic run.
 type DiagnosisResult struct {
 	// summary is a Markdown-formatted diagnosis summary explaining the
 	// problem, its symptoms, and the agent's findings. Maximum 8192 characters.
@@ -81,18 +81,27 @@ type DiagnosisResult struct {
 }
 
 // ProposedAction describes a single discrete action the analysis agent
-// recommends as part of its remediation plan. Actions are displayed to
-// the user after analysis for review before approval.
+// recommends as part of its remediation plan. Each action contains an
+// exact executable bash command and is displayed to the user after
+// analysis for review before approval.
 type ProposedAction struct {
-	// type is the action category (e.g., "patch", "scale", "restart",
-	// "create", "delete", "rollout"). Free-form string to allow agents
-	// to express domain-specific action types. Must be 1-256 characters.
+	// command is the exact executable bash command using kubectl or oc
+	// (e.g., "kubectl set image deployment/foo container=registry/foo:v1.3 -n production").
+	// Must be a concrete command that can be copy-pasted and run.
+	// Maximum 4096 characters.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=4096
+	Command string `json:"command,omitempty"`
+	// type is the action phase category: "pre-check", "mutation", "wait",
+	// or "post-check". Free-form string to allow agents to express
+	// domain-specific action types. Must be 1-256 characters.
 	// +required
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=256
 	Type string `json:"type,omitempty"`
-	// description is a Markdown-formatted explanation of what this action
-	// will do (e.g., "Increase memory limit from 256Mi to 512Mi").
+	// description is a Markdown-formatted explanation of what this command
+	// does and why (e.g., "Increase memory limit from 256Mi to 512Mi").
 	// Maximum 4096 characters.
 	// +required
 	// +kubebuilder:validation:MinLength=1
@@ -110,11 +119,11 @@ const (
 	ReversibilityPartial      Reversibility = "Partial"
 )
 
-// ProposalResult contains the remediation plan from the analysis agent.
+// RemediationPlan contains the remediation plan from the analysis agent.
 // This is part of a RemediationOption and is presented to the user after
 // analysis, before approval. The risk and reversibility assessments help
 // users make informed approval decisions.
-type ProposalResult struct {
+type RemediationPlan struct {
 	// description is a Markdown-formatted summary of the overall remediation
 	// approach. Maximum 8192 characters.
 	// +required
@@ -129,7 +138,7 @@ type ProposalResult struct {
 	// +kubebuilder:validation:MaxItems=50
 	Actions []ProposedAction `json:"actions,omitempty"`
 	// risk is the agent's assessment of how risky the remediation is.
-	// Critical-risk proposals typically require explicit human review.
+	// Critical-risk remediations typically require explicit human review.
 	// +required
 	Risk RiskLevel `json:"risk,omitempty"`
 	// reversible indicates whether the remediation can be rolled back
@@ -227,7 +236,7 @@ type VerificationPlan struct {
 // so that users and policy can audit why the permission is needed.
 type RBACRule struct {
 	// namespace is the target namespace for namespace-scoped rules.
-	// Must match one of the proposal's targetNamespaces. Ignored for
+	// Must match one of the run's targetNamespaces. Ignored for
 	// cluster-scoped rules. Validation is deferred to the operator's
 	// policy engine at runtime. Must be a valid RFC 1123 DNS label.
 	// +optional
@@ -284,14 +293,14 @@ type RBACRule struct {
 
 // RBACResult contains the RBAC permissions requested by the analysis agent
 // for the execution step. The operator creates a dedicated ServiceAccount
-// per proposal and binds these permissions via Role (namespace-scoped) or
+// per agentic run and binds these permissions via Role (namespace-scoped) or
 // ClusterRole (cluster-scoped) before launching the execution sandbox.
-// All RBAC resources are cleaned up after the proposal reaches a terminal state.
+// All RBAC resources are cleaned up after the run reaches a terminal state.
 //
 // +kubebuilder:validation:MinProperties=1
 type RBACResult struct {
 	// namespaceScoped are rules that will be applied via Role + RoleBinding
-	// in the proposal's target namespaces. These are the most common rules.
+	// in the run's target namespaces. These are the most common rules.
 	// Maximum 50 items.
 	// +optional
 	// +listType=atomic
@@ -321,8 +330,8 @@ type RBACResult struct {
 // affected deployment information as components that the console plugin
 // renders with custom components.
 //
-// +kubebuilder:validation:XValidation:rule="!has(self.diagnosis) || has(self.proposal)",message="proposal is required when diagnosis is present"
-// +kubebuilder:validation:XValidation:rule="!has(self.proposal) || has(self.diagnosis)",message="diagnosis is required when proposal is present"
+// +kubebuilder:validation:XValidation:rule="!has(self.diagnosis) || has(self.remediationPlan)",message="remediationPlan is required when diagnosis is present"
+// +kubebuilder:validation:XValidation:rule="!has(self.remediationPlan) || has(self.diagnosis)",message="diagnosis is required when remediationPlan is present"
 type RemediationOption struct {
 	// title is a short Markdown-formatted name for this option
 	// (e.g., "Increase memory limit", "Restart with backoff").
@@ -342,11 +351,11 @@ type RemediationOption struct {
 	// when mode is Minimal.
 	// +optional
 	Diagnosis DiagnosisResult `json:"diagnosis,omitzero"`
-	// proposal contains the remediation plan for this option.
+	// remediationPlan contains the remediation plan for this option.
 	// Present when analysisOutput mode is Default (or omitted). Omitted
 	// when mode is Minimal without an execution step.
 	// +optional
-	Proposal ProposalResult `json:"proposal,omitzero"`
+	RemediationPlan RemediationPlan `json:"remediationPlan,omitzero"`
 	// verification contains the verification plan. Omitted when
 	// verification is skipped in the workflow.
 	// +optional
@@ -357,7 +366,7 @@ type RemediationOption struct {
 	// +optional
 	RBAC RBACResult `json:"rbac,omitzero"`
 	// components contains optional adapter-defined structured data whose
-	// shape is determined by spec.analysisOutput.schema on the Proposal.
+	// shape is determined by spec.analysisOutput.schema on the AgenticRun.
 	// The operator passes this through to the AnalysisResult CR; the
 	// console renders it using adapter-specific UI components.
 	// +optional

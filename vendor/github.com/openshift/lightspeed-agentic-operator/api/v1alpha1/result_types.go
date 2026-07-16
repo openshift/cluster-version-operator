@@ -30,10 +30,10 @@ const (
 )
 
 func (r *AnalysisResult) GetConditions() []metav1.Condition      { return r.Status.Conditions }
-func (r *AnalysisResult) SetConditions(c []metav1.Condition)      { r.Status.Conditions = c }
-func (r *ExecutionResult) GetConditions() []metav1.Condition      { return r.Status.Conditions }
-func (r *ExecutionResult) SetConditions(c []metav1.Condition)      { r.Status.Conditions = c }
-func (r *VerificationResult) GetConditions() []metav1.Condition   { return r.Status.Conditions }
-func (r *VerificationResult) SetConditions(c []metav1.Condition)   { r.Status.Conditions = c }
-func (r *EscalationResult) GetConditions() []metav1.Condition     { return r.Status.Conditions }
-func (r *EscalationResult) SetConditions(c []metav1.Condition)     { r.Status.Conditions = c }
+func (r *AnalysisResult) SetConditions(c []metav1.Condition)     { r.Status.Conditions = c }
+func (r *ExecutionResult) GetConditions() []metav1.Condition     { return r.Status.Conditions }
+func (r *ExecutionResult) SetConditions(c []metav1.Condition)    { r.Status.Conditions = c }
+func (r *VerificationResult) GetConditions() []metav1.Condition  { return r.Status.Conditions }
+func (r *VerificationResult) SetConditions(c []metav1.Condition) { r.Status.Conditions = c }
+func (r *EscalationResult) GetConditions() []metav1.Condition    { return r.Status.Conditions }
+func (r *EscalationResult) SetConditions(c []metav1.Condition)   { r.Status.Conditions = c }

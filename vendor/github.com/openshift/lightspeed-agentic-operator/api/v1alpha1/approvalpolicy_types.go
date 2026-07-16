@@ -29,7 +29,7 @@ const (
 	ApprovalModeManual    ApprovalMode = "Manual"
 )
 
-const DefaultMaxConcurrentProposals int32 = 5
+const DefaultMaxConcurrentRuns int32 = 5
 
 // ApprovalPolicyStage configures the approval mode for a single workflow step.
 type ApprovalPolicyStage struct {
@@ -39,9 +39,9 @@ type ApprovalPolicyStage struct {
 	Name SandboxStep `json:"name,omitempty"`
 
 	// approval controls whether this step auto-approves or requires
-	// explicit user approval on the ProposalApproval resource.
+	// explicit user approval on the AgenticRunApproval resource.
 	// Allowed values: Automatic (step runs without user approval),
-	// Manual (step waits for explicit approval on ProposalApproval).
+	// Manual (step waits for explicit approval on AgenticRunApproval).
 	// +required
 	Approval ApprovalMode `json:"approval,omitempty"`
 }
@@ -60,22 +60,22 @@ type ApprovalPolicySpec struct {
 	Stages []ApprovalPolicyStage `json:"stages,omitempty"`
 
 	// maxAttempts sets the maximum number of execution retry attempts
-	// allowed for proposals. When verification fails, the operator retries
+	// allowed for agentic runs. When verification fails, the operator retries
 	// execution up to this limit before escalating. Defaults to 1 if omitted.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=3
 	MaxAttempts int32 `json:"maxAttempts,omitempty"`
 
-	// maxConcurrentProposals sets the maximum number of proposals the
-	// operator reconciles concurrently. Higher values allow more proposals
+	// maxConcurrentRuns sets the maximum number of agentic runs the
+	// operator reconciles concurrently. Higher values allow more agentic runs
 	// to run in parallel but consume more cluster resources.
 	// Defaults to 5 if omitted.
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=20
 	// +default=5
-	MaxConcurrentProposals int32 `json:"maxConcurrentProposals,omitempty"`
+	MaxConcurrentRuns int32 `json:"maxConcurrentRuns,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -84,11 +84,11 @@ type ApprovalPolicySpec struct {
 // +kubebuilder:validation:XValidation:rule="self.metadata.name == 'cluster'",message="ApprovalPolicy must be named 'cluster' (singleton)"
 
 // ApprovalPolicy is a cluster-scoped singleton that configures default
-// approval behavior for proposal workflow steps. The cluster admin creates
+// approval behavior for agentic run workflow steps. The cluster admin creates
 // a single ApprovalPolicy named "cluster" to control which steps auto-approve.
 //
 // Steps not listed in the policy default to Manual (require explicit
-// user approval on the ProposalApproval resource).
+// user approval on the AgenticRunApproval resource).
 //
 // Example:
 //

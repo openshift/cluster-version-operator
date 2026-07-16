@@ -86,7 +86,7 @@ type SecretMountSpec struct {
 
 // SecretRequirement declares a Kubernetes Secret that the sandbox needs
 // at runtime. The Secret must exist in the operator namespace (where
-// sandbox pods run), not in the Proposal's namespace.
+// sandbox pods run), not in the AgenticRun's namespace.
 type SecretRequirement struct {
 	// name of the Secret (must exist in the operator namespace).
 	// Must be a valid RFC 1123 DNS subdomain.
@@ -111,7 +111,7 @@ type SecretRequirement struct {
 // ToolsSpec defines the tools available to an agent in its sandbox pod.
 // This includes skills images, MCP servers, and required secrets.
 //
-// ToolsSpec is specified on a Proposal either as a shared default
+// ToolsSpec is specified on an AgenticRun either as a shared default
 // (spec.tools) or per-step (spec.analysis.tools, spec.execution.tools,
 // spec.verification.tools). Per-step tools replace the shared default
 // for that step.
@@ -140,7 +140,7 @@ type ToolsSpec struct {
 
 	// requiredSecrets declares Kubernetes Secrets that the sandbox pod
 	// needs at runtime. The cluster admin creates the actual Secrets
-	// in the same namespace as the Proposal.
+	// in the same namespace as the AgenticRun.
 	// +optional
 	// +listType=map
 	// +listMapKey=name

@@ -189,5 +189,5 @@ type SkillsSource struct {
 	// +kubebuilder:validation:XValidation:rule="self.all(p, p.matches('^[a-zA-Z0-9/_.-]+$'))",message="paths may only contain alphanumeric characters, '/', '_', '.', and '-'"
 	// +kubebuilder:validation:items:MinLength=2
 	// +kubebuilder:validation:items:MaxLength=512
-	Paths []string `json:"paths"`
+	Paths []string `json:"paths,omitempty"`
 }
