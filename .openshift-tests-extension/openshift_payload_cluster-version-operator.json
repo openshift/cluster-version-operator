@@ -36,6 +36,7 @@
   },
   {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should create agentic runs",
+    "originalName": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should create proposals",
     "labels": {
       "Lifecycle:informing": {},
       "OTA-1966": {},

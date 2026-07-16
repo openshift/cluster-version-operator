@@ -204,8 +204,8 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 			if expired(existing) {
 				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
 					errs = append(errs, err)
+					continue
 				}
-				continue
 			} else {
 				klog.V(i.Debug).Infof("The existing agentic run %s/%s is not expired", agenticRun.Namespace, agenticRun.Name)
 				continue
