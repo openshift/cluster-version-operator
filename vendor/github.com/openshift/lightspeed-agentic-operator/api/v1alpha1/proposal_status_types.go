@@ -255,7 +255,7 @@ type VerificationStepStatus struct {
 
 // EscalationStepStatus is the observed state of the escalation step.
 // The operator injects this step when retries are exhausted; it is not
-// declared in the AgenticRun spec.
+// declared in the Proposal spec.
 //
 // +kubebuilder:validation:MinProperties=1
 type EscalationStepStatus struct {
@@ -280,7 +280,7 @@ type EscalationStepStatus struct {
 }
 
 // StepsStatus contains the per-step observed state for all workflow
-// steps. Each step status is populated independently as the run
+// steps. Each step status is populated independently as the proposal
 // progresses through its lifecycle. All fields are set by the operator.
 //
 // +kubebuilder:validation:MinProperties=1

@@ -8,7 +8,6 @@ import (
 
 	"github.com/openshift-eng/openshift-tests-extension/pkg/cmd"
 	"github.com/openshift-eng/openshift-tests-extension/pkg/extension"
-	"github.com/openshift-eng/openshift-tests-extension/pkg/extension/extensiontests"
 	g "github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo"
 
 	_ "github.com/openshift/cluster-version-operator/test/cvo"
@@ -45,15 +44,6 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("couldn't build extension test specs from ginkgo: %+v", err.Error()))
 	}
-
-	renamedTests := map[string]string{
-		`[Jira:"Cluster Version Operator"] cluster-version-operator should create agentic runs`: `[Jira:"Cluster Version Operator"] cluster-version-operator should create proposals`,
-	}
-	specs = specs.Walk(func(spec *extensiontests.ExtensionTestSpec) {
-		if orig, ok := renamedTests[spec.Name]; ok {
-			spec.OriginalName = orig
-		}
-	})
 
 	ext.AddSpecs(specs)
 	registry.Register(ext)

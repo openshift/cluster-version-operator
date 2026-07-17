@@ -21,28 +21,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// AgenticRunPhase summarizes the agentic run's lifecycle state for display.
+// ProposalPhase summarizes the proposal's lifecycle state for display.
 // This type is used internally by the controller, CLI, and console to
 // derive a human-friendly phase from conditions. It is NOT stored on
 // the CRD status — use DerivePhase(conditions) to compute it.
-type AgenticRunPhase string
+type ProposalPhase string
 
 const (
-	AgenticRunPhasePending          AgenticRunPhase = "Pending"
-	AgenticRunPhaseAnalyzing        AgenticRunPhase = "Analyzing"
-	AgenticRunPhaseProposed         AgenticRunPhase = "Proposed"
-	AgenticRunPhaseExecuting        AgenticRunPhase = "Executing"
-	AgenticRunPhaseVerifying        AgenticRunPhase = "Verifying"
-	AgenticRunPhaseCompleted        AgenticRunPhase = "Completed"
-	AgenticRunPhaseFailed           AgenticRunPhase = "Failed"
-	AgenticRunPhaseDenied           AgenticRunPhase = "Denied"
-	AgenticRunPhaseEscalating       AgenticRunPhase = "Escalating"
-	AgenticRunPhaseEscalated        AgenticRunPhase = "Escalated"
-	AgenticRunPhaseEmergencyStopped AgenticRunPhase = "EmergencyStopped"
+	ProposalPhasePending   ProposalPhase = "Pending"
+	ProposalPhaseAnalyzing ProposalPhase = "Analyzing"
+	ProposalPhaseProposed  ProposalPhase = "Proposed"
+	ProposalPhaseExecuting ProposalPhase = "Executing"
+	ProposalPhaseVerifying ProposalPhase = "Verifying"
+	ProposalPhaseCompleted ProposalPhase = "Completed"
+	ProposalPhaseFailed    ProposalPhase = "Failed"
+	ProposalPhaseDenied     ProposalPhase = "Denied"
+	ProposalPhaseEscalating ProposalPhase = "Escalating"
+	ProposalPhaseEscalated  ProposalPhase = "Escalated"
 )
 
 // Condition reasons used by DerivePhase for state transitions.
-// SYNC: must match derivePhaseFromConditions in lightspeed-agentic-console/src/models/agenticrun.ts
+// SYNC: must match derivePhaseFromConditions in lightspeed-agentic-console/src/models/proposal.ts
 const (
 	ReasonRetryingExecution = "RetryingExecution"
 	ReasonRetriesExhausted  = "RetriesExhausted"
@@ -51,8 +50,8 @@ const (
 // DerivePhase computes the display phase from conditions. Conditions are
 // the source of truth; this function maps them to a human-friendly phase
 // for display in CLI, console, and controller routing.
-// SYNC: must match derivePhaseFromConditions in lightspeed-agentic-console/src/models/agenticrun.ts
-func DerivePhase(conditions []metav1.Condition) AgenticRunPhase {
+// SYNC: must match derivePhaseFromConditions in lightspeed-agentic-console/src/models/proposal.ts
+func DerivePhase(conditions []metav1.Condition) ProposalPhase {
 	get := func(condType string) *metav1.Condition {
 		for i := range conditions {
 			if conditions[i].Type == condType {
@@ -62,65 +61,61 @@ func DerivePhase(conditions []metav1.Condition) AgenticRunPhase {
 		return nil
 	}
 
-	if c := get(AgenticRunConditionEmergencyStopped); c != nil && c.Status == metav1.ConditionTrue {
-		return AgenticRunPhaseEmergencyStopped
-	}
-
-	escalated := get(AgenticRunConditionEscalated)
+	escalated := get(ProposalConditionEscalated)
 	if escalated != nil && escalated.Status == metav1.ConditionTrue {
-		return AgenticRunPhaseEscalated
+		return ProposalPhaseEscalated
 	}
 
-	if c := get(AgenticRunConditionDenied); c != nil && c.Status == metav1.ConditionTrue {
-		return AgenticRunPhaseDenied
+	if c := get(ProposalConditionDenied); c != nil && c.Status == metav1.ConditionTrue {
+		return ProposalPhaseDenied
 	}
 
 	if escalated != nil {
 		switch escalated.Status {
 		case metav1.ConditionUnknown:
-			return AgenticRunPhaseEscalating
+			return ProposalPhaseEscalating
 		default:
-			return AgenticRunPhaseFailed
+			return ProposalPhaseFailed
 		}
 	}
 
-	if c := get(AgenticRunConditionVerified); c != nil {
+	if c := get(ProposalConditionVerified); c != nil {
 		switch c.Status {
 		case metav1.ConditionTrue:
-			return AgenticRunPhaseCompleted
+			return ProposalPhaseCompleted
 		case metav1.ConditionUnknown:
-			return AgenticRunPhaseVerifying
+			return ProposalPhaseVerifying
 		default:
 			if c.Reason == ReasonRetryingExecution {
-				return AgenticRunPhaseExecuting
+				return ProposalPhaseExecuting
 			}
-			return AgenticRunPhaseFailed
+			return ProposalPhaseFailed
 		}
 	}
 
-	if c := get(AgenticRunConditionExecuted); c != nil {
+	if c := get(ProposalConditionExecuted); c != nil {
 		switch c.Status {
 		case metav1.ConditionTrue:
-			return AgenticRunPhaseVerifying
+			return ProposalPhaseVerifying
 		case metav1.ConditionUnknown:
-			return AgenticRunPhaseExecuting
+			return ProposalPhaseExecuting
 		default:
-			return AgenticRunPhaseFailed
+			return ProposalPhaseFailed
 		}
 	}
 
-	if c := get(AgenticRunConditionAnalyzed); c != nil {
+	if c := get(ProposalConditionAnalyzed); c != nil {
 		switch c.Status {
 		case metav1.ConditionTrue:
-			return AgenticRunPhaseProposed
+			return ProposalPhaseProposed
 		case metav1.ConditionUnknown:
-			return AgenticRunPhaseAnalyzing
+			return ProposalPhaseAnalyzing
 		default:
-			return AgenticRunPhaseFailed
+			return ProposalPhaseFailed
 		}
 	}
 
-	return AgenticRunPhasePending
+	return ProposalPhasePending
 }
 
 // StepPhase summarizes a single step's lifecycle state for display.
@@ -153,9 +148,9 @@ const (
 )
 
 // AnalysisOutputMode controls which built-in properties the analysis output
-// schema includes. Use Default to get the full schema (diagnosis, remediation plan,
+// schema includes. Use Default to get the full schema (diagnosis, proposal,
 // RBAC, verification). Use Minimal to get only the base structure (options
-// array with title) — suitable for analysis-only runs that define
+// array with title) — suitable for analysis-only proposals that define
 // their own output shape via the schema field.
 //
 // Allowed values:
@@ -167,7 +162,7 @@ type AnalysisOutputMode string
 
 const (
 	// AnalysisOutputModeDefault uses the full analysis output schema with
-	// all built-in properties (diagnosis, remediation plan, summary, rbac, verification).
+	// all built-in properties (diagnosis, proposal, summary, rbac, verification).
 	AnalysisOutputModeDefault AnalysisOutputMode = "Default"
 	// AnalysisOutputModeMinimal uses a minimal analysis output schema with
 	// only the base structure (options array with title per option).
@@ -186,7 +181,7 @@ const (
 type AnalysisOutput struct {
 	// mode controls which built-in properties the analysis output schema
 	// includes. Default includes all built-in properties (diagnosis,
-	// remediation plan, summary, rbac, verification). Minimal includes only the
+	// proposal, summary, rbac, verification). Minimal includes only the
 	// base structure (options array with title per option). Omit or set
 	// to "Default" for standard remediation workflows.
 	// +optional
@@ -207,8 +202,8 @@ func (a AnalysisOutput) IsZero() bool {
 	return a.Mode == "" && a.Schema == nil
 }
 
-// Condition types for AgenticRun. Conditions are the primary mechanism for
-// observing agentic run state. The operator sets these as the run
+// Condition types for Proposal. Conditions are the primary mechanism for
+// observing proposal state. The operator sets these as the proposal
 // progresses through its lifecycle. Each condition has a type, status
 // (True/False/Unknown), reason (CamelCase token), and message.
 //
@@ -225,33 +220,32 @@ func (a AnalysisOutput) IsZero() bool {
 //	Escalated=True      -> max retries exhausted (terminal)
 //	Any condition=False -> step failed; check reason and message
 const (
-	// AgenticRunConditionAnalyzed indicates whether analysis has completed.
+	// ProposalConditionAnalyzed indicates whether analysis has completed.
 	// Status=True when analysis succeeds, Status=False on failure,
 	// Status=Unknown while analysis is in progress.
-	AgenticRunConditionAnalyzed string = "Analyzed"
-	// AgenticRunConditionExecuted indicates whether execution has completed.
+	ProposalConditionAnalyzed string = "Analyzed"
+	// ProposalConditionExecuted indicates whether execution has completed.
 	// Status=True when execution succeeds, Status=False on failure,
 	// Status=Unknown while execution is in progress.
-	AgenticRunConditionExecuted string = "Executed"
-	// AgenticRunConditionVerified indicates whether verification has passed.
+	ProposalConditionExecuted string = "Executed"
+	// ProposalConditionVerified indicates whether verification has passed.
 	// Status=True when verification succeeds, Status=False on failure,
 	// Status=Unknown while verification is in progress.
-	AgenticRunConditionVerified string = "Verified"
-	// AgenticRunConditionDenied indicates the user denied a step on the
-	// AgenticRunApproval resource. Status=True when denied (terminal).
-	AgenticRunConditionDenied string = "Denied"
-	// AgenticRunConditionEscalated indicates escalation state. Status=Unknown
+	ProposalConditionVerified string = "Verified"
+	// ProposalConditionDenied indicates the user denied a step on the
+	// ProposalApproval resource. Status=True when denied (terminal).
+	ProposalConditionDenied string = "Denied"
+	// ProposalConditionEscalated indicates escalation state. Status=Unknown
 	// while escalation is pending approval or in progress, Status=True when
 	// escalation completes (terminal), Status=False on escalation failure.
-	AgenticRunConditionEscalated        string = "Escalated"
-	AgenticRunConditionEmergencyStopped string = "EmergencyStopped"
+	ProposalConditionEscalated string = "Escalated"
 )
 
-// AgenticRunStep defines per-step configuration on an AgenticRun. The agent
+// ProposalStep defines per-step configuration on a Proposal. The agent
 // field selects which cluster-scoped Agent CR handles this step. The
 // tools field provides per-step tools that replace the shared spec.tools.
 // +kubebuilder:validation:MinProperties=1
-type AgenticRunStep struct {
+type ProposalStep struct {
 	// agent is the name of the cluster-scoped Agent CR to use for this step.
 	// Defaults to "default" when omitted.
 	// +optional
@@ -266,31 +260,31 @@ type AgenticRunStep struct {
 	Tools ToolsSpec `json:"tools,omitzero"`
 }
 
-func (s AgenticRunStep) IsZero() bool {
+func (s ProposalStep) IsZero() bool {
 	return s.Agent == "" && s.Tools.IsZero()
 }
 
-// AgenticRunSpec defines the desired state of AgenticRun.
+// ProposalSpec defines the desired state of Proposal.
 //
-// A AgenticRun defines the workflow shape inline, specifying which steps
+// A Proposal defines the workflow shape inline, specifying which steps
 // run and which agent handles each step. Analysis is always required.
 // Omit execution and/or verification to skip those steps.
 //
 // +kubebuilder:validation:XValidation:rule="has(self.analysis)",message="analysis must be provided"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.targetNamespaces) || (has(self.targetNamespaces) && self.targetNamespaces == oldSelf.targetNamespaces)",message="targetNamespaces is immutable once set"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.analysisOutput) || (has(self.analysisOutput) && self.analysisOutput == oldSelf.analysisOutput)",message="analysisOutput is immutable once set"
-// +kubebuilder:validation:XValidation:rule="!has(self.analysisOutput) || self.analysisOutput.mode != 'Minimal' || (!has(self.execution) && !has(self.verification))",message="analysisOutput mode Minimal is only allowed for analysis-only runs (no execution or verification steps)"
+// +kubebuilder:validation:XValidation:rule="!has(self.analysisOutput) || self.analysisOutput.mode != 'Minimal' || (!has(self.execution) && !has(self.verification))",message="analysisOutput mode Minimal is only allowed for analysis-only proposals (no execution or verification steps)"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.tools) || (has(self.tools) && self.tools == oldSelf.tools)",message="tools is immutable once set"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.analysis) || (has(self.analysis) && self.analysis == oldSelf.analysis)",message="analysis is immutable once set"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.execution) || (has(self.execution) && self.execution == oldSelf.execution)",message="execution is immutable once set"
 // +kubebuilder:validation:XValidation:rule="!has(oldSelf.verification) || (has(self.verification) && self.verification == oldSelf.verification)",message="verification is immutable once set"
-type AgenticRunSpec struct {
+type ProposalSpec struct {
 	// request is the user's original request, alert description, or a
-	// description of what triggered this agentic run. This text is passed to
+	// description of what triggered this proposal. This text is passed to
 	// the analysis agent as the primary input.
 	//
-	// Immutable: AgenticRuns are run-to-completion (like Jobs). To change
-	// the request, create a new AgenticRun. Use spec.revisionFeedback for
+	// Immutable: Proposals are run-to-completion (like Jobs). To change
+	// the request, create a new Proposal. Use spec.revisionFeedback for
 	// iterative feedback on an existing analysis.
 	// +required
 	// +kubebuilder:validation:MinLength=1
@@ -298,10 +292,10 @@ type AgenticRunSpec struct {
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="request is immutable after creation"
 	Request string `json:"request,omitempty"`
 
-	// targetNamespaces are the Kubernetes namespace(s) this agentic run
+	// targetNamespaces are the Kubernetes namespace(s) this proposal
 	// operates on. Used for RBAC scoping and context to the analysis agent.
 	//
-	// When omitted, the run is not namespace-scoped — the analysis
+	// When omitted, the proposal is not namespace-scoped — the analysis
 	// agent determines the relevant namespaces from the request context.
 	// Adapters (AlertManager, ACS) typically set this automatically from
 	// the source event.
@@ -346,21 +340,21 @@ type AgenticRunSpec struct {
 	//
 	// Immutable: agent and per-step tools are fixed at creation.
 	// +required
-	Analysis AgenticRunStep `json:"analysis,omitzero"`
+	Analysis ProposalStep `json:"analysis,omitzero"`
 
 	// execution defines per-step configuration for the execution step.
 	// Omit to skip execution (advisory/assisted patterns).
 	//
 	// Immutable: agent and per-step tools are fixed at creation.
 	// +optional
-	Execution AgenticRunStep `json:"execution,omitzero"`
+	Execution ProposalStep `json:"execution,omitzero"`
 
 	// verification defines per-step configuration for the verification step.
 	// Omit to skip verification.
 	//
 	// Immutable: agent and per-step tools are fixed at creation.
 	// +optional
-	Verification AgenticRunStep `json:"verification,omitzero"`
+	Verification ProposalStep `json:"verification,omitzero"`
 
 	// revisionFeedback is the user's free-text feedback requesting changes
 	// to the analysis. Patching this field bumps metadata.generation, which
@@ -375,15 +369,15 @@ type AgenticRunSpec struct {
 	RevisionFeedback string `json:"revisionFeedback,omitempty"`
 }
 
-// AgenticRunStatus defines the observed state of AgenticRun. All fields are
+// ProposalStatus defines the observed state of Proposal. All fields are
 // set by the operator -- users should not modify status fields directly.
-// The status provides complete observability into the run's progress,
+// The status provides complete observability into the proposal's progress,
 // including per-step results, retry history, and standard Kubernetes conditions.
 // An empty status (`status: {}`) is the initial state before the operator's
 // first reconcile.
 //
 // +kubebuilder:validation:MinProperties=1
-type AgenticRunStatus struct {
+type ProposalStatus struct {
 	// conditions represent the latest available observations using the
 	// standard Kubernetes condition pattern. Condition types include:
 	// Analyzed, Approved, Executed, Verified, and Escalated.
@@ -393,7 +387,7 @@ type AgenticRunStatus struct {
 	// +patchMergeKey=type
 	// +optional
 	// +kubebuilder:validation:MinItems=1
-	// +kubebuilder:validation:MaxItems=9
+	// +kubebuilder:validation:MaxItems=8
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 
 	// steps contains the per-step observed state (analysis, execution,
@@ -409,17 +403,17 @@ type AgenticRunStatus struct {
 // +kubebuilder:printcolumn:name="Request",type=string,JSONPath=`.spec.request`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
-// AgenticRun represents a unit of work managed by the agentic platform.
+// Proposal represents a unit of work managed by the agentic platform.
 // It is the primary resource component teams and adapters interact with.
 //
-// A AgenticRun defines the workflow shape inline: which steps run and which
+// A Proposal defines the workflow shape inline: which steps run and which
 // agent handles each step. Analysis is always required. Omit execution
 // and/or verification to skip those steps.
 //
 // Example — analysis only (advisory):
 //
 //	apiVersion: agentic.openshift.io/v1alpha1
-//	kind: AgenticRun
+//	kind: Proposal
 //	metadata:
 //	  name: one-off-investigation
 //	spec:
@@ -435,7 +429,7 @@ type AgenticRunStatus struct {
 // Example — full remediation (analyze → execute → verify):
 //
 //	apiVersion: agentic.openshift.io/v1alpha1
-//	kind: AgenticRun
+//	kind: Proposal
 //	metadata:
 //	  name: fix-nginx-cve-2024-1234
 //	  namespace: stackrox
@@ -457,31 +451,31 @@ type AgenticRunStatus struct {
 //	  execution: {}
 //	  verification:
 //	    agent: fast
-type AgenticRun struct {
+type Proposal struct {
 	metav1.TypeMeta `json:",inline"`
 
 	// metadata is the standard object metadata.
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// spec defines the desired state of AgenticRun.
+	// spec defines the desired state of Proposal.
 	// +required
-	Spec AgenticRunSpec `json:"spec,omitzero"`
+	Spec ProposalSpec `json:"spec,omitzero"`
 
-	// status defines the observed state of AgenticRun.
+	// status defines the observed state of Proposal.
 	// +optional
-	Status AgenticRunStatus `json:"status,omitzero"`
+	Status ProposalStatus `json:"status,omitzero"`
 }
 
 // +kubebuilder:object:root=true
 
-// AgenticRunList contains a list of AgenticRun.
-type AgenticRunList struct {
+// ProposalList contains a list of Proposal.
+type ProposalList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []AgenticRun `json:"items"`
+	Items           []Proposal `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&AgenticRun{}, &AgenticRunList{})
+	SchemeBuilder.Register(&Proposal{}, &ProposalList{})
 }

@@ -35,21 +35,6 @@
     "environmentSelector": {}
   },
   {
-    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should create agentic runs",
-    "originalName": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should create proposals",
-    "labels": {
-      "Lifecycle:informing": {},
-      "OTA-1966": {},
-      "Serial": {}
-    },
-    "resources": {
-      "isolation": {}
-    },
-    "source": "openshift:payload:cluster-version-operator",
-    "lifecycle": "informing",
-    "environmentSelector": {}
-  },
-  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator-tests should support passing tests",
     "labels": {},
     "resources": {
@@ -99,6 +84,20 @@
     },
     "source": "openshift:payload:cluster-version-operator",
     "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should create proposals",
+    "labels": {
+      "Lifecycle:informing": {},
+      "OTA-1966": {},
+      "Serial": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "informing",
     "environmentSelector": {}
   },
   {

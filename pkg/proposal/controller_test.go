@@ -1,4 +1,4 @@
-package agenticrun
+package proposal
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	configv1 "github.com/openshift/api/config/v1"
-	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
+	proposalv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/readiness"
@@ -65,12 +65,12 @@ func TestController_Sync(t *testing.T) {
 			},
 			client: fake.NewClientBuilder().Build(),
 			verifyFunc: func(client ctrlruntimeclient.Client) error {
-				agenticRuns := &agenticrunv1alpha1.AgenticRunList{}
-				if err := client.List(context.Background(), agenticRuns); err != nil {
+				proposals := &proposalv1alpha1.ProposalList{}
+				if err := client.List(context.Background(), proposals); err != nil {
 					return err
 				}
-				expect := &agenticrunv1alpha1.AgenticRunList{
-					Items: []agenticrunv1alpha1.AgenticRun{
+				expect := &proposalv1alpha1.ProposalList{
+					Items: []proposalv1alpha1.Proposal{
 						{
 							ObjectMeta: metav1.ObjectMeta{
 								Name:      "ota-4-22-1-to-5-0-0-ec-0",
@@ -82,7 +82,7 @@ func TestController_Sync(t *testing.T) {
 									"agentic.openshift.io/update-type":     "Major",
 								},
 							},
-							Spec: agenticrunv1alpha1.AgenticRunSpec{
+							Spec: proposalv1alpha1.ProposalSpec{
 								Request: `prompt-abc
 
 ---
@@ -97,11 +97,11 @@ Update path: Recommended
 
 ` + "```json\n" +
 									`{}` + "\n```\n",
-								Analysis: agenticrunv1alpha1.AgenticRunStep{
+								Analysis: proposalv1alpha1.ProposalStep{
 									Agent: "smart",
 								},
-								Tools: agenticrunv1alpha1.ToolsSpec{
-									Skills: []agenticrunv1alpha1.SkillsSource{
+								Tools: proposalv1alpha1.ToolsSpec{
+									Skills: []proposalv1alpha1.SkillsSource{
 										{
 											Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 											Paths: []string{
@@ -111,15 +111,15 @@ Update path: Recommended
 										},
 									},
 								},
-								AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-									Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+								AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+									Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 									Schema: analysisOutputSchema(),
 								},
 							},
 						},
 					}}
-				if diff := cmp.Diff(expect, agenticRuns, cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")); diff != "" {
-					return fmt.Errorf("unexpected AgenticRunList (-want, +got) = \n%v", diff)
+				if diff := cmp.Diff(expect, proposals, cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")); diff != "" {
+					return fmt.Errorf("unexpected ProposalList (-want, +got) = \n%v", diff)
 				}
 				return nil
 			},
@@ -182,7 +182,7 @@ func TestClassifyUpdate(t *testing.T) {
 	}
 }
 
-func TestAgenticRunName(t *testing.T) {
+func TestProposalName(t *testing.T) {
 	tests := []struct {
 		current  string
 		target   string
@@ -194,9 +194,9 @@ func TestAgenticRunName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.current+"->"+tt.target, func(t *testing.T) {
-			got := agenticRunName(tt.current, tt.target)
+			got := proposalName(tt.current, tt.target)
 			if got != tt.expected {
-				t.Errorf("agenticRunName(%q, %q) = %q, want %q", tt.current, tt.target, got, tt.expected)
+				t.Errorf("proposalName(%q, %q) = %q, want %q", tt.current, tt.target, got, tt.expected)
 			}
 		})
 	}
@@ -273,28 +273,28 @@ func TestBuildRequest(t *testing.T) {
 	})
 }
 
-func TestDeleteAgenticRuns(t *testing.T) {
+func TestDeleteProposals(t *testing.T) {
 	tests := []struct {
-		name                string
-		availableUpdates    []configv1.Release
-		conditionalUpdates  []configv1.ConditionalUpdate
-		history             []configv1.UpdateHistory
-		currentVersion      string
-		existingAgenticRuns []agenticrunv1alpha1.AgenticRun
-		expectedDeleted     []string
-		expectedKept        []string
+		name               string
+		availableUpdates   []configv1.Release
+		conditionalUpdates []configv1.ConditionalUpdate
+		history            []configv1.UpdateHistory
+		currentVersion     string
+		existingProposals  []proposalv1alpha1.Proposal
+		expectedDeleted    []string
+		expectedKept       []string
 	}{
 		{
-			name: "keeps relevant agentic runs matching current version and target",
+			name: "keeps relevant proposals matching current version and target",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.0"},
 				{Version: "4.16.1"},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-3-to-4-16-0",
+						Name:      "proposal-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -305,7 +305,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-3-to-4-16-1",
+						Name:      "proposal-4-15-3-to-4-16-1",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -315,19 +315,19 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"run-4-15-3-to-4-16-0", "run-4-15-3-to-4-16-1"},
+			expectedKept:    []string{"proposal-4-15-3-to-4-16-0", "proposal-4-15-3-to-4-16-1"},
 			expectedDeleted: []string{},
 		},
 		{
-			name: "deletes agentic runs with outdated current version",
+			name: "deletes proposals with outdated current version",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.0"},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-2-to-4-16-0",
+						Name:      "proposal-4-15-2-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -338,18 +338,18 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"run-4-15-2-to-4-16-0"},
+			expectedDeleted: []string{"proposal-4-15-2-to-4-16-0"},
 		},
 		{
-			name: "deletes agentic runs for targets no longer in available updates",
+			name: "deletes proposals for targets no longer in available updates",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.1"},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-3-to-4-16-0",
+						Name:      "proposal-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -360,10 +360,10 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"run-4-15-3-to-4-16-0"},
+			expectedDeleted: []string{"proposal-4-15-3-to-4-16-0"},
 		},
 		{
-			name: "keeps agentic runs associated with history",
+			name: "keeps proposals associated with history",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.2"},
 			},
@@ -371,10 +371,10 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				{Version: "4.16.1"},
 			},
 			currentVersion: "4.16.1",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-old-to-4-16-1",
+						Name:      "proposal-old-to-4-16-1",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -385,7 +385,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-old-to-4-15-3",
+						Name:      "proposal-old-to-4-15-3",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -395,19 +395,19 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"run-old-to-4-16-1"},
-			expectedDeleted: []string{"run-old-to-4-15-3"},
+			expectedKept:    []string{"proposal-old-to-4-16-1"},
+			expectedDeleted: []string{"proposal-old-to-4-15-3"},
 		},
 		{
-			name: "keeps agentic runs not owned by CVO",
+			name: "keeps proposals not owned by CVO",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.0"},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "user-created-run",
+						Name:      "user-created-proposal",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         "manual",
@@ -417,7 +417,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"user-created-run"},
+			expectedKept:    []string{"user-created-proposal"},
 			expectedDeleted: []string{},
 		},
 		{
@@ -426,10 +426,10 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				{Release: configv1.Release{Version: "4.16.2"}},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-3-to-4-16-2",
+						Name:      "proposal-4-15-3-to-4-16-2",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -439,19 +439,19 @@ func TestDeleteAgenticRuns(t *testing.T) {
 					},
 				},
 			},
-			expectedKept:    []string{"run-4-15-3-to-4-16-2"},
+			expectedKept:    []string{"proposal-4-15-3-to-4-16-2"},
 			expectedDeleted: []string{},
 		},
 		{
-			name: "deletes agentic runs with missing labels",
+			name: "deletes proposals with missing labels",
 			availableUpdates: []configv1.Release{
 				{Version: "4.16.0"},
 			},
 			currentVersion: "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-missing-labels",
+						Name:      "proposal-missing-labels",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource: labelValueSource,
@@ -461,16 +461,16 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"run-missing-labels"},
+			expectedDeleted: []string{"proposal-missing-labels"},
 		},
 		{
 			name:             "handles empty updates and history",
 			availableUpdates: []configv1.Release{},
 			currentVersion:   "4.15.3",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "run-4-15-3-to-4-16-0",
+						Name:      "proposal-4-15-3-to-4-16-0",
 						Namespace: "openshift-lightspeed",
 						Labels: map[string]string{
 							labelKeySource:         labelValueSource,
@@ -481,7 +481,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				},
 			},
 			expectedKept:    []string{},
-			expectedDeleted: []string{"run-4-15-3-to-4-16-0"},
+			expectedDeleted: []string{"proposal-4-15-3-to-4-16-0"},
 		},
 		{
 			name: "mixed scenario: keep some, delete some",
@@ -496,7 +496,7 @@ func TestDeleteAgenticRuns(t *testing.T) {
 				{Version: "4.16.0"},
 			},
 			currentVersion: "4.16.0",
-			existingAgenticRuns: []agenticrunv1alpha1.AgenticRun{
+			existingProposals: []proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "keep-relevant",
@@ -551,61 +551,59 @@ func TestDeleteAgenticRuns(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			// Create fake client with existing agentic runs
+			// Create fake client with existing proposals
 			clientBuilder := fake.NewClientBuilder()
-			for _, p := range tt.existingAgenticRuns {
+			for _, p := range tt.existingProposals {
 				clientBuilder.WithObjects(&p)
 			}
 			client := clientBuilder.Build()
 
-			err := deleteAgenticRuns(ctx, client, tt.availableUpdates, tt.conditionalUpdates, tt.history, tt.currentVersion)
+			err := deleteProposals(ctx, client, tt.availableUpdates, tt.conditionalUpdates, tt.history, tt.currentVersion)
 			if err != nil {
-				t.Errorf("deleteAgenticRuns() returned unexpected error: %v", err)
+				t.Errorf("deleteProposals() returned unexpected error: %v", err)
 			}
 
 			for _, name := range tt.expectedKept {
-				agenticRun := &agenticrunv1alpha1.AgenticRun{}
-				err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name, Namespace: "openshift-lightspeed"}, agenticRun)
+				proposal := &proposalv1alpha1.Proposal{}
+				err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name, Namespace: "openshift-lightspeed"}, proposal)
 				if err != nil {
-					t.Errorf("expected agentic run %s to be kept, but got error: %v", name, err)
+					t.Errorf("expected proposal %s to be kept, but got error: %v", name, err)
 				}
 			}
 
 			for _, name := range tt.expectedDeleted {
-				agenticRun := &agenticrunv1alpha1.AgenticRun{}
-				err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name, Namespace: "openshift-lightspeed"}, agenticRun)
+				proposal := &proposalv1alpha1.Proposal{}
+				err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name, Namespace: "openshift-lightspeed"}, proposal)
 				if err == nil {
-					t.Errorf("expected agentic run %s to be deleted, but it still exists", name)
-				} else if !kerrors.IsNotFound(err) {
-					t.Errorf("expected NotFound for agentic run %s, but got: %v", name, err)
+					t.Errorf("expected proposal %s to be deleted, but it still exists", name)
 				}
 			}
 		})
 	}
 }
 
-func TestDeleteAgenticRun(t *testing.T) {
+func TestDeleteProposal(t *testing.T) {
 	tests := []struct {
 		name            string
-		agenticRun      *agenticrunv1alpha1.AgenticRun
+		proposal        *proposalv1alpha1.Proposal
 		adjective       string
 		setupClient     func() ctrlruntimeclient.Client
 		expect          error
 		shouldBeDeleted bool
 	}{
 		{
-			name: "successfully deletes existing agentic run",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "successfully deletes existing proposal",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-agenticrun",
+					Name:      "test-proposal",
 					Namespace: "openshift-lightspeed",
 				},
 			},
 			adjective: "expired",
 			setupClient: func() ctrlruntimeclient.Client {
-				return fake.NewClientBuilder().WithObjects(&agenticrunv1alpha1.AgenticRun{
+				return fake.NewClientBuilder().WithObjects(&proposalv1alpha1.Proposal{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-agenticrun",
+						Name:      "test-proposal",
 						Namespace: "openshift-lightspeed",
 					},
 				}).Build()
@@ -614,9 +612,9 @@ func TestDeleteAgenticRun(t *testing.T) {
 		},
 		{
 			name: "handles not found error gracefully",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "nonexistent-agenticrun",
+					Name:      "nonexistent-proposal",
 					Namespace: "openshift-lightspeed",
 				},
 			},
@@ -627,7 +625,7 @@ func TestDeleteAgenticRun(t *testing.T) {
 			shouldBeDeleted: true,
 		},
 		{
-			name:      "handles nil agentic run",
+			name:      "handles nil proposal",
 			adjective: "nil",
 			setupClient: func() ctrlruntimeclient.Client {
 				return fake.NewClientBuilder().Build()
@@ -641,7 +639,7 @@ func TestDeleteAgenticRun(t *testing.T) {
 			ctx := context.Background()
 			client := tt.setupClient()
 
-			err := deleteAgenticRun(ctx, client, tt.agenticRun, tt.adjective)
+			err := deleteProposal(ctx, client, tt.proposal, tt.adjective)
 
 			if diff := cmp.Diff(tt.expect, err, cmp.Transformer("Error", func(e error) string {
 				if e == nil {
@@ -652,15 +650,15 @@ func TestDeleteAgenticRun(t *testing.T) {
 				t.Errorf("unexpected error (-want +got):\n%s", diff)
 			}
 
-			if tt.agenticRun != nil {
-				agenticRun := &agenticrunv1alpha1.AgenticRun{}
+			if tt.proposal != nil {
+				proposal := &proposalv1alpha1.Proposal{}
 				err = client.Get(ctx, ctrlruntimeclient.ObjectKey{
-					Name:      tt.agenticRun.Name,
-					Namespace: tt.agenticRun.Namespace,
-				}, agenticRun)
+					Name:      tt.proposal.Name,
+					Namespace: tt.proposal.Namespace,
+				}, proposal)
 				if tt.shouldBeDeleted {
 					if !kerrors.IsNotFound(err) {
-						t.Error("expected agentic run to be deleted but it still exists")
+						t.Error("expected proposal to be deleted but it still exists")
 					}
 				} else {
 					if err != nil {
@@ -674,16 +672,16 @@ func TestDeleteAgenticRun(t *testing.T) {
 
 func TestOwnedByCVO(t *testing.T) {
 	tests := []struct {
-		name       string
-		agenticRun *agenticrunv1alpha1.AgenticRun
-		expected   bool
+		name     string
+		proposal *proposalv1alpha1.Proposal
+		expected bool
 	}{
 		{
-			name: "nil agentic run",
+			name: "nil proposal",
 		},
 		{
-			name: "agentic run owned by CVO",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "proposal owned by CVO",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						labelKeySource: labelValueSource,
@@ -693,8 +691,8 @@ func TestOwnedByCVO(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "agentic run not owned by CVO",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "proposal not owned by CVO",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						labelKeySource: "manual",
@@ -703,22 +701,22 @@ func TestOwnedByCVO(t *testing.T) {
 			},
 		},
 		{
-			name: "agentic run with missing labels",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "proposal with missing labels",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{},
 				},
 			},
 		},
 		{
-			name:       "agentic run with nil labels",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{},
+			name:     "proposal with nil labels",
+			proposal: &proposalv1alpha1.Proposal{},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := ownedByCVO(tt.agenticRun)
+			result := ownedByCVO(tt.proposal)
 			if result != tt.expected {
 				t.Errorf("ownedByCVO() = %v, want %v", result, tt.expected)
 			}
@@ -726,7 +724,7 @@ func TestOwnedByCVO(t *testing.T) {
 	}
 }
 
-func TestGetAgenticRuns(t *testing.T) {
+func TestGetProposals(t *testing.T) {
 	tests := []struct {
 		name               string
 		availableUpdates   []configv1.Release
@@ -735,7 +733,7 @@ func TestGetAgenticRuns(t *testing.T) {
 		currentVersion     string
 		channel            string
 		systemPrompt       string
-		expected           []*agenticrunv1alpha1.AgenticRun
+		expected           []*proposalv1alpha1.Proposal
 		expectError        error
 	}{
 		{
@@ -748,7 +746,7 @@ func TestGetAgenticRuns(t *testing.T) {
 			currentVersion: "4.15.3",
 			channel:        "stable-4.16",
 			systemPrompt:   "Test prompt",
-			expected: []*agenticrunv1alpha1.AgenticRun{
+			expected: []*proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "ota-4-15-3-to-4-16-0",
@@ -760,7 +758,7 @@ func TestGetAgenticRuns(t *testing.T) {
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Test prompt
 
 ---
@@ -778,11 +776,11 @@ Other recommended versions available:
 
 ` + "```json\n" +
 							`{}` + "\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -792,8 +790,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -809,7 +807,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Test prompt
 
 ---
@@ -827,11 +825,11 @@ Other recommended versions available:
 
 ` + "```json\n" +
 							`{}` + "\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -841,8 +839,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -862,7 +860,7 @@ Other recommended versions available:
 			namespace:      "openshift-lightspeed",
 			currentVersion: "4.15.3",
 			channel:        "stable-4.16",
-			expected: []*agenticrunv1alpha1.AgenticRun{
+			expected: []*proposalv1alpha1.Proposal{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "ota-4-15-3-to-4-16-0",
@@ -874,7 +872,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Current version: OCP 4.15.3
 Target version: OCP 4.16.0
 Channel: stable-4.16
@@ -885,11 +883,11 @@ Other recommended versions available:
   - 4.16.1
 
 ` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -899,8 +897,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -916,7 +914,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Current version: OCP 4.15.3
 Target version: OCP 4.16.1
 Channel: stable-4.16
@@ -927,11 +925,11 @@ Other recommended versions available:
   - 4.16.0
 
 ` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -941,8 +939,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -958,7 +956,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Current version: OCP 4.15.3
 Target version: OCP 4.16.2
 Channel: stable-4.16
@@ -974,11 +972,11 @@ Other recommended versions available:
   - 4.16.1
 
 ` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -988,8 +986,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -1005,7 +1003,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
+					Spec: proposalv1alpha1.ProposalSpec{
 						Request: `Current version: OCP 4.15.3
 Target version: OCP 4.16.3
 Channel: stable-4.16
@@ -1021,11 +1019,11 @@ Other recommended versions available:
   - 4.16.1
 
 ` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
+						Analysis: proposalv1alpha1.ProposalStep{
 							Agent: "smart",
 						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
+						Tools: proposalv1alpha1.ToolsSpec{
+							Skills: []proposalv1alpha1.SkillsSource{
 								{
 									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
@@ -1035,8 +1033,8 @@ Other recommended versions available:
 								},
 							},
 						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+						AnalysisOutput: proposalv1alpha1.AnalysisOutput{
+							Mode:   proposalv1alpha1.AnalysisOutputModeMinimal,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -1073,7 +1071,7 @@ Other recommended versions available:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agenticRuns, err := getAgenticRuns(
+			proposals, err := getProposals(
 				context.Background(),
 				nil,
 				tt.availableUpdates,
@@ -1094,8 +1092,8 @@ Other recommended versions available:
 				t.Errorf("unexpected error (-want +got):\n%s", diff)
 			}
 
-			if diff := cmp.Diff(tt.expected, agenticRuns); diff != "" {
-				t.Errorf("unexpected agentic runs (-want +got):\n%s", diff)
+			if diff := cmp.Diff(tt.expected, proposals); diff != "" {
+				t.Errorf("unexpected proposals (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -1103,24 +1101,24 @@ Other recommended versions available:
 
 func Test_expired(t *testing.T) {
 	tests := []struct {
-		name       string
-		agenticRun *agenticrunv1alpha1.AgenticRun
-		expected   bool
+		name     string
+		proposal *proposalv1alpha1.Proposal
+		expected bool
 	}{
 		{
-			name: "nil agentic run",
+			name: "nil proposal",
 		},
 		{
-			name: "agentic run not expired",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "proposal not expired",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
 					CreationTimestamp: metav1.Time{Time: time.Now().Add(-12 * time.Hour)},
 				},
 			},
 		},
 		{
-			name: "agentic run expired",
-			agenticRun: &agenticrunv1alpha1.AgenticRun{
+			name: "proposal expired",
+			proposal: &proposalv1alpha1.Proposal{
 				ObjectMeta: metav1.ObjectMeta{
 					CreationTimestamp: metav1.Time{Time: time.Now().Add(-25 * time.Hour)},
 				},
@@ -1131,7 +1129,7 @@ func Test_expired(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := expired(tt.agenticRun)
+			result := expired(tt.proposal)
 			if result != tt.expected {
 				t.Errorf("expired() = %v, want %v", result, tt.expected)
 			}
@@ -1164,7 +1162,7 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(s, gvrs, objects...)
 }
 
-func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
+func TestGetProposals_WithReadinessData(t *testing.T) {
 	dc := newFakeDynamicClient(
 		// ClusterVersion
 		&unstructured.Unstructured{Object: map[string]interface{}{
@@ -1292,7 +1290,7 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 		}},
 	)
 
-	agenticRuns, err := getAgenticRuns(
+	proposals, err := getProposals(
 		context.Background(),
 		dc,
 		[]configv1.Release{{Version: "4.21.8"}},
@@ -1304,16 +1302,16 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 		"quay.io/openshift/ci:ocp_5.0_agentic-skills",
 	)
 	if err != nil {
-		t.Fatalf("getAgenticRuns returned error: %v", err)
+		t.Fatalf("getProposals returned error: %v", err)
 	}
-	if len(agenticRuns) != 1 {
-		t.Fatalf("expected 1 agentic run, got %d", len(agenticRuns))
+	if len(proposals) != 1 {
+		t.Fatalf("expected 1 proposal, got %d", len(proposals))
 	}
 
-	request := agenticRuns[0].Spec.Request
+	request := proposals[0].Spec.Request
 
 	if !strings.Contains(request, "## Cluster Readiness Data") {
-		t.Fatal("agentic run request missing readiness data section")
+		t.Fatal("proposal request missing readiness data section")
 	}
 
 	// Extract JSON from the request

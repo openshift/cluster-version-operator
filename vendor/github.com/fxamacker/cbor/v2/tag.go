@@ -155,7 +155,6 @@ type TagSet interface {
 	Add(opts TagOptions, contentType reflect.Type, num uint64, nestedNum ...uint64) error
 
 	// Remove removes given tag content type from TagSet.
-	// Remove is a no-op if contentType is nil.
 	Remove(contentType reflect.Type)
 
 	tagProvider
@@ -246,11 +245,7 @@ func (t *syncTagSet) Add(opts TagOptions, contentType reflect.Type, num uint64, 
 }
 
 // Remove removes given tag content type from TagSet.
-// Remove is a no-op if contentType is nil.
 func (t *syncTagSet) Remove(contentType reflect.Type) {
-	if contentType == nil {
-		return
-	}
 	for contentType.Kind() == reflect.Pointer {
 		contentType = contentType.Elem()
 	}
