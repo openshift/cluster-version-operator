@@ -9,6 +9,7 @@ import (
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
+	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
@@ -104,7 +105,21 @@ func cleanupConsolePluginManifests(ctx context.Context, client ctrlruntimeclient
 	return nil
 }
 
-const consolePluginName = "cluster-update-console-plugin"
+const (
+	consolePluginName      = "cluster-update-console-plugin"
+	consolePluginNamespace = "openshift-cluster-update-console-plugin"
+)
+
+func waitForPluginReady(ctx context.Context, client ctrlruntimeclient.Client) error {
+	deployment := &appsv1.Deployment{}
+	if err := client.Get(ctx, types.NamespacedName{Name: consolePluginName, Namespace: consolePluginNamespace}, deployment); err != nil {
+		return fmt.Errorf("getting deployment: %w", err)
+	}
+	if deployment.Status.AvailableReplicas < 1 {
+		return fmt.Errorf("deployment %s has no available replicas", consolePluginName)
+	}
+	return nil
+}
 
 func enableConsolePlugin(ctx context.Context, client ctrlruntimeclient.Client) error {
 	console := &operatorv1.Console{}
