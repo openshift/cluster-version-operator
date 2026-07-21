@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-console-ingress
+  namespace: openshift-cluster-update-console-plugin
+  annotations:
+    kubernetes.io/description: Allow ingress from the console to the cluster-update console plugin on port 9001.
+spec:
+  podSelector:
+    matchLabels:
+      app: cluster-update-console-plugin
+  ingress:
+  - ports:
+    - port: 9001
+      protocol: TCP
+  policyTypes:
+  - Ingress

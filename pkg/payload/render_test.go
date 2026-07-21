@@ -381,9 +381,6 @@ func Test_cvoManifests(t *testing.T) {
 	config := manifestRenderConfig{
 		ReleaseImage:   "quay.io/cvo/release:latest",
 		ClusterProfile: "some-profile",
-		Images: map[string]string{
-			"cluster-update-console-plugin": "quay.io/openshift/cluster-update-console-plugin:latest",
-		},
 	}
 
 	tests := []struct {

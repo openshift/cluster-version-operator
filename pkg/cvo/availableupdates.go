@@ -182,10 +182,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 
 	// queue optr.sync() to update ClusterVersion status
 	optr.queue.Add(queueKey)
-	if optr.shouldEnableAgenticRunController() {
-		// queue optr.agenticRunController.Sync() to manage agentic runs
-		optr.agenticRunController.Queue().Add(optr.agenticRunController.QueueKey())
-	}
+	optr.agenticRunController.Queue().Add(optr.agenticRunController.QueueKey())
 	return nil
 }
 
