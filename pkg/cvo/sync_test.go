@@ -446,8 +446,8 @@ func (t *testBuilder) Do(_ context.Context) error {
 }
 
 func newTestBuilder(r *recorder, rts map[action]error) resourcebuilder.NewInterfaceFunc {
-	return func(_ *rest.Config, m manifest.Manifest) resourcebuilder.Interface {
-		return &testBuilder{recorder: r, reactors: rts, m: &m}
+	return func(_ *rest.Config, m manifest.Manifest) (resourcebuilder.Interface, error) {
+		return &testBuilder{recorder: r, reactors: rts, m: &m}, nil
 	}
 }
 

@@ -150,19 +150,31 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
     lines.extend([
         '}',
         '',
-        'func newBuilder(config *rest.Config, m manifest.Manifest) Interface {',
-        '\treturn &builder{',
-        '\t\traw: m.Raw,',
-        '',
+        'func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {',
     ])
     for prop_name, data in sorted(client_properties.items()):
         new_client_arg = 'config'
         if data.get('protobuf'):
             new_client_arg = 'withProtobuf({})'.format(new_client_arg)
-        lines.append('\t\t{:{width}} {}.NewForConfigOrDie({}),'.format(prop_name + ':', data['client_short_name'], new_client_arg, width=longest_property+1))
+        var_name = prop_name[0].lower() + prop_name[1:]
+        lines.extend([
+            '\t{}, err := {}.NewForConfig({})'.format(var_name, data['client_short_name'], new_client_arg),
+            '\tif err != nil {',
+            '\t\treturn nil, err',
+            '\t}',
+        ])
 
     lines.extend([
-        '\t}',
+        '\treturn &builder{',
+        '\t\traw: m.Raw,',
+        '',
+    ])
+    for prop_name, data in sorted(client_properties.items()):
+        var_name = prop_name[0].lower() + prop_name[1:]
+        lines.append('\t\t{:{width}} {},'.format(prop_name + ':', var_name, width=longest_property+1))
+
+    lines.extend([
+        '\t}, nil',
         '}',
         '',
         'func (b *builder) WithMode(m Mode) Interface {',
