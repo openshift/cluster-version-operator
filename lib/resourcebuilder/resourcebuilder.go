@@ -6,6 +6,7 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsclientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
@@ -56,7 +57,22 @@ type builder struct {
 	securityClientv1              securityclientv1.SecurityV1Interface
 }
 
-func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {
+// clientSet holds cached typed clients for resource building.
+type clientSet struct {
+	admissionregistrationClientv1 admissionregistrationclientv1.AdmissionregistrationV1Interface
+	apiextensionsClientv1         apiextensionsclientv1.ApiextensionsV1Interface
+	apiregistrationClientv1       apiregistrationclientv1.ApiregistrationV1Interface
+	appsClientv1                  appsclientv1.AppsV1Interface
+	batchClientv1                 batchclientv1.BatchV1Interface
+	configClientv1                configclientv1.ConfigV1Interface
+	coreClientv1                  coreclientv1.CoreV1Interface
+	imageClientv1                 imageclientv1.ImageV1Interface
+	operatorsClientv1             operatorsclientv1.OperatorsV1Interface
+	rbacClientv1                  rbacclientv1.RbacV1Interface
+	securityClientv1              securityclientv1.SecurityV1Interface
+}
+
+func newClientSet(config *rest.Config) (*clientSet, error) {
 	admissionregistrationClientv1, err := admissionregistrationclientv1.NewForConfig(withProtobuf(config))
 	if err != nil {
 		return nil, err
@@ -101,9 +117,7 @@ func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &builder{
-		raw: m.Raw,
-
+	return &clientSet{
 		admissionregistrationClientv1: admissionregistrationClientv1,
 		apiextensionsClientv1:         apiextensionsClientv1,
 		apiregistrationClientv1:       apiregistrationClientv1,
@@ -115,6 +129,42 @@ func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {
 		operatorsClientv1:             operatorsClientv1,
 		rbacClientv1:                  rbacClientv1,
 		securityClientv1:              securityClientv1,
+	}, nil
+}
+
+var clientSetCache sync.Map // *rest.Config → *clientSet
+
+func getOrCreateClientSet(config *rest.Config) (*clientSet, error) {
+	if cs, ok := clientSetCache.Load(config); ok {
+		return cs.(*clientSet), nil
+	}
+	cs, err := newClientSet(config)
+	if err != nil {
+		return nil, err
+	}
+	actual, _ := clientSetCache.LoadOrStore(config, cs)
+	return actual.(*clientSet), nil
+}
+
+func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {
+	cs, err := getOrCreateClientSet(config)
+	if err != nil {
+		return nil, err
+	}
+	return &builder{
+		raw: m.Raw,
+
+		admissionregistrationClientv1: cs.admissionregistrationClientv1,
+		apiextensionsClientv1:         cs.apiextensionsClientv1,
+		apiregistrationClientv1:       cs.apiregistrationClientv1,
+		appsClientv1:                  cs.appsClientv1,
+		batchClientv1:                 cs.batchClientv1,
+		configClientv1:                cs.configClientv1,
+		coreClientv1:                  cs.coreClientv1,
+		imageClientv1:                 cs.imageClientv1,
+		operatorsClientv1:             cs.operatorsClientv1,
+		rbacClientv1:                  cs.rbacClientv1,
+		securityClientv1:              cs.securityClientv1,
 	}, nil
 }
 
