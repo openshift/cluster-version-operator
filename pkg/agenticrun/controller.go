@@ -187,6 +187,9 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 	}()
 
 	if !c.crdAvailable() {
+		if err := disableConsolePlugin(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Failed to disable console plugin: %v", err)
+		}
 		if err := cleanupConsolePluginManifests(ctx, c.client); err != nil {
 			klog.V(i.Normal).Infof("Failed to clean up console plugin: %v", err)
 		}
@@ -197,6 +200,8 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 	if c.shouldDeployConsolePlugin() && !c.consolePluginEnsured {
 		if err := c.ensureConsolePlugin(ctx); err != nil {
 			klog.V(i.Normal).Infof("Failed to ensure console plugin: %v", err)
+		} else if err := enableConsolePlugin(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Failed to enable console plugin: %v", err)
 		} else {
 			c.consolePluginEnsured = true
 		}

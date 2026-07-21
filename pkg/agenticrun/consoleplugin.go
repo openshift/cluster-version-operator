@@ -2,6 +2,7 @@ package agenticrun
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,8 +11,11 @@ import (
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/klog/v2"
+
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/agenticrun/bindata"
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
@@ -97,5 +101,68 @@ func cleanupConsolePluginManifests(ctx context.Context, client ctrlruntimeclient
 			klog.V(i.Normal).Infof("Deleted console plugin %s %s", obj.GetKind(), obj.GetName())
 		}
 	}
+	return nil
+}
+
+const consolePluginName = "cluster-update-console-plugin"
+
+func enableConsolePlugin(ctx context.Context, client ctrlruntimeclient.Client) error {
+	console := &operatorv1.Console{}
+	if err := client.Get(ctx, types.NamespacedName{Name: "cluster"}, console); err != nil {
+		return fmt.Errorf("getting console operator config: %w", err)
+	}
+	for _, p := range console.Spec.Plugins {
+		if p == consolePluginName {
+			return nil
+		}
+	}
+	plugins := append(console.Spec.Plugins, consolePluginName)
+	patch, err := json.Marshal(map[string]interface{}{
+		"spec": map[string]interface{}{
+			"plugins": plugins,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("marshaling patch: %w", err)
+	}
+	if err := client.Patch(ctx, console, ctrlruntimeclient.RawPatch(types.MergePatchType, patch)); err != nil {
+		return fmt.Errorf("enabling console plugin: %w", err)
+	}
+	klog.V(i.Normal).Infof("Enabled %s in console operator config", consolePluginName)
+	return nil
+}
+
+func disableConsolePlugin(ctx context.Context, client ctrlruntimeclient.Client) error {
+	console := &operatorv1.Console{}
+	if err := client.Get(ctx, types.NamespacedName{Name: "cluster"}, console); err != nil {
+		if kerrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("getting console operator config: %w", err)
+	}
+	filtered := make([]string, 0, len(console.Spec.Plugins))
+	found := false
+	for _, p := range console.Spec.Plugins {
+		if p == consolePluginName {
+			found = true
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+	if !found {
+		return nil
+	}
+	patch, err := json.Marshal(map[string]interface{}{
+		"spec": map[string]interface{}{
+			"plugins": filtered,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("marshaling patch: %w", err)
+	}
+	if err := client.Patch(ctx, console, ctrlruntimeclient.RawPatch(types.MergePatchType, patch)); err != nil {
+		return fmt.Errorf("disabling console plugin: %w", err)
+	}
+	klog.V(i.Normal).Infof("Disabled %s in console operator config", consolePluginName)
 	return nil
 }
