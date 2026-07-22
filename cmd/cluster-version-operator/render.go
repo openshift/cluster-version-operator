@@ -14,9 +14,11 @@ import (
 var (
 	renderCmd = &cobra.Command{
 		Use:   "render",
-		Short: "Renders the UpdatePayload to disk.",
-		Long:  "",
-		Run:   runRenderCmd,
+		Short: "Renders and filters release payload manifests for cluster bootstrap.",
+		Long: `Renders and filters CVO manifests and specific release payload manifests.
+
+Called by the installer as part of cluster bootstrap to generate the initial manifests related to the CVO.`,
+		Run: runRenderCmd,
 	}
 
 	renderOpts struct {
