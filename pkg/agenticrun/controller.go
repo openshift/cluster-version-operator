@@ -111,7 +111,7 @@ func DefaultConfig() Config {
 	return Config{
 		Namespace:       envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
 		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "cluster-update-advisory-prompt"),
-		SkillsImage:     envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
+		SkillsImage:     os.Getenv("LIGHTSPEED_SKILLS_IMAGE"),
 	}
 }
 
@@ -206,6 +206,11 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		} else {
 			c.consolePluginEnsured = true
 		}
+	}
+
+	if c.config.SkillsImage == "" {
+		klog.V(i.Normal).Infof("Skipping agentic run creation: LIGHTSPEED_SKILLS_IMAGE is not set")
+		return nil
 	}
 
 	updates, conditionalUpdates, err := c.updatesGetterFunc()
