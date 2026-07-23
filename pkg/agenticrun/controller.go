@@ -153,12 +153,14 @@ func (c *Controller) crdAvailable() bool {
 	}
 	c.crdLastChecked = time.Now()
 	if c.client == nil {
+		klog.V(i.Normal).Info("No AgenticRun controller client, assuming there are no AgenticRuns")
 		c.crdAvailableCache = false
 		return false
 	}
 	crd := &apiextensionsv1.CustomResourceDefinition{}
 	err := c.client.Get(context.Background(), ctrlruntimeclient.ObjectKey{Name: "agenticruns.agentic.openshift.io"}, crd)
 	c.crdAvailableCache = err == nil
+	klog.V(i.Normal).Infof("AgenticRun CustomResourceDefinition available? %t (%v)", c.crdAvailableCache, err)
 	return c.crdAvailableCache
 }
 
