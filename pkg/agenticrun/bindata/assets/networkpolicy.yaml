@@ -5,10 +5,6 @@ metadata:
   namespace: openshift-cluster-update-console-plugin
   annotations:
     kubernetes.io/description: This NetworkPolicy is used to deny all ingress and egress traffic by default in this namespace, matching all Pods, and serving as a baseline.
-    capability.openshift.io/name: Console
-    release.openshift.io/feature-set: TechPreviewNoUpgrade
-    exclude.release.openshift.io/internal-openshift-hosted: "true"
-    include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   podSelector: {}
   policyTypes:

@@ -140,6 +140,8 @@ Update path: Recommended
 			}, func() string {
 				return "4.22.1"
 			})
+			c.crdAvailableCache = true
+			c.crdLastChecked = time.Now()
 			actual := c.Sync(context.Background(), tt.name)
 			if diff := cmp.Diff(tt.expected, actual, cmp.Transformer("Error", func(e error) string {
 				if e == nil {

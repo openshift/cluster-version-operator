@@ -444,6 +444,29 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	optr.release = update.Release
 	optr.releaseCreated = update.ImageRef.CreationTimestamp.Time
 
+	if update.ImageRef != nil {
+		for _, tag := range update.ImageRef.Spec.Tags {
+			if tag.Name == "cluster-update-console-plugin" && tag.From != nil && tag.From.Kind == "DockerImage" {
+				optr.agenticRunController.SetConsolePluginImage(tag.From.Name)
+				break
+			}
+		}
+	}
+
+	optr.agenticRunController.SetHyperShift(optr.hypershift)
+	optr.agenticRunController.SetConsoleCapabilityFunc(func() bool {
+		cv, err := optr.cvLister.Get(internal.DefaultClusterVersionName)
+		if err != nil {
+			return false
+		}
+		for _, cap := range cv.Status.Capabilities.EnabledCapabilities {
+			if cap == configv1.ClusterVersionCapabilityConsole {
+				return true
+			}
+		}
+		return false
+	})
+
 	// after the verifier has been loaded, initialize the sync worker with a payload retriever
 	// which will consume the verifier
 	optr.configSync = NewSyncWorkerWithPreconditions(
@@ -582,18 +605,14 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or HyperShift is detected; the configuration sync routine will not run.")
 	}
 
-	if optr.shouldEnableAgenticRunController() {
-		resultChannelCount++
-		go func() {
-			defer utilruntime.HandleCrash()
-			wait.UntilWithContext(runContext, func(runContext context.Context) {
-				optr.worker(runContext, optr.agenticRunController.Queue(), optr.agenticRunController.Sync)
-			}, time.Second)
-			resultChannel <- asyncResult{name: "agenticrun controller"}
-		}()
-	} else {
-		klog.Infof("The agenticrun controller is disabled.")
-	}
+	resultChannelCount++
+	go func() {
+		defer utilruntime.HandleCrash()
+		wait.UntilWithContext(runContext, func(runContext context.Context) {
+			optr.worker(runContext, optr.agenticRunController.Queue(), optr.agenticRunController.Sync)
+		}, time.Second)
+		resultChannel <- asyncResult{name: "agenticrun controller"}
+	}()
 
 	resultChannelCount++
 	go func() {
@@ -1220,12 +1239,6 @@ func (optr *Operator) shouldReconcileCVOConfiguration() bool {
 func (optr *Operator) shouldReconcileAcceptRisks() bool {
 	// HyperShift will be supported later if needed
 	return optr.enabledCVOFeatureGates.AcceptRisks() && !optr.hypershift
-}
-
-// shouldEnableAgenticRunController returns whether the CVO should enable the agentic run controller
-func (optr *Operator) shouldEnableAgenticRunController() bool {
-	// Gated behind a feature set so featuregates.ChangeStopper restarts CVO when the return of this function flips.
-	return optr.requiredFeatureSet == configv1.TechPreviewNoUpgrade
 }
 
 // ApplyTLSSettings returns the function that applies TLS settings to the TLS config

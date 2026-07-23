@@ -1255,6 +1255,7 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 		t.Fatalf("accept risk feature is not enabled")
 	}
 	optr.enabledCVOFeatureGates = cvgGates
+	optr.agenticRunController = agenticrun.NewController(nil, nil, nil, nil, nil, nil)
 	err := optr.syncAvailableUpdates(context.Background(), &configv1.ClusterVersion{
 		Spec: configv1.ClusterVersionSpec{
 			DesiredUpdate: &configv1.Update{

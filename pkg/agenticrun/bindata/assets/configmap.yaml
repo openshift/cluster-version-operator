@@ -5,10 +5,6 @@ metadata:
   namespace: openshift-cluster-update-console-plugin
   annotations:
     kubernetes.io/description: Nginx configuration for the cluster-update console plugin.
-    capability.openshift.io/name: Console
-    release.openshift.io/feature-set: TechPreviewNoUpgrade
-    exclude.release.openshift.io/internal-openshift-hosted: "true"
-    include.release.openshift.io/self-managed-high-availability: "true"
 data:
   nginx.conf: |
     error_log /dev/stderr;

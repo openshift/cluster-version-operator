@@ -51,6 +51,12 @@ type Controller struct {
 	configMapGetterFunc   configMapGetterFunc
 	getCurrentVersionFunc getCurrentVersionFunc
 	config                Config
+	consolePluginImage    string
+	consolePluginEnsured  bool
+	crdAvailableCache     bool
+	crdLastChecked        time.Time
+	hypershift            bool
+	hasConsoleCapability  func() bool
 }
 
 const controllerName = "agenticrun-lifecycle-controller"
@@ -124,12 +130,83 @@ func (c *Controller) QueueKey() string {
 	return c.queueKey
 }
 
+const crdCheckInterval = 5 * time.Minute
+
+func (c *Controller) SetHyperShift(hypershift bool) {
+	c.hypershift = hypershift
+}
+
+func (c *Controller) SetConsoleCapabilityFunc(f func() bool) {
+	c.hasConsoleCapability = f
+}
+
+func (c *Controller) SetConsolePluginImage(image string) {
+	if c.consolePluginImage != image {
+		c.consolePluginImage = image
+		c.consolePluginEnsured = false
+	}
+}
+
+func (c *Controller) crdAvailable() bool {
+	if time.Since(c.crdLastChecked) < crdCheckInterval {
+		return c.crdAvailableCache
+	}
+	c.crdLastChecked = time.Now()
+	if c.client == nil {
+		c.crdAvailableCache = false
+		return false
+	}
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	err := c.client.Get(context.Background(), ctrlruntimeclient.ObjectKey{Name: "agenticruns.agentic.openshift.io"}, crd)
+	c.crdAvailableCache = err == nil
+	return c.crdAvailableCache
+}
+
+func (c *Controller) shouldDeployConsolePlugin() bool {
+	if c.hypershift {
+		return false
+	}
+	if c.hasConsoleCapability != nil && !c.hasConsoleCapability() {
+		return false
+	}
+	return true
+}
+
+func (c *Controller) ensureConsolePlugin(ctx context.Context) error {
+	if c.consolePluginImage == "" {
+		return fmt.Errorf("console plugin image not set")
+	}
+	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage)
+}
+
 func (c *Controller) Sync(ctx context.Context, key string) error {
 	startTime := time.Now()
 	klog.V(i.Normal).Infof("Started syncing CVO configuration %q", key)
 	defer func() {
 		klog.V(i.Normal).Infof("Finished syncing CVO configuration (%v)", time.Since(startTime))
 	}()
+
+	if !c.crdAvailable() {
+		if err := disableConsolePlugin(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Failed to disable console plugin, skipping manifest cleanup: %v", err)
+		} else if err := cleanupConsolePluginManifests(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Failed to clean up console plugin: %v", err)
+		}
+		c.consolePluginEnsured = false
+		return nil
+	}
+
+	if c.shouldDeployConsolePlugin() && !c.consolePluginEnsured {
+		if err := c.ensureConsolePlugin(ctx); err != nil {
+			klog.V(i.Normal).Infof("Failed to ensure console plugin: %v", err)
+		} else if err := waitForPluginReady(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Console plugin not ready yet, deferring enable: %v", err)
+		} else if err := enableConsolePlugin(ctx, c.client); err != nil {
+			klog.V(i.Normal).Infof("Failed to enable console plugin: %v", err)
+		} else {
+			c.consolePluginEnsured = true
+		}
+	}
 
 	updates, conditionalUpdates, err := c.updatesGetterFunc()
 	if err != nil {
