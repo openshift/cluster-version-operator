@@ -101,6 +101,9 @@ func TestRenderManifest(t *testing.T) {
 			config: manifestRenderConfig{
 				ReleaseImage:   "quay.io/cvo/release:latest",
 				ClusterProfile: "some-profile",
+				Images: map[string]string{
+					"agentic-skills": "registry.example.com/agentic-skills:latest",
+				},
 			},
 			manifestFile:         "../../install/0000_00_cluster-version-operator_30_deployment.yaml",
 			expectedManifestFile: "./testdata/TestRenderManifest_expected_cvo_deployment.yaml",
