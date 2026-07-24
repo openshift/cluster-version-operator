@@ -16,9 +16,11 @@ import (
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	v1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/dynamic"
@@ -35,6 +37,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
@@ -531,7 +534,14 @@ func (cb *ClientBuilder) DynamicClientOrDie(name string, configFns ...func(*rest
 }
 
 func (cb *ClientBuilder) RuntimeControllerClientOrDie(name string, configFns ...func(*rest.Config)) runtimeclient.Client {
-	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{})
+	runtimeScheme := runtime.NewScheme()
+	utilruntime.Must(scheme.AddToScheme(runtimeScheme))
+	utilruntime.Must(apiextensionsv1.AddToScheme(runtimeScheme))
+	utilruntime.Must(operatorv1.AddToScheme(runtimeScheme))
+
+	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{
+		Scheme: runtimeScheme,
+	})
 	if err != nil {
 		panic(err)
 	}
