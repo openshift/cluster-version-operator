@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
@@ -258,7 +259,7 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		return kutilerrors.NewAggregate(errs)
 	}
 
-	agenticRuns, err := getAgenticRuns(ctx, c.dynamicClient, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
+	agenticRuns, err := getAgenticRuns(ctx, c.dynamicClient, c.client, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
 	if err != nil {
 		klog.V(i.Normal).Infof("Getting agentic runs hit an error: %v", err)
 		return kutilerrors.NewAggregate(append(errs, err))
@@ -383,6 +384,7 @@ func deleteAgenticRun(ctx context.Context, client ctrlruntimeclient.Client, agen
 func getAgenticRuns(
 	ctx context.Context,
 	dynamicClient dynamic.Interface,
+	client ctrlruntimeclient.Client,
 	availableUpdates []configv1.Release,
 	conditionalUpdates []configv1.ConditionalUpdate,
 	namespace string,
@@ -399,7 +401,7 @@ func getAgenticRuns(
 	for _, au := range availableUpdates {
 		targetVersion := au.Version
 		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
+		if agenticRun, err := getAgenticRun(ctx, client, namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
@@ -410,7 +412,7 @@ func getAgenticRuns(
 	for _, cu := range conditionalUpdates {
 		targetVersion := cu.Release.Version
 		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
+		if agenticRun, err := getAgenticRun(ctx, client, namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
 			errs = append(errs, err)
 			continue
 		} else {
@@ -421,7 +423,7 @@ func getAgenticRuns(
 	return agenticRuns, kutilerrors.NewAggregate(errs)
 }
 
-func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*agenticrunv1alpha1.AgenticRun, error) {
+func getAgenticRun(ctx context.Context, client ctrlruntimeclient.Client, namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*agenticrunv1alpha1.AgenticRun, error) {
 
 	var errs []error
 	for _, v := range []string{currentVersion, targetVersion} {
@@ -433,9 +435,18 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 		return nil, kutilerrors.NewAggregate(errs)
 	}
 
+	// Discover Cincinnati URL
+	cincinnatiURL, err := discoverCincinnatiURL(ctx, client)
+	if err != nil {
+		klog.V(i.Normal).Infof("Could not discover Cincinnati URL: %v (skills will use public API only)", err)
+		cincinnatiURL = ""
+	} else {
+		klog.V(i.Normal).Infof("Discovered Cincinnati URL: %s", cincinnatiURL)
+	}
+
 	name := agenticRunName(currentVersion, targetVersion)
 	updateType := classifyUpdate(currentVersion, targetVersion)
-	request := buildRequest(systemPrompt, currentVersion, targetVersion, channel, updateType, updateKind, availableUpdates, readinessJSON)
+	request := buildRequest(systemPrompt, currentVersion, targetVersion, channel, updateType, updateKind, availableUpdates, readinessJSON, cincinnatiURL)
 	return &agenticrunv1alpha1.AgenticRun{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -545,9 +556,52 @@ func runReadinessJSON(ctx context.Context, dynamicClient dynamic.Interface, curr
 	return string(data)
 }
 
+// discoverCincinnatiURL discovers the Cincinnati service URL via Kubernetes APIs
+func discoverCincinnatiURL(ctx context.Context, client ctrlruntimeclient.Client) (string, error) {
+	// List services in openshift-update-service namespace
+	services := &corev1.ServiceList{}
+	err := client.List(ctx, services,
+		ctrlruntimeclient.InNamespace("openshift-update-service"))
+	if err != nil {
+		return "", fmt.Errorf("failed to list services in openshift-update-service: %w", err)
+	}
+
+	// Find Cincinnati service (there's only one per cluster)
+	var cincinnatiService *corev1.Service
+	for i := range services.Items {
+		svc := &services.Items[i]
+		if svc.Labels["app"] == "updateservice" {
+			cincinnatiService = svc
+			break
+		}
+	}
+
+	if cincinnatiService == nil {
+		return "", fmt.Errorf("Cincinnati service not found (no service with label app=updateservice)")
+	}
+
+	// Find corresponding route
+	routes := &routev1.RouteList{}
+	err = client.List(ctx, routes,
+		ctrlruntimeclient.InNamespace("openshift-update-service"))
+	if err != nil {
+		return "", fmt.Errorf("failed to list routes in openshift-update-service: %w", err)
+	}
+
+	for i := range routes.Items {
+		route := &routes.Items[i]
+		if route.Spec.To.Name == cincinnatiService.Name {
+			// Found the route, construct URL and return
+			return fmt.Sprintf("https://%s", route.Spec.Host), nil
+		}
+	}
+
+	return "", fmt.Errorf("Cincinnati route not found for service %s", cincinnatiService.Name)
+}
+
 // buildRequest constructs the agentic run request with system prompt, metadata, and readiness data.
 func buildRequest(systemPrompt, current, target, channel, updateType, targetType string,
-	updates []configv1.Release, readinessJSON string) string {
+	updates []configv1.Release, readinessJSON, cincinnatiURL string) string {
 
 	var b strings.Builder
 
@@ -560,7 +614,13 @@ func buildRequest(systemPrompt, current, target, channel, updateType, targetType
 	_, _ = fmt.Fprintf(&b, "Target version: OCP %s\n", target)
 	_, _ = fmt.Fprintf(&b, "Channel: %s\n", channel)
 	_, _ = fmt.Fprintf(&b, "Update type: %s\n", updateType)
-	_, _ = fmt.Fprintf(&b, "Update path: %s\n\n", targetType)
+	_, _ = fmt.Fprintf(&b, "Update path: %s\n", targetType)
+
+	if cincinnatiURL != "" {
+		_, _ = fmt.Fprintf(&b, "Cincinnati URL: %s\n", cincinnatiURL)
+	}
+
+	b.WriteString("\n")
 
 	if targetType == updateKindConditional {
 		b.WriteString("WARNING: This target version is available as a CONDITIONAL update.\n")
