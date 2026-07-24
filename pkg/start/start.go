@@ -37,6 +37,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	clientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	operatorclientset "github.com/openshift/client-go/operator/clientset/versioned"
@@ -536,6 +537,7 @@ func (cb *ClientBuilder) RuntimeControllerClientOrDie(name string, configFns ...
 	runtimeScheme := runtime.NewScheme()
 	utilruntime.Must(scheme.AddToScheme(runtimeScheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(runtimeScheme))
+	utilruntime.Must(operatorv1.AddToScheme(runtimeScheme))
 
 	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{
 		Scheme: runtimeScheme,
