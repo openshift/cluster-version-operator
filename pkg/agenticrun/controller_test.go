@@ -23,6 +23,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 
 	configv1 "github.com/openshift/api/config/v1"
+	routev1 "github.com/openshift/api/route/v1"
 	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/internal"
@@ -230,7 +231,7 @@ func TestBuildRequest(t *testing.T) {
 	}
 
 	t.Run("recommended target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "")
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "", "")
 		if !strings.Contains(request, "Current version: OCP 4.15.3") {
 			t.Error("request should contain current version")
 		}
@@ -255,7 +256,7 @@ func TestBuildRequest(t *testing.T) {
 	})
 
 	t.Run("conditional target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "")
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "", "")
 		if !strings.Contains(request, "WARNING") {
 			t.Error("conditional target should have warning")
 		}
@@ -265,7 +266,7 @@ func TestBuildRequest(t *testing.T) {
 	})
 
 	t.Run("readiness JSON embedded", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`)
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`, "")
 		if !strings.Contains(request, "## Cluster Readiness Data") {
 			t.Error("request should contain readiness data header")
 		}
@@ -1078,6 +1079,7 @@ Other recommended versions available:
 			agenticRuns, err := getAgenticRuns(
 				context.Background(),
 				nil,
+				nil,
 				tt.availableUpdates,
 				tt.conditionalUpdates,
 				tt.namespace,
@@ -1297,6 +1299,7 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 	agenticRuns, err := getAgenticRuns(
 		context.Background(),
 		dc,
+		nil,
 		[]configv1.Release{{Version: "4.21.8"}},
 		nil,
 		"openshift-lightspeed",
@@ -1406,4 +1409,114 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 	} else if nc["total_nodes"] != float64(2) {
 		t.Errorf("node_capacity total_nodes = %v, want 2", nc["total_nodes"])
 	}
+}
+
+func TestDiscoverCincinnatiURL(t *testing.T) {
+	tests := []struct {
+		name          string
+		objects       []runtime.Object
+		expectedURL   string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name: "successfully discovers Cincinnati URL",
+			objects: []runtime.Object{
+				&corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cincinnati",
+						Namespace: "openshift-update-service",
+						Labels: map[string]string{
+							"app": "updateservice",
+						},
+					},
+				},
+				&routev1.Route{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cincinnati",
+						Namespace: "openshift-update-service",
+					},
+					Spec: routev1.RouteSpec{
+						Host: "cincinnati.example.com",
+						To: routev1.RouteTargetReference{
+							Name: "cincinnati",
+						},
+					},
+				},
+			},
+			expectedURL: "https://cincinnati.example.com",
+		},
+		{
+			name:          "service not found",
+			objects:       []runtime.Object{},
+			expectError:   true,
+			errorContains: "Cincinnati service not found",
+		},
+		{
+			name: "route not found",
+			objects: []runtime.Object{
+				&corev1.Service{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cincinnati",
+						Namespace: "openshift-update-service",
+						Labels: map[string]string{
+							"app": "updateservice",
+						},
+					},
+				},
+			},
+			expectError:   true,
+			errorContains: "Cincinnati route not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			_ = routev1.Install(scheme)
+			_ = corev1.AddToScheme(scheme)
+			client := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(tt.objects...).Build()
+
+			url, err := discoverCincinnatiURL(context.Background(), client)
+
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("expected error containing %q, got nil", tt.errorContains)
+				} else if !strings.Contains(err.Error(), tt.errorContains) {
+					t.Errorf("expected error containing %q, got %q", tt.errorContains, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if url != tt.expectedURL {
+					t.Errorf("discoverCincinnatiURL() = %q, want %q", url, tt.expectedURL)
+				}
+			}
+		})
+	}
+}
+
+func TestBuildRequest_WithCincinnatiURL(t *testing.T) {
+	updates := []configv1.Release{
+		{Version: "4.16.0"},
+	}
+
+	t.Run("includes Cincinnati URL when provided", func(t *testing.T) {
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor",
+			"Recommended", updates, "{}", "https://cincinnati.example.com")
+
+		if !strings.Contains(request, "Cincinnati URL: https://cincinnati.example.com") {
+			t.Error("request should contain Cincinnati URL")
+		}
+	})
+
+	t.Run("omits Cincinnati URL when empty", func(t *testing.T) {
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor",
+			"Recommended", updates, "{}", "")
+
+		if strings.Contains(request, "Cincinnati URL:") {
+			t.Error("request should not contain Cincinnati URL line when empty")
+		}
+	})
 }
