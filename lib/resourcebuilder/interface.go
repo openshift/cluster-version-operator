@@ -58,10 +58,10 @@ func NewResourceMapper() *ResourceMapper {
 
 type MetaV1ObjectModifierFunc func(metav1.Object)
 
-// NewInterfaceFunc returns an Interface.
+// NewInterfaceFunc returns an Interface or an error.
 // It requires rest Config that can be used to create a client
 // and the Manifest.
-type NewInterfaceFunc func(rest *rest.Config, m manifest.Manifest) Interface
+type NewInterfaceFunc func(rest *rest.Config, m manifest.Manifest) (Interface, error)
 
 // Mode is how this builder is being used.
 type Mode int
@@ -85,5 +85,5 @@ func New(mapper *ResourceMapper, rest *rest.Config, m manifest.Manifest) (Interf
 	if !ok {
 		return nil, fmt.Errorf("no mapping found for gvk: %v", m.GVK)
 	}
-	return f(rest, m), nil
+	return f(rest, m)
 }

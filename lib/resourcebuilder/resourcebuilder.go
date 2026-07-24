@@ -6,6 +6,7 @@ package resourcebuilder
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	operatorsv1 "github.com/operator-framework/api/pkg/operators/v1"
 	operatorsclientv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
@@ -56,22 +57,115 @@ type builder struct {
 	securityClientv1              securityclientv1.SecurityV1Interface
 }
 
-func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
+// clientSet holds cached typed clients for resource building.
+type clientSet struct {
+	admissionregistrationClientv1 admissionregistrationclientv1.AdmissionregistrationV1Interface
+	apiextensionsClientv1         apiextensionsclientv1.ApiextensionsV1Interface
+	apiregistrationClientv1       apiregistrationclientv1.ApiregistrationV1Interface
+	appsClientv1                  appsclientv1.AppsV1Interface
+	batchClientv1                 batchclientv1.BatchV1Interface
+	configClientv1                configclientv1.ConfigV1Interface
+	coreClientv1                  coreclientv1.CoreV1Interface
+	imageClientv1                 imageclientv1.ImageV1Interface
+	operatorsClientv1             operatorsclientv1.OperatorsV1Interface
+	rbacClientv1                  rbacclientv1.RbacV1Interface
+	securityClientv1              securityclientv1.SecurityV1Interface
+}
+
+func newClientSet(config *rest.Config) (*clientSet, error) {
+	admissionregistrationClientv1, err := admissionregistrationclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	apiextensionsClientv1, err := apiextensionsclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	apiregistrationClientv1, err := apiregistrationclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	appsClientv1, err := appsclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	batchClientv1, err := batchclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	configClientv1, err := configclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	coreClientv1, err := coreclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	imageClientv1, err := imageclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	operatorsClientv1, err := operatorsclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	rbacClientv1, err := rbacclientv1.NewForConfig(withProtobuf(config))
+	if err != nil {
+		return nil, err
+	}
+	securityClientv1, err := securityclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return &clientSet{
+		admissionregistrationClientv1: admissionregistrationClientv1,
+		apiextensionsClientv1:         apiextensionsClientv1,
+		apiregistrationClientv1:       apiregistrationClientv1,
+		appsClientv1:                  appsClientv1,
+		batchClientv1:                 batchClientv1,
+		configClientv1:                configClientv1,
+		coreClientv1:                  coreClientv1,
+		imageClientv1:                 imageClientv1,
+		operatorsClientv1:             operatorsClientv1,
+		rbacClientv1:                  rbacClientv1,
+		securityClientv1:              securityClientv1,
+	}, nil
+}
+
+var clientSetCache sync.Map // *rest.Config → *clientSet
+
+func getOrCreateClientSet(config *rest.Config) (*clientSet, error) {
+	if cs, ok := clientSetCache.Load(config); ok {
+		return cs.(*clientSet), nil
+	}
+	cs, err := newClientSet(config)
+	if err != nil {
+		return nil, err
+	}
+	actual, _ := clientSetCache.LoadOrStore(config, cs)
+	return actual.(*clientSet), nil
+}
+
+func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {
+	cs, err := getOrCreateClientSet(config)
+	if err != nil {
+		return nil, err
+	}
 	return &builder{
 		raw: m.Raw,
 
-		admissionregistrationClientv1: admissionregistrationclientv1.NewForConfigOrDie(withProtobuf(config)),
-		apiextensionsClientv1:         apiextensionsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		apiregistrationClientv1:       apiregistrationclientv1.NewForConfigOrDie(config),
-		appsClientv1:                  appsclientv1.NewForConfigOrDie(withProtobuf(config)),
-		batchClientv1:                 batchclientv1.NewForConfigOrDie(withProtobuf(config)),
-		configClientv1:                configclientv1.NewForConfigOrDie(config),
-		coreClientv1:                  coreclientv1.NewForConfigOrDie(withProtobuf(config)),
-		imageClientv1:                 imageclientv1.NewForConfigOrDie(config),
-		operatorsClientv1:             operatorsclientv1.NewForConfigOrDie(config),
-		rbacClientv1:                  rbacclientv1.NewForConfigOrDie(withProtobuf(config)),
-		securityClientv1:              securityclientv1.NewForConfigOrDie(config),
-	}
+		admissionregistrationClientv1: cs.admissionregistrationClientv1,
+		apiextensionsClientv1:         cs.apiextensionsClientv1,
+		apiregistrationClientv1:       cs.apiregistrationClientv1,
+		appsClientv1:                  cs.appsClientv1,
+		batchClientv1:                 cs.batchClientv1,
+		configClientv1:                cs.configClientv1,
+		coreClientv1:                  cs.coreClientv1,
+		imageClientv1:                 cs.imageClientv1,
+		operatorsClientv1:             cs.operatorsClientv1,
+		rbacClientv1:                  cs.rbacClientv1,
+		securityClientv1:              cs.securityClientv1,
+	}, nil
 }
 
 func (b *builder) WithMode(m Mode) Interface {
