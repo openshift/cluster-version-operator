@@ -103,7 +103,7 @@ Update path: Recommended
 								Tools: agenticrunv1alpha1.ToolsSpec{
 									Skills: []agenticrunv1alpha1.SkillsSource{
 										{
-											Image: "registry.example.com/agentic-skills:latest",
+											Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 											Paths: []string{
 												"/skills/cluster-update/update-advisor",
 												"/skills/cluster-update/product-lifecycle",
@@ -140,7 +140,6 @@ Update path: Recommended
 			}, func() string {
 				return "4.22.1"
 			})
-			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
 			actual := c.Sync(context.Background(), tt.name)
@@ -787,7 +786,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -836,7 +835,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -894,7 +893,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -936,7 +935,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -983,7 +982,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -1030,7 +1029,7 @@ Other recommended versions available:
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
-									Image: "registry.example.com/agentic-skills:latest",
+									Image: "quay.io/openshift/ci:ocp_5.0_agentic-skills",
 									Paths: []string{
 										"/skills/cluster-update/update-advisor",
 										"/skills/cluster-update/product-lifecycle",
@@ -1085,7 +1084,7 @@ Other recommended versions available:
 				tt.currentVersion,
 				tt.channel,
 				tt.systemPrompt,
-				"registry.example.com/agentic-skills:latest",
+				"quay.io/openshift/ci:ocp_5.0_agentic-skills",
 			)
 
 			if diff := cmp.Diff(err, tt.expectError, cmp.Transformer("Error", func(e error) string {
@@ -1304,7 +1303,7 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 		"4.21.5",
 		"stable-4.21",
 		"Test prompt",
-		"registry.example.com/agentic-skills:latest",
+		"quay.io/openshift/ci:ocp_5.0_agentic-skills",
 	)
 	if err != nil {
 		t.Fatalf("getAgenticRuns returned error: %v", err)
