@@ -366,9 +366,6 @@ func New(
 		rtClient,
 		dynamicClient,
 		cvInformer.Lister().Get,
-		func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error) {
-			return kubeClient.CoreV1().ConfigMaps(namespace).Get(ctx, name, opts)
-		},
 		func() string {
 			return optr.release.Version
 		},
