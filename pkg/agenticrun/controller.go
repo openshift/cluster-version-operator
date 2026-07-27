@@ -13,7 +13,6 @@ import (
 	"github.com/blang/semver/v4"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +32,17 @@ import (
 //go:embed analysis_schema.json
 var analysisSchemaJSON []byte
 
+var prompt string = `You are an OpenShift upgrade advisor. Analyze the cluster readiness data in the agentic run request and produce an upgrade risk assessment.
+
+The request contains a "Cluster Readiness Data" section with a JSON block. This was collected by the Cluster Version Operator — do not re-collect it. Parse the JSON, evaluate each check's results, and classify findings as blockers, warnings, or informational.
+
+Use the update-advisor skill for the decision framework and blocker classification rules. When findings need deeper investigation, use prometheus metrics and product-lifecycle skills.
+
+When the readiness data includes olm_operator_lifecycle results, use the product-lifecycle skill to cross-reference each operator's package name against the Red Hat Product Life Cycle API. Report support phase, EOL dates, and OCP compatibility from Product Lifecycle alongside the OLM data.
+
+Do not guess or assume cluster state. Do not execute upgrade commands.
+`
+
 func analysisOutputSchema() *apiextensionsv1.JSONSchemaProps {
 	schema := &apiextensionsv1.JSONSchemaProps{}
 	if err := json.Unmarshal(analysisSchemaJSON, schema); err != nil {
@@ -48,7 +58,6 @@ type Controller struct {
 	client                ctrlruntimeclient.Client
 	dynamicClient         dynamic.Interface
 	cvGetterFunc          cvGetterFunc
-	configMapGetterFunc   configMapGetterFunc
 	getCurrentVersionFunc getCurrentVersionFunc
 	config                Config
 	consolePluginImage    string
@@ -67,8 +76,6 @@ type cvGetterFunc func(name string) (*configv1.ClusterVersion, error)
 
 type getCurrentVersionFunc func() string
 
-type configMapGetterFunc func(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*corev1.ConfigMap, error)
-
 // NewController returns Controller to manage AgenticRuns.
 // It monitors available and conditional updates, and creates an AgenticRun for every target version of them.
 // It expires (and replaces) any previous AgenticRuns owned by the CVO after 24h.
@@ -81,7 +88,6 @@ func NewController(
 	client ctrlruntimeclient.Client,
 	dynamicClient dynamic.Interface,
 	cvGetterFunc cvGetterFunc,
-	configMapGetterFunc configMapGetterFunc,
 	getCurrentVersionFunc getCurrentVersionFunc,
 ) *Controller {
 	return &Controller{
@@ -93,7 +99,6 @@ func NewController(
 		client:                client,
 		dynamicClient:         dynamicClient,
 		cvGetterFunc:          cvGetterFunc,
-		configMapGetterFunc:   configMapGetterFunc,
 		getCurrentVersionFunc: getCurrentVersionFunc,
 		config:                DefaultConfig(),
 	}
@@ -101,17 +106,15 @@ func NewController(
 
 // Config holds configuration for agentic run creation.
 type Config struct {
-	Namespace       string
-	PromptConfigMap string // ConfigMap name containing the system prompt
-	SkillsImage     string // OCI image containing agentic skills
+	Namespace   string
+	SkillsImage string // OCI image containing agentic skills
 }
 
 // DefaultConfig returns the default configuration, checking env vars for overrides.
 func DefaultConfig() Config {
 	return Config{
-		Namespace:       envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
-		PromptConfigMap: envOrDefault("LIGHTSPEED_PROMPT_CONFIGMAP", "cluster-update-advisory-prompt"),
-		SkillsImage:     envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
+		Namespace:   envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
+		SkillsImage: envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
 	}
 }
 
@@ -241,22 +244,6 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 	}
 
 	if len(updates) == 0 && len(conditionalUpdates) == 0 {
-		return kutilerrors.NewAggregate(errs)
-	}
-
-	var prompt string
-	promptConfigMap, err := c.configMapGetterFunc(ctx, c.config.Namespace, c.config.PromptConfigMap, metav1.GetOptions{})
-	if err != nil {
-		klog.V(i.Normal).Infof("Failed to get prompt ConfigMap %s/%s: %v", c.config.Namespace, c.config.PromptConfigMap, err)
-		errs = append(errs, fmt.Errorf("failed to get prompt ConfigMap %s/%s: %w", c.config.Namespace, c.config.PromptConfigMap, err))
-		return kutilerrors.NewAggregate(errs)
-	}
-	promptKey := "prompt"
-	if v, ok := promptConfigMap.Data[promptKey]; ok {
-		prompt = v
-	} else {
-		klog.V(i.Normal).Infof("ConfigMap %s/%s has no key %s in data", c.config.Namespace, c.config.PromptConfigMap, promptKey)
-		errs = append(errs, fmt.Errorf("failed to get key/%s from ConfigMap %s/%s", promptKey, c.config.Namespace, c.config.PromptConfigMap))
 		return kutilerrors.NewAggregate(errs)
 	}
 

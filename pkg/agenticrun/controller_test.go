@@ -13,7 +13,6 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
-	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -83,7 +82,7 @@ func TestController_Sync(t *testing.T) {
 								},
 							},
 							Spec: agenticrunv1alpha1.AgenticRunSpec{
-								Request: `prompt-abc
+								Request: fmt.Sprintf(`%s
 
 ---
 
@@ -95,8 +94,8 @@ Update path: Recommended
 
 ## Cluster Readiness Data
 
-` + "```json\n" +
-									`{}` + "\n```\n",
+%s
+`, prompt, "```json\n{}\n```"),
 								Analysis: agenticrunv1alpha1.AgenticRunStep{
 									Agent: "smart",
 								},
@@ -127,17 +126,7 @@ Update path: Recommended
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func(_ context.Context, namespace, name string, _ metav1.GetOptions) (*corev1.ConfigMap, error) {
-				if namespace == "openshift-lightspeed" && name == "cluster-update-advisory-prompt" {
-					return &corev1.ConfigMap{
-						Data: map[string]string{
-							"prompt": "prompt-abc",
-							"foo":    "bar",
-						},
-					}, nil
-				}
-				return nil, fmt.Errorf("ConfigMap %s not found in namespace %s", name, namespace)
-			}, func() string {
+			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func() string {
 				return "4.22.1"
 			})
 			c.crdAvailableCache = true
