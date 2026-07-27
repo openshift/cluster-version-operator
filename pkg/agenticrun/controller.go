@@ -113,8 +113,7 @@ type Config struct {
 // DefaultConfig returns the default configuration, checking env vars for overrides.
 func DefaultConfig() Config {
 	return Config{
-		Namespace:   envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
-		SkillsImage: envOrDefault("LIGHTSPEED_SKILLS_IMAGE", "quay.io/openshift/ci:ocp_5.0_agentic-skills"),
+		Namespace: envOrDefault("LIGHTSPEED_AGENTIC_RUN_NAMESPACE", "openshift-lightspeed"),
 	}
 }
 
@@ -148,6 +147,10 @@ func (c *Controller) SetConsolePluginImage(image string) {
 		c.consolePluginImage = image
 		c.consolePluginEnsured = false
 	}
+}
+
+func (c *Controller) SetSkillsImage(image string) {
+	c.config.SkillsImage = image
 }
 
 func (c *Controller) crdAvailable() bool {
@@ -211,6 +214,11 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		} else {
 			c.consolePluginEnsured = true
 		}
+	}
+
+	if c.config.SkillsImage == "" {
+		klog.V(i.Normal).Infof("Skipping agentic run creation: skills image is not set")
+		return nil
 	}
 
 	updates, conditionalUpdates, err := c.updatesGetterFunc()

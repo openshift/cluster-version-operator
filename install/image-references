@@ -2,6 +2,10 @@ kind: ImageStream
 apiVersion: image.openshift.io/v1
 spec:
   tags:
+  - name: agentic-skills
+    from:
+      kind: DockerImage
+      name: placeholder.url.oc.will.replace.this.example.org:agentic-skills
   - name: cluster-update-console-plugin
     from:
       kind: DockerImage
