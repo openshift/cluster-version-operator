@@ -443,9 +443,14 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 
 	if update.ImageRef != nil {
 		for _, tag := range update.ImageRef.Spec.Tags {
-			if tag.Name == "cluster-update-console-plugin" && tag.From != nil && tag.From.Kind == "DockerImage" {
+			if tag.From == nil || tag.From.Kind != "DockerImage" {
+				continue
+			}
+			switch tag.Name {
+			case "cluster-update-console-plugin":
 				optr.agenticRunController.SetConsolePluginImage(tag.From.Name)
-				break
+			case "agentic-skills":
+				optr.agenticRunController.SetSkillsImage(tag.From.Name)
 			}
 		}
 	}
