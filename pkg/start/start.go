@@ -44,6 +44,7 @@ import (
 	operatorinformers "github.com/openshift/client-go/operator/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/clusterstatus"
 	libgoleaderelection "github.com/openshift/library-go/pkg/config/leaderelection"
+	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/autoupdate"
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
@@ -538,6 +539,7 @@ func (cb *ClientBuilder) RuntimeControllerClientOrDie(name string, configFns ...
 	utilruntime.Must(scheme.AddToScheme(runtimeScheme))
 	utilruntime.Must(apiextensionsv1.AddToScheme(runtimeScheme))
 	utilruntime.Must(operatorv1.AddToScheme(runtimeScheme))
+	utilruntime.Must(agenticrunv1alpha1.AddToScheme(runtimeScheme))
 
 	c, err := runtimeclient.New(rest.AddUserAgent(cb.RestConfig(configFns...), name), runtimeclient.Options{
 		Scheme: runtimeScheme,
