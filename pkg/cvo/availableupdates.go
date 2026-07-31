@@ -617,7 +617,7 @@ func unknownExposureMessage(risk configv1.ConditionalUpdateRisk, err error) stri
 	template := `Could not evaluate exposure to update risk %s (%v)
   %s description: %s
   %s URL: %s`
-	return fmt.Sprintf(template, risk.Name, err, risk.Name, risk.Message, risk.Name, risk.URL)
+	return fmt.Sprintf(template, risk.Name, err, risk.Name, strings.TrimSpace(risk.Message), risk.Name, risk.URL)
 }
 
 func newRecommendedStatus(now, want metav1.ConditionStatus) metav1.ConditionStatus {
