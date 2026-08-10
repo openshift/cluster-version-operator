@@ -25,9 +25,6 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 		GVRInstallPlan:       "InstallPlanList",
 		GVRPackageManifest:   "PackageManifestList",
 		GVRAPIRequestCount:   "APIRequestCountList",
-		GVRNetwork:           "NetworkList",
-		GVRProxy:             "ProxyList",
-		GVRAPIServer:         "APIServerList",
 	}
 	for gvr, listKind := range gvrs {
 		gvk := schema.GroupVersionKind{Group: gvr.Group, Version: gvr.Version, Kind: listKind}
@@ -620,60 +617,6 @@ func TestAPIDeprecationsCheck_NoBlockers(t *testing.T) {
 	}
 }
 
-func TestNetworkCheck(t *testing.T) {
-	objects := []runtime.Object{
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Network",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"status": map[string]interface{}{
-				"networkType": "OpenShiftSDN",
-			},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Proxy",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec": map[string]interface{}{
-				"httpProxy": "http://proxy.example.com:8080",
-			},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "APIServer",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec": map[string]interface{}{
-				"tlsSecurityProfile": map[string]interface{}{
-					"type": "Old",
-				},
-			},
-		}},
-	}
-
-	client := newFakeDynamicClient(objects...)
-	check := &NetworkCheck{}
-
-	result, err := check.Run(context.Background(), client, "4.21.5", "4.21.8")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if result["network_type"] != "OpenShiftSDN" {
-		t.Errorf("network_type = %v, want OpenShiftSDN", result["network_type"])
-	}
-	if result["sdn_warning"] == nil {
-		t.Error("should have sdn_warning for OpenShiftSDN")
-	}
-	if result["tls_profile"] != "Old" {
-		t.Errorf("tls_profile = %v, want Old", result["tls_profile"])
-	}
-
-	summary, ok := result["summary"].(map[string]any)
-	if !ok {
-		t.Fatal("summary not a map")
-	}
-	if summary["is_sdn"] != true {
-		t.Errorf("is_sdn = %v, want true", summary["is_sdn"])
-	}
-}
-
 // fakeClusterObjects returns a representative set of cluster objects that exercises
 // every readiness check with non-trivial data.
 func fakeClusterObjects() []runtime.Object {
@@ -814,23 +757,6 @@ func fakeClusterObjects() []runtime.Object {
 			},
 		}},
 
-		// --- Network, Proxy, APIServer (network) ---
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Network",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"status":   map[string]interface{}{"networkType": "OVNKubernetes"},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Proxy",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec":     map[string]interface{}{"httpProxy": "http://proxy.corp:8080"},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "APIServer",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec":     map[string]interface{}{},
-		}},
-
 		// --- OLM: Subscription + CSV (olm_operator_lifecycle) ---
 		&unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "operators.coreos.com/v1alpha1", "kind": "Subscription",
@@ -868,13 +794,13 @@ func TestRunAllWithFakeCluster(t *testing.T) {
 	if output.TargetVersion != "4.21.8" {
 		t.Errorf("TargetVersion = %q, want 4.21.8", output.TargetVersion)
 	}
-	if output.Meta.TotalChecks != 8 {
-		t.Errorf("TotalChecks = %d, want 8", output.Meta.TotalChecks)
+	if output.Meta.TotalChecks != 7 {
+		t.Errorf("TotalChecks = %d, want 7", output.Meta.TotalChecks)
 	}
 
 	for _, name := range []string{
 		"cluster_conditions", "operator_health", "api_deprecations",
-		"node_capacity", "pdb_drain", "etcd_health", "network",
+		"node_capacity", "pdb_drain", "etcd_health",
 		"olm_operator_lifecycle",
 	} {
 		r, ok := output.Checks[name]
@@ -943,16 +869,6 @@ func TestRunAllWithFakeCluster(t *testing.T) {
 	adSummary := ad.Data["summary"].(map[string]any)
 	if adSummary["blockers"] != 1 {
 		t.Errorf("api_deprecations blockers = %v, want 1", adSummary["blockers"])
-	}
-
-	// network: OVN, proxy configured
-	nw := output.Checks["network"]
-	if nw.Data["network_type"] != "OVNKubernetes" {
-		t.Errorf("network type = %v, want OVNKubernetes", nw.Data["network_type"])
-	}
-	proxy := nw.Data["proxy"].(map[string]any)
-	if proxy["http_proxy"] != "http://proxy.corp:8080" {
-		t.Errorf("network proxy = %v, want http://proxy.corp:8080", proxy["http_proxy"])
 	}
 
 	// olm_operator_lifecycle: 1 subscription

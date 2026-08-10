@@ -152,16 +152,6 @@
     "environmentSelector": {}
   },
   {
-    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report network type matching actual Network config",
-    "labels": {},
-    "resources": {
-      "isolation": {}
-    },
-    "source": "openshift:payload:cluster-version-operator",
-    "lifecycle": "blocking",
-    "environmentSelector": {}
-  },
-  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should report PDB count matching actual PodDisruptionBudgets",
     "labels": {},
     "resources": {

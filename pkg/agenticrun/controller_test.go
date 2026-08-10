@@ -1145,9 +1145,6 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 		readiness.GVRInstallPlan:       "InstallPlanList",
 		readiness.GVRPackageManifest:   "PackageManifestList",
 		readiness.GVRAPIRequestCount:   "APIRequestCountList",
-		readiness.GVRNetwork:           "NetworkList",
-		readiness.GVRProxy:             "ProxyList",
-		readiness.GVRAPIServer:         "APIServerList",
 	}
 	for gvr, listKind := range gvrs {
 		gvk := schema.GroupVersionKind{Group: gvr.Group, Version: gvr.Version, Kind: listKind}
@@ -1253,22 +1250,6 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 				"conditions": []interface{}{map[string]interface{}{"type": "Deprecated", "status": "True"}},
 			},
 		}},
-		// Network, Proxy, APIServer
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Network",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"status":   map[string]interface{}{"networkType": "OVNKubernetes"},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "Proxy",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec":     map[string]interface{}{},
-		}},
-		&unstructured.Unstructured{Object: map[string]interface{}{
-			"apiVersion": "config.openshift.io/v1", "kind": "APIServer",
-			"metadata": map[string]interface{}{"name": "cluster"},
-			"spec":     map[string]interface{}{},
-		}},
 		// OLM Subscription + CSV
 		&unstructured.Unstructured{Object: map[string]interface{}{
 			"apiVersion": "operators.coreos.com/v1alpha1", "kind": "Subscription",
@@ -1337,11 +1318,11 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 	if !ok {
 		t.Fatal("readiness output missing 'meta'")
 	}
-	if meta["total_checks"] != float64(8) {
-		t.Errorf("readiness total_checks = %v, want 8", meta["total_checks"])
+	if meta["total_checks"] != float64(7) {
+		t.Errorf("readiness total_checks = %v, want 7", meta["total_checks"])
 	}
-	if meta["checks_ok"] != float64(8) {
-		t.Errorf("readiness checks_ok = %v, want 8 (all checks should succeed)", meta["checks_ok"])
+	if meta["checks_ok"] != float64(7) {
+		t.Errorf("readiness checks_ok = %v, want 7 (all checks should succeed)", meta["checks_ok"])
 	}
 
 	checks, ok := raw["checks"].(map[string]any)
@@ -1352,7 +1333,7 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 	// Verify every check produced results with ok status
 	for _, name := range []string{
 		"cluster_conditions", "operator_health", "api_deprecations",
-		"node_capacity", "pdb_drain", "etcd_health", "network",
+		"node_capacity", "pdb_drain", "etcd_health",
 		"olm_operator_lifecycle",
 	} {
 		check, ok := checks[name].(map[string]any)

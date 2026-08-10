@@ -67,7 +67,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 	g.It("should run all checks without errors", func() {
 		output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
 
-		o.Expect(output.Meta.TotalChecks).To(o.Equal(8))
+		o.Expect(output.Meta.TotalChecks).To(o.Equal(7))
 		o.Expect(output.Meta.ChecksErrored).To(o.Equal(0),
 			"no check should error on a healthy cluster")
 	})
@@ -172,19 +172,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 			"etcd member count should match actual etcd pods")
 		o.Expect(result.Data["healthy_members"]).To(o.Equal(expectedHealthy),
 			"healthy member count should match actual ready etcd pods")
-	})
-
-	g.It("should report network type matching actual Network config", func() {
-		// Ground truth: get Network config via typed client
-		network, err := configClient.Networks().Get(ctx, "cluster", metav1.GetOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred())
-
-		// Our check
-		output := readiness.RunAll(ctx, dynamicClient, currentVersion, targetVersion)
-		result := output.Checks["network"]
-		o.Expect(result.Status).To(o.Equal("ok"))
-		o.Expect(result.Data["network_type"]).To(o.Equal(network.Status.NetworkType),
-			"network type should match actual Network config")
 	})
 
 	g.It("should report PDB count matching actual PodDisruptionBudgets", func() {
