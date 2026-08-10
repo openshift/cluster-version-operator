@@ -26,6 +26,7 @@ func (c *ClusterConditionsCheck) Run(ctx context.Context, dc dynamic.Interface, 
 	conditions := GetConditions(cv)
 	condMap := map[string]any{}
 	for k, v := range conditions {
+		v.Message = truncateMessage(v.Message)
 		condMap[k] = v
 	}
 	result["conditions"] = condMap
@@ -35,7 +36,7 @@ func (c *ClusterConditionsCheck) Run(ctx context.Context, dc dynamic.Interface, 
 	result["upgradeable"] = map[string]any{
 		"status":  upgradeable.Status,
 		"reason":  upgradeable.Reason,
-		"message": upgradeable.Message,
+		"message": truncateMessage(upgradeable.Message),
 	}
 
 	progressing := conditions[ConditionProgressing]

@@ -172,3 +172,13 @@ func FormatLabelSelector(labels map[string]string) string {
 	}
 	return strings.Join(parts, ",")
 }
+
+const maxMessageLen = 512
+
+func truncateMessage(msg string) string {
+	r := []rune(msg)
+	if len(r) <= maxMessageLen {
+		return msg
+	}
+	return string(r[:maxMessageLen]) + "...[truncated]"
+}

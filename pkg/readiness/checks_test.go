@@ -3,6 +3,7 @@ package readiness
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -387,6 +388,43 @@ func TestOperatorHealthCheck_AllHealthy(t *testing.T) {
 	}
 	if len(result["not_available"].([]map[string]any)) != 0 {
 		t.Error("expected no not_available operators")
+	}
+}
+
+func TestOperatorHealthCheck_MessageTruncation(t *testing.T) {
+	longMessage := strings.Repeat("x", 800)
+
+	objects := []runtime.Object{
+		&unstructured.Unstructured{Object: map[string]interface{}{
+			"apiVersion": "config.openshift.io/v1", "kind": "ClusterOperator",
+			"metadata": map[string]interface{}{"name": "broken-op"},
+			"status": map[string]interface{}{
+				"conditions": []interface{}{
+					map[string]interface{}{"type": "Available", "status": "True"},
+					map[string]interface{}{"type": "Degraded", "status": "True", "reason": "Bug", "message": longMessage},
+					map[string]interface{}{"type": "Upgradeable", "status": "True"},
+				},
+			},
+		}},
+	}
+
+	client := newFakeDynamicClient(objects...)
+	check := &OperatorHealthCheck{}
+	result, err := check.Run(context.Background(), client, "4.21.5", "4.21.8")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	degraded := result["degraded"].([]map[string]any)
+	if len(degraded) != 1 {
+		t.Fatalf("degraded len = %d, want 1", len(degraded))
+	}
+	msg := degraded[0]["message"].(string)
+	if len(msg) > 512+len("...[truncated]") {
+		t.Errorf("message not truncated: len = %d", len(msg))
+	}
+	if msg[len(msg)-len("...[truncated]"):] != "...[truncated]" {
+		t.Errorf("message missing truncation suffix: %q", msg[len(msg)-20:])
 	}
 }
 

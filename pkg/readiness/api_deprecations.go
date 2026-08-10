@@ -60,7 +60,7 @@ func (c *APIDeprecationsCheck) Run(ctx context.Context, dc dynamic.Interface, cu
 				warnings = append(warnings, map[string]any{
 					"resource":      arc.GetName(),
 					"request_count": requestCount,
-					"message":       dep.Message,
+					"message":       truncateMessage(dep.Message),
 				})
 			}
 		}

@@ -37,21 +37,21 @@ func (c *OperatorHealthCheck) Run(ctx context.Context, dc dynamic.Interface, cur
 			notUpgradeable = append(notUpgradeable, map[string]any{
 				"name":    name,
 				"reason":  cond.Reason,
-				"message": cond.Message,
+				"message": truncateMessage(cond.Message),
 			})
 		}
 		if cond, ok := conditions[ConditionDegraded]; ok && cond.Status == ConditionTrue {
 			degraded = append(degraded, map[string]any{
 				"name":    name,
 				"reason":  cond.Reason,
-				"message": cond.Message,
+				"message": truncateMessage(cond.Message),
 			})
 		}
 		if cond, ok := conditions[ConditionAvailable]; ok && cond.Status == ConditionFalse {
 			notAvailable = append(notAvailable, map[string]any{
 				"name":    name,
 				"reason":  cond.Reason,
-				"message": cond.Message,
+				"message": truncateMessage(cond.Message),
 			})
 		}
 	}
