@@ -103,6 +103,15 @@ type LoadPayloadStatus struct {
 	LastTransitionTime time.Time
 }
 
+// String returns a curated summary suitable for logs.
+func (s LoadPayloadStatus) String() string {
+	failure := "<none>"
+	if s.Failure != nil {
+		failure = s.Failure.Error()
+	}
+	return fmt.Sprintf("step=%q message=%q failure=%q", s.Step, s.Message, failure)
+}
+
 type CapabilityStatus struct {
 	Status                configv1.ClusterVersionCapabilitiesStatus
 	ImplicitlyEnabledCaps []configv1.ClusterVersionCapability
@@ -147,6 +156,24 @@ func (w SyncWorkerStatus) DeepCopy() *SyncWorkerStatus {
 	copy.EnabledFeatureGates = w.EnabledFeatureGates.Clone()
 
 	return &copy
+}
+
+// String returns a curated summary suitable for logs. Prefer this over %#v: nested
+// Failure values (including unexported loadPayloadStatus.Failure) otherwise render as
+// pointer addresses under Go-syntax formatting.
+func (w SyncWorkerStatus) String() string {
+	failure := "<none>"
+	if w.Failure != nil {
+		failure = w.Failure.Error()
+	}
+	loadFailure := "<none>"
+	if w.loadPayloadStatus.Failure != nil {
+		loadFailure = w.loadPayloadStatus.Failure.Error()
+	}
+	return fmt.Sprintf("generation=%d done=%d/%d completed=%d reconciling=%t initial=%t version=%q image=%q failure=%q loadPayloadStep=%q loadPayloadFailure=%q",
+		w.Generation, w.Done, w.Total, w.Completed, w.Reconciling, w.Initial,
+		w.Actual.Version, w.Actual.Image, failure,
+		w.loadPayloadStatus.Step, loadFailure)
 }
 
 // SyncWorker retrieves and applies the desired image, tracking the status for the parent to
@@ -712,7 +739,7 @@ func (w *SyncWorker) Start(ctx context.Context, maxWorkers int) {
 				defer cancelFn()
 
 				previousStatus := w.Status()
-				klog.V(2).Infof("Previous sync status: %#v", previousStatus)
+				klog.V(2).Infof("Previous sync status: %s", previousStatus)
 				return w.apply(ctx, work, maxWorkers, previousStatus)
 			}()
 			if err != nil {
@@ -914,13 +941,13 @@ func (w *SyncWorker) updateApplyStatus(update SyncWorkerStatus) {
 	update.CapabilitiesStatus = w.status.CapabilitiesStatus
 	update.EnabledFeatureGates = w.status.EnabledFeatureGates.Clone()
 
-	klog.V(6).Infof("Payload apply status change %#v", update)
+	klog.V(6).Infof("Payload apply status change %s", update)
 	w.status = update
 	select {
 	case w.report <- update:
 	default:
 		if klog.V(6).Enabled() {
-			klog.Infof("Status report channel was full %#v", update)
+			klog.Infof("Status report channel was full %s", update)
 		}
 	}
 }
@@ -942,13 +969,13 @@ func (w *SyncWorker) updateLoadStatus(update SyncWorkerStatus) {
 	update.VersionHash = w.status.VersionHash
 	update.LastProgress = w.status.LastProgress
 
-	klog.V(6).Infof("Payload load status change %#v", update)
+	klog.V(6).Infof("Payload load status change %s", update)
 	w.status = update
 	select {
 	case w.report <- update:
 	default:
 		if klog.V(6).Enabled() {
-			klog.Infof("Status report channel was full %#v", update)
+			klog.Infof("Status report channel was full %s", update)
 		}
 	}
 }
