@@ -100,6 +100,52 @@ func TestMergeOwnerRefs(t *testing.T) {
 			Controller: ptr.To(true),
 			UID:        types.UID("uid-1"),
 		}},
+	}, {
+		// Rogue controller ref on existing should be cleared when
+		// a required ref claims Controller=true (OCPBUGS-39539).
+		existing: []metav1.OwnerReference{{
+			Kind:       "ClusterServiceVersion",
+			Name:       "rogue-operator.1.0.0",
+			Controller: ptr.To(true),
+			UID:        types.UID("uid-rogue"),
+		}},
+		input: []metav1.OwnerReference{{
+			Kind:       "ClusterVersion",
+			Name:       "version",
+			Controller: ptr.To(true),
+			UID:        types.UID("uid-cv"),
+		}},
+
+		expectedModified: true,
+		expected: []metav1.OwnerReference{{
+			Kind: "ClusterServiceVersion",
+			Name: "rogue-operator.1.0.0",
+			UID:  types.UID("uid-rogue"),
+		}, {
+			Kind:       "ClusterVersion",
+			Name:       "version",
+			Controller: ptr.To(true),
+			UID:        types.UID("uid-cv"),
+		}},
+	}, {
+		// Non-controller existing ref should not be modified.
+		existing: []metav1.OwnerReference{{
+			Kind: "SomeOther",
+			UID:  types.UID("uid-other"),
+		}},
+		input: []metav1.OwnerReference{{
+			Controller: ptr.To(true),
+			UID:        types.UID("uid-cv"),
+		}},
+
+		expectedModified: true,
+		expected: []metav1.OwnerReference{{
+			Kind: "SomeOther",
+			UID:  types.UID("uid-other"),
+		}, {
+			Controller: ptr.To(true),
+			UID:        types.UID("uid-cv"),
+		}},
 	}}
 
 	for idx, test := range tests {

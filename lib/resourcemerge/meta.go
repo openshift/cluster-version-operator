@@ -73,4 +73,23 @@ func mergeOwnerRefs(modified *bool, existing *[]metav1.OwnerReference, required 
 			*existing = append(*existing, required[ridx])
 		}
 	}
+
+	// If a required ref claims Controller=true, clear Controller on any
+	// existing refs not in the required set to avoid the API server
+	// rejecting the update with "only one reference can have Controller
+	// set to true".
+	for ridx := range required {
+		if required[ridx].Controller == nil || !*required[ridx].Controller {
+			continue
+		}
+		for eidx := range *existing {
+			if (*existing)[eidx].UID == required[ridx].UID {
+				continue
+			}
+			if (*existing)[eidx].Controller != nil && *(*existing)[eidx].Controller {
+				*modified = true
+				(*existing)[eidx].Controller = nil
+			}
+		}
+	}
 }
