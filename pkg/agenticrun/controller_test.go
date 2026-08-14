@@ -104,7 +104,7 @@ Update path: Recommended
 										{
 											Image: "registry.example.com/agentic-skills:latest",
 											Paths: []string{
-												"/skills/cluster-update/update-advisor",
+												"/skills/cluster-update/cluster-update-advisor",
 												"/skills/cluster-update/product-lifecycle",
 											},
 										},
@@ -778,7 +778,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},
@@ -827,7 +827,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},
@@ -885,7 +885,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},
@@ -927,7 +927,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},
@@ -974,7 +974,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},
@@ -1021,7 +1021,7 @@ Other recommended versions available:
 								{
 									Image: "registry.example.com/agentic-skills:latest",
 									Paths: []string{
-										"/skills/cluster-update/update-advisor",
+										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
 									},
 								},

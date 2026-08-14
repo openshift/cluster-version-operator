@@ -455,7 +455,7 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 					{
 						Image: skillsImage,
 						Paths: []string{
-							"/skills/cluster-update/update-advisor",
+							"/skills/cluster-update/cluster-update-advisor",
 							"/skills/cluster-update/product-lifecycle",
 						},
 					},
