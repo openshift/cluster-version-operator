@@ -36,7 +36,7 @@ var prompt string = `You are an OpenShift upgrade advisor. Analyze the cluster r
 
 The request contains a "Cluster Readiness Data" section with a JSON block. This was collected by the Cluster Version Operator — do not re-collect it. Parse the JSON, evaluate each check's results, and classify findings as blockers, warnings, or informational.
 
-Use the update-advisor skill for the decision framework and blocker classification rules. When findings need deeper investigation, use prometheus metrics and product-lifecycle skills.
+Use the cluster-update-advisor skill for the decision framework and blocker classification rules. When findings need deeper investigation, use prometheus metrics and product-lifecycle skills.
 
 When the readiness data includes olm_operator_lifecycle results, use the product-lifecycle skill to cross-reference each operator's package name against the Red Hat Product Life Cycle API. Report support phase, EOL dates, and OCP compatibility from Product Lifecycle alongside the OLM data.
 
@@ -455,7 +455,7 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 					{
 						Image: skillsImage,
 						Paths: []string{
-							"/skills/cluster-update/update-advisor",
+							"/skills/cluster-update/cluster-update-advisor",
 							"/skills/cluster-update/product-lifecycle",
 						},
 					},
