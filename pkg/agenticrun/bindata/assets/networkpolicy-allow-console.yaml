@@ -10,7 +10,11 @@ spec:
     matchLabels:
       app: cluster-update-console-plugin
   ingress:
-  - ports:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-console
+    ports:
     - port: 9001
       protocol: TCP
   policyTypes:
