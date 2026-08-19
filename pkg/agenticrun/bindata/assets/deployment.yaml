@@ -40,6 +40,7 @@ spec:
           capabilities:
             drop:
             - ALL
+          readOnlyRootFilesystem: true
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /var/cert
@@ -49,6 +50,14 @@ spec:
           name: nginx-conf
           readOnly: true
           subPath: nginx.conf
+        - mountPath: /tmp
+          name: tmp
+        - mountPath: /var/cache/nginx
+          name: cache-nginx
+        - mountPath: /var/lib/nginx/tmp
+          name: lib-nginx-tmp
+        - mountPath: /run
+          name: run
       dnsPolicy: ClusterFirst
       hostUsers: false
       nodeSelector:
@@ -72,3 +81,11 @@ spec:
         configMap:
           name: cluster-update-console-plugin
           defaultMode: 420
+      - name: tmp
+        emptyDir: {}
+      - name: cache-nginx
+        emptyDir: {}
+      - name: lib-nginx-tmp
+        emptyDir: {}
+      - name: run
+        emptyDir: {}
