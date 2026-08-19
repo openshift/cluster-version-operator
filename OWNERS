@@ -3,7 +3,6 @@
 approvers:
   - wking
   - DavidHurta
-  - PratikMahajan
   - hongkailiu
   - fao89
 reviewers:
@@ -13,6 +12,7 @@ reviewers:
   - fao89
 emeritus_approvers:
   - petr-muller
+  - PratikMahajan
   - smarterclayton
   - abhinavdahiya
   - LalatenduMohanty
