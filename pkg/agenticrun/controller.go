@@ -23,6 +23,7 @@ import (
 	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
@@ -61,6 +62,7 @@ type Controller struct {
 	dynamicClient         dynamic.Interface
 	cvGetterFunc          cvGetterFunc
 	getCurrentVersionFunc getCurrentVersionFunc
+	apiServerLister       configlistersv1.APIServerLister
 	config                Config
 	consolePluginImage    string
 	consolePluginEnsured  bool
@@ -91,6 +93,7 @@ func NewController(
 	dynamicClient dynamic.Interface,
 	cvGetterFunc cvGetterFunc,
 	getCurrentVersionFunc getCurrentVersionFunc,
+	apiServerLister configlistersv1.APIServerLister,
 ) *Controller {
 	return &Controller{
 		queueKey: fmt.Sprintf("ClusterVersionOperator/%s", controllerName),
@@ -102,6 +105,7 @@ func NewController(
 		dynamicClient:         dynamicClient,
 		cvGetterFunc:          cvGetterFunc,
 		getCurrentVersionFunc: getCurrentVersionFunc,
+		apiServerLister:       apiServerLister,
 		config:                DefaultConfig(),
 	}
 }
@@ -186,7 +190,17 @@ func (c *Controller) ensureConsolePlugin(ctx context.Context) error {
 	if c.consolePluginImage == "" {
 		return fmt.Errorf("console plugin image not set")
 	}
-	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage)
+
+	var tlsProfile *configv1.TLSProfileSpec
+	apiServer, err := c.apiServerLister.Get("cluster")
+	if err != nil {
+		klog.Warningf("Could not read APIServer config, using Intermediate TLS defaults: %v", err)
+		tlsProfile = configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+	} else {
+		tlsProfile = resolveTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	}
+
+	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage, tlsProfile)
 }
 
 func (c *Controller) Sync(ctx context.Context, key string) error {

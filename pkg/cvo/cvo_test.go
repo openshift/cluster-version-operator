@@ -2760,7 +2760,7 @@ func TestOperator_availableUpdatesSync(t *testing.T) {
 				return &configv1.ClusterVersion{}, nil
 			}, func() string {
 				return optr.release.Version
-			})
+			}, nil)
 			err := optr.availableUpdatesSync(ctx, optr.queueKey())
 			if err != nil && tt.wantErr == nil {
 				t.Fatalf("Operator.sync() unexpected error: %v", err)
