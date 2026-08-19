@@ -224,8 +224,6 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator r
 		o.Expect(result.Status).To(o.Equal("ok"))
 		o.Expect(result.Data["channel"]).To(o.Equal(cv.Spec.Channel),
 			"channel should match ClusterVersion spec")
-		o.Expect(result.Data["cluster_id"]).To(o.Equal(string(cv.Spec.ClusterID)),
-			"cluster ID should match ClusterVersion spec")
 	})
 
 	g.It("should complete all checks within 60 seconds", func() {

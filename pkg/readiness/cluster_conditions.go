@@ -82,9 +82,7 @@ func (c *ClusterConditionsCheck) Run(ctx context.Context, dc dynamic.Interface, 
 	}
 	result["recent_history"] = historyEntries
 
-	// Channel and cluster identity
 	result["channel"] = NestedString(cv.Object, "spec", "channel")
-	result["cluster_id"] = NestedString(cv.Object, "spec", "clusterID")
 
 	return result, nil
 }

@@ -473,10 +473,6 @@ func TestClusterConditionsCheck(t *testing.T) {
 	if result["channel"] != "stable-4.21" {
 		t.Errorf("channel = %v, want stable-4.21", result["channel"])
 	}
-	if result["cluster_id"] != "test-cluster-id-123" {
-		t.Errorf("cluster_id = %v, want test-cluster-id-123", result["cluster_id"])
-	}
-
 	history, ok := result["recent_history"].([]map[string]any)
 	if !ok {
 		t.Fatal("recent_history not a slice")
