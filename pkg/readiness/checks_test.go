@@ -10,6 +10,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicClient {
@@ -474,17 +476,6 @@ func TestClusterConditionsCheck(t *testing.T) {
 	if result["cluster_id"] != "test-cluster-id-123" {
 		t.Errorf("cluster_id = %v, want test-cluster-id-123", result["cluster_id"])
 	}
-	if result["update_in_progress"] != false {
-		t.Errorf("update_in_progress = %v, want false", result["update_in_progress"])
-	}
-
-	upgradeable, ok := result["upgradeable"].(map[string]any)
-	if !ok {
-		t.Fatal("upgradeable not a map")
-	}
-	if upgradeable["status"] != "True" {
-		t.Errorf("upgradeable.status = %v, want True", upgradeable["status"])
-	}
 
 	history, ok := result["recent_history"].([]map[string]any)
 	if !ok {
@@ -495,17 +486,6 @@ func TestClusterConditionsCheck(t *testing.T) {
 	}
 	if history[0]["version"] != "4.21.5" {
 		t.Errorf("history[0].version = %v, want 4.21.5", history[0]["version"])
-	}
-
-	summary, ok := result["summary"].(map[string]any)
-	if !ok {
-		t.Fatal("summary not a map")
-	}
-	if summary["upgradeable"] != true {
-		t.Errorf("summary.upgradeable = %v, want true", summary["upgradeable"])
-	}
-	if summary["update_in_progress"] != false {
-		t.Errorf("summary.update_in_progress = %v, want false", summary["update_in_progress"])
 	}
 }
 
@@ -526,18 +506,30 @@ func TestClusterConditionsCheck_ProgressingTrue(t *testing.T) {
 	client := newFakeDynamicClient(cv)
 	check := &ClusterConditionsCheck{}
 
-	result, err := check.Run(context.Background(), client, "4.21.5", "4.21.8")
+	result, err := check.Run(context.Background(), client, "4.21.5", "4.22.8")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if result["update_in_progress"] != true {
-		t.Errorf("update_in_progress = %v, want true", result["update_in_progress"])
+	conditions, ok := result["conditions"].(map[string]any)
+	if !ok {
+		t.Fatalf("conditions not a map: %v", result)
 	}
 
-	summary := result["summary"].(map[string]any)
-	if summary["upgradeable"] != false {
-		t.Errorf("summary.upgradeable = %v, want false", summary["upgradeable"])
+	progressing, ok := conditions[string(configv1.OperatorProgressing)].(Condition)
+	if !ok {
+		t.Fatalf("conditions[%v] not a condition: %v", configv1.OperatorProgressing, conditions)
+	}
+	if progressing.Status != ConditionTrue {
+		t.Fatalf("conditions[%v].status not %q: %q", configv1.OperatorProgressing, ConditionTrue, progressing.Status)
+	}
+
+	upgradeable, ok := conditions[string(configv1.OperatorUpgradeable)].(Condition)
+	if !ok {
+		t.Fatalf("conditions[%v] not a condition: %v", configv1.OperatorUpgradeable, conditions)
+	}
+	if upgradeable.Status != ConditionFalse {
+		t.Fatalf("conditions[%v].status not %q: %q", configv1.OperatorUpgradeable, ConditionFalse, upgradeable.Status)
 	}
 }
 
