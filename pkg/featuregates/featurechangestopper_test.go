@@ -67,7 +67,7 @@ func TestTechPreviewChangeStopper(t *testing.T) {
 				FeatureGates: []configv1.FeatureGateDetails{
 					{
 						Version: versionForGates,
-						Enabled: []configv1.FeatureGateAttributes{{Name: features.FeatureGateUpgradeStatus}},
+						Enabled: []configv1.FeatureGateAttributes{{Name: features.FeatureGateCVOConfiguration}},
 					},
 				},
 			},
