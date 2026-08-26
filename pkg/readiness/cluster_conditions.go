@@ -4,13 +4,20 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/blang/semver/v4"
+
 	"k8s.io/client-go/dynamic"
+
+	configv1 "github.com/openshift/api/config/v1"
+
+	"github.com/openshift/cluster-version-operator/pkg/internal"
 )
 
 // ClusterConditionsCheck reads existing CVO-computed conditions from ClusterVersion status.
 // This does NOT re-evaluate anything — it reports what CVO has already determined,
-// including Upgradeable sub-conditions, RetrievedUpdates, and precondition state.
-type ClusterConditionsCheck struct{}
+// including Upgradeable, Progressing, and Failing conditions.
+type ClusterConditionsCheck struct {
+}
 
 func (c *ClusterConditionsCheck) Name() string { return "cluster_conditions" }
 
@@ -22,25 +29,38 @@ func (c *ClusterConditionsCheck) Run(ctx context.Context, dc dynamic.Interface, 
 		return nil, fmt.Errorf("failed to get ClusterVersion: %w", err)
 	}
 
-	// Read all conditions CVO has already set
 	conditions := GetConditions(cv)
 	condMap := map[string]any{}
-	for k, v := range conditions {
-		v.Message = truncateMessage(v.Message)
-		condMap[k] = v
+
+	for _, key := range []configv1.ClusterStatusConditionType{
+		configv1.OperatorAvailable,
+		configv1.OperatorProgressing,
+		internal.ClusterStatusFailing,
+	} {
+		if v, ok := conditions[string(key)]; ok {
+			v.Message = truncateMessage(v.Message)
+			condMap[string(key)] = v
+		}
 	}
+
+	// slim version of the pkg/payload/precondition/clusterversion/upgradeable.go logic
+	currentVersion, err := semver.Parse(current)
+	if err != nil {
+		return nil, fmt.Errorf("current version %q is not a Semantic Version: %w", current, err)
+	}
+	targetVersion, err := semver.Parse(target)
+	if err != nil {
+		return nil, fmt.Errorf("target version %q is not a Semantic Version: %w", target, err)
+	}
+	patchOnly := targetVersion.Major == currentVersion.Major && targetVersion.Minor == currentVersion.Minor
+	if targetVersion.GTE(currentVersion) && !patchOnly {
+		if v, ok := conditions[string(configv1.OperatorUpgradeable)]; ok {
+			v.Message = truncateMessage(v.Message)
+			condMap[string(configv1.OperatorUpgradeable)] = v
+		}
+	}
+
 	result["conditions"] = condMap
-
-	// Extract key signals for the agent
-	upgradeable := conditions[ConditionUpgradeable]
-	result["upgradeable"] = map[string]any{
-		"status":  upgradeable.Status,
-		"reason":  upgradeable.Reason,
-		"message": truncateMessage(upgradeable.Message),
-	}
-
-	progressing := conditions[ConditionProgressing]
-	result["update_in_progress"] = progressing.Status == ConditionTrue
 
 	// Read update history for context
 	history := NestedSlice(cv.Object, "status", "history")
@@ -65,13 +85,6 @@ func (c *ClusterConditionsCheck) Run(ctx context.Context, dc dynamic.Interface, 
 	// Channel and cluster identity
 	result["channel"] = NestedString(cv.Object, "spec", "channel")
 	result["cluster_id"] = NestedString(cv.Object, "spec", "clusterID")
-
-	// Summary for quick agent parsing
-	result["summary"] = map[string]any{
-		"upgradeable":        upgradeable.Status == ConditionTrue,
-		"update_in_progress": progressing.Status == ConditionTrue,
-		"current_version":    current,
-	}
 
 	return result, nil
 }
