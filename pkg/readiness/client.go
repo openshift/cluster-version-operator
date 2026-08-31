@@ -28,9 +28,6 @@ var (
 	GVRPackageManifest   = schema.GroupVersionResource{Group: "packages.operators.coreos.com", Version: "v1", Resource: "packagemanifests"}
 	GVRAPIRequestCount   = schema.GroupVersionResource{Group: "apiserver.openshift.io", Version: "v1", Resource: "apirequestcounts"}
 	GVRInfrastructure    = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "infrastructures"}
-	GVRNetwork           = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "networks"}
-	GVRAPIServer         = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "apiservers"}
-	GVRProxy             = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "proxies"}
 	GVRNodeMetrics       = schema.GroupVersionResource{Group: "metrics.k8s.io", Version: "v1beta1", Resource: "nodes"}
 	GVRValidatingWebhook = schema.GroupVersionResource{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "validatingwebhookconfigurations"}
 	GVRMutatingWebhook   = schema.GroupVersionResource{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "mutatingwebhookconfigurations"}

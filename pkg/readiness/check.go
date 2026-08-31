@@ -72,7 +72,6 @@ var AllChecks = func() []Check {
 		&NodeCapacityCheck{},         // new: node readiness and headroom
 		&PDBDrainCheck{},             // new: PDB drain blockers
 		&EtcdHealthCheck{},           // new: deep etcd health (beyond CO condition)
-		&NetworkCheck{},              // new: SDN migration, TLS, proxy
 		&OLMOperatorLifecycleCheck{}, // new: OLM operator lifecycle (OCPSTRAT-2618)
 		// Known issues (Jira/KB) are NOT checked here — the agent uses its
 		// redhat-support skill to query contextually based on readiness findings.

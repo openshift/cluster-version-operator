@@ -39,6 +39,7 @@ func main() {
 	})
 	ext.IgnoreObsoleteTests(
 		`[Jira:"Cluster Version Operator"] cluster-version-operator should install light speed CRDs correctly`,
+		`[Jira:"Cluster Version Operator"] cluster-version-operator readiness checks should report network type matching actual Network config`,
 	)
 
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()

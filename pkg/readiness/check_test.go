@@ -242,8 +242,8 @@ func TestRunAllRecoversPanic(t *testing.T) {
 
 func TestAllChecksReturnsExpectedCount(t *testing.T) {
 	checks := AllChecks()
-	if len(checks) != 8 {
-		t.Errorf("AllChecks() returned %d checks, want 8", len(checks))
+	if len(checks) != 7 {
+		t.Errorf("AllChecks() returned %d checks, want 7", len(checks))
 	}
 
 	names := make(map[string]bool)
@@ -253,7 +253,7 @@ func TestAllChecksReturnsExpectedCount(t *testing.T) {
 
 	expected := []string{
 		"cluster_conditions", "operator_health", "api_deprecations",
-		"node_capacity", "pdb_drain", "etcd_health", "network",
+		"node_capacity", "pdb_drain", "etcd_health",
 		"olm_operator_lifecycle",
 	}
 	for _, name := range expected {
