@@ -1280,3 +1280,26 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 		t.Errorf("syncAvailableUpdates mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func Test_isOKDRelease(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{name: "OKD FCOS release", version: "4.19.0-0.okd-2024-01-06-084517", want: true},
+		{name: "OKD SCOS nightly", version: "4.22.0-0.okd-scos-nightly-2025-01-01-000000", want: true},
+		{name: "OKD minimal", version: "4.1.0-0.okd-0", want: true},
+		{name: "OCP GA release", version: "4.18.0", want: false},
+		{name: "OCP nightly", version: "4.18.0-0.nightly-2025-01-01-000000", want: false},
+		{name: "empty version", version: "", want: false},
+		{name: "non-semver version", version: "not-a-version", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isOKDRelease(tt.version); got != tt.want {
+				t.Errorf("isOKDRelease(%q) = %v, want %v", tt.version, got, tt.want)
+			}
+		})
+	}
+}

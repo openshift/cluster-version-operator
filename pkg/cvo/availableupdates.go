@@ -32,6 +32,7 @@ import (
 const noArchitecture string = "NoArchitecture"
 const noChannel string = "NoChannel"
 const defaultUpdateService string = "https://api.openshift.com/api/upgrades_info/v1/graph"
+const defaultOKDUpdateService string = "https://updates.okd.io/api/updates/graph"
 
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
@@ -48,8 +49,13 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		updateServiceSource = "ClusterVersion spec.upstream"
 	} else {
 		usedDefaultUpdateService = true
-		updateService = defaultUpdateService
-		updateServiceSource = "the operator's default update service"
+		if isOKDRelease(optr.release.Version) {
+			updateService = defaultOKDUpdateService
+			updateServiceSource = "the operator's default OKD update service"
+		} else {
+			updateService = defaultUpdateService
+			updateServiceSource = "the operator's default update service"
+		}
 	}
 
 	channel := config.Spec.Channel
@@ -85,7 +91,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if !optrAvailableUpdates.RecentlyAttempted(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since last attempt at %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 		preserveCacheOnFailure = true
-	} else if updateService == optrAvailableUpdates.UpdateService || (updateService == defaultUpdateService && optrAvailableUpdates.UpdateService == "") {
+	} else if updateService == optrAvailableUpdates.UpdateService || (usedDefaultUpdateService && optrAvailableUpdates.UpdateService == "") {
 		needsConditionalUpdateEval := false
 		preserveCacheOnFailure = true
 		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
@@ -450,6 +456,25 @@ func loadRiskVersions(conditionalUpdates []configv1.ConditionalUpdate) map[strin
 		return nil
 	}
 	return riskVersions
+}
+
+// isOKDRelease returns true when the given release version string identifies an
+// OKD release. OKD releases embed an "okd" identifier in the semantic version
+// pre-release segment (for example "4.19.0-0.okd-2024-01-06-084517" or
+// "4.22.0-0.okd-scos-nightly-2025-..."), while OCP releases do not embed this
+// identifier. It is used to select the appropriate default update service.
+func isOKDRelease(version string) bool {
+	v, err := semver.Parse(version)
+	if err != nil {
+		klog.V(2).Infof("Unable to parse release version %q to determine whether this is an OKD cluster: %v", version, err)
+		return false
+	}
+	for _, pre := range v.Pre {
+		if strings.HasPrefix(pre.VersionStr, "okd") {
+			return true
+		}
+	}
+	return false
 }
 
 func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
