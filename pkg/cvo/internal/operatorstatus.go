@@ -56,9 +56,13 @@ type clusterOperatorBuilder struct {
 	mode         resourcebuilder.Mode
 }
 
-func newClusterOperatorBuilder(config *rest.Config, m manifest.Manifest) resourcebuilder.Interface {
-	client := configclientv1.NewForConfigOrDie(config).ClusterOperators()
-	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{getter: client}, client, m)
+func newClusterOperatorBuilder(config *rest.Config, m manifest.Manifest) (resourcebuilder.Interface, error) {
+	configClient, err := configclientv1.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	client := configClient.ClusterOperators()
+	return NewClusterOperatorBuilder(clientClusterOperatorsGetter{getter: client}, client, m), nil
 }
 
 // ClusterOperatorsGetter abstracts object access with a client or a cache lister.
