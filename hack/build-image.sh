@@ -21,5 +21,10 @@ if [ -z ${VERSION_OVERRIDE+a} ]; then
         VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
 fi
 
+build_args=()
+if [ -n "${TAGS:-}" ]; then
+	build_args+=(--build-arg "TAGS=${TAGS}")
+fi
+
 set -x
-podman build -t "cluster-version-operator:${VERSION_OVERRIDE}" -f Dockerfile.rhel --no-cache
+podman build -t "cluster-version-operator:${VERSION_OVERRIDE}" -f Dockerfile.rhel --no-cache "${build_args[@]}"

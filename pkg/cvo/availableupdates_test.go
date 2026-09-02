@@ -34,6 +34,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 // notFoundProxyLister is a stub for ProxyLister
@@ -1281,24 +1282,39 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 	}
 }
 
-func Test_isOKDRelease(t *testing.T) {
+func TestGetDefaultUpdateService(t *testing.T) {
+	originalOKD := version.OKD
+	t.Cleanup(func() {
+		version.OKD = originalOKD
+	})
+
 	tests := []struct {
-		name    string
-		version string
-		want    bool
+		name       string
+		okd        bool
+		wantURL    string
+		wantSource string
 	}{
-		{name: "OKD FCOS release", version: "4.19.0-0.okd-2024-01-06-084517", want: true},
-		{name: "OKD SCOS nightly", version: "4.22.0-0.okd-scos-nightly-2025-01-01-000000", want: true},
-		{name: "OKD minimal", version: "4.1.0-0.okd-0", want: true},
-		{name: "OCP GA release", version: "4.18.0", want: false},
-		{name: "OCP nightly", version: "4.18.0-0.nightly-2025-01-01-000000", want: false},
-		{name: "empty version", version: "", want: false},
-		{name: "non-semver version", version: "not-a-version", want: false},
+		{
+			name:       "OCP build",
+			wantURL:    defaultUpdateService,
+			wantSource: "the operator's default update service",
+		},
+		{
+			name:       "OKD build",
+			okd:        true,
+			wantURL:    defaultOKDUpdateService,
+			wantSource: "the operator's default OKD update service",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := isOKDRelease(tt.version); got != tt.want {
-				t.Errorf("isOKDRelease(%q) = %v, want %v", tt.version, got, tt.want)
+			version.OKD = tt.okd
+			gotURL, gotSource := getDefaultUpdateService()
+			if gotURL != tt.wantURL {
+				t.Errorf("getDefaultUpdateService() URL = %q, want %q", gotURL, tt.wantURL)
+			}
+			if gotSource != tt.wantSource {
+				t.Errorf("getDefaultUpdateService() source = %q, want %q", gotSource, tt.wantSource)
 			}
 		})
 	}

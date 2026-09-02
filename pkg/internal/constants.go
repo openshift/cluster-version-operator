@@ -70,6 +70,10 @@ const (
 	// enabled capabilities.
 	ImplicitlyEnabledCapabilities configv1.ClusterStatusConditionType = "ImplicitlyEnabledCapabilities"
 
+	// ClusterVersionOKDLegacyUpdateService is True when spec.upstream selects the
+	// legacy OKD update service, which should be replaced or cleared.
+	ClusterVersionOKDLegacyUpdateService configv1.ClusterStatusConditionType = "LegacyUpdateService"
+
 	// UpgradeableAdminAckRequired is False if there is API removed from the Kubernetes API server which requires admin
 	// consideration, and thus update to the next minor or major version is blocked.
 	UpgradeableAdminAckRequired configv1.ClusterStatusConditionType = "UpgradeableAdminAckRequired"

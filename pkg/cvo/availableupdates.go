@@ -27,6 +27,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 const noArchitecture string = "NoArchitecture"
@@ -49,13 +50,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		updateServiceSource = "ClusterVersion spec.upstream"
 	} else {
 		usedDefaultUpdateService = true
-		if isOKDRelease(optr.release.Version) {
-			updateService = defaultOKDUpdateService
-			updateServiceSource = "the operator's default OKD update service"
-		} else {
-			updateService = defaultUpdateService
-			updateServiceSource = "the operator's default update service"
-		}
+		updateService, updateServiceSource = getDefaultUpdateService()
 	}
 
 	channel := config.Spec.Channel
@@ -458,23 +453,11 @@ func loadRiskVersions(conditionalUpdates []configv1.ConditionalUpdate) map[strin
 	return riskVersions
 }
 
-// isOKDRelease returns true when the given release version string identifies an
-// OKD release. OKD releases embed an "okd" identifier in the semantic version
-// pre-release segment (for example "4.19.0-0.okd-2024-01-06-084517" or
-// "4.22.0-0.okd-scos-nightly-2025-..."), while OCP releases do not embed this
-// identifier. It is used to select the appropriate default update service.
-func isOKDRelease(version string) bool {
-	v, err := semver.Parse(version)
-	if err != nil {
-		klog.V(2).Infof("Unable to parse release version %q to determine whether this is an OKD cluster: %v", version, err)
-		return false
+func getDefaultUpdateService() (string, string) {
+	if version.IsOKD() {
+		return defaultOKDUpdateService, "the operator's default OKD update service"
 	}
-	for _, pre := range v.Pre {
-		if strings.HasPrefix(pre.VersionStr, "okd") {
-			return true
-		}
-	}
-	return false
+	return defaultUpdateService, "the operator's default update service"
 }
 
 func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {
