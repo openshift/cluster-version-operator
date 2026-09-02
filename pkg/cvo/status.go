@@ -175,6 +175,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 	}
 
 	updateClusterVersionStatus(ctx, &config.Status, status, optr.release, optr.conditionRegistry, optr.getAvailableUpdates, optr.upgradeable, optr.enabledCVOFeatureGates, validationErrs, optr.shouldReconcileAcceptRisks)
+	UpdateOKDLegacyUpdateServiceCondition(&config.Status, config.Spec.Upstream)
 
 	if klog.V(6).Enabled() {
 		klog.Infof("Apply config: %s", cmp.Diff(original, config))

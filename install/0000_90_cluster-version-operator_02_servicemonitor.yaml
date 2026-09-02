@@ -74,6 +74,17 @@ spec:
         sum by (channel, namespace, upstream) (cluster_version_available_updates) > 0
       labels:
         severity: info
+    - alert: ClusterVersionOperatorLegacyUpdateService
+      annotations:
+        summary: ClusterVersion is configured to use a legacy update service.
+        description: ClusterVersion spec.upstream points to a legacy update service. At an appropriate time, clear spec.upstream to use the CVO's default update service, or configure another update service.
+      expr: |
+        max by (namespace, name)
+        (
+          cluster_operator_conditions{name="version", condition="LegacyUpdateService", endpoint="metrics"} == 1
+        )
+      labels:
+        severity: info
     - alert: ClusterReleaseNotAccepted
       annotations:
         summary: The desired cluster release has not been accepted for at least an hour.
