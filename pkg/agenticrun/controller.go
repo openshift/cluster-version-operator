@@ -65,7 +65,7 @@ type Controller struct {
 	apiServerLister       configlistersv1.APIServerLister
 	config                Config
 	consolePluginImage    string
-	consolePluginEnsured  bool
+	consolePluginEnabled  bool
 	crdAvailableCache     bool
 	crdLastChecked        time.Time
 	hypershift            bool
@@ -149,10 +149,7 @@ func (c *Controller) SetConsoleCapabilityFunc(f func() bool) {
 }
 
 func (c *Controller) SetConsolePluginImage(image string) {
-	if c.consolePluginImage != image {
-		c.consolePluginImage = image
-		c.consolePluginEnsured = false
-	}
+	c.consolePluginImage = image
 }
 
 func (c *Controller) SetSkillsImage(image string) {
@@ -216,19 +213,21 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		} else if err := cleanupConsolePluginManifests(ctx, c.client); err != nil {
 			klog.V(i.Normal).Infof("Failed to clean up console plugin: %v", err)
 		}
-		c.consolePluginEnsured = false
+		c.consolePluginEnabled = false
 		return nil
 	}
 
-	if c.shouldDeployConsolePlugin() && !c.consolePluginEnsured {
+	if c.shouldDeployConsolePlugin() {
 		if err := c.ensureConsolePlugin(ctx); err != nil {
 			klog.V(i.Normal).Infof("Failed to ensure console plugin: %v", err)
-		} else if err := waitForPluginReady(ctx, c.client); err != nil {
-			klog.V(i.Normal).Infof("Console plugin not ready yet, deferring enable: %v", err)
-		} else if err := enableConsolePlugin(ctx, c.client); err != nil {
-			klog.V(i.Normal).Infof("Failed to enable console plugin: %v", err)
-		} else {
-			c.consolePluginEnsured = true
+		} else if !c.consolePluginEnabled {
+			if err := waitForPluginReady(ctx, c.client); err != nil {
+				klog.V(i.Normal).Infof("Console plugin not ready yet, deferring enable: %v", err)
+			} else if err := enableConsolePlugin(ctx, c.client); err != nil {
+				klog.V(i.Normal).Infof("Failed to enable console plugin: %v", err)
+			} else {
+				c.consolePluginEnabled = true
+			}
 		}
 	}
 

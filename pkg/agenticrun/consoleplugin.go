@@ -2,6 +2,7 @@ package agenticrun
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -93,15 +94,22 @@ var consolePluginAssets = []string{
 func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.Client, image string, tlsProfile *configv1.TLSProfileSpec) error {
 	sslProtocols, sslCiphers := nginxTLSDirectives(tlsProfile)
 
+	configMapRaw := bindata.MustAsset("assets/configmap.yaml")
+	rendered := strings.ReplaceAll(string(configMapRaw), "${SSL_PROTOCOLS}", sslProtocols)
+	rendered = strings.ReplaceAll(rendered, "${SSL_CIPHERS}", sslCiphers)
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rendered)))
+
 	for _, asset := range consolePluginAssets {
-		raw := bindata.MustAsset(asset)
+		var raw []byte
+		if asset == "assets/configmap.yaml" {
+			raw = []byte(rendered)
+		} else {
+			raw = bindata.MustAsset(asset)
+		}
 
 		if asset == "assets/deployment.yaml" {
 			raw = []byte(strings.ReplaceAll(string(raw), "${IMAGE}", image))
-		}
-		if asset == "assets/configmap.yaml" {
-			s := strings.ReplaceAll(string(raw), "${SSL_PROTOCOLS}", sslProtocols)
-			raw = []byte(strings.ReplaceAll(s, "${SSL_CIPHERS}", sslCiphers))
+			raw = []byte(strings.ReplaceAll(string(raw), "${CONFIG_HASH}", configHash))
 		}
 
 		obj := &unstructured.Unstructured{}
@@ -130,6 +138,9 @@ func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.C
 		obj.SetResourceVersion(existing.GetResourceVersion())
 		if err := client.Update(ctx, obj); err != nil {
 			return fmt.Errorf("updating %s %s: %w", obj.GetKind(), obj.GetName(), err)
+		}
+		if asset == "assets/configmap.yaml" {
+			klog.Infof("Console plugin ConfigMap updated. Deployment rollout will follow")
 		}
 		klog.V(i.Normal).Infof("Updated console plugin %s %s", obj.GetKind(), obj.GetName())
 	}
