@@ -687,6 +687,7 @@ func (o *Options) NewControllerContext(
 		startingCvoGates,
 		startingEnabledManifestFeatureGates,
 		rtClient,
+		configInformerFactory.Config().V1().APIServers().Lister(),
 	)
 	if err != nil {
 		return nil, err

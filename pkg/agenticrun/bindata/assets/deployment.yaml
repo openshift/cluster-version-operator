@@ -19,6 +19,7 @@ spec:
       annotations:
         target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
         openshift.io/required-scc: restricted-v3
+        openshift.io/config-hash: "${CONFIG_HASH}"
       labels:
         app: cluster-update-console-plugin
     spec:

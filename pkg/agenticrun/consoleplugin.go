@@ -2,6 +2,7 @@ package agenticrun
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -16,11 +17,68 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/klog/v2"
 
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/openshift/cluster-version-operator/pkg/agenticrun/bindata"
 	i "github.com/openshift/cluster-version-operator/pkg/internal"
 )
+
+var tlsVersionToNginxProtocols = map[configv1.TLSProtocolVersion]string{
+	configv1.VersionTLS10: "TLSv1 TLSv1.1 TLSv1.2 TLSv1.3",
+	configv1.VersionTLS11: "TLSv1.1 TLSv1.2 TLSv1.3",
+	configv1.VersionTLS12: "TLSv1.2 TLSv1.3",
+	configv1.VersionTLS13: "TLSv1.3",
+}
+
+func resolveTLSProfileSpec(tlsSecurityProfile *configv1.TLSSecurityProfile) *configv1.TLSProfileSpec {
+	if tlsSecurityProfile == nil {
+		return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+	}
+	if tlsSecurityProfile.Type == configv1.TLSProfileCustomType && tlsSecurityProfile.Custom != nil {
+		return &tlsSecurityProfile.Custom.TLSProfileSpec
+	}
+	if spec, ok := configv1.TLSProfiles[tlsSecurityProfile.Type]; ok {
+		return spec
+	}
+	klog.Warningf("Unknown TLS security profile type %q, falling back to Intermediate", tlsSecurityProfile.Type)
+	return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+}
+
+func nginxTLSDirectives(profile *configv1.TLSProfileSpec) (sslProtocols, sslCiphers string) {
+	sslProtocols, ok := tlsVersionToNginxProtocols[profile.MinTLSVersion]
+	if !ok {
+		klog.Warningf("No nginx protocol mapping for MinTLSVersion %q, falling back to TLS 1.2", profile.MinTLSVersion)
+		sslProtocols = tlsVersionToNginxProtocols[configv1.VersionTLS12]
+	}
+
+	// TLS 1.3 ciphers (TLS_*) are not configurable via nginx ssl_ciphers —
+	// they are always enabled when TLS 1.3 is negotiated.
+	var ciphers []string
+	skippedTLS13 := false
+	for _, c := range profile.Ciphers {
+		if strings.HasPrefix(c, "TLS_") {
+			skippedTLS13 = true
+		} else {
+			ciphers = append(ciphers, c)
+		}
+	}
+	if skippedTLS13 {
+		klog.Warningf("Skipping TLS 1.3 ciphers from ssl_ciphers directive — nginx enables them automatically when TLS 1.3 is negotiated")
+	}
+
+	// Modern profile has only TLS 1.3 ciphers, which all get filtered above.
+	// Nginx calls SSL_CTX_set_cipher_list (ngx_event_openssl.c ngx_ssl_ciphers)
+	// at startup regardless of protocol version; OpenSSL rejects an empty string
+	// (ssl_lib.c ssl_create_cipher_list). Use a single placeholder cipher — it is
+	// never negotiated when only TLS 1.3 is active.
+	if len(ciphers) == 0 {
+		ciphers = []string{"ECDHE-ECDSA-AES128-GCM-SHA256"}
+	}
+
+	sslCiphers = strings.Join(ciphers, ":")
+	return sslProtocols, sslCiphers
+}
 
 var consolePluginAssets = []string{
 	"assets/namespace.yaml",
@@ -33,12 +91,25 @@ var consolePluginAssets = []string{
 	"assets/consoleplugin.yaml",
 }
 
-func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.Client, image string) error {
+func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.Client, image string, tlsProfile *configv1.TLSProfileSpec) error {
+	sslProtocols, sslCiphers := nginxTLSDirectives(tlsProfile)
+
+	configMapRaw := bindata.MustAsset("assets/configmap.yaml")
+	rendered := strings.ReplaceAll(string(configMapRaw), "${SSL_PROTOCOLS}", sslProtocols)
+	rendered = strings.ReplaceAll(rendered, "${SSL_CIPHERS}", sslCiphers)
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rendered)))
+
 	for _, asset := range consolePluginAssets {
-		raw := bindata.MustAsset(asset)
+		var raw []byte
+		if asset == "assets/configmap.yaml" {
+			raw = []byte(rendered)
+		} else {
+			raw = bindata.MustAsset(asset)
+		}
 
 		if asset == "assets/deployment.yaml" {
 			raw = []byte(strings.ReplaceAll(string(raw), "${IMAGE}", image))
+			raw = []byte(strings.ReplaceAll(string(raw), "${CONFIG_HASH}", configHash))
 		}
 
 		obj := &unstructured.Unstructured{}
@@ -67,6 +138,9 @@ func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.C
 		obj.SetResourceVersion(existing.GetResourceVersion())
 		if err := client.Update(ctx, obj); err != nil {
 			return fmt.Errorf("updating %s %s: %w", obj.GetKind(), obj.GetName(), err)
+		}
+		if asset == "assets/configmap.yaml" {
+			klog.Infof("Console plugin ConfigMap updated. Deployment rollout will follow")
 		}
 		klog.V(i.Normal).Infof("Updated console plugin %s %s", obj.GetKind(), obj.GetName())
 	}
