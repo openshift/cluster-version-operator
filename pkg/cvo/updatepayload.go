@@ -438,22 +438,31 @@ func (r *payloadRetriever) prunePods(ctx context.Context) error {
 // the desired architecture is changed to multi it resolves the payload using the current
 // version since that's the only valid available update. Otherwise it attempts to resolve
 // the payload using the specified desired version.
-func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch configv1.ClusterVersionArchitecture) (configv1.Update, bool) {
+func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch configv1.ClusterVersionArchitecture) (configv1.Update, bool, error) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
-		return configv1.Update{}, false
+		return configv1.Update{}, false, nil
 	}
 	if len(update.Image) == 0 {
 		version := update.Version
 
+		isMultiArchTransition := update.Architecture == configv1.ClusterVersionArchitectureMulti &&
+			currentArch != configv1.ClusterVersionArchitectureMulti
+
 		// Architecture changed to multi so only valid update is the multi arch version of current version
-		if update.Architecture == configv1.ClusterVersionArchitectureMulti &&
-			currentArch != configv1.ClusterVersionArchitectureMulti {
+		if isMultiArchTransition {
 			version = config.Status.Desired.Version
 		}
-		return findUpdateFromConfigVersion(config, version, update.Force)
+		resolved, found := findUpdateFromConfigVersion(config, version, update.Force)
+		if !found && isMultiArchTransition {
+			return resolved, found, &payload.UpdateError{
+				Reason:  "MultiArchTransitionUnavailable",
+				Message: fmt.Sprintf("Unable to start multi-architecture transition for version %q: no matching multi-architecture payload is available in status.availableUpdates", version),
+			}
+		}
+		return resolved, found, nil
 	}
-	return *update, true
+	return *update, true, nil
 }
 
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {

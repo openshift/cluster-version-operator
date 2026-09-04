@@ -837,7 +837,7 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 	config := validation.ClearInvalidFields(original, errs)
 
 	// identify the desired next version
-	desired, found := findUpdateFromConfig(config, optr.release.Architecture)
+	desired, found, selectionErr := findUpdateFromConfig(config, optr.release.Architecture)
 	initialized := optr.configSync.Initialized()
 	if found && initialized {
 		klog.V(2).Infof("Desired version from spec is %#v after initialization", desired)
@@ -881,6 +881,19 @@ func (optr *Operator) sync(ctx context.Context, key string) error {
 
 	// inform the config sync loop about our desired state
 	status := optr.configSync.Update(ctx, config.Generation, desired, config, state, optr.getEnabledFeatureGates())
+
+	// surface the multi-arch transition failure through the existing status/condition path
+	if selectionErr != nil && initialized {
+		updateErr, _ := selectionErr.(*payload.UpdateError)
+		if updateErr != nil {
+			status.loadPayloadStatus = LoadPayloadStatus{
+				Step:    updateErr.Reason,
+				Message: updateErr.Message,
+				Failure: updateErr,
+				Update:  *config.Spec.DesiredUpdate,
+			}
+		}
+	}
 
 	// write cluster version status
 	return optr.syncStatus(ctx, original, config, status, errs)

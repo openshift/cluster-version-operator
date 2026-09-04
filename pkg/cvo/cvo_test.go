@@ -2297,6 +2297,131 @@ func TestOperator_sync(t *testing.T) {
 	}
 }
 
+// TestOperator_sync_multiArchTransitionUnavailable verifies that an unavailable single-to-multi transition produces ReleaseAccepted=False.
+func TestOperator_sync_multiArchTransitionUnavailable(t *testing.T) {
+	id := uuid.Must(uuid.NewRandom()).String()
+
+	optr := &Operator{
+		release: configv1.Release{
+			Version: "4.15.0",
+			Image:   "image/image:v4.15.0",
+		},
+		namespace: "test",
+		name:      "default",
+		client: fakeClientsetWithUpdates(
+			&configv1.ClusterVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "default",
+					ResourceVersion: "1",
+					UID:             types.UID(id),
+				},
+				Spec: configv1.ClusterVersionSpec{
+					ClusterID: configv1.ClusterID(id),
+					Channel:   "stable-4.15",
+					DesiredUpdate: &configv1.Update{
+						Architecture: configv1.ClusterVersionArchitectureMulti,
+						Version:      "",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired:          configv1.Release{Version: "4.15.0", Image: "image/image:v4.15.0"},
+					AvailableUpdates: nil,
+					History: []configv1.UpdateHistory{
+						{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+					},
+					Conditions: []configv1.ClusterOperatorStatusCondition{
+						{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+						{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
+						{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+					},
+				},
+			},
+		),
+		configSync: &fakeSyncRecorder{
+			Returns: &SyncWorkerStatus{
+				Reconciling: true,
+				Completed:   1,
+				Actual:      configv1.Release{Version: "4.15.0", Image: "image/image:v4.15.0"},
+			},
+		},
+	}
+
+	optr.queue = workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]())
+	optr.proxyLister = &clientProxyLister{client: optr.client}
+	optr.cvLister = &clientCVLister{client: optr.client}
+	optr.coLister = &clientCOLister{client: optr.client}
+	optr.eventRecorder = record.NewFakeRecorder(100)
+	optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
+	registry := clusterconditions.NewConditionRegistry()
+	registry.Register("Always", &always.Always{})
+	optr.conditionRegistry = registry
+
+	ctx := context.Background()
+	err := optr.sync(ctx, optr.queueKey())
+	if err != nil {
+		t.Fatalf("Operator.sync() unexpected error: %v", err)
+	}
+
+	// verify the worker received the current release fallback, not a fabricated multi-arch image
+	actual := optr.configSync.(*fakeSyncRecorder).Updates
+	expectedSync := []configv1.Update{
+		{Version: "4.15.0", Image: "image/image:v4.15.0"},
+	}
+	if !reflect.DeepEqual(expectedSync, actual) {
+		t.Fatalf("expected sync worker to receive current release fallback %#v, got %#v", expectedSync, actual)
+	}
+
+	// extract the status update action
+	f := optr.client.(*fake.Clientset)
+	act := f.Actions()
+	var statusUpdate *configv1.ClusterVersion
+	for _, a := range act {
+		if a.GetVerb() == "update" && a.GetSubresource() == "status" {
+			statusUpdate = a.(ktesting.UpdateAction).GetObject().(*configv1.ClusterVersion)
+		}
+	}
+	if statusUpdate == nil {
+		t.Fatal("expected a status update action")
+	}
+
+	// verify ReleaseAccepted=False with the correct reason
+	var releaseAccepted *configv1.ClusterOperatorStatusCondition
+	for i := range statusUpdate.Status.Conditions {
+		if statusUpdate.Status.Conditions[i].Type == internal.ReleaseAccepted {
+			releaseAccepted = &statusUpdate.Status.Conditions[i]
+			break
+		}
+	}
+	if releaseAccepted == nil {
+		t.Fatal("expected ReleaseAccepted condition to be set")
+	}
+	if releaseAccepted.Status != configv1.ConditionFalse {
+		t.Errorf("expected ReleaseAccepted status %q, got %q", configv1.ConditionFalse, releaseAccepted.Status)
+	}
+	if releaseAccepted.Reason != "MultiArchTransitionUnavailable" {
+		t.Errorf("expected ReleaseAccepted reason %q, got %q", "MultiArchTransitionUnavailable", releaseAccepted.Reason)
+	}
+	if releaseAccepted.Message == "" {
+		t.Error("expected non-empty ReleaseAccepted message")
+	}
+
+	// verify Failing is NOT set to True by this condition-only path
+	for _, cond := range statusUpdate.Status.Conditions {
+		if cond.Type == internal.ClusterStatusFailing && cond.Status == configv1.ConditionTrue {
+			t.Error("expected Failing condition to not be set to True for this status-only path")
+		}
+	}
+
+	// verify spec.desiredUpdate is not rewritten
+	if statusUpdate.Spec.DesiredUpdate == nil {
+		t.Fatal("expected spec.desiredUpdate to remain set")
+	}
+	if statusUpdate.Spec.DesiredUpdate.Architecture != configv1.ClusterVersionArchitectureMulti {
+		t.Errorf("expected spec.desiredUpdate.architecture to remain %q, got %q",
+			configv1.ClusterVersionArchitectureMulti, statusUpdate.Spec.DesiredUpdate.Architecture)
+	}
+}
+
 func TestOperator_availableUpdatesSync(t *testing.T) {
 	id := uuid.Must(uuid.NewRandom()).String()
 	tests := []struct {
