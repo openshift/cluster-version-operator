@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -914,6 +915,24 @@ func Test_loadRiskConditions(t *testing.T) {
 				t.Errorf("%s: loadRiskConditions() mismatch (-want +got):\n%s", tt.name, diff)
 			}
 		})
+	}
+}
+
+func Test_unknownExposureMessage_trims_trailing_newline(t *testing.T) {
+	risk := configv1.ConditionalUpdateRisk{
+		Name:    "TestRisk",
+		Message: "Risk description with trailing newline\n",
+		URL:     "https://example.com/issue",
+	}
+	got := unknownExposureMessage(risk, errors.New("thanos-querier not found"))
+	if strings.Contains(got, "\n\n") {
+		t.Errorf("unknownExposureMessage() should not produce empty lines, got:\n%s", got)
+	}
+	expected := "Could not evaluate exposure to update risk TestRisk (thanos-querier not found)\n" +
+		"  TestRisk description: Risk description with trailing newline\n" +
+		"  TestRisk URL: https://example.com/issue"
+	if got != expected {
+		t.Errorf("unknownExposureMessage() produced unexpected output:\ngot:\n%q\nexpected:\n%q", got, expected)
 	}
 }
 
