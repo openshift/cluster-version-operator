@@ -166,7 +166,7 @@ func (optr *Operator) syncStatus(ctx context.Context, original, config *configv1
 
 	cvUpdated := false
 	// update the config with the latest available updates
-	if updated := optr.getAvailableUpdates().NeedsUpdate(config, optr.enabledCVOFeatureGates.StatusReleaseArchitecture()); updated != nil {
+	if updated := optr.getAvailableUpdates().NeedsUpdate(config); updated != nil {
 		cvUpdated = true
 		config = updated
 	}
@@ -225,9 +225,6 @@ func updateClusterVersionStatus(
 		}
 	}
 	desired := mergeReleaseMetadata(status.Actual, getAvailableUpdates)
-	if !enabledGates.StatusReleaseArchitecture() {
-		desired.Architecture = configv1.ClusterVersionArchitecture("")
-	}
 
 	var riskNamesForDesiredImage []string
 	if shouldReconcileAcceptRisks() {

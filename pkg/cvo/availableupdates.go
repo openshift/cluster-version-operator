@@ -233,7 +233,7 @@ func (u *availableUpdates) RecentlyChanged(interval time.Duration) bool {
 	return u.LastSyncOrConfigChange.After(time.Now().Add(-interval))
 }
 
-func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion, statusReleaseArchitecture bool) *configv1.ClusterVersion {
+func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion) *configv1.ClusterVersion {
 	if u == nil {
 		return nil
 	}
@@ -245,21 +245,8 @@ func (u *availableUpdates) NeedsUpdate(original *configv1.ClusterVersion, status
 	var updates []configv1.Release
 	var conditionalUpdates []configv1.ConditionalUpdate
 
-	if statusReleaseArchitecture {
-		updates = u.Updates
-		conditionalUpdates = u.ConditionalUpdates
-	} else {
-		for _, update := range u.Updates {
-			c := update.DeepCopy()
-			c.Architecture = configv1.ClusterVersionArchitecture("")
-			updates = append(updates, *c)
-		}
-		for _, conditionalUpdate := range u.ConditionalUpdates {
-			c := conditionalUpdate.DeepCopy()
-			c.Release.Architecture = configv1.ClusterVersionArchitecture("")
-			conditionalUpdates = append(conditionalUpdates, *c)
-		}
-	}
+	updates = u.Updates
+	conditionalUpdates = u.ConditionalUpdates
 
 	if equality.Semantic.DeepEqual(updates, original.Status.AvailableUpdates) &&
 		equality.Semantic.DeepEqual(conditionalUpdates, original.Status.ConditionalUpdates) &&
