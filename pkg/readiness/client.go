@@ -77,7 +77,6 @@ func ListAllNamespacedResources(ctx context.Context, c dynamic.Interface, gvr sc
 	return ListResources(ctx, c, gvr, labelSelector)
 }
 
-// Condition represents a parsed Kubernetes status condition.
 type Condition struct {
 	Status         string `json:"status"`
 	Reason         string `json:"reason"`
@@ -145,7 +144,6 @@ const (
 const (
 	ConditionAvailable   = "Available"
 	ConditionDegraded    = "Degraded"
-	ConditionProgressing = "Progressing"
 	ConditionUpgradeable = "Upgradeable"
 	ConditionUpdating    = "Updating"
 	ConditionRecommended = "Recommended"
