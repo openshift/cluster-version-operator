@@ -296,7 +296,14 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		return err
 	}
 
-	return waitForPodCompletion(ctx, r.kubeClient.CoreV1().Pods(pod.Namespace), pod.Name)
+	err := waitForPodCompletion(ctx, r.kubeClient.CoreV1().Pods(pod.Namespace), pod.Name)
+	if err != nil && ctx.Err() != nil {
+		klog.Infof("Deleting pod %s after retrieval cancellation", name)
+		if deleteErr := r.kubeClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); deleteErr != nil {
+			klog.Warningf("Failed to delete pod %s: %v", name, deleteErr)
+		}
+	}
+	return err
 }
 
 type PodListerWatcher interface {

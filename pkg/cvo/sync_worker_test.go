@@ -506,6 +506,119 @@ func Test_SyncWorkerShouldNotPanicDueToNotifySignalAtStartUp(t *testing.T) {
 	}
 }
 
+type blockingRetriever struct {
+	started chan struct{}
+}
+
+func (r *blockingRetriever) RetrievePayload(ctx context.Context, _ configv1.Update) (PayloadInfo, error) {
+	close(r.started)
+	<-ctx.Done()
+	return PayloadInfo{}, ctx.Err()
+}
+
+func TestSyncWorkerCancelRetrieve(t *testing.T) {
+	retriever := &blockingRetriever{started: make(chan struct{})}
+	worker := &SyncWorker{
+		retriever:     retriever,
+		eventRecorder: record.NewFakeRecorder(100),
+		report:        make(chan SyncWorkerStatus, 500),
+		notify:        make(chan string, 1),
+	}
+
+	work := &SyncWork{
+		Desired:             configv1.Update{Image: "new-image", Version: "4.16.0"},
+		EnabledFeatureGates: sets.New[string](),
+	}
+
+	ctx := context.Background()
+	errCh := make(chan error, 1)
+
+	worker.lock.Lock()
+	go func() {
+		_, err := worker.syncPayload(ctx, work)
+		worker.lock.Unlock()
+		errCh <- err
+	}()
+
+	select {
+	case <-retriever.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("retrieval did not start")
+	}
+
+	worker.CancelRetrieve()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected error from syncPayload after CancelRetrieve")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("syncPayload did not return after CancelRetrieve")
+	}
+
+	worker.lock.Lock()
+	if worker.retrieveCancelFn != nil {
+		t.Error("retrieveCancelFn should be nil after syncPayload returns")
+	}
+	worker.lock.Unlock()
+}
+
+func TestSyncWorkerCancelRetrieveNoop(t *testing.T) {
+	worker := &SyncWorker{}
+	// Must not panic when no retrieval is in progress
+	worker.CancelRetrieve()
+
+	worker.lock.Lock()
+	if worker.retrieveCancelFn != nil {
+		t.Error("retrieveCancelFn should be nil")
+	}
+	worker.lock.Unlock()
+}
+
+func TestSyncWorkerCancelRetrieveIdempotent(t *testing.T) {
+	retriever := &blockingRetriever{started: make(chan struct{})}
+	worker := &SyncWorker{
+		retriever:     retriever,
+		eventRecorder: record.NewFakeRecorder(100),
+		report:        make(chan SyncWorkerStatus, 500),
+		notify:        make(chan string, 1),
+	}
+
+	work := &SyncWork{
+		Desired:             configv1.Update{Image: "img", Version: "4.16.0"},
+		EnabledFeatureGates: sets.New[string](),
+	}
+
+	errCh := make(chan error, 1)
+	worker.lock.Lock()
+	go func() {
+		_, err := worker.syncPayload(context.Background(), work)
+		worker.lock.Unlock()
+		errCh <- err
+	}()
+
+	select {
+	case <-retriever.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("retrieval did not start")
+	}
+
+	// Multiple calls must not panic
+	worker.CancelRetrieve()
+	worker.CancelRetrieve()
+	worker.CancelRetrieve()
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("expected error from syncPayload after CancelRetrieve")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("syncPayload did not return after CancelRetrieve")
+	}
+}
+
 func Test_SyncWorkerShouldShutDownImmediatelyAtStartUpWhenContextCancelled(t *testing.T) {
 	o, _, _, _, shutdownFn := setupCVOTest("testdata/panic")
 	defer shutdownFn()

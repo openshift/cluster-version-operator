@@ -693,6 +693,9 @@ func (optr *Operator) clusterVersionEventHandler() cache.ResourceEventHandler {
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
 		UpdateFunc: func(_, _ interface{}) {
+			if optr.configSync != nil {
+				optr.configSync.CancelRetrieve()
+			}
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
