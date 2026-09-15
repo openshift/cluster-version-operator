@@ -128,7 +128,7 @@ Update path: Recommended
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func() string {
 				return "4.22.1"
-			})
+			}, nil)
 			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()

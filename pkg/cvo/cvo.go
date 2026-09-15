@@ -254,6 +254,7 @@ func New(
 	cvoGates featuregates.CvoGateChecker,
 	startingEnabledManifestFeatureGates sets.Set[string],
 	rtClient runtimeclient.Client,
+	apiServerLister configlistersv1.APIServerLister,
 ) (*Operator, error) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
@@ -369,6 +370,7 @@ func New(
 		func() string {
 			return optr.release.Version
 		},
+		apiServerLister,
 	)
 
 	return optr, nil

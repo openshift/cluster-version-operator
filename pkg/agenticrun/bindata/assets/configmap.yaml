@@ -19,6 +19,10 @@ data:
         listen              [::]:9001 ssl;
         ssl_certificate     /var/cert/tls.crt;
         ssl_certificate_key /var/cert/tls.key;
+        ssl_protocols       ${SSL_PROTOCOLS};
+        ssl_ciphers         ${SSL_CIPHERS};
+        ssl_prefer_server_ciphers on;
+        server_tokens       off;
         root                /usr/share/nginx/html;
       }
     }
