@@ -27,11 +27,13 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/clusterconditions"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 const noArchitecture string = "NoArchitecture"
 const noChannel string = "NoChannel"
 const defaultUpdateService string = "https://api.openshift.com/api/upgrades_info/v1/graph"
+const defaultOKDUpdateService string = "https://updates.okd.io/api/updates/graph"
 
 // syncAvailableUpdates attempts to retrieve the latest updates and update the status of the ClusterVersion
 // object. It will set the RetrievedUpdates condition. Updates are only checked if it has been more than
@@ -48,8 +50,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 		updateServiceSource = "ClusterVersion spec.upstream"
 	} else {
 		usedDefaultUpdateService = true
-		updateService = defaultUpdateService
-		updateServiceSource = "the operator's default update service"
+		updateService, updateServiceSource = getDefaultUpdateService()
 	}
 
 	channel := config.Spec.Channel
@@ -85,7 +86,7 @@ func (optr *Operator) syncAvailableUpdates(ctx context.Context, config *configv1
 	} else if !optrAvailableUpdates.RecentlyAttempted(optr.minimumUpdateCheckInterval) {
 		klog.V(2).Infof("Retrieving available updates again, because more than %s has elapsed since last attempt at %s", optr.minimumUpdateCheckInterval, optrAvailableUpdates.LastAttempt.Format(time.RFC3339))
 		preserveCacheOnFailure = true
-	} else if updateService == optrAvailableUpdates.UpdateService || (updateService == defaultUpdateService && optrAvailableUpdates.UpdateService == "") {
+	} else if updateService == optrAvailableUpdates.UpdateService || (usedDefaultUpdateService && optrAvailableUpdates.UpdateService == "") {
 		needsConditionalUpdateEval := false
 		preserveCacheOnFailure = true
 		for _, conditionalUpdate := range optrAvailableUpdates.ConditionalUpdates {
@@ -450,6 +451,13 @@ func loadRiskVersions(conditionalUpdates []configv1.ConditionalUpdate) map[strin
 		return nil
 	}
 	return riskVersions
+}
+
+func getDefaultUpdateService() (string, string) {
+	if version.IsOKD() {
+		return defaultOKDUpdateService, "the operator's default OKD update service"
+	}
+	return defaultUpdateService, "the operator's default update service"
 }
 
 func (optr *Operator) getDesiredArchitecture(update *configv1.Update) string {

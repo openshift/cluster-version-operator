@@ -8,6 +8,9 @@ import (
 )
 
 var (
+	// OKD is true when the operator was built for OKD.
+	OKD = false
+
 	// Raw is the string representation of the version. This will be replaced
 	// with the calculated version at build time.
 	Raw = "v0.0.1"
@@ -18,3 +21,8 @@ var (
 	// String is the human-friendly representation of the version.
 	String = fmt.Sprintf("ClusterVersionOperator %s", Raw)
 )
+
+// IsOKD returns true when the operator was built for OKD.
+func IsOKD() bool {
+	return OKD
+}

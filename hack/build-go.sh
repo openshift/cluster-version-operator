@@ -8,6 +8,8 @@ cd "$(git rev-parse --show-cdup)./"
 # Source build variables
 source hack/build-info.sh
 
+GOTAGS="${TAGS:-}"
+
 echo "Building binaries into ${BIN_PATH}"
 mkdir -p ${BIN_PATH}
 
@@ -25,6 +27,7 @@ echo "Building ${REPO} cluster-version-operator-tests binary (${VERSION_OVERRIDE
 GO_COMPLIANCE_POLICY="exempt_all" CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH}   \
   go build                                                                      \
   ${GOFLAGS}                                                                    \
+  -tags="${GOTAGS}"                                                            \
   -ldflags "${LDFLAGS_TEST_EXTENSION}"                                          \
   -o "${BIN_PATH}/cluster-version-operator-tests"                               \
   "${REPO}/cmd/cluster-version-operator-tests/..."
@@ -35,4 +38,4 @@ gzip --keep --force "${BIN_PATH}/cluster-version-operator-tests"
 # Build the cluster-version-operator binary
 GLDFLAGS+="-X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 echo "Building ${REPO} cluster-version-operator binary (${VERSION_OVERRIDE})"
-GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${GLDFLAGS}" -o ${BIN_PATH}/cluster-version-operator ${REPO}/cmd/cluster-version-operator/...
+GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -tags="${GOTAGS}" -ldflags "${GLDFLAGS}" -o ${BIN_PATH}/cluster-version-operator ${REPO}/cmd/cluster-version-operator/...

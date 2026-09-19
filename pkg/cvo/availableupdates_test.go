@@ -34,6 +34,7 @@ import (
 	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/risk"
 	riskmock "github.com/openshift/cluster-version-operator/pkg/risk/mock"
+	"github.com/openshift/cluster-version-operator/pkg/version"
 )
 
 // notFoundProxyLister is a stub for ProxyLister
@@ -1279,5 +1280,43 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 
 	if diff := cmp.Diff(expected, optr.availableUpdates, availableUpdatesCmpOpts...); diff != "" {
 		t.Errorf("syncAvailableUpdates mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestGetDefaultUpdateService(t *testing.T) {
+	originalOKD := version.OKD
+	t.Cleanup(func() {
+		version.OKD = originalOKD
+	})
+
+	tests := []struct {
+		name       string
+		okd        bool
+		wantURL    string
+		wantSource string
+	}{
+		{
+			name:       "OCP build",
+			wantURL:    defaultUpdateService,
+			wantSource: "the operator's default update service",
+		},
+		{
+			name:       "OKD build",
+			okd:        true,
+			wantURL:    defaultOKDUpdateService,
+			wantSource: "the operator's default OKD update service",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			version.OKD = tt.okd
+			gotURL, gotSource := getDefaultUpdateService()
+			if gotURL != tt.wantURL {
+				t.Errorf("getDefaultUpdateService() URL = %q, want %q", gotURL, tt.wantURL)
+			}
+			if gotSource != tt.wantSource {
+				t.Errorf("getDefaultUpdateService() source = %q, want %q", gotSource, tt.wantSource)
+			}
+		})
 	}
 }
