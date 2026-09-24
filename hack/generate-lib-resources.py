@@ -32,7 +32,7 @@ def generate_resourceread(directory, types):
         short_name = os.path.basename(base)
         imports[package] = '\t{}{} "{}"'.format(short_name, version, package)
 
-    lines.extend([import_line for _, import_line in sorted(imports.items(), key=lambda package_line: package_line[0])])
+    lines.extend(group_imports(imports))
     lines.extend([
         ')',
         '',
@@ -90,6 +90,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         'import (',
         '\t"context"',
         '\t"fmt"',
+        '\t"sync"',
         '',
     ]
 
@@ -128,7 +129,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
             'protobuf': client['package'].startswith('k8s.io/') and 'kube-aggregator' not in client['package'],
         }
 
-    lines.extend([import_line for _, import_line in sorted(imports.items(), key=lambda package_line: package_line[0])])
+    lines.extend(group_imports(imports))
 
     longest_property = max(len(prop_name) for prop_name in client_properties.keys())
 
@@ -150,19 +151,91 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
     lines.extend([
         '}',
         '',
-        'func newBuilder(config *rest.Config, m manifest.Manifest) Interface {',
-        '\treturn &builder{',
-        '\t\traw: m.Raw,',
+        '// clientSet holds cached typed clients for resource building.',
+        'type clientSet struct {',
+    ])
+    lines.extend([
+        '\t{:{width}} {}'.format(prop_name, data['type'], width=longest_property)
+        for prop_name, data in sorted(client_properties.items())
+    ])
+    lines.extend([
+        '}',
         '',
+        'func newClientSet(config *rest.Config) (*clientSet, error) {',
     ])
     for prop_name, data in sorted(client_properties.items()):
         new_client_arg = 'config'
         if data.get('protobuf'):
             new_client_arg = 'withProtobuf({})'.format(new_client_arg)
-        lines.append('\t\t{:{width}} {}.NewForConfigOrDie({}),'.format(prop_name + ':', data['client_short_name'], new_client_arg, width=longest_property+1))
-
+        var_name = prop_name[0].lower() + prop_name[1:]
+        lines.extend([
+            '\t{}, err := {}.NewForConfig({})'.format(var_name, data['client_short_name'], new_client_arg),
+            '\tif err != nil {',
+            '\t\treturn nil, err',
+            '\t}',
+        ])
     lines.extend([
+        '\treturn &clientSet{',
+    ])
+    for prop_name, data in sorted(client_properties.items()):
+        var_name = prop_name[0].lower() + prop_name[1:]
+        lines.append('\t\t{:{width}} {},'.format(prop_name + ':', var_name, width=longest_property+1))
+    lines.extend([
+        '\t}, nil',
+        '}',
+        '',
+        '// clientSetSlot pairs a rest.Config pointer with its lazily-created clientSet.',
+        'type clientSetSlot struct {',
+        '\tconfig  *rest.Config',
+        '\tclients *clientSet',
+        '}',
+        '',
+        '// clientSetSlots caches clientSets for the two rest.Config pointers used by the',
+        '// CVO: one for default-QPS and one for burst-QPS during initialization. The',
+        '// fixed-size array makes the two-client constraint visible in the code and will',
+        '// produce a clear error if a future change introduces a third config.',
+        'var (',
+        '\tclientSetMu    sync.Mutex',
+        '\tclientSetSlots [2]clientSetSlot',
+        ')',
+        '',
+        'func getOrCreateClientSet(config *rest.Config) (*clientSet, error) {',
+        '\tif config == nil {',
+        '\t\treturn nil, fmt.Errorf("cannot create client set from nil rest.Config")',
         '\t}',
+        '\tclientSetMu.Lock()',
+        '\tdefer clientSetMu.Unlock()',
+        '\tfor i := range clientSetSlots {',
+        '\t\tif clientSetSlots[i].config == config {',
+        '\t\t\treturn clientSetSlots[i].clients, nil',
+        '\t\t}',
+        '\t}',
+        '\tcs, err := newClientSet(config)',
+        '\tif err != nil {',
+        '\t\treturn nil, err',
+        '\t}',
+        '\tfor i := range clientSetSlots {',
+        '\t\tif clientSetSlots[i].config == nil {',
+        '\t\t\tclientSetSlots[i] = clientSetSlot{config: config, clients: cs}',
+        '\t\t\treturn cs, nil',
+        '\t\t}',
+        '\t}',
+        '\treturn nil, fmt.Errorf("exceeded %d cached client sets, which is the maximum supported by the CVO", len(clientSetSlots))',
+        '}',
+        '',
+        'func newBuilder(config *rest.Config, m manifest.Manifest) (Interface, error) {',
+        '\tcs, err := getOrCreateClientSet(config)',
+        '\tif err != nil {',
+        '\t\treturn nil, err',
+        '\t}',
+        '\treturn &builder{',
+        '\t\traw: m.Raw,',
+        '',
+    ])
+    for prop_name, data in sorted(client_properties.items()):
+        lines.append('\t\t{:{width}} cs.{},'.format(prop_name + ':', prop_name, width=longest_property+1))
+    lines.extend([
+        '\t}, nil',
         '}',
         '',
         'func (b *builder) WithMode(m Mode) Interface {',
@@ -261,6 +334,33 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
 
     with open(path, 'w') as f:
         f.write('\n'.join(lines))
+
+
+def group_imports(imports):
+    """Group import lines by gci category: default, k8s.io, github.com/openshift, localmodule."""
+    local_module = 'github.com/openshift/cluster-version-operator'
+    groups = {
+        'default': [],
+        'k8s.io': [],
+        'openshift': [],
+        'localmodule': [],
+    }
+    for package, line in sorted(imports.items(), key=lambda package_line: package_line[0]):
+        if package.startswith(local_module):
+            groups['localmodule'].append(line)
+        elif package.startswith('github.com/openshift'):
+            groups['openshift'].append(line)
+        elif package.startswith('k8s.io'):
+            groups['k8s.io'].append(line)
+        else:
+            groups['default'].append(line)
+    result = []
+    for key in ['default', 'k8s.io', 'openshift', 'localmodule']:
+        if groups[key]:
+            if result:
+                result.append('')
+            result.extend(groups[key])
+    return result
 
 
 def scheme_group_versions(types):
