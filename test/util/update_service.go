@@ -185,14 +185,18 @@ func RunUpdateService(ctx context.Context, kubeClient kubernetes.Interface, name
 					Containers: []corev1.Container{{
 						Name:  "update-service",
 						Image: toolsImage,
+						Env: []corev1.EnvVar{{
+							Name:  "GRAPH_JSON",
+							Value: graphJSON,
+						}},
 						Args: []string{
 							"/bin/sh",
 							"-c",
-							fmt.Sprintf(`DIR="$(mktemp -d)" &&
+							`DIR="$(mktemp -d)" &&
 cd "${DIR}" &&
-printf '%%s' '%s' >graph &&
+printf '%s' "${GRAPH_JSON}" >graph &&
 python3 -m http.server --bind ::
-`, graphJSON),
+`,
 						},
 						Ports: []corev1.ContainerPort{{
 							Name:          "update-service",
