@@ -100,9 +100,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		cv.Spec.Upstream = util.FauxinnatiAPIURL
 		cv.Spec.Channel = "OTA-1813"
 
+		needRecover = true
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
-		needRecover = true
 
 		g.By("Create a critical alert for testing")
 		prometheusRule := &monitoringv1.PrometheusRule{
@@ -236,9 +236,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		cv.Spec.Upstream = util.FauxinnatiAPIURL
 		cv.Spec.Channel = "risks-always"
 
+		needRecover = true
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
-		needRecover = true
 
 		g.By("Checking that conditional updates shows up in status")
 		// waiting for the conditional updates to show up
