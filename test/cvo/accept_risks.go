@@ -10,6 +10,7 @@ import (
 	prometheusoperatorv1client "github.com/prometheus-operator/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 	"sigs.k8s.io/yaml"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -30,13 +32,15 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 	var (
 		c                *rest.Config
+		kubeClient       kubernetes.Interface
 		configClient     *configv1client.ConfigV1Client
 		monitoringClient *prometheusoperatorv1client.MonitoringV1Client
 		err              error
 
-		ctx         = context.TODO()
-		needRecover bool
-		backup      configv1.ClusterVersionSpec
+		ctx                    = context.TODO()
+		needRecover            bool
+		backup                 configv1.ClusterVersionSpec
+		updateServiceNamespace string
 	)
 
 	const (
@@ -46,6 +50,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 	g.BeforeEach(func() {
 		c, err = util.GetRestConfig()
+		o.Expect(err).To(o.BeNil())
+		kubeClient, err = util.GetKubeClient(c)
 		o.Expect(err).To(o.BeNil())
 		configClient, err = configv1client.NewForConfig(c)
 		o.Expect(err).To(o.BeNil())
@@ -63,6 +69,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks in ClusterVersion before testing")
 		}
 		backup = *cv.Spec.DeepCopy()
+		updateServiceNamespace = ""
 	})
 
 	g.AfterEach(func() {
@@ -86,6 +93,12 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 				return true, nil
 			})
 			o.Expect(err).NotTo(o.HaveOccurred(), "failed to recover cluster version with lastErr=%v while waiting", updateErr)
+		}
+		if updateServiceNamespace != "" {
+			err := kubeClient.CoreV1().Namespaces().Delete(ctx, updateServiceNamespace, metav1.DeleteOptions{})
+			if !errors.IsNotFound(err) {
+				o.Expect(err).NotTo(o.HaveOccurred())
+			}
 		}
 	})
 
@@ -226,15 +239,28 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should work with accept risks", g.Label("Serial"), func() {
-		// This test case relies on a public service util.FauxinnatiAPIURL
-		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
-
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Using fauxinnati as the upstream and its risks-always channel")
-		cv.Spec.Upstream = util.FauxinnatiAPIURL
-		cv.Spec.Channel = "risks-always"
+		const channel = "risks-always"
+
+		g.By("Creating an in-cluster update service with a risks-always graph")
+		ns, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "e2e-cvo-update-service-",
+			},
+		}, metav1.CreateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		updateServiceNamespace = ns.Name
+
+		graph, err := util.GenerateGraph(cv.Status.Desired, channel)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		upstream, err := util.RunUpdateService(ctx, kubeClient, updateServiceNamespace, string(graph))
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Pointing ClusterVersion at the in-cluster update service")
+		cv.Spec.Upstream = configv1.URL(upstream.String())
+		cv.Spec.Channel = channel
 
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
