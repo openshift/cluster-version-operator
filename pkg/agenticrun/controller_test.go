@@ -99,6 +99,9 @@ Update path: Recommended
 								Analysis: agenticrunv1alpha1.AgenticRunStep{
 									Agent: "smart",
 								},
+								Execution: agenticrunv1alpha1.AgenticRunStep{
+									Agent: "smart",
+								},
 								Tools: agenticrunv1alpha1.ToolsSpec{
 									Skills: []agenticrunv1alpha1.SkillsSource{
 										{
@@ -106,12 +109,13 @@ Update path: Recommended
 											Paths: []string{
 												"/skills/cluster-update/cluster-update-advisor",
 												"/skills/cluster-update/product-lifecycle",
+												"/skills/cluster-update/cluster-update-planner",
 											},
 										},
 									},
 								},
 								AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-									Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+									Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 									Schema: analysisOutputSchema(),
 								},
 							},
@@ -220,7 +224,7 @@ func TestBuildRequest(t *testing.T) {
 	}
 
 	t.Run("recommended target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "")
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "", nil)
 		if !strings.Contains(request, "Current version: OCP 4.15.3") {
 			t.Error("request should contain current version")
 		}
@@ -236,6 +240,9 @@ func TestBuildRequest(t *testing.T) {
 		if strings.Contains(request, "WARNING") {
 			t.Error("recommended target should not have warning")
 		}
+		if strings.Contains(request, "Conditional Update Risks") {
+			t.Error("recommended target should not have risk section")
+		}
 		if !strings.Contains(request, "Other recommended versions available:") {
 			t.Error("should list other versions when more than one update")
 		}
@@ -244,18 +251,47 @@ func TestBuildRequest(t *testing.T) {
 		}
 	})
 
-	t.Run("conditional target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "")
+	t.Run("conditional target without risks", func(t *testing.T) {
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "", nil)
 		if !strings.Contains(request, "WARNING") {
-			t.Error("conditional target should have warning")
+			t.Error("conditional target without risks should have generic warning")
 		}
 		if !strings.Contains(request, "CONDITIONAL update") {
 			t.Error("conditional target should mention CONDITIONAL")
 		}
 	})
 
+	t.Run("conditional target with risks", func(t *testing.T) {
+		risks := []configv1.ConditionalUpdateRisk{
+			{
+				Name:    "PDBDrainBlocker",
+				Message: "Clusters with PodDisruptionBudgets that block node drains may fail to upgrade.",
+				URL:     "https://access.redhat.com/solutions/pdb-drain",
+				Conditions: []metav1.Condition{
+					{Type: "Applies", Status: metav1.ConditionTrue},
+				},
+			},
+		}
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "", risks)
+		if strings.Contains(request, "WARNING") {
+			t.Error("conditional target with risks should not have generic warning")
+		}
+		if !strings.Contains(request, "== Conditional Update Risks ==") {
+			t.Error("should have risk section header")
+		}
+		if !strings.Contains(request, "Name: PDBDrainBlocker") {
+			t.Error("should contain risk name")
+		}
+		if !strings.Contains(request, "Applies: True") {
+			t.Error("should contain applies status")
+		}
+		if !strings.Contains(request, "https://access.redhat.com/solutions/pdb-drain") {
+			t.Error("should contain risk URL")
+		}
+	})
+
 	t.Run("readiness JSON embedded", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`)
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`, nil)
 		if !strings.Contains(request, "## Cluster Readiness Data") {
 			t.Error("request should contain readiness data header")
 		}
@@ -773,6 +809,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -780,12 +819,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -822,6 +862,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -829,12 +872,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -880,6 +924,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -887,12 +934,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -922,6 +970,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -929,12 +980,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -969,6 +1021,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -976,12 +1031,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -1016,6 +1072,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -1023,12 +1082,86 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
+							Schema: analysisOutputSchema(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name:             "conditional update with risks",
+			availableUpdates: []configv1.Release{},
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.16.0"},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:    "PDBDrainBlocker",
+							Message: "Clusters with PDBs may fail to upgrade.",
+							URL:     "https://access.redhat.com/solutions/pdb",
+							Conditions: []metav1.Condition{
+								{Type: "Applies", Status: metav1.ConditionTrue},
+							},
+						},
+					},
+				},
+			},
+			namespace:      "openshift-lightspeed",
+			currentVersion: "4.15.3",
+			channel:        "stable-4.16",
+			expected: []*agenticrunv1alpha1.AgenticRun{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ota-4-15-3-to-4-16-0",
+						Namespace: "openshift-lightspeed",
+						Labels: map[string]string{
+							"agentic.openshift.io/current-version": "4.15.3",
+							"agentic.openshift.io/source":          "cluster-version-operator",
+							"agentic.openshift.io/target-version":  "4.16.0",
+							"agentic.openshift.io/update-type":     "Minor",
+						},
+					},
+					Spec: agenticrunv1alpha1.AgenticRunSpec{
+						Request: `Current version: OCP 4.15.3
+Target version: OCP 4.16.0
+Channel: stable-4.16
+Update type: Minor
+Update path: Conditional
+
+== Conditional Update Risks ==
+- Name: PDBDrainBlocker
+  Applies: True
+  Message: "Clusters with PDBs may fail to upgrade."
+  URL: https://access.redhat.com/solutions/pdb
+
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
+						Analysis: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
+						Tools: agenticrunv1alpha1.ToolsSpec{
+							Skills: []agenticrunv1alpha1.SkillsSource{
+								{
+									Image: "registry.example.com/agentic-skills:latest",
+									Paths: []string{
+										"/skills/cluster-update/cluster-update-advisor",
+										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
+									},
+								},
+							},
+						},
+						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
