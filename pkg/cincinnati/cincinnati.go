@@ -203,7 +203,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 		return current, nil, nil, &Error{Reason: "ResponseFailed", Message: err.Error(), cause: err}
 	}
 
-	var graph graph
+	var graph Graph
 	if err = json.Unmarshal(body, &graph); err != nil {
 		return current, nil, nil, &Error{Reason: "ResponseInvalid", Message: err.Error(), cause: err}
 	}
@@ -262,7 +262,7 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	for _, conditionalEdges := range graph.ConditionalEdges {
 		for _, edge := range conditionalEdges.Edges {
 			if version.String() == edge.From {
-				var target *node
+				var target *Node
 				for i, node := range graph.Nodes {
 					if node.Version.String() == edge.To {
 						target = &graph.Nodes[i]
@@ -336,23 +336,23 @@ func (c Client) GetUpdates(ctx context.Context, uri *url.URL, desiredArch, curre
 	return current, updates, conditionalUpdates, nil
 }
 
-// graph represents the update graph structure returned by the Cincinnati service.
+// Graph represents the update graph structure returned by the Cincinnati service.
 // It defines all available cluster versions and the valid upgrade paths between them.
-type graph struct {
+type Graph struct {
 	// Nodes contains all cluster version releases available in this channel.
-	Nodes []node
+	Nodes []Node `json:"nodes"`
 
 	// Edges defines unconditional upgrade paths as index pairs referencing Nodes.
 	// Each edge indicates a recommended upgrade from one version to another.
-	Edges []edge
+	Edges []Edge `json:"edges"`
 
 	// ConditionalEdges defines upgrade paths that require risk evaluation.
 	// These upgrades are only recommended if their associated risks are acceptable.
-	ConditionalEdges []conditionalEdges `json:"conditionalEdges"`
+	ConditionalEdges []ConditionalEdges `json:"conditionalEdges"`
 }
 
-// node represents a single cluster version in the update graph.
-type node struct {
+// Node represents a single cluster version in the update graph.
+type Node struct {
 	// Version is the semantic version of this release.
 	Version semver.Version `json:"version"`
 
@@ -364,9 +364,9 @@ type node struct {
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// edge represents an unconditional upgrade path between two versions in the graph.
+// Edge represents an unconditional upgrade path between two versions in the graph.
 // It is serialized as a two-element array [origin, destination] in JSON.
-type edge struct {
+type Edge struct {
 	// Origin is the index of the source version node.
 	Origin int
 
@@ -374,9 +374,9 @@ type edge struct {
 	Destination int
 }
 
-// conditionalEdge represents a single conditional upgrade path between two versions
+// ConditionalEdge represents a single conditional upgrade path between two versions
 // identified by their version strings rather than node indices.
-type conditionalEdge struct {
+type ConditionalEdge struct {
 	// From is the semantic version string of the source release.
 	From string `json:"from"`
 
@@ -384,22 +384,22 @@ type conditionalEdge struct {
 	To string `json:"to"`
 }
 
-// conditionalEdges groups a set of conditional upgrade edges with their shared risks.
+// ConditionalEdges groups a set of conditional upgrade edges with their shared risks.
 // All edges in this group are subject to the same risk conditions.
-type conditionalEdges struct {
+type ConditionalEdges struct {
 	// Edges contains the conditional upgrade paths sharing these risks.
-	Edges []conditionalEdge `json:"edges"`
+	Edges []ConditionalEdge `json:"edges"`
 
 	// Risks defines the conditions that must be evaluated to determine if
 	// these conditional updates are recommended for a particular cluster.
 	Risks []configv1.ConditionalUpdateRisk `json:"risks"`
 }
 
-// UnmarshalJSON deserializes an edge from its JSON representation.
+// UnmarshalJSON deserializes an Edge from its JSON representation.
 // Edges are represented in JSON as two-element arrays [origin, destination],
 // but are stored in Go as a struct with named fields, requiring this custom
 // unmarshaling logic.
-func (e *edge) UnmarshalJSON(data []byte) error {
+func (e *Edge) UnmarshalJSON(data []byte) error {
 	var fields []int
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
@@ -415,9 +415,14 @@ func (e *edge) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON serializes an Edge as a two-element array [origin, destination].
+func (e Edge) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]int{e.Origin, e.Destination})
+}
+
 // convertRetrievedUpdateToRelease converts a Cincinnati graph node to a ClusterVersion Release.
 // It combines the node's version and image with metadata parsed from the node's metadata map.
-func convertRetrievedUpdateToRelease(update node) (configv1.Release, error) {
+func convertRetrievedUpdateToRelease(update Node) (configv1.Release, error) {
 	release, err := ParseMetadata(update.Metadata)
 	release.Version = update.Version.String()
 	release.Image = update.Image
