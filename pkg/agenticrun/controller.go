@@ -33,13 +33,17 @@ import (
 //go:embed analysis_schema.json
 var analysisSchemaJSON []byte
 
-var prompt string = `You are an OpenShift upgrade advisor. Analyze the cluster readiness data in the agentic run request and produce an upgrade risk assessment.
+var prompt string = `You are an OpenShift upgrade advisor and planner. Analyze the cluster readiness data in the agentic run request and produce an upgrade risk assessment.
 
 The request contains a "Cluster Readiness Data" section with a JSON block. This was collected by the Cluster Version Operator — do not re-collect it. Parse the JSON, evaluate each check's results, and classify findings as blockers, warnings, or informational.
 
-Use the update-advisor skill for the decision framework and blocker classification rules. When findings need deeper investigation, use prometheus metrics and product-lifecycle skills.
+Use the cluster-update-advisor skill for the decision framework and blocker classification rules. When findings need deeper investigation, use prometheus metrics and product-lifecycle skills.
 
 When the readiness data includes olm_operator_lifecycle results, use the product-lifecycle skill to cross-reference each operator's package name against the Red Hat Product Life Cycle API. Report support phase, EOL dates, and OCP compatibility from Product Lifecycle alongside the OLM data.
+
+Use the cluster-update-planner skill to produce a remediation plan for upgrading the cluster. Include OLM operator upgrades before the platform upgrade.
+
+If the assessment determines the upgrade is not feasible or no viable remediation path exists, do not produce a remediation plan — explain why in the diagnosis instead.
 
 Do not guess or assume cluster state. Do not execute upgrade commands.
 
@@ -433,7 +437,8 @@ func getAgenticRuns(
 	return agenticRuns, kutilerrors.NewAggregate(errs)
 }
 
-func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string, availableUpdates []configv1.Release, skillsImage string) (*agenticrunv1alpha1.AgenticRun, error) {
+func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string,
+	availableUpdates []configv1.Release, skillsImage string) (*agenticrunv1alpha1.AgenticRun, error) {
 
 	var errs []error
 	for _, v := range []string{currentVersion, targetVersion} {
@@ -465,6 +470,12 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 			Analysis: agenticrunv1alpha1.AgenticRunStep{
 				Agent: "smart",
 			},
+			Execution: agenticrunv1alpha1.AgenticRunStep{
+				Agent: "smart",
+			},
+			Verification: agenticrunv1alpha1.AgenticRunStep{
+				Agent: "smart",
+			},
 			Tools: agenticrunv1alpha1.ToolsSpec{
 				Skills: []agenticrunv1alpha1.SkillsSource{
 					{
@@ -472,12 +483,13 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 						Paths: []string{
 							"/skills/cluster-update/cluster-update-advisor",
 							"/skills/cluster-update/product-lifecycle",
+							"/skills/cluster-update/cluster-update-planner",
 						},
 					},
 				},
 			},
 			AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-				Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+				Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 				Schema: analysisOutputSchema(),
 			},
 		},
