@@ -99,6 +99,9 @@ Update path: Recommended
 								Analysis: agenticrunv1alpha1.AgenticRunStep{
 									Agent: "smart",
 								},
+								Execution: agenticrunv1alpha1.AgenticRunStep{
+									Agent: "smart",
+								},
 								Tools: agenticrunv1alpha1.ToolsSpec{
 									Skills: []agenticrunv1alpha1.SkillsSource{
 										{
@@ -106,12 +109,13 @@ Update path: Recommended
 											Paths: []string{
 												"/skills/cluster-update/cluster-update-advisor",
 												"/skills/cluster-update/product-lifecycle",
+												"/skills/cluster-update/cluster-update-planner",
 											},
 										},
 									},
 								},
 								AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-									Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+									Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 									Schema: analysisOutputSchema(),
 								},
 							},
@@ -145,6 +149,268 @@ Update path: Recommended
 				if err := tt.verifyFunc(tt.client); err != nil {
 					t.Errorf("unexpected error: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestSync_LifecycleWithExecutionPhase(t *testing.T) {
+	updatesGetter := func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+		return []configv1.Release{{Version: "5.0.1"}}, nil, nil
+	}
+	cvGetter := func(_ string) (*configv1.ClusterVersion, error) {
+		return &configv1.ClusterVersion{
+			ObjectMeta: metav1.ObjectMeta{Name: "version"},
+			Spec:       configv1.ClusterVersionSpec{Channel: "stable-5.0"},
+		}, nil
+	}
+	currentVersion := "5.0.0"
+	expiredTimestamp := metav1.Time{Time: time.Now().Add(-25 * time.Hour)}
+
+	existingRun := func(conditions []metav1.Condition) *agenticrunv1alpha1.AgenticRun {
+		return &agenticrunv1alpha1.AgenticRun{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "ota-5-0-0-to-5-0-1",
+				Namespace:         "openshift-lightspeed",
+				CreationTimestamp:  expiredTimestamp,
+				Labels: map[string]string{
+					labelKeySource:         labelValueSource,
+					labelKeyCurrentVersion: "5.0.0",
+					labelKeyTargetVersion:  "5.0.1",
+				},
+			},
+			Status: agenticrunv1alpha1.AgenticRunStatus{
+				Conditions: conditions,
+			},
+		}
+	}
+
+	tests := []struct {
+		name           string
+		conditions     []metav1.Condition
+		expectPreserved bool
+	}{
+		{
+			name:           "expired Pending run is deleted and recreated",
+			conditions:     nil,
+			expectPreserved: false,
+		},
+		{
+			name: "expired Completed run is deleted and recreated",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: false,
+		},
+		{
+			name: "expired Executing run is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired Verifying run is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionUnknown},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired execution-Failed run is NOT deleted (no auto-retry)",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired verification-Failed run is NOT deleted (execution already modified cluster)",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired analysis-Failed run IS deleted and recreated",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := existingRun(tt.conditions)
+			client := fake.NewClientBuilder().WithObjects(existing).Build()
+			c := NewController(updatesGetter, client, nil, cvGetter, func() string {
+				return currentVersion
+			}, nil)
+			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
+			c.crdAvailableCache = true
+			c.crdLastChecked = time.Now()
+
+			if err := c.Sync(context.Background(), tt.name); err != nil {
+				t.Fatalf("Sync returned error: %v", err)
+			}
+
+			got := &agenticrunv1alpha1.AgenticRun{}
+			err := client.Get(context.Background(), ctrlruntimeclient.ObjectKey{
+				Name: "ota-5-0-0-to-5-0-1", Namespace: "openshift-lightspeed",
+			}, got)
+
+			if err != nil {
+				t.Fatalf("expected agentic run to exist, got error: %v", err)
+			}
+
+			if tt.expectPreserved {
+				if len(got.Status.Conditions) != len(tt.conditions) {
+					t.Errorf("expected original run with %d conditions to be preserved, got %d conditions", len(tt.conditions), len(got.Status.Conditions))
+				}
+			} else {
+				if len(got.Status.Conditions) != 0 {
+					t.Errorf("expected a fresh recreated run with no conditions, got %d conditions", len(got.Status.Conditions))
+				}
+			}
+		})
+	}
+}
+
+func TestDeleteAgenticRuns_ActivePhaseTargetRemoved(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name        string
+		conditions  []metav1.Condition
+		expectKept  bool
+	}{
+		{
+			name: "executing run is kept despite target removal",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+			},
+			expectKept: true,
+		},
+		{
+			name: "verifying run is kept despite target removal",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionUnknown},
+			},
+			expectKept: true,
+		},
+		{
+			name:       "pending run is deleted when target removed",
+			conditions: nil,
+			expectKept: false,
+		},
+		{
+			name: "failed run is deleted when target removed",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+			},
+			expectKept: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := agenticrunv1alpha1.AgenticRun{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "run-target-removed",
+					Namespace: "openshift-lightspeed",
+					Labels: map[string]string{
+						labelKeySource:         labelValueSource,
+						labelKeyCurrentVersion: "5.0.0",
+						labelKeyTargetVersion:  "5.0.1",
+					},
+				},
+				Status: agenticrunv1alpha1.AgenticRunStatus{
+					Conditions: tt.conditions,
+				},
+			}
+			client := fake.NewClientBuilder().WithObjects(&existing).Build()
+
+			err := deleteAgenticRuns(ctx, client, []configv1.Release{{Version: "5.0.2"}}, nil, nil, "5.0.0")
+			if err != nil {
+				t.Fatalf("deleteAgenticRuns returned error: %v", err)
+			}
+
+			got := &agenticrunv1alpha1.AgenticRun{}
+			err = client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: "run-target-removed", Namespace: "openshift-lightspeed"}, got)
+
+			if tt.expectKept {
+				if err != nil {
+					t.Errorf("expected run to be kept, but got error: %v", err)
+				}
+			} else {
+				if !kerrors.IsNotFound(err) {
+					t.Errorf("expected run to be deleted, but it still exists")
+				}
+			}
+		})
+	}
+}
+
+func TestExecutionAttempted(t *testing.T) {
+	tests := []struct {
+		name       string
+		conditions []metav1.Condition
+		expected   bool
+	}{
+		{
+			name:     "no conditions",
+			expected: false,
+		},
+		{
+			name: "analysis failed",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionFalse},
+			},
+			expected: false,
+		},
+		{
+			name: "execution failed",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+			},
+			expected: true,
+		},
+		{
+			name: "execution in progress",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+			},
+			expected: false,
+		},
+		{
+			name: "execution succeeded",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := executionAttempted(tt.conditions)
+			if got != tt.expected {
+				t.Errorf("executionAttempted() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
@@ -220,7 +486,7 @@ func TestBuildRequest(t *testing.T) {
 	}
 
 	t.Run("recommended target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "")
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "recommended", updates, "", nil)
 		if !strings.Contains(request, "Current version: OCP 4.15.3") {
 			t.Error("request should contain current version")
 		}
@@ -236,6 +502,9 @@ func TestBuildRequest(t *testing.T) {
 		if strings.Contains(request, "WARNING") {
 			t.Error("recommended target should not have warning")
 		}
+		if strings.Contains(request, "Conditional Update Risks") {
+			t.Error("recommended target should not have risk section")
+		}
 		if !strings.Contains(request, "Other recommended versions available:") {
 			t.Error("should list other versions when more than one update")
 		}
@@ -244,18 +513,47 @@ func TestBuildRequest(t *testing.T) {
 		}
 	})
 
-	t.Run("conditional target", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "")
+	t.Run("conditional target without risks", func(t *testing.T) {
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "", nil)
 		if !strings.Contains(request, "WARNING") {
-			t.Error("conditional target should have warning")
+			t.Error("conditional target without risks should have generic warning")
 		}
 		if !strings.Contains(request, "CONDITIONAL update") {
 			t.Error("conditional target should mention CONDITIONAL")
 		}
 	})
 
+	t.Run("conditional target with risks", func(t *testing.T) {
+		risks := []configv1.ConditionalUpdateRisk{
+			{
+				Name:    "PDBDrainBlocker",
+				Message: "Clusters with PodDisruptionBudgets that block node drains may fail to upgrade.",
+				URL:     "https://access.redhat.com/solutions/pdb-drain",
+				Conditions: []metav1.Condition{
+					{Type: "Applies", Status: metav1.ConditionTrue},
+				},
+			},
+		}
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Conditional", updates, "", risks)
+		if strings.Contains(request, "WARNING") {
+			t.Error("conditional target with risks should not have generic warning")
+		}
+		if !strings.Contains(request, "== Conditional Update Risks ==") {
+			t.Error("should have risk section header")
+		}
+		if !strings.Contains(request, "Name: PDBDrainBlocker") {
+			t.Error("should contain risk name")
+		}
+		if !strings.Contains(request, "Applies: True") {
+			t.Error("should contain applies status")
+		}
+		if !strings.Contains(request, "https://access.redhat.com/solutions/pdb-drain") {
+			t.Error("should contain risk URL")
+		}
+	})
+
 	t.Run("readiness JSON embedded", func(t *testing.T) {
-		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`)
+		request := buildRequest("", "4.15.3", "4.16.0", "stable-4.16", "minor", "Recommended", updates, `{"checks":{},"meta":{}}`, nil)
 		if !strings.Contains(request, "## Cluster Readiness Data") {
 			t.Error("request should contain readiness data header")
 		}
@@ -773,6 +1071,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -780,12 +1081,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -822,6 +1124,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -829,12 +1134,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -880,6 +1186,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -887,12 +1196,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -922,6 +1232,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -929,12 +1242,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -969,6 +1283,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -976,12 +1293,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -1016,6 +1334,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -1023,12 +1344,86 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
+							Schema: analysisOutputSchema(),
+						},
+					},
+				},
+			},
+		},
+		{
+			name:             "conditional update with risks",
+			availableUpdates: []configv1.Release{},
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{
+					Release: configv1.Release{Version: "4.16.0"},
+					Risks: []configv1.ConditionalUpdateRisk{
+						{
+							Name:    "PDBDrainBlocker",
+							Message: "Clusters with PDBs may fail to upgrade.",
+							URL:     "https://access.redhat.com/solutions/pdb",
+							Conditions: []metav1.Condition{
+								{Type: "Applies", Status: metav1.ConditionTrue},
+							},
+						},
+					},
+				},
+			},
+			namespace:      "openshift-lightspeed",
+			currentVersion: "4.15.3",
+			channel:        "stable-4.16",
+			expected: []*agenticrunv1alpha1.AgenticRun{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "ota-4-15-3-to-4-16-0",
+						Namespace: "openshift-lightspeed",
+						Labels: map[string]string{
+							"agentic.openshift.io/current-version": "4.15.3",
+							"agentic.openshift.io/source":          "cluster-version-operator",
+							"agentic.openshift.io/target-version":  "4.16.0",
+							"agentic.openshift.io/update-type":     "Minor",
+						},
+					},
+					Spec: agenticrunv1alpha1.AgenticRunSpec{
+						Request: `Current version: OCP 4.15.3
+Target version: OCP 4.16.0
+Channel: stable-4.16
+Update type: Minor
+Update path: Conditional
+
+== Conditional Update Risks ==
+- Name: PDBDrainBlocker
+  Applies: True
+  Message: "Clusters with PDBs may fail to upgrade."
+  URL: https://access.redhat.com/solutions/pdb
+
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
+						Analysis: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
+						Tools: agenticrunv1alpha1.ToolsSpec{
+							Skills: []agenticrunv1alpha1.SkillsSource{
+								{
+									Image: "registry.example.com/agentic-skills:latest",
+									Paths: []string{
+										"/skills/cluster-update/cluster-update-advisor",
+										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
+									},
+								},
+							},
+						},
+						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
