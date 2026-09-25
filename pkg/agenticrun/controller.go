@@ -295,6 +295,14 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 				continue
 			}
 			if expired(existing) {
+				phase := agenticrunv1alpha1.DerivePhase(existing.Status.Conditions)
+				if phase == agenticrunv1alpha1.AgenticRunPhaseExecuting || phase == agenticrunv1alpha1.AgenticRunPhaseVerifying {
+					klog.V(i.Normal).Infof("Skipping expiration of agentic run %s/%s: actively %s", existing.Namespace, existing.Name, phase)
+					continue
+				} else if phase == agenticrunv1alpha1.AgenticRunPhaseFailed && executionAttempted(existing.Status.Conditions) { // both needed: phase excludes Escalated/EmergencyStopped, executionAttempted excludes analysis failures
+					klog.V(i.Normal).Infof("Skipping expiration of agentic run %s/%s: execution failed, admin must re-trigger", existing.Namespace, existing.Name)
+					continue
+				}
 				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
 					errs = append(errs, err)
 					continue
@@ -334,6 +342,17 @@ func expired(p *agenticrunv1alpha1.AgenticRun) bool {
 	return time.Now().After(p.CreationTimestamp.Add(agenticRunExpiration))
 }
 
+// executionAttempted returns true if the execution step was reached (succeeded or failed).
+// Once execution runs, the cluster may be modified and auto-retry is unsafe.
+func executionAttempted(conditions []metav1.Condition) bool {
+	for _, c := range conditions {
+		if c.Type == agenticrunv1alpha1.AgenticRunConditionExecuted && c.Status != metav1.ConditionUnknown {
+			return true
+		}
+	}
+	return false
+}
+
 func deleteAgenticRuns(ctx context.Context, client ctrlruntimeclient.Client, availableUpdates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, history []configv1.UpdateHistory, currentVersion string) error {
 	targets := sets.New[string]()
 	for _, update := range availableUpdates {
@@ -365,6 +384,10 @@ func deleteAgenticRuns(ctx context.Context, client ctrlruntimeclient.Client, ava
 		}
 		if tvOk && associatedWithHistory.Has(tv) {
 			klog.V(i.Debug).Infof("Keeping agentic run %s/%s for a version %s associated with history", agenticRun.Namespace, agenticRun.Name, tv)
+			continue
+		}
+		if phase := agenticrunv1alpha1.DerivePhase(agenticRun.Status.Conditions); phase == agenticrunv1alpha1.AgenticRunPhaseExecuting || phase == agenticrunv1alpha1.AgenticRunPhaseVerifying {
+			klog.V(i.Normal).Infof("Keeping agentic run %s/%s in %s phase despite target removal", agenticRun.Namespace, agenticRun.Name, phase)
 			continue
 		}
 		err := deleteAgenticRun(ctx, client, &agenticRun, "irrelevant")
