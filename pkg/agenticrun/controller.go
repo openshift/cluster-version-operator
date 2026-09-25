@@ -298,6 +298,15 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 				continue
 			}
 			if expired(existing) {
+				phase := agenticrunv1alpha1.DerivePhase(existing.Status.Conditions)
+				if phase == agenticrunv1alpha1.AgenticRunPhaseExecuting || phase == agenticrunv1alpha1.AgenticRunPhaseVerifying {
+					klog.V(i.Normal).Infof("Skipping expiration of agentic run %s/%s: actively %s", existing.Namespace, existing.Name, phase)
+					continue
+				}
+				if phase != agenticrunv1alpha1.AgenticRunPhaseCompleted && executionAttempted(existing.Status.Conditions) {
+					klog.V(i.Normal).Infof("Skipping expiration of agentic run %s/%s: execution was attempted (phase %s), admin must re-trigger", existing.Namespace, existing.Name, phase)
+					continue
+				}
 				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
 					errs = append(errs, err)
 					continue
@@ -335,6 +344,17 @@ func expired(p *agenticrunv1alpha1.AgenticRun) bool {
 		return false
 	}
 	return time.Now().After(p.CreationTimestamp.Add(agenticRunExpiration))
+}
+
+// executionAttempted returns true if the execution step was reached (succeeded or failed).
+// Once execution runs, the cluster may be modified and auto-retry is unsafe.
+func executionAttempted(conditions []metav1.Condition) bool {
+	for _, c := range conditions {
+		if c.Type == agenticrunv1alpha1.AgenticRunConditionExecuted && c.Status != metav1.ConditionUnknown {
+			return true
+		}
+	}
+	return false
 }
 
 func deleteAgenticRuns(ctx context.Context, client ctrlruntimeclient.Client, availableUpdates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, history []configv1.UpdateHistory, currentVersion string) error {
