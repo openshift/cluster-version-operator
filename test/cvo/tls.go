@@ -170,9 +170,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			Modern: &configv1.ModernTLSProfile{},
 		}
 
+		needRecover = true
 		_, err = configClient.APIServers().Update(ctx, apiServer, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
-		needRecover = true
 
 		g.By("Checking if the CVO target is still up in Prometheus")
 		count := 3

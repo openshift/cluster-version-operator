@@ -95,9 +95,9 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		channel := "simple"
 		cv.Spec.Channel = channel
 
+		needRecover = true
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
-		needRecover = true
 		now := time.Now()
 
 		g.By("Checking if the namespace exists")
