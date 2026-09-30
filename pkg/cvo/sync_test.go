@@ -491,6 +491,9 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(message string) {
 }
 
+func (r *fakeSyncRecorder) CancelRetrieve() {
+}
+
 func (r *fakeSyncRecorder) Start(ctx context.Context, maxWorkers int) {
 }
 
