@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
@@ -694,7 +695,14 @@ func (optr *Operator) clusterVersionEventHandler() cache.ResourceEventHandler {
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
-		UpdateFunc: func(_, _ interface{}) {
+		UpdateFunc: func(old, cur interface{}) {
+			if optr.configSync != nil {
+				oldCV, _ := old.(*configv1.ClusterVersion)
+				curCV, _ := cur.(*configv1.ClusterVersion)
+				if oldCV != nil && curCV != nil && !reflect.DeepEqual(oldCV.Spec.DesiredUpdate, curCV.Spec.DesiredUpdate) {
+					optr.configSync.CancelRetrieve()
+				}
+			}
 			optr.queue.Add(workQueueKey)
 			optr.availableUpdatesQueue.Add(workQueueKey)
 		},
