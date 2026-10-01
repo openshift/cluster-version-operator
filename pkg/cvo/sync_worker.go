@@ -1018,10 +1018,11 @@ func (w *SyncWorker) apply(ctx context.Context, work *SyncWork, maxWorkers int, 
 			Actual:      payloadUpdate.Release,
 			Verified:    payloadUpdate.VerifiedImage,
 		},
-		completed: work.Completed,
-		version:   payloadUpdate.Release.Version,
-		total:     total,
-		reporter:  reporter,
+		completed:    work.Completed,
+		version:      payloadUpdate.Release.Version,
+		architecture: payloadUpdate.Architecture,
+		total:        total,
+		reporter:     reporter,
 	}
 
 	w.lock.Lock()
@@ -1156,7 +1157,7 @@ var (
 	metricPayload = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "cluster_version_payload",
 		Help: "Report the number of entries in the payload.",
-	}, []string{"version", "type"})
+	}, []string{"version", "architecture", "type"})
 )
 
 func init() {
@@ -1174,13 +1175,14 @@ func (e errContext) Error() string { return e.err.Error() }
 // consistentReporter hides the details of calculating the status based on the progress
 // of the graph runner.
 type consistentReporter struct {
-	lock      sync.Mutex
-	status    SyncWorkerStatus
-	version   string
-	completed int
-	total     int
-	done      int
-	reporter  *statusWrapper
+	lock         sync.Mutex
+	status       SyncWorkerStatus
+	version      string
+	architecture string
+	completed    int
+	total        int
+	done         int
+	reporter     *statusWrapper
 }
 
 func (r *consistentReporter) Inc() {
@@ -1195,8 +1197,8 @@ func (r *consistentReporter) Inc() {
 func (r *consistentReporter) Update() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
-	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
+	metricPayload.WithLabelValues(r.version, r.architecture, "pending").Set(float64(r.total - r.done))
+	metricPayload.WithLabelValues(r.version, r.architecture, "applied").Set(float64(r.done))
 	copied := r.status.DeepCopy()
 	copied.Done = r.done
 	copied.Total = r.total
@@ -1233,8 +1235,8 @@ func (r *consistentReporter) ContextError(err error) error {
 func (r *consistentReporter) Complete() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
-	metricPayload.WithLabelValues(r.version, "pending").Set(float64(r.total - r.done))
-	metricPayload.WithLabelValues(r.version, "applied").Set(float64(r.done))
+	metricPayload.WithLabelValues(r.version, r.architecture, "pending").Set(float64(r.total - r.done))
+	metricPayload.WithLabelValues(r.version, r.architecture, "applied").Set(float64(r.done))
 	copied := r.status.DeepCopy()
 	copied.Completed = r.completed + 1
 	copied.Initial = false
