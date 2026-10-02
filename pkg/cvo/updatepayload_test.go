@@ -345,3 +345,263 @@ func TestPayloadRetrieverRetrievePayload(t *testing.T) {
 		})
 	}
 }
+
+// Test_findUpdateFromConfig verifies desired-update selection for all update paths including multi-arch transitions.
+func Test_findUpdateFromConfig(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      *configv1.ClusterVersion
+		currentArch configv1.ClusterVersionArchitecture
+		wantUpdate  configv1.Update
+		wantFound   bool
+		wantErr     string
+	}{
+		{
+			name: "nil desired update",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+		},
+		{
+			name: "explicit image returns unchanged",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.15.0",
+						Image:   "quay.io/release:4.15.0",
+					},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate: configv1.Update{
+				Version: "4.15.0",
+				Image:   "quay.io/release:4.15.0",
+			},
+			wantFound: true,
+		},
+		{
+			name: "normal version update found",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.16.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					AvailableUpdates: []configv1.Release{
+						{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+					},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate: configv1.Update{
+				Version: "4.16.0",
+				Image:   "quay.io/release:4.16.0",
+			},
+			wantFound: true,
+		},
+		{
+			// Reachable past lib/validation, which also accepts versions found in
+			// status.history, e.g. a hand-written rollback request.
+			name: "version in history but not in availableUpdates returns error",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.15.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+					History: []configv1.UpdateHistory{
+						{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+						{Version: "4.15.0", Image: "quay.io/release:4.15.0"},
+					},
+					AvailableUpdates: nil,
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+			wantErr:     "DesiredReleaseUnavailable",
+		},
+		{
+			name: "single-to-multi with matching current release succeeds",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Architecture: configv1.ClusterVersionArchitectureMulti,
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.15.0", Image: "quay.io/release:4.15.0"},
+					AvailableUpdates: []configv1.Release{
+						{Version: "4.15.0", Image: "quay.io/release-multi:4.15.0"},
+					},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate: configv1.Update{
+				Version: "4.15.0",
+				Image:   "quay.io/release-multi:4.15.0",
+			},
+			wantFound: true,
+		},
+		{
+			name: "single-to-multi with no matching current release returns error",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Architecture: configv1.ClusterVersionArchitectureMulti,
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired:          configv1.Release{Version: "4.15.0", Image: "quay.io/release:4.15.0"},
+					AvailableUpdates: nil,
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+			wantErr:     "DesiredReleaseUnavailable",
+		},
+		{
+			name: "already multi-architecture with normal update follows existing lookup",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.16.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					AvailableUpdates: []configv1.Release{
+						{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+					},
+				},
+			},
+			currentArch: configv1.ClusterVersionArchitectureMulti,
+			wantUpdate: configv1.Update{
+				Version: "4.16.0",
+				Image:   "quay.io/release:4.16.0",
+			},
+			wantFound: true,
+		},
+		{
+			name: "already multi-architecture with missing update returns error",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version:      "4.16.0",
+						Architecture: configv1.ClusterVersionArchitectureMulti,
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired:          configv1.Release{Version: "4.15.0"},
+					AvailableUpdates: nil,
+				},
+			},
+			currentArch: configv1.ClusterVersionArchitectureMulti,
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+			wantErr:     "DesiredReleaseUnavailable",
+		},
+		{
+			name: "completed single-to-multi transition selects nothing",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version:      "4.15.0",
+						Architecture: configv1.ClusterVersionArchitectureMulti,
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.15.0", Image: "quay.io/release-multi:4.15.0"},
+					AvailableUpdates: []configv1.Release{
+						{Version: "4.16.0", Image: "quay.io/release-multi:4.16.0"},
+					},
+				},
+			},
+			currentArch: configv1.ClusterVersionArchitectureMulti,
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+		},
+		{
+			name: "completed version request selects nothing once the release leaves the graph",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.15.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.15.0", Image: "quay.io/release:4.15.0"},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+		},
+		{
+			name: "in-flight version request still resolves while status.desired already names it",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						Version: "4.16.0",
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+					AvailableUpdates: []configv1.Release{
+						{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+					},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{Version: "4.16.0", Image: "quay.io/release:4.16.0"},
+			wantFound:   true,
+		},
+		{
+			name: "accept-risks-only request selects nothing",
+			config: &configv1.ClusterVersion{
+				Spec: configv1.ClusterVersionSpec{
+					DesiredUpdate: &configv1.Update{
+						AcceptRisks: []configv1.AcceptRisk{{Name: "Risk A"}},
+					},
+				},
+				Status: configv1.ClusterVersionStatus{
+					Desired: configv1.Release{Version: "4.15.0", Image: "quay.io/release:4.15.0"},
+				},
+			},
+			currentArch: "amd64",
+			wantUpdate:  configv1.Update{},
+			wantFound:   false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotUpdate, gotFound, gotErr := findUpdateFromConfig(tt.config, tt.currentArch)
+			if gotFound != tt.wantFound {
+				t.Errorf("found = %v, want %v", gotFound, tt.wantFound)
+			}
+			if diff := cmp.Diff(tt.wantUpdate, gotUpdate); diff != "" {
+				t.Errorf("update mismatch (-want +got):\n%s", diff)
+			}
+			if tt.wantErr != "" {
+				if gotErr == nil {
+					t.Fatalf("expected error with reason %q, got nil", tt.wantErr)
+				}
+				updateErr, ok := gotErr.(*payload.UpdateError)
+				if !ok {
+					t.Fatalf("expected *payload.UpdateError, got %T", gotErr)
+				}
+				if updateErr.Reason != tt.wantErr {
+					t.Errorf("error reason = %q, want %q", updateErr.Reason, tt.wantErr)
+				}
+			} else if gotErr != nil {
+				t.Errorf("unexpected error: %v", gotErr)
+			}
+		})
+	}
+}
