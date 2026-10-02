@@ -99,6 +99,9 @@ Update path: Recommended
 								Analysis: agenticrunv1alpha1.AgenticRunStep{
 									Agent: "smart",
 								},
+								Execution: agenticrunv1alpha1.AgenticRunStep{
+									Agent: "smart",
+								},
 								Tools: agenticrunv1alpha1.ToolsSpec{
 									Skills: []agenticrunv1alpha1.SkillsSource{
 										{
@@ -106,12 +109,13 @@ Update path: Recommended
 											Paths: []string{
 												"/skills/cluster-update/cluster-update-advisor",
 												"/skills/cluster-update/product-lifecycle",
+												"/skills/cluster-update/cluster-update-planner",
 											},
 										},
 									},
 								},
 								AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-									Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+									Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 									Schema: analysisOutputSchema(),
 								},
 							},
@@ -773,6 +777,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -780,12 +787,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -822,6 +830,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -829,12 +840,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -880,6 +892,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -887,12 +902,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -922,6 +938,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -929,12 +948,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -969,6 +989,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -976,12 +999,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
@@ -1016,6 +1040,9 @@ Other recommended versions available:
 						Analysis: agenticrunv1alpha1.AgenticRunStep{
 							Agent: "smart",
 						},
+						Execution: agenticrunv1alpha1.AgenticRunStep{
+							Agent: "smart",
+						},
 						Tools: agenticrunv1alpha1.ToolsSpec{
 							Skills: []agenticrunv1alpha1.SkillsSource{
 								{
@@ -1023,12 +1050,13 @@ Other recommended versions available:
 									Paths: []string{
 										"/skills/cluster-update/cluster-update-advisor",
 										"/skills/cluster-update/product-lifecycle",
+										"/skills/cluster-update/cluster-update-planner",
 									},
 								},
 							},
 						},
 						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
+							Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
 							Schema: analysisOutputSchema(),
 						},
 					},
