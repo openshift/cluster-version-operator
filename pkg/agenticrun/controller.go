@@ -177,6 +177,11 @@ func (c *Controller) shouldDeployConsolePlugin() bool {
 	if c.hasConsoleCapability != nil && !c.hasConsoleCapability() {
 		return false
 	}
+	v, err := semver.Parse(c.getCurrentVersionFunc())
+	if err != nil || v.Major < 5 {
+		klog.V(i.Normal).Info("Skipping console plugin deployment: not supported on current cluster version")
+		return false
+	}
 	return true
 }
 
