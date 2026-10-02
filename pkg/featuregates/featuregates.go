@@ -35,10 +35,6 @@ type CvoGateChecker interface {
 	// to restart when the flags change.
 	UnknownVersion() bool
 
-	// StatusReleaseArchitecture controls whether CVO populates
-	// Release.Architecture in status properties like status.desired and status.history[].
-	StatusReleaseArchitecture() bool
-
 	// CVOConfiguration controls whether the CVO reconciles the ClusterVersionOperator resource that corresponds
 	// to its configuration.
 	CVOConfiguration() bool
@@ -57,17 +53,12 @@ type CvoGates struct {
 
 	// individual flags mirror the CvoGateChecker interface
 	unknownVersion            bool
-	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
 }
 
 func (c CvoGates) DesiredVersion() string {
 	return c.desiredVersion
-}
-
-func (c CvoGates) StatusReleaseArchitecture() bool {
-	return c.statusReleaseArchitecture
 }
 
 func (c CvoGates) UnknownVersion() bool {
@@ -87,7 +78,6 @@ func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
 		desiredVersion:            version,
 		unknownVersion:            true,
-		statusReleaseArchitecture: false,
 		cvoConfiguration:          false,
 		acceptRisks:               false,
 	}
@@ -107,8 +97,6 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		enabledGates.unknownVersion = false
 		for _, enabled := range g.Enabled {
 			switch enabled.Name {
-			case features.FeatureGateImageStreamImportMode:
-				enabledGates.statusReleaseArchitecture = true
 			case features.FeatureGateCVOConfiguration:
 				enabledGates.cvoConfiguration = true
 			case features.FeatureGateClusterUpdateAcceptRisks:
@@ -117,8 +105,6 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 		}
 		for _, disabled := range g.Disabled {
 			switch disabled.Name {
-			case features.FeatureGateImageStreamImportMode:
-				enabledGates.statusReleaseArchitecture = false
 			case features.FeatureGateCVOConfiguration:
 				enabledGates.cvoConfiguration = false
 			case features.FeatureGateClusterUpdateAcceptRisks:
