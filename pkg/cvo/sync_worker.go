@@ -395,6 +395,19 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	w.retrieveCancelFn = nil
 	retrieveCancel()
 	if err != nil {
+		if retrieveCtx.Err() == context.Canceled {
+			msg := fmt.Sprintf("Payload retrieval cancelled version=%q image=%q: desired update changed", desired.Version, desired.Image)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayloadCancelled", msg)
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            err,
+				Step:               "RetrievePayload",
+				Message:            msg,
+				Update:             desired,
+				Local:              info.Local,
+				LastTransitionTime: time.Now(),
+			})
+			return nil, err
+		}
 		msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
 		msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
