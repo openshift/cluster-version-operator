@@ -507,6 +507,14 @@ func Test_SyncWorkerShouldNotPanicDueToNotifySignalAtStartUp(t *testing.T) {
 	}
 }
 
+type errRetriever struct {
+	err error
+}
+
+func (r errRetriever) RetrievePayload(context.Context, configv1.Update) (PayloadInfo, error) {
+	return PayloadInfo{}, r.err
+}
+
 type blockingRetriever struct {
 	started chan struct{}
 }
@@ -582,6 +590,44 @@ func TestSyncWorkerCancelRetrieve(t *testing.T) {
 		t.Error("retrieveCancelFn should be nil after syncPayload returns")
 	}
 	worker.lock.Unlock()
+}
+
+func TestSyncWorkerRetrievePayloadErrorNotTreatedAsCancel(t *testing.T) {
+	worker := &SyncWorker{
+		retriever:     errRetriever{err: fmt.Errorf("image verification failed")},
+		eventRecorder: record.NewFakeRecorder(100),
+		report:        make(chan SyncWorkerStatus, 500),
+		notify:        make(chan string, 1),
+	}
+	work := &SyncWork{
+		Desired:             configv1.Update{Image: "new-image", Version: "4.16.0"},
+		EnabledFeatureGates: sets.New[string](),
+	}
+
+	worker.lock.Lock()
+	_, err := worker.syncPayload(context.Background(), work)
+	worker.lock.Unlock()
+	if err == nil {
+		t.Fatal("expected retrieval error")
+	}
+
+	fakeRecorder := worker.eventRecorder.(*record.FakeRecorder)
+	failed := false
+	for len(fakeRecorder.Events) > 0 {
+		event := <-fakeRecorder.Events
+		if strings.Contains(event, "RetrievePayloadCancelled") {
+			t.Errorf("retrieval failure reported as cancel: %s", event)
+		}
+		if strings.Contains(event, "RetrievePayloadFailed") {
+			failed = true
+			if !strings.Contains(event, "Warning") {
+				t.Errorf("expected Warning event type, got: %s", event)
+			}
+		}
+	}
+	if !failed {
+		t.Error("expected RetrievePayloadFailed event but none was emitted")
+	}
 }
 
 func TestSyncWorkerCancelRetrieveNoop(t *testing.T) {
