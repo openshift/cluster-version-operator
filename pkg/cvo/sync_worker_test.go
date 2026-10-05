@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -554,6 +555,26 @@ func TestSyncWorkerCancelRetrieve(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("syncPayload did not return after CancelRetrieve")
+	}
+
+	fakeRecorder := worker.eventRecorder.(*record.FakeRecorder)
+	found := false
+
+	for len(fakeRecorder.Events) > 0 {
+		event := <-fakeRecorder.Events
+		if strings.Contains(event, "RetrievePayloadCancelled") {
+			found = true
+			if !strings.Contains(event, "Normal") {
+				t.Errorf("expected Normal event type, got : %s ", event)
+			}
+			if !strings.Contains(event, "desired update change") {
+				t.Errorf("expected 'desired update change' in message, got: %s", event)
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected  RetrievePayloadCancelled event but none was emitted")
 	}
 
 	worker.lock.Lock()
