@@ -12,16 +12,45 @@ import (
 	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // InsightsOperatorInformer provides access to a shared informer and lister for
-// InsightsOperators.
+// InsightsOperators. Prefer using the type-safe variant (see [TypedInsightsOperatorInformer]).
 type InsightsOperatorInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorv1.InsightsOperatorLister
 }
+
+// TypedInsightsOperatorInformer provides access to a shared informer and lister for
+// InsightsOperators, including the type-safe TypedInformer variant.
+// It is a superset of InsightsOperatorInformer.
+type TypedInsightsOperatorInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() InsightsOperatorIndexInformer
+	Lister() operatorv1.InsightsOperatorLister
+}
+
+// InsightsOperatorIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type InsightsOperatorIndexInformer cache.TypedSharedIndexInformer[*apioperatorv1.InsightsOperator]
+
+// InsightsOperatorHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for InsightsOperator.
+type InsightsOperatorHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apioperatorv1.InsightsOperator]
+
+// InsightsOperatorDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for InsightsOperator.
+type InsightsOperatorDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apioperatorv1.InsightsOperator]
+
+// InsightsOperatorFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for InsightsOperator.
+type InsightsOperatorFilteringHandler = cache.TypedFilteringResourceEventHandler[*apioperatorv1.InsightsOperator]
+
+// InsightsOperatorIndexers is a specialization of [cache.TypedIndexers] for InsightsOperator.
+type InsightsOperatorIndexers = cache.TypedIndexers[*apioperatorv1.InsightsOperator]
+
+// DeletedInsightsOperator is a specialization of [cache.DeletedObject] for InsightsOperator.
+type DeletedInsightsOperator = cache.DeletedObject[*apioperatorv1.InsightsOperator]
 
 type insightsOperatorInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type insightsOperatorInformer struct {
 // NewInsightsOperatorInformer constructs a new informer for InsightsOperator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedInsightsOperatorInformer]).
 func NewInsightsOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredInsightsOperatorInformer(client, resyncPeriod, indexers, nil)
+	return NewInsightsOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedInsightsOperatorInformer constructs a new informer for InsightsOperator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedInsightsOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers InsightsOperatorIndexers) InsightsOperatorIndexInformer {
+	return NewTypedInsightsOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredInsightsOperatorInformer constructs a new informer for InsightsOperator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredInsightsOperatorInformer]).
 func NewFilteredInsightsOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
+	return NewTypedInsightsOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredInsightsOperatorInformer constructs a new informer for InsightsOperator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredInsightsOperatorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers InsightsOperatorIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) InsightsOperatorIndexInformer {
+	return NewTypedInsightsOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewInsightsOperatorInformerWithOptions constructs a new informer for InsightsOperator type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedInsightsOperatorInformerWithOptions]).
+func NewInsightsOperatorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedInsightsOperatorInformerWithOptions(client, options)
+}
+
+// NewTypedInsightsOperatorInformerWithOptions constructs a new informer for InsightsOperator type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedInsightsOperatorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) InsightsOperatorIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "insightsoperators"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.InsightsOperator](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().InsightsOperators().List(context.Background(), options)
+				return client.OperatorV1().InsightsOperators().List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().InsightsOperators().Watch(context.Background(), options)
+				return client.OperatorV1().InsightsOperators().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().InsightsOperators().List(ctx, options)
+				return client.OperatorV1().InsightsOperators().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().InsightsOperators().Watch(ctx, options)
+				return client.OperatorV1().InsightsOperators().Watch(ctx, opts)
 			},
 		}, client),
 		&apioperatorv1.InsightsOperator{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *insightsOperatorInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredInsightsOperatorInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedInsightsOperatorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *insightsOperatorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apioperatorv1.InsightsOperator{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *insightsOperatorInformer) TypedInformer() InsightsOperatorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.InsightsOperator](f.factory.InformerFor(&apioperatorv1.InsightsOperator{}, f.defaultInformer))
 }
 
 func (f *insightsOperatorInformer) Lister() operatorv1.InsightsOperatorLister {
 	return operatorv1.NewInsightsOperatorLister(f.Informer().GetIndexer())
+}
+
+// ToTypedInsightsOperatorInformer converts an untyped informer into a TypedInsightsOperatorInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *InsightsOperator. If that is not the case, calling type-safe methods of the returned
+// TypedInsightsOperatorInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedInsightsOperatorInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedInsightsOperatorInformer(informer InsightsOperatorInformer) TypedInsightsOperatorInformer {
+	if informer, ok := informer.(TypedInsightsOperatorInformer); ok {
+		return informer
+	}
+	return &insightsOperatorTypedInformerAdapter{informer}
+}
+
+type insightsOperatorTypedInformerAdapter struct {
+	InsightsOperatorInformer
+}
+
+func (a *insightsOperatorTypedInformerAdapter) TypedInformer() InsightsOperatorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.InsightsOperator](a.Informer())
+}
+
+// ToInsightsOperatorIndexInformer converts an untyped informer into a InsightsOperatorIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *InsightsOperator. If that is not the case, calling type-safe methods of the returned
+// InsightsOperatorIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a InsightsOperatorIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToInsightsOperatorIndexInformer(informer cache.SharedIndexInformer) InsightsOperatorIndexInformer {
+	if informer, ok := informer.(InsightsOperatorIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.InsightsOperator](informer)
 }
