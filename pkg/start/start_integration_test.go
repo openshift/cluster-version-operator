@@ -33,6 +33,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/cluster-version-operator/pkg/cvo"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/internal"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 )
@@ -204,7 +205,7 @@ func TestIntegrationCVO_initializeAndUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil, featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion)), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -349,7 +350,7 @@ func TestIntegrationCVO_gracefulStepDown(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil, featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion)), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)
@@ -564,7 +565,7 @@ metadata:
 		t.Fatal(err)
 	}
 
-	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
+	worker := cvo.NewSyncWorker(retriever, cvo.NewResourceBuilder(cfg, cfg, nil, nil, featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion)), 5*time.Second, wait.Backoff{Steps: 3}, "", "", record.NewFakeRecorder(100), payload.DefaultClusterProfile, stringsToCapabilities(options.AlwaysEnableCapabilities))
 	controllers.CVO.SetSyncWorkerForTesting(worker)
 
 	lock, err := createResourceLock(cb, options.Namespace, options.Name)

@@ -475,7 +475,7 @@ func (optr *Operator) InitializeFromPayload(ctx context.Context, restConfig *res
 	// which will consume the verifier
 	optr.configSync = NewSyncWorkerWithPreconditions(
 		optr.defaultPayloadRetriever(),
-		NewResourceBuilder(restConfig, burstRestConfig, &dummyContextOperatorGetter{wrapped: optr.coLister}, optr.ownerReferenceModifier),
+		NewResourceBuilder(restConfig, burstRestConfig, &dummyContextOperatorGetter{wrapped: optr.coLister}, optr.ownerReferenceModifier, optr.enabledCVOFeatureGates),
 		optr.defaultPreconditionChecks(),
 		optr.minimumUpdateCheckInterval,
 		wait.Backoff{
@@ -1053,17 +1053,19 @@ type resourceBuilder struct {
 	config      *rest.Config
 	burstConfig *rest.Config
 	modifier    resourcebuilder.MetaV1ObjectModifierFunc
+	gates       featuregates.CvoGateChecker
 
 	clusterOperators cvointernal.ClusterOperatorsGetter
 }
 
 // NewResourceBuilder creates the default resource builder implementation.
-func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter, modifier resourcebuilder.MetaV1ObjectModifierFunc) payload.ResourceBuilder {
+func NewResourceBuilder(config, burstConfig *rest.Config, clusterOperators cvointernal.ClusterOperatorsGetter, modifier resourcebuilder.MetaV1ObjectModifierFunc, gates featuregates.CvoGateChecker) payload.ResourceBuilder {
 	return &resourceBuilder{
 		config:           config,
 		burstConfig:      burstConfig,
 		clusterOperators: clusterOperators,
 		modifier:         modifier,
+		gates:            gates,
 	}
 }
 
@@ -1097,6 +1099,9 @@ func (b *resourceBuilder) Apply(ctx context.Context, m *manifest.Manifest, state
 	}
 	if b.modifier != nil {
 		builder = builder.WithModifier(b.modifier)
+	}
+	if fgb, ok := builder.(resourcebuilder.FeatureGateAwareBuilder); ok {
+		builder = fgb.WithFeatureGates(b.gates)
 	}
 	return builder.WithMode(stateToMode(state)).Do(ctx)
 }

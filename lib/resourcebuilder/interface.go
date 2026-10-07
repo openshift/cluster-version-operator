@@ -10,6 +10,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/openshift/library-go/pkg/manifest"
+
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 var (
@@ -77,6 +79,13 @@ type Interface interface {
 	WithModifier(MetaV1ObjectModifierFunc) Interface
 	WithMode(Mode) Interface
 	Do(context.Context) error
+}
+
+// FeatureGateAwareBuilder is an optional capability implemented by builders
+// that adjust their behavior based feature gates. Builders that do not vary
+// with feature gates simply don't need to implement it.
+type FeatureGateAwareBuilder interface {
+	WithFeatureGates(featuregates.CvoGateChecker) Interface
 }
 
 // New returns Interface using the mapping stored in mapper for m Manifest.

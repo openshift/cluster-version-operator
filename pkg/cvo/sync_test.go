@@ -30,6 +30,7 @@ import (
 
 	"github.com/openshift/cluster-version-operator/lib/resourcebuilder"
 	"github.com/openshift/cluster-version-operator/pkg/cvo/internal"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 	"github.com/openshift/cluster-version-operator/pkg/payload"
 	"github.com/openshift/cluster-version-operator/pkg/payload/precondition"
 )
@@ -182,7 +183,7 @@ func Test_SyncWorker_apply(t *testing.T) {
 
 			worker := &SyncWorker{eventRecorder: record.NewFakeRecorder(100)}
 			worker.backoff.Steps = 2
-			worker.builder = NewResourceBuilder(nil, nil, nil, nil)
+			worker.builder = NewResourceBuilder(nil, nil, nil, nil, featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion))
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -578,5 +579,59 @@ func (pf *testPreconditionAlwaysFail) Run(_ context.Context, _ precondition.Rele
 		Reason:  "CheckFailure",
 		Message: fmt.Sprintf("%s will always fail.", pf.Name()),
 		Name:    pf.Name(),
+	}
+}
+
+// featureGateAwareTestBuilder is a fake resourcebuilder.Interface that
+// implements resourcebuilder.FeatureGateAwareBuilder.
+type featureGateAwareTestBuilder struct {
+	withFeatureGatesCalled bool
+}
+
+func (b *featureGateAwareTestBuilder) WithMode(resourcebuilder.Mode) resourcebuilder.Interface {
+	return b
+}
+
+func (b *featureGateAwareTestBuilder) WithModifier(resourcebuilder.MetaV1ObjectModifierFunc) resourcebuilder.Interface {
+	return b
+}
+
+func (b *featureGateAwareTestBuilder) WithFeatureGates(gates featuregates.CvoGateChecker) resourcebuilder.Interface {
+	b.withFeatureGatesCalled = true
+	return b
+}
+
+func (b *featureGateAwareTestBuilder) Do(context.Context) error {
+	return nil
+}
+
+// TestResourceBuilderApplyDeliversFeatureGates verifies that when builderFor
+// returns a builder implementing FeatureGateAwareBuilder, Apply passes it the
+// configured gates.
+func TestResourceBuilderApplyDeliversFeatureGates(t *testing.T) {
+	gvk := schema.GroupVersionKind{
+		Group:   "test.cvo.io",
+		Version: "v1",
+		Kind:    "FeatureGateDelivery",
+	}
+
+	fake := &featureGateAwareTestBuilder{}
+	testMapper := resourcebuilder.NewResourceMapper()
+	testMapper.RegisterGVK(
+		gvk, func(_ *rest.Config, _ manifest.Manifest) resourcebuilder.Interface {
+			return fake
+		},
+	)
+	testMapper.AddToMap(resourcebuilder.Mapper)
+
+	rb := &resourceBuilder{gates: featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion)}
+	m := &manifest.Manifest{GVK: gvk}
+
+	if err := rb.Apply(t.Context(), m, payload.ReconcilingPayload); err != nil {
+		t.Fatalf("Apply returned unexpected error: %v", err)
+	}
+
+	if !fake.withFeatureGatesCalled {
+		t.Fatal("Apply did not call WithFeatureGates on the feature-gate-aware builder")
 	}
 }
