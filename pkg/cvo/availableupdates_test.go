@@ -808,12 +808,25 @@ func Test_loadRiskVersions(t *testing.T) {
 			name: "no conditional updates",
 		},
 		{
+			name: "conditional update with nil risks",
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{Release: configv1.Release{Version: "invalid"}},
+			},
+		},
+		{
+			name: "conditional update with empty risks",
+			conditionalUpdates: []configv1.ConditionalUpdate{
+				{Release: configv1.Release{Version: "invalid"}, Risks: []configv1.ConditionalUpdateRisk{}},
+			},
+		},
+		{
 			name: "some conditional updates",
 			conditionalUpdates: []configv1.ConditionalUpdate{
 				{Release: configv1.Release{Version: "4.20.1"},
 					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskB"}}},
 				{Release: configv1.Release{Version: "4.20.3"},
 					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskA"}, {Name: "riskC"}}},
+				{Release: configv1.Release{Version: "invalid"}},
 				{Release: configv1.Release{Version: "4.22.1"},
 					Risks: []configv1.ConditionalUpdateRisk{{Name: "riskD"}, {Name: "riskB"}}},
 				{Release: configv1.Release{Version: "5.0.1"},
