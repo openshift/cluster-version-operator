@@ -12,16 +12,45 @@ import (
 	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // KubeStorageVersionMigratorInformer provides access to a shared informer and lister for
-// KubeStorageVersionMigrators.
+// KubeStorageVersionMigrators. Prefer using the type-safe variant (see [TypedKubeStorageVersionMigratorInformer]).
 type KubeStorageVersionMigratorInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorv1.KubeStorageVersionMigratorLister
 }
+
+// TypedKubeStorageVersionMigratorInformer provides access to a shared informer and lister for
+// KubeStorageVersionMigrators, including the type-safe TypedInformer variant.
+// It is a superset of KubeStorageVersionMigratorInformer.
+type TypedKubeStorageVersionMigratorInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() KubeStorageVersionMigratorIndexInformer
+	Lister() operatorv1.KubeStorageVersionMigratorLister
+}
+
+// KubeStorageVersionMigratorIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type KubeStorageVersionMigratorIndexInformer cache.TypedSharedIndexInformer[*apioperatorv1.KubeStorageVersionMigrator]
+
+// KubeStorageVersionMigratorHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for KubeStorageVersionMigrator.
+type KubeStorageVersionMigratorHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apioperatorv1.KubeStorageVersionMigrator]
+
+// KubeStorageVersionMigratorDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for KubeStorageVersionMigrator.
+type KubeStorageVersionMigratorDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apioperatorv1.KubeStorageVersionMigrator]
+
+// KubeStorageVersionMigratorFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for KubeStorageVersionMigrator.
+type KubeStorageVersionMigratorFilteringHandler = cache.TypedFilteringResourceEventHandler[*apioperatorv1.KubeStorageVersionMigrator]
+
+// KubeStorageVersionMigratorIndexers is a specialization of [cache.TypedIndexers] for KubeStorageVersionMigrator.
+type KubeStorageVersionMigratorIndexers = cache.TypedIndexers[*apioperatorv1.KubeStorageVersionMigrator]
+
+// DeletedKubeStorageVersionMigrator is a specialization of [cache.DeletedObject] for KubeStorageVersionMigrator.
+type DeletedKubeStorageVersionMigrator = cache.DeletedObject[*apioperatorv1.KubeStorageVersionMigrator]
 
 type kubeStorageVersionMigratorInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type kubeStorageVersionMigratorInformer struct {
 // NewKubeStorageVersionMigratorInformer constructs a new informer for KubeStorageVersionMigrator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedKubeStorageVersionMigratorInformer]).
 func NewKubeStorageVersionMigratorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredKubeStorageVersionMigratorInformer(client, resyncPeriod, indexers, nil)
+	return NewKubeStorageVersionMigratorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedKubeStorageVersionMigratorInformer constructs a new informer for KubeStorageVersionMigrator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedKubeStorageVersionMigratorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers KubeStorageVersionMigratorIndexers) KubeStorageVersionMigratorIndexInformer {
+	return NewTypedKubeStorageVersionMigratorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredKubeStorageVersionMigratorInformer constructs a new informer for KubeStorageVersionMigrator type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredKubeStorageVersionMigratorInformer]).
 func NewFilteredKubeStorageVersionMigratorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
+	return NewTypedKubeStorageVersionMigratorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredKubeStorageVersionMigratorInformer constructs a new informer for KubeStorageVersionMigrator type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredKubeStorageVersionMigratorInformer(client versioned.Interface, resyncPeriod time.Duration, indexers KubeStorageVersionMigratorIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) KubeStorageVersionMigratorIndexInformer {
+	return NewTypedKubeStorageVersionMigratorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewKubeStorageVersionMigratorInformerWithOptions constructs a new informer for KubeStorageVersionMigrator type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedKubeStorageVersionMigratorInformerWithOptions]).
+func NewKubeStorageVersionMigratorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedKubeStorageVersionMigratorInformerWithOptions(client, options)
+}
+
+// NewTypedKubeStorageVersionMigratorInformerWithOptions constructs a new informer for KubeStorageVersionMigrator type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedKubeStorageVersionMigratorInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) KubeStorageVersionMigratorIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "kubestorageversionmigrators"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.KubeStorageVersionMigrator](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().KubeStorageVersionMigrators().List(context.Background(), options)
+				return client.OperatorV1().KubeStorageVersionMigrators().List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().KubeStorageVersionMigrators().Watch(context.Background(), options)
+				return client.OperatorV1().KubeStorageVersionMigrators().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().KubeStorageVersionMigrators().List(ctx, options)
+				return client.OperatorV1().KubeStorageVersionMigrators().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().KubeStorageVersionMigrators().Watch(ctx, options)
+				return client.OperatorV1().KubeStorageVersionMigrators().Watch(ctx, opts)
 			},
 		}, client),
 		&apioperatorv1.KubeStorageVersionMigrator{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *kubeStorageVersionMigratorInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredKubeStorageVersionMigratorInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedKubeStorageVersionMigratorInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *kubeStorageVersionMigratorInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apioperatorv1.KubeStorageVersionMigrator{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *kubeStorageVersionMigratorInformer) TypedInformer() KubeStorageVersionMigratorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.KubeStorageVersionMigrator](f.factory.InformerFor(&apioperatorv1.KubeStorageVersionMigrator{}, f.defaultInformer))
 }
 
 func (f *kubeStorageVersionMigratorInformer) Lister() operatorv1.KubeStorageVersionMigratorLister {
 	return operatorv1.NewKubeStorageVersionMigratorLister(f.Informer().GetIndexer())
+}
+
+// ToTypedKubeStorageVersionMigratorInformer converts an untyped informer into a TypedKubeStorageVersionMigratorInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *KubeStorageVersionMigrator. If that is not the case, calling type-safe methods of the returned
+// TypedKubeStorageVersionMigratorInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedKubeStorageVersionMigratorInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedKubeStorageVersionMigratorInformer(informer KubeStorageVersionMigratorInformer) TypedKubeStorageVersionMigratorInformer {
+	if informer, ok := informer.(TypedKubeStorageVersionMigratorInformer); ok {
+		return informer
+	}
+	return &kubeStorageVersionMigratorTypedInformerAdapter{informer}
+}
+
+type kubeStorageVersionMigratorTypedInformerAdapter struct {
+	KubeStorageVersionMigratorInformer
+}
+
+func (a *kubeStorageVersionMigratorTypedInformerAdapter) TypedInformer() KubeStorageVersionMigratorIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.KubeStorageVersionMigrator](a.Informer())
+}
+
+// ToKubeStorageVersionMigratorIndexInformer converts an untyped informer into a KubeStorageVersionMigratorIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *KubeStorageVersionMigrator. If that is not the case, calling type-safe methods of the returned
+// KubeStorageVersionMigratorIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a KubeStorageVersionMigratorIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToKubeStorageVersionMigratorIndexInformer(informer cache.SharedIndexInformer) KubeStorageVersionMigratorIndexInformer {
+	if informer, ok := informer.(KubeStorageVersionMigratorIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.KubeStorageVersionMigrator](informer)
 }

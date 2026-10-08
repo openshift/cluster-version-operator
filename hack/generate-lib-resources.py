@@ -98,6 +98,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
             'github.com/openshift/cluster-version-operator/lib/resourceapply',
             'github.com/openshift/cluster-version-operator/lib/resourcedelete',
             'github.com/openshift/cluster-version-operator/lib/resourceread',
+            'github.com/openshift/cluster-version-operator/pkg/featuregates',
             'github.com/openshift/library-go/pkg/manifest',
             'k8s.io/client-go/rest',
             ]:
@@ -140,6 +141,7 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         '\traw      []byte',
         '\tmode     Mode',
         '\tmodifier MetaV1ObjectModifierFunc',
+        '\tgates    featuregates.CvoGateChecker',
         '',
     ])
     lines.extend([
@@ -152,7 +154,8 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         '',
         'func newBuilder(config *rest.Config, m manifest.Manifest) Interface {',
         '\treturn &builder{',
-        '\t\traw: m.Raw,',
+        '\t\traw:   m.Raw,',
+        '\t\tgates: featuregates.CvoGates{},',
         '',
     ])
     for prop_name, data in sorted(client_properties.items()):
@@ -172,6 +175,11 @@ def generate_resourcebuilder(directory, types, clients, modifiers, health_checks
         '',
         'func (b *builder) WithModifier(f MetaV1ObjectModifierFunc) Interface {',
         '\tb.modifier = f',
+        '\treturn b',
+        '}',
+        '',
+        'func (b *builder) WithFeatureGates(gates featuregates.CvoGateChecker) Interface {',
+        '\tb.gates = gates',
         '\treturn b',
         '}',
         '',

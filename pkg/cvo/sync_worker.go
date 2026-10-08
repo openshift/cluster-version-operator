@@ -361,7 +361,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 
 	cvoObjectRef := &corev1.ObjectReference{APIVersion: "config.openshift.io/v1", Kind: "ClusterVersion", Name: internal.DefaultClusterVersionName, Namespace: internal.DefaultCVONamespace}
 	msg := fmt.Sprintf("Retrieving and verifying payload version=%q image=%q", desired.Version, desired.Image)
-	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
+	w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayload", msg)
 	reporter.ReportPayload(LoadPayloadStatus{
 		Step:               "RetrievePayload",
 		Message:            msg,
@@ -377,7 +377,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	w.lock.Lock()
 	if err != nil {
 		msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
+		w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
 		msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
 		reporter.ReportPayload(LoadPayloadStatus{
 			Failure:            err,
@@ -393,7 +393,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	acceptedRisksMsg := ""
 	if info.VerificationError != nil {
 		acceptedRisksMsg = unwrappedErrorAggregate(info.VerificationError)
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
+		w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayload", acceptedRisksMsg)
 	}
 
 	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "LoadPayload", "Loading payload version=%q image=%q", desired.Version, desired.Image)
@@ -403,7 +403,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	payloadUpdate, err := payload.LoadUpdate(info.Directory, desired.Image, w.exclude, string(w.requiredFeatureSet), w.clusterProfile, nil, work.EnabledFeatureGates)
 	if err != nil {
 		msg := fmt.Sprintf("Loading payload failed version=%q image=%q failure=%v", desired.Version, desired.Image, err)
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
+		w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeWarning, "LoadPayloadFailed", msg)
 		reporter.ReportPayload(LoadPayloadStatus{
 			Failure:            err,
 			Step:               "LoadPayload",
@@ -425,7 +425,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	} else if payloadUpdate.Release.Version != work.Desired.Version {
 		err = fmt.Errorf("release image version %s does not match the expected upstream version %s", payloadUpdate.Release.Version, work.Desired.Version)
 		msg := fmt.Sprintf("Verifying payload failed version=%q image=%q failure=%v", work.Desired.Version, work.Desired.Image, err)
-		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", msg)
+		w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeWarning, "VerifyPayloadVersionFailed", msg)
 		reporter.ReportPayload(LoadPayloadStatus{
 			Failure:            err,
 			Step:               "VerifyPayloadVersion",
@@ -450,7 +450,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 			klog.V(2).Infof("Precondition error (force %t, block %t): %v", work.Desired.Force, block, err)
 			if block {
 				msg := fmt.Sprintf("Preconditions failed for payload loaded version=%q image=%q: %v", desired.Version, desired.Image, err)
-				w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", msg)
+				w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeWarning, "PreconditionBlock", msg)
 				reporter.ReportPayload(LoadPayloadStatus{
 					Failure:            err,
 					Step:               "PreconditionChecks",
@@ -482,7 +482,7 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	w.payload = payloadUpdate
 	msg = fmt.Sprintf("Payload loaded version=%q image=%q architecture=%q", desired.Version, desired.Image,
 		payloadUpdate.Architecture)
-	w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
+	w.eventRecorder.Event(cvoObjectRef, corev1.EventTypeNormal, "PayloadLoaded", msg)
 	reporter.ReportPayload(LoadPayloadStatus{
 		Failure:            nil,
 		Step:               "PayloadLoaded",
