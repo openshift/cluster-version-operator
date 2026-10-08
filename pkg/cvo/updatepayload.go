@@ -437,23 +437,43 @@ func (r *payloadRetriever) prunePods(ctx context.Context) error {
 // image is specified it simply returns the desired update since image will be used. If
 // the desired architecture is changed to multi it resolves the payload using the current
 // version since that's the only valid available update. Otherwise it attempts to resolve
-// the payload using the specified desired version.
-func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch configv1.ClusterVersionArchitecture) (configv1.Update, bool) {
+// the payload using the specified desired version. When a version the cluster has not
+// already reached cannot be resolved it also returns an error describing why, so the
+// caller can report it in status.
+func findUpdateFromConfig(config *configv1.ClusterVersion, currentArch configv1.ClusterVersionArchitecture) (configv1.Update, bool, error) {
 	update := config.Spec.DesiredUpdate
 	if update == nil {
-		return configv1.Update{}, false
+		return configv1.Update{}, false, nil
 	}
 	if len(update.Image) == 0 {
 		version := update.Version
 
+		isMultiArchTransition := update.Architecture == configv1.ClusterVersionArchitectureMulti &&
+			currentArch != configv1.ClusterVersionArchitectureMulti
+
 		// Architecture changed to multi so only valid update is the multi arch version of current version
-		if update.Architecture == configv1.ClusterVersionArchitectureMulti &&
-			currentArch != configv1.ClusterVersionArchitectureMulti {
+		if isMultiArchTransition {
 			version = config.Status.Desired.Version
 		}
-		return findUpdateFromConfigVersion(config, version, update.Force)
+
+		resolved, found := findUpdateFromConfigVersion(config, version, update.Force)
+		// A request naming no release, or naming the release already desired at an
+		// architecture already in effect, is already satisfied rather than unresolvable.
+		satisfied := len(version) == 0 || (version == config.Status.Desired.Version &&
+			(len(update.Architecture) == 0 || update.Architecture == currentArch))
+		if !found && !satisfied {
+			kind := "release"
+			if isMultiArchTransition {
+				kind = "multi-architecture release"
+			}
+			return resolved, false, &payload.UpdateError{
+				Reason:  "DesiredReleaseUnavailable",
+				Message: fmt.Sprintf("No %s with version %q in status.availableUpdates; set spec.desiredUpdate.image to request it explicitly", kind, version),
+			}
+		}
+		return resolved, found, nil
 	}
-	return *update, true
+	return *update, true, nil
 }
 
 func findUpdateFromConfigVersion(config *configv1.ClusterVersion, version string, force bool) (configv1.Update, bool) {
