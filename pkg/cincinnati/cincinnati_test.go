@@ -802,11 +802,11 @@ func TestGetUpdates(t *testing.T) {
 	}
 }
 
-func Test_nodeUnmarshalJSON(t *testing.T) {
+func Test_NodeUnmarshalJSON(t *testing.T) {
 	tests := []struct {
 		raw []byte
 
-		exp node
+		exp Node
 		err string
 	}{{
 		raw: []byte(`{
@@ -815,7 +815,7 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 			"metadata": {}
 		  }`),
 
-		exp: node{
+		exp: Node{
 			Version:  semver.MustParse("4.0.0-5"),
 			Image:    "quay.io/openshift-release-dev/ocp-release:4.0.0-5",
 			Metadata: map[string]interface{}{},
@@ -828,7 +828,7 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 			  "description": "This is the beta1 image based on the 4.0.0-0.nightly-2019-01-15-010905 build"
 			}
 		  }`),
-		exp: node{
+		exp: Node{
 			Version: semver.MustParse("4.0.0-0.1"),
 			Image:   "quay.io/openshift-release-dev/ocp-release:4.0.0-0.1",
 			Metadata: map[string]interface{}{
@@ -859,7 +859,7 @@ func Test_nodeUnmarshalJSON(t *testing.T) {
 
 	for idx, test := range tests {
 		t.Run(fmt.Sprintf("#%d", idx), func(t *testing.T) {
-			var n node
+			var n Node
 			err := json.Unmarshal(test.raw, &n)
 			if test.err == "" {
 				if err != nil {
