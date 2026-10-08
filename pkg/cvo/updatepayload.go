@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -296,7 +297,16 @@ func (r *payloadRetriever) fetchUpdatePayloadToDir(ctx context.Context, dir stri
 		return err
 	}
 
-	return waitForPodCompletion(ctx, r.kubeClient.CoreV1().Pods(pod.Namespace), pod.Name)
+	err := waitForPodCompletion(ctx, r.kubeClient.CoreV1().Pods(pod.Namespace), pod.Name)
+	if err != nil && ctx.Err() != nil {
+		klog.Infof("Deleting pod %s after retrieval cancellation", name)
+		deleteCtx, deleteCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer deleteCancel()
+		if deleteErr := r.kubeClient.CoreV1().Pods(pod.Namespace).Delete(deleteCtx, pod.Name, metav1.DeleteOptions{}); deleteErr != nil && !apierrors.IsNotFound(deleteErr) {
+			klog.Warningf("Failed to delete pod %s: %v", name, deleteErr)
+		}
+	}
+	return err
 }
 
 type PodListerWatcher interface {

@@ -41,6 +41,9 @@ type ConfigSyncWorker interface {
 
 	// NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
 	NotifyAboutManagedResourceActivity(msg string)
+	// CancelRetrieve cancels any in-progress payload retrieval. Safe to call at any time;
+	// if no retrieval is running it is a no-op.
+	CancelRetrieve()
 	// Initialized returns true if the worker has work to do already
 	Initialized() bool
 }
@@ -214,10 +217,11 @@ type SyncWorker struct {
 	startApply chan string
 
 	// lock guards changes to these fields
-	lock     sync.Mutex
-	work     *SyncWork
-	cancelFn func()
-	status   SyncWorkerStatus
+	lock             sync.Mutex
+	work             *SyncWork
+	cancelFn         func()
+	retrieveCancelFn context.CancelFunc
+	status           SyncWorkerStatus
 
 	// updated by the run method only
 	payload *payload.Update
@@ -287,6 +291,17 @@ func (w *SyncWorker) Initialized() bool {
 		return w.initializedFunc()
 	}
 	return w.work != nil
+}
+
+// CancelRetrieve cancels any in-progress payload retrieval. It is safe to call
+// from any goroutine at any time; if no retrieval is running it is a no-op.
+func (w *SyncWorker) CancelRetrieve() {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if w.retrieveCancelFn != nil {
+		klog.V(2).Info("Cancelling in-progress payload retrieval")
+		w.retrieveCancelFn()
+	}
 }
 
 // NotifyAboutManagedResourceActivity informs the sync worker about activity for a managed resource.
@@ -372,10 +387,30 @@ func (w *SyncWorker) syncPayload(ctx context.Context, work *SyncWork) ([]configv
 	// syncPayload executes while locked, but RetrievePayload is a potentially long-running operation
 	// which does not need the lock, so holding it may block other loops (mainly the apply loop) from
 	// execution
+	retrieveCtx, retrieveCancel := context.WithCancel(ctx)
+	w.retrieveCancelFn = retrieveCancel
 	w.lock.Unlock()
-	info, err := w.retriever.RetrievePayload(ctx, work.Desired)
+	info, err := w.retriever.RetrievePayload(retrieveCtx, work.Desired)
 	w.lock.Lock()
+	w.retrieveCancelFn = nil
+	// retrieveCancel() always cancels retrieveCtx. Read the prior state so an
+	// explicit cancel stays distinct from retrieval failures.
+	retrievalCanceled := retrieveCtx.Err() == context.Canceled
+	retrieveCancel()
 	if err != nil {
+		if retrievalCanceled {
+			msg := fmt.Sprintf("Payload retrieval cancelled version=%q image=%q: desired update changed", desired.Version, desired.Image)
+			w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeNormal, "RetrievePayloadCancelled", msg)
+			reporter.ReportPayload(LoadPayloadStatus{
+				Failure:            err,
+				Step:               "RetrievePayload",
+				Message:            msg,
+				Update:             desired,
+				Local:              info.Local,
+				LastTransitionTime: time.Now(),
+			})
+			return nil, err
+		}
 		msg := fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, strings.ReplaceAll(unwrappedErrorAggregate(err), "\n", " // "))
 		w.eventRecorder.Eventf(cvoObjectRef, corev1.EventTypeWarning, "RetrievePayloadFailed", msg)
 		msg = fmt.Sprintf("Retrieving payload failed version=%q image=%q failure=%s", desired.Version, desired.Image, err)
