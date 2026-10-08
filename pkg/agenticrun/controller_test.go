@@ -55,7 +55,6 @@ func testExpectedSpec(request string) agenticrunv1alpha1.AgenticRunSpec {
 					Paths: []string{
 						"/skills/cluster-update/cluster-update-advisor",
 						"/skills/cluster-update/product-lifecycle",
-						"/skills/cluster-update/cluster-update-planner",
 					},
 				},
 			},

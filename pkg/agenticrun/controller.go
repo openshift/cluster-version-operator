@@ -41,9 +41,7 @@ Use the cluster-update-advisor skill for the decision framework and blocker clas
 
 When the readiness data includes olm_operator_lifecycle results, use the product-lifecycle skill to cross-reference each operator's package name against the Red Hat Product Life Cycle API. Report support phase, EOL dates, and OCP compatibility from Product Lifecycle alongside the OLM data.
 
-Use the cluster-update-planner skill to produce a remediation plan for upgrading the cluster. Include OLM operator upgrades before the platform upgrade.
-
-If the assessment determines the upgrade is not feasible or no viable remediation path exists, do not produce a remediation plan — explain why in the diagnosis instead.
+Use the cluster-update-advisor skill to produce a remediation plan for upgrading the cluster, including OLM operator upgrades before the platform upgrade. If the upgrade is not feasible and no viable remediation path exists, explain why in the diagnosis instead of producing a plan.
 
 Do not guess or assume cluster state. Do not execute upgrade commands.
 
@@ -483,7 +481,6 @@ func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind
 						Paths: []string{
 							"/skills/cluster-update/cluster-update-advisor",
 							"/skills/cluster-update/product-lifecycle",
-							"/skills/cluster-update/cluster-update-planner",
 						},
 					},
 				},
