@@ -2297,6 +2297,263 @@ func TestOperator_sync(t *testing.T) {
 	}
 }
 
+// TestOperator_sync_desiredReleaseUnavailable verifies that any desired update which cannot be
+// resolved from status.availableUpdates produces ReleaseAccepted=False rather than a silent
+// fallback to the current release.
+//
+// It also pins the boundaries where that report is deliberately suppressed: a version absent
+// from both status.availableUpdates and status.history is rejected by lib/validation and
+// dropped by ClearInvalidFields, so it is reported through Invalid instead; a payload load
+// failure the worker already reported keeps the condition for itself; and a request the
+// cluster already satisfies selects no release at all.
+func TestOperator_sync_desiredReleaseUnavailable(t *testing.T) {
+	current := configv1.Release{Version: "4.15.0", Image: "image/image:v4.15.0"}
+	acceptedRisks := "Risk A was accepted by the administrator"
+
+	tests := []struct {
+		name             string
+		desiredUpdate    *configv1.Update
+		availableUpdates []configv1.Release
+		history          []configv1.UpdateHistory
+		currentArch      configv1.ClusterVersionArchitecture
+		// workerLoadStatus replaces the payload load status the sync worker reports
+		workerLoadStatus *LoadPayloadStatus
+		wantStatus       configv1.ConditionStatus
+		wantReason       string
+		wantInvalid      bool
+	}{
+		{
+			name:          "single-to-multi transition with no multi payload",
+			desiredUpdate: &configv1.Update{Architecture: configv1.ClusterVersionArchitectureMulti},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: acceptedRisks},
+			},
+			wantStatus: configv1.ConditionFalse,
+			wantReason: "ResolveRelease",
+		},
+		{
+			// the graph no longer offers the release the cluster reached, so the
+			// worker's healthy condition must survive
+			name:          "completed single-to-multi transition stays accepted",
+			desiredUpdate: &configv1.Update{Version: current.Version, Architecture: configv1.ClusterVersionArchitectureMulti},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: acceptedRisks},
+			},
+			currentArch: configv1.ClusterVersionArchitectureMulti,
+			wantStatus:  configv1.ConditionTrue,
+			wantReason:  "PayloadLoaded",
+		},
+		{
+			// the same shape for a version-only request: every cluster that finishes an
+			// update named by version keeps spec.desiredUpdate pointing at a release the
+			// graph has stopped offering
+			name:          "completed version request stays accepted",
+			desiredUpdate: &configv1.Update{Version: current.Version},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: acceptedRisks},
+			},
+			wantStatus: configv1.ConditionTrue,
+			wantReason: "PayloadLoaded",
+		},
+		{
+			// lib/validation accepts this because 4.14.0 is in status.history, but
+			// findUpdateFromConfigVersion only searches status.availableUpdates.
+			name:          "version resolvable only from history",
+			desiredUpdate: &configv1.Update{Version: "4.14.0"},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: acceptedRisks},
+				{State: configv1.CompletedUpdate, Version: "4.14.0", Image: "image/image:v4.14.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			wantStatus: configv1.ConditionFalse,
+			wantReason: "ResolveRelease",
+		},
+		{
+			// absent from both availableUpdates and history, so lib/validation rejects it
+			// and ClearInvalidFields drops it before findUpdateFromConfig ever runs
+			name:          "version absent from availableUpdates and history is reported as invalid",
+			desiredUpdate: &configv1.Update{Version: "4.99.0"},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime, AcceptedRisks: acceptedRisks},
+			},
+			wantStatus:  configv1.ConditionTrue,
+			wantReason:  "PayloadLoaded",
+			wantInvalid: true,
+		},
+		{
+			// the worker failed to load the current release it fell back to, and
+			// ReleaseAccepted is the only condition reporting that, so the selection
+			// error must not take its place
+			name:          "payload load failure is not replaced by the selection error",
+			desiredUpdate: &configv1.Update{Version: "4.14.0"},
+			history: []configv1.UpdateHistory{
+				{State: configv1.CompletedUpdate, Version: "4.15.0", Image: "image/image:v4.15.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+				{State: configv1.CompletedUpdate, Version: "4.14.0", Image: "image/image:v4.14.0", StartedTime: defaultStartedTime, CompletionTime: &defaultCompletionTime},
+			},
+			workerLoadStatus: &LoadPayloadStatus{
+				Step:    "RetrievePayload",
+				Message: fmt.Sprintf("Retrieving payload failed version=%q image=%q", current.Version, current.Image),
+				Update:  configv1.Update{Version: current.Version, Image: current.Image},
+				Failure: fmt.Errorf("unable to download and prepare the update"),
+			},
+			wantStatus: configv1.ConditionFalse,
+			wantReason: "RetrievePayload",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			id := uuid.Must(uuid.NewRandom()).String()
+
+			// by default the worker loaded the current release it fell back to
+			loadStatus := LoadPayloadStatus{
+				Step:          "PayloadLoaded",
+				Message:       "Payload loaded",
+				Update:        configv1.Update{Version: current.Version, Image: current.Image},
+				Local:         true,
+				AcceptedRisks: acceptedRisks,
+			}
+			if tt.workerLoadStatus != nil {
+				loadStatus = *tt.workerLoadStatus
+			}
+
+			currentRelease := current
+			currentRelease.Architecture = tt.currentArch
+
+			optr := &Operator{
+				release:   currentRelease,
+				namespace: "test",
+				name:      "default",
+				client: fakeClientsetWithUpdates(
+					&configv1.ClusterVersion{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "default",
+							ResourceVersion: "1",
+							UID:             types.UID(id),
+						},
+						Spec: configv1.ClusterVersionSpec{
+							ClusterID:     configv1.ClusterID(id),
+							Channel:       "stable-4.15",
+							DesiredUpdate: tt.desiredUpdate,
+						},
+						Status: configv1.ClusterVersionStatus{
+							Desired:          current,
+							AvailableUpdates: tt.availableUpdates,
+							History:          tt.history,
+							Conditions: []configv1.ClusterOperatorStatusCondition{
+								{Type: configv1.OperatorAvailable, Status: configv1.ConditionTrue},
+								{Type: configv1.OperatorProgressing, Status: configv1.ConditionFalse},
+								{Type: configv1.RetrievedUpdates, Status: configv1.ConditionFalse},
+							},
+						},
+					},
+				),
+				configSync: &fakeSyncRecorder{
+					Returns: &SyncWorkerStatus{
+						Reconciling:       true,
+						Completed:         1,
+						Actual:            current,
+						loadPayloadStatus: loadStatus,
+					},
+				},
+			}
+
+			optr.queue = workqueue.NewTypedRateLimitingQueue[any](workqueue.DefaultTypedControllerRateLimiter[any]())
+			optr.proxyLister = &clientProxyLister{client: optr.client}
+			optr.cvLister = &clientCVLister{client: optr.client}
+			optr.coLister = &clientCOLister{client: optr.client}
+			optr.eventRecorder = record.NewFakeRecorder(100)
+			optr.enabledCVOFeatureGates = featuregates.DefaultCvoGates("version")
+			registry := clusterconditions.NewConditionRegistry()
+			registry.Register("Always", &always.Always{})
+			optr.conditionRegistry = registry
+
+			if err := optr.sync(context.Background(), optr.queueKey()); err != nil {
+				t.Fatalf("Operator.sync() unexpected error: %v", err)
+			}
+
+			// verify the worker received the current release fallback, not a fabricated image
+			actual := optr.configSync.(*fakeSyncRecorder).Updates
+			expectedSync := []configv1.Update{{Version: current.Version, Image: current.Image}}
+			if !reflect.DeepEqual(expectedSync, actual) {
+				t.Fatalf("expected sync worker to receive current release fallback %#v, got %#v", expectedSync, actual)
+			}
+
+			// extract the status update action
+			var statusUpdate *configv1.ClusterVersion
+			for _, a := range optr.client.(*fake.Clientset).Actions() {
+				if a.GetVerb() == "update" && a.GetSubresource() == "status" {
+					statusUpdate = a.(ktesting.UpdateAction).GetObject().(*configv1.ClusterVersion)
+				}
+			}
+			if statusUpdate == nil {
+				t.Fatal("expected a status update action")
+			}
+
+			// verify the expected ReleaseAccepted status and reason
+			var releaseAccepted *configv1.ClusterOperatorStatusCondition
+			for i := range statusUpdate.Status.Conditions {
+				if statusUpdate.Status.Conditions[i].Type == internal.ReleaseAccepted {
+					releaseAccepted = &statusUpdate.Status.Conditions[i]
+					break
+				}
+			}
+			if releaseAccepted == nil {
+				t.Fatal("expected ReleaseAccepted condition to be set")
+			}
+			if releaseAccepted.Status != tt.wantStatus {
+				t.Errorf("expected ReleaseAccepted status %q, got %q", tt.wantStatus, releaseAccepted.Status)
+			}
+			if releaseAccepted.Reason != tt.wantReason {
+				t.Errorf("expected ReleaseAccepted reason %q, got %q", tt.wantReason, releaseAccepted.Reason)
+			}
+			if releaseAccepted.Message == "" {
+				t.Error("expected non-empty ReleaseAccepted message")
+			}
+
+			// invalid input is reported through Invalid, not ReleaseAccepted
+			var invalid *configv1.ClusterOperatorStatusCondition
+			for i := range statusUpdate.Status.Conditions {
+				if statusUpdate.Status.Conditions[i].Type == internal.ClusterVersionInvalid {
+					invalid = &statusUpdate.Status.Conditions[i]
+					break
+				}
+			}
+			if tt.wantInvalid {
+				if invalid == nil || invalid.Status != configv1.ConditionTrue {
+					t.Fatalf("expected Invalid=True, got %+v", invalid)
+				}
+				if invalid.Reason != "InvalidClusterVersion" {
+					t.Errorf("expected Invalid reason %q, got %q", "InvalidClusterVersion", invalid.Reason)
+				}
+			} else if invalid != nil && invalid.Status == configv1.ConditionTrue {
+				t.Errorf("expected no Invalid=True condition, got %+v", invalid)
+			}
+
+			// verify Failing is NOT set to True by this condition-only path
+			for _, cond := range statusUpdate.Status.Conditions {
+				if cond.Type == internal.ClusterStatusFailing && cond.Status == configv1.ConditionTrue {
+					t.Error("expected Failing condition to not be set to True for this status-only path")
+				}
+			}
+
+			// verify the user's spec.desiredUpdate is not rewritten on the stored object.
+			// The status subresource carries the ClearInvalidFields copy, so read it back.
+			stored, err := optr.client.ConfigV1().ClusterVersions().Get(context.Background(), "default", metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("getting stored ClusterVersion: %v", err)
+			}
+			if diff := cmp.Diff(tt.desiredUpdate, stored.Spec.DesiredUpdate); diff != "" {
+				t.Errorf("spec.desiredUpdate mismatch (-want +got):\n%s", diff)
+			}
+
+			// the condition override must not clobber load status describing the loaded payload
+			if got, want := statusUpdate.Status.History[0].AcceptedRisks, loadStatus.AcceptedRisks; got != want {
+				t.Errorf("history[0].acceptedRisks = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestOperator_availableUpdatesSync(t *testing.T) {
 	id := uuid.Must(uuid.NewRandom()).String()
 	tests := []struct {
