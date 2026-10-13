@@ -237,6 +237,13 @@ func LoadUpdate(dir, releaseImage, excludeIdentifier string, requiredFeatureSet 
 		}
 	}
 
+	if len(manifests) == 0 {
+		return nil, &UpdateError{
+			Reason:  "ClusterProfileUnknown",
+			Message: fmt.Sprintf("The release payload has no manifest for cluster profile %q. Check the CLUSTER_PROFILE environment variable of the cluster-version-operator.", profile),
+		}
+	}
+
 	hash := fnv.New64()
 	for _, manifest := range manifests {
 		hash.Write(manifest.Raw)

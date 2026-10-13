@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
@@ -436,4 +437,22 @@ func mustRead(path string) []byte {
 		panic(err)
 	}
 	return data
+}
+
+func TestLoadUpdateRejectsProfileWithoutManifests(t *testing.T) {
+	dir := filepath.Join("..", "cvo", "testdata", "payloadtest")
+	_, err := LoadUpdate(dir, "image:1", "exclude-test", "", "default", nil, sets.Set[string]{})
+	if err == nil {
+		t.Fatal("LoadUpdate() returned no error for a cluster profile that matches no manifest")
+	}
+	var updateErr *UpdateError
+	if !errors.As(err, &updateErr) {
+		t.Fatalf("LoadUpdate() error = %T, want *UpdateError", err)
+	}
+	if updateErr.Reason != "ClusterProfileUnknown" {
+		t.Errorf("LoadUpdate() reason = %q, want ClusterProfileUnknown", updateErr.Reason)
+	}
+	if !strings.Contains(updateErr.Message, `"default"`) {
+		t.Errorf("LoadUpdate() message %q does not name the profile", updateErr.Message)
+	}
 }
