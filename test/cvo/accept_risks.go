@@ -69,6 +69,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks in ClusterVersion before testing")
 		}
 		backup = *cv.Spec.DeepCopy()
+		needRecover = false
 		updateServiceNamespace = ""
 	})
 
