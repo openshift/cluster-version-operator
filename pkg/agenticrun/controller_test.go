@@ -34,6 +34,38 @@ func init() {
 	}
 }
 
+const testSkillsImage = "registry.example.com/agentic-skills:latest"
+
+func testExpectedSpec(request string) agenticrunv1alpha1.AgenticRunSpec {
+	return agenticrunv1alpha1.AgenticRunSpec{
+		Request: request,
+		Analysis: agenticrunv1alpha1.AgenticRunStep{
+			Agent: "smart",
+		},
+		Execution: agenticrunv1alpha1.AgenticRunStep{
+			Agent: "smart",
+		},
+		Verification: agenticrunv1alpha1.AgenticRunStep{
+			Agent: "smart",
+		},
+		Tools: agenticrunv1alpha1.ToolsSpec{
+			Skills: []agenticrunv1alpha1.SkillsSource{
+				{
+					Image: testSkillsImage,
+					Paths: []string{
+						"/skills/cluster-update/cluster-update-advisor",
+						"/skills/cluster-update/product-lifecycle",
+					},
+				},
+			},
+		},
+		AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
+			Mode:   agenticrunv1alpha1.AnalysisOutputModeDefault,
+			Schema: analysisOutputSchema(),
+		},
+	}
+}
+
 func TestController_Sync(t *testing.T) {
 	tests := []struct {
 		name              string
@@ -81,8 +113,7 @@ func TestController_Sync(t *testing.T) {
 									"agentic.openshift.io/update-type":     "Major",
 								},
 							},
-							Spec: agenticrunv1alpha1.AgenticRunSpec{
-								Request: fmt.Sprintf(`%s
+							Spec: testExpectedSpec(fmt.Sprintf(`%s
 
 ---
 
@@ -95,26 +126,7 @@ Update path: Recommended
 ## Cluster Readiness Data
 
 %s
-`, prompt, "```json\n{}\n```"),
-								Analysis: agenticrunv1alpha1.AgenticRunStep{
-									Agent: "smart",
-								},
-								Tools: agenticrunv1alpha1.ToolsSpec{
-									Skills: []agenticrunv1alpha1.SkillsSource{
-										{
-											Image: "registry.example.com/agentic-skills:latest",
-											Paths: []string{
-												"/skills/cluster-update/cluster-update-advisor",
-												"/skills/cluster-update/product-lifecycle",
-											},
-										},
-									},
-								},
-								AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-									Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-									Schema: analysisOutputSchema(),
-								},
-							},
+`, prompt, "```json\n{}\n```")),
 						},
 					}}
 				if diff := cmp.Diff(expect, agenticRuns, cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ResourceVersion")); diff != "" {
@@ -129,7 +141,7 @@ Update path: Recommended
 			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func() string {
 				return "4.22.1"
 			}, nil)
-			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
+			c.config.SkillsImage = testSkillsImage
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
 			actual := c.Sync(context.Background(), tt.name)
@@ -752,8 +764,7 @@ func TestGetAgenticRuns(t *testing.T) {
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Test prompt
+					Spec: testExpectedSpec(`Test prompt
 
 ---
 
@@ -769,26 +780,7 @@ Other recommended versions available:
 ## Cluster Readiness Data
 
 ` + "```json\n" +
-							`{}` + "\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+						`{}` + "\n```\n"),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -801,8 +793,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Test prompt
+					Spec: testExpectedSpec(`Test prompt
 
 ---
 
@@ -818,26 +809,7 @@ Other recommended versions available:
 ## Cluster Readiness Data
 
 ` + "```json\n" +
-							`{}` + "\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+						`{}` + "\n```\n"),
 				},
 			},
 		},
@@ -866,8 +838,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Current version: OCP 4.15.3
+					Spec: testExpectedSpec(`Current version: OCP 4.15.3
 Target version: OCP 4.16.0
 Channel: stable-4.16
 Update type: Minor
@@ -876,26 +847,7 @@ Update path: Recommended
 Other recommended versions available:
   - 4.16.1
 
-` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n"),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -908,8 +860,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Current version: OCP 4.15.3
+					Spec: testExpectedSpec(`Current version: OCP 4.15.3
 Target version: OCP 4.16.1
 Channel: stable-4.16
 Update type: Minor
@@ -918,26 +869,7 @@ Update path: Recommended
 Other recommended versions available:
   - 4.16.0
 
-` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n"),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -950,8 +882,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Current version: OCP 4.15.3
+					Spec: testExpectedSpec(`Current version: OCP 4.15.3
 Target version: OCP 4.16.2
 Channel: stable-4.16
 Update type: Minor
@@ -965,26 +896,7 @@ Other recommended versions available:
   - 4.16.0
   - 4.16.1
 
-` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n"),
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -997,8 +909,7 @@ Other recommended versions available:
 							"agentic.openshift.io/update-type":     "Minor",
 						},
 					},
-					Spec: agenticrunv1alpha1.AgenticRunSpec{
-						Request: `Current version: OCP 4.15.3
+					Spec: testExpectedSpec(`Current version: OCP 4.15.3
 Target version: OCP 4.16.3
 Channel: stable-4.16
 Update type: Minor
@@ -1012,26 +923,7 @@ Other recommended versions available:
   - 4.16.0
   - 4.16.1
 
-` + "## Cluster Readiness Data\n\n```json\n{}\n```\n",
-						Analysis: agenticrunv1alpha1.AgenticRunStep{
-							Agent: "smart",
-						},
-						Tools: agenticrunv1alpha1.ToolsSpec{
-							Skills: []agenticrunv1alpha1.SkillsSource{
-								{
-									Image: "registry.example.com/agentic-skills:latest",
-									Paths: []string{
-										"/skills/cluster-update/cluster-update-advisor",
-										"/skills/cluster-update/product-lifecycle",
-									},
-								},
-							},
-						},
-						AnalysisOutput: agenticrunv1alpha1.AnalysisOutput{
-							Mode:   agenticrunv1alpha1.AnalysisOutputModeMinimal,
-							Schema: analysisOutputSchema(),
-						},
-					},
+` + "## Cluster Readiness Data\n\n```json\n{}\n```\n"),
 				},
 			},
 		},
@@ -1074,7 +966,7 @@ Other recommended versions available:
 				tt.currentVersion,
 				tt.channel,
 				tt.systemPrompt,
-				"registry.example.com/agentic-skills:latest",
+				testSkillsImage,
 			)
 
 			if diff := cmp.Diff(err, tt.expectError, cmp.Transformer("Error", func(e error) string {
@@ -1274,7 +1166,7 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 		"4.21.5",
 		"stable-4.21",
 		"Test prompt",
-		"registry.example.com/agentic-skills:latest",
+		testSkillsImage,
 	)
 	if err != nil {
 		t.Fatalf("getAgenticRuns returned error: %v", err)
