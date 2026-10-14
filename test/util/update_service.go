@@ -42,6 +42,8 @@ func GenerateGraph(current configv1.Release, channel string) ([]byte, error) {
 	switch channel {
 	case "risks-always":
 		graph = generateRisksAlwaysGraph(current, currentVersion, channel)
+	case "OTA-1813":
+		graph = generateOTA1813Graph(current, currentVersion, channel)
 	default:
 		return nil, fmt.Errorf("unsupported channel %q", channel)
 	}
@@ -125,6 +127,66 @@ func generateRisksAlwaysGraph(current configv1.Release, currentVersion semver.Ve
 						Message: "This is a synthetic risk C that always applies for testing purposes",
 						MatchingRules: []configv1.ClusterCondition{
 							{Type: "Always"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+// generateOTA1813Graph builds the graph that the public OTA-1813 Fauxinnati
+// channel served: one unconditionally recommended patch-bump target, and one
+// minor-bump target whose PromQL condition cannot be evaluated.
+func generateOTA1813Graph(current configv1.Release, currentVersion semver.Version, channel string) cincinnati.Graph {
+	versionB := currentVersion
+	versionB.Patch++
+	versionB.Pre = nil
+
+	versionC := currentVersion
+	versionC.Minor++
+	versionC.Patch = 0
+	versionC.Pre = nil
+
+	currentURL := string(current.URL)
+	if currentURL == "" {
+		currentURL = generateReleaseURL(currentVersion)
+	}
+
+	return cincinnati.Graph{
+		Nodes: []cincinnati.Node{
+			{
+				Version:  currentVersion,
+				Image:    current.Image,
+				Metadata: nodeMetadata(channel, currentURL, current.Architecture),
+			},
+			{
+				Version:  versionB,
+				Image:    "example.com/test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				Metadata: nodeMetadata(channel, generateReleaseURL(versionB), current.Architecture),
+			},
+			{
+				Version:  versionC,
+				Image:    "example.com/test@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+				Metadata: nodeMetadata(channel, generateReleaseURL(versionC), current.Architecture),
+			},
+		},
+		Edges: []cincinnati.Edge{{Origin: 0, Destination: 1}},
+		ConditionalEdges: []cincinnati.ConditionalEdges{
+			{
+				Edges: []cincinnati.ConditionalEdge{{From: currentVersion.String(), To: versionC.String()}},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{
+						URL:     "https://docs.openshift.com/synthetic-risk-a",
+						Name:    "SomeInvokerThing",
+						Message: "This is SomeInvokerThing that cannot be evaluated for testing purposes",
+						MatchingRules: []configv1.ClusterCondition{
+							{
+								Type: "PromQL",
+								PromQL: &configv1.PromQLClusterCondition{
+									PromQL: "this will fail; muahaha",
+								},
+							},
 						},
 					},
 				},

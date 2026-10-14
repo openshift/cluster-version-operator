@@ -103,15 +103,28 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 	})
 
 	g.It("should work with risks from alerts", g.Label("OTA-1813"), g.Label("Serial"), func() {
-		// This test case relies on a public service util.FauxinnatiAPIURL
-		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
-
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Using fauxinnati as the upstream and its simple channel")
-		cv.Spec.Upstream = util.FauxinnatiAPIURL
-		cv.Spec.Channel = "OTA-1813"
+		const channel = "OTA-1813"
+
+		g.By("Creating an in-cluster update service with an OTA-1813 graph")
+		ns, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "e2e-cvo-update-service-",
+			},
+		}, metav1.CreateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		updateServiceNamespace = ns.Name
+
+		graph, err := util.GenerateGraph(cv.Status.Desired, channel)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		upstream, err := util.RunUpdateService(ctx, kubeClient, updateServiceNamespace, string(graph))
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Pointing ClusterVersion at the in-cluster update service")
+		cv.Spec.Upstream = configv1.URL(upstream.String())
+		cv.Spec.Channel = channel
 
 		needRecover = true
 		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})

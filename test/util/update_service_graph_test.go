@@ -110,6 +110,41 @@ func TestGenerateGraph_RisksAlways(t *testing.T) {
 	}
 }
 
+func TestGenerateGraph_OTA1813(t *testing.T) {
+	current := configv1.Release{
+		Version: "4.17.5",
+		Image:   "example.com/current@sha256:deadbeef",
+	}
+
+	raw, err := GenerateGraph(current, "OTA-1813")
+	if err != nil {
+		t.Fatalf("GenerateGraph() error = %v", err)
+	}
+
+	var got cincinnati.Graph
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(got.Nodes) != 3 {
+		t.Fatalf("len(got.Nodes) = %d, want 3", len(got.Nodes))
+	}
+	if len(got.Edges) != 1 || got.Edges[0] != (cincinnati.Edge{Origin: 0, Destination: 1}) {
+		t.Errorf("got.Edges = %v, want one edge from node 0 to node 1", got.Edges)
+	}
+	if len(got.ConditionalEdges) != 1 {
+		t.Fatalf("len(got.ConditionalEdges) = %d, want 1", len(got.ConditionalEdges))
+	}
+
+	risk := got.ConditionalEdges[0].Risks[0]
+	if risk.Name != "SomeInvokerThing" {
+		t.Errorf("risk.Name = %q, want SomeInvokerThing", risk.Name)
+	}
+	if len(risk.MatchingRules) != 1 || risk.MatchingRules[0].Type != "PromQL" {
+		t.Errorf("risk.MatchingRules = %#v, want one PromQL rule", risk.MatchingRules)
+	}
+}
+
 func TestGenerateGraph_MultiArch(t *testing.T) {
 	current := configv1.Release{
 		Version:      "4.17.5",
