@@ -194,7 +194,7 @@ func RunUpdateService(ctx context.Context, kubeClient kubernetes.Interface, name
 							"-c",
 							`DIR="$(mktemp -d)" &&
 cd "${DIR}" &&
-printf '%s' "${GRAPH_JSON}" >graph &&
+printenv GRAPH_JSON >graph &&
 python3 -m http.server --bind ::
 `,
 						},
