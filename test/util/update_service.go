@@ -40,6 +40,8 @@ func GenerateGraph(current configv1.Release, channel string) ([]byte, error) {
 
 	var graph cincinnati.Graph
 	switch channel {
+	case "simple":
+		graph = generateSimpleGraph(current, currentVersion, channel)
 	case "risks-always":
 		graph = generateRisksAlwaysGraph(current, currentVersion, channel)
 	case "OTA-1813":
@@ -49,6 +51,44 @@ func GenerateGraph(current configv1.Release, channel string) ([]byte, error) {
 	}
 
 	return json.Marshal(graph)
+}
+
+// generateSimpleGraph mirrors Fauxinnati's simple channel: a current release
+// with unconditional patch- and minor-bump targets.
+func generateSimpleGraph(current configv1.Release, currentVersion semver.Version, channel string) cincinnati.Graph {
+	versionB := currentVersion
+	versionB.Patch++
+	versionB.Pre = nil
+	versionC := currentVersion
+	versionC.Minor++
+	versionC.Patch = 0
+	versionC.Pre = nil
+
+	currentURL := string(current.URL)
+	if currentURL == "" {
+		currentURL = generateReleaseURL(currentVersion)
+	}
+
+	return cincinnati.Graph{
+		Nodes: []cincinnati.Node{
+			{
+				Version:  currentVersion,
+				Image:    current.Image,
+				Metadata: nodeMetadata("channel-head,risks-always,risks-matching,risks-nonmatching,simple,smoke-test", currentURL, current.Architecture),
+			},
+			{
+				Version:  versionB,
+				Image:    "example.com/test@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+				Metadata: nodeMetadata(channel, generateReleaseURL(versionB), current.Architecture),
+			},
+			{
+				Version:  versionC,
+				Image:    "example.com/test@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+				Metadata: nodeMetadata(channel, generateReleaseURL(versionC), current.Architecture),
+			},
+		},
+		Edges: []cincinnati.Edge{{Origin: 0, Destination: 1}, {Origin: 0, Destination: 2}},
+	}
 }
 
 // generateRisksAlwaysGraph builds a three-node graph with the current version

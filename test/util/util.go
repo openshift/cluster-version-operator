@@ -163,11 +163,6 @@ func SkipIfNoAPI(ctx context.Context, restConfig *rest.Config, apiName string) {
 	}
 }
 
-const (
-	// fauxinnati mocks Cincinnati Update Graph Server for OpenShift
-	FauxinnatiAPIURL = "https://fauxinnati-fauxinnati.apps.ota-stage.q2z4.p1.openshiftapps.com/api/upgrades_info/graph"
-)
-
 func accessible(ctx context.Context, restConfig *rest.Config, urls ...string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()

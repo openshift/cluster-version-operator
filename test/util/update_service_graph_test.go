@@ -145,6 +145,33 @@ func TestGenerateGraph_OTA1813(t *testing.T) {
 	}
 }
 
+func TestGenerateGraph_Simple(t *testing.T) {
+	current := configv1.Release{
+		Version: "4.17.5",
+		Image:   "example.com/current@sha256:deadbeef",
+	}
+
+	raw, err := GenerateGraph(current, "simple")
+	if err != nil {
+		t.Fatalf("GenerateGraph() error = %v", err)
+	}
+
+	var got cincinnati.Graph
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	if len(got.Nodes) != 3 {
+		t.Fatalf("len(got.Nodes) = %d, want 3", len(got.Nodes))
+	}
+	if got.Nodes[0].Metadata["io.openshift.upgrades.graph.release.channels"] != "channel-head,risks-always,risks-matching,risks-nonmatching,simple,smoke-test" {
+		t.Errorf("current node channel = %v, want Fauxinnati simple channels", got.Nodes[0].Metadata["io.openshift.upgrades.graph.release.channels"])
+	}
+	if want := []cincinnati.Edge{{Origin: 0, Destination: 1}, {Origin: 0, Destination: 2}}; !cmp.Equal(got.Edges, want) {
+		t.Errorf("got.Edges = %v, want %v", got.Edges, want)
+	}
+}
+
 func TestGenerateGraph_MultiArch(t *testing.T) {
 	current := configv1.Release{
 		Version:      "4.17.5",
