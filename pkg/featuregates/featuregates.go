@@ -45,6 +45,10 @@ type CvoGateChecker interface {
 
 	// AcceptRisks controls whether the CVO reconciles spec.desiredUpdate.acceptRisks.
 	AcceptRisks() bool
+
+	// TLSGroupPreferences controls whether the CVO injects observed TLS group (curve)
+	// preferences into ConfigMaps it reconciles, in addition to minTLSVersion and cipherSuites.
+	TLSGroupPreferences() bool
 }
 
 // CvoGates contains flags that control CVO functionality gated by product feature gates. The
@@ -60,6 +64,7 @@ type CvoGates struct {
 	statusReleaseArchitecture bool
 	cvoConfiguration          bool
 	acceptRisks               bool
+	tlsGroupPreferences       bool
 }
 
 func (c CvoGates) DesiredVersion() string {
@@ -82,6 +87,10 @@ func (c CvoGates) AcceptRisks() bool {
 	return c.acceptRisks
 }
 
+func (c CvoGates) TLSGroupPreferences() bool {
+	return c.tlsGroupPreferences
+}
+
 // DefaultCvoGates apply when actual features for given version are unknown
 func DefaultCvoGates(version string) CvoGates {
 	return CvoGates{
@@ -90,6 +99,7 @@ func DefaultCvoGates(version string) CvoGates {
 		statusReleaseArchitecture: false,
 		cvoConfiguration:          false,
 		acceptRisks:               false,
+		tlsGroupPreferences:       false,
 	}
 }
 
@@ -113,6 +123,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.cvoConfiguration = true
 			case features.FeatureGateClusterUpdateAcceptRisks:
 				enabledGates.acceptRisks = true
+			case features.FeatureGateTLSGroupPreferences:
+				enabledGates.tlsGroupPreferences = true
 			}
 		}
 		for _, disabled := range g.Disabled {
@@ -123,6 +135,8 @@ func CvoGatesFromFeatureGate(gate *configv1.FeatureGate, version string) CvoGate
 				enabledGates.cvoConfiguration = false
 			case features.FeatureGateClusterUpdateAcceptRisks:
 				enabledGates.acceptRisks = false
+			case features.FeatureGateTLSGroupPreferences:
+				enabledGates.tlsGroupPreferences = false
 			}
 		}
 	}

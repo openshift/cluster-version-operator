@@ -3,6 +3,7 @@ package resourcebuilder
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -19,9 +20,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/crypto"
+
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 // makeGenericConfigYAML generates a generic config YAML string with the specified servingInfo fields.
@@ -217,7 +221,9 @@ func validateConfigMapsEqual(original, modified *corev1.ConfigMap) error {
 	return nil
 }
 
-// validateGenericConfigTLSInjected validates that TLS settings were injected into a generic config
+// validateGenericConfigTLSInjected validates that TLS settings were injected into a generic
+// config. It assumes the default set of feature gates (TLSGroupPreferences disabled), so curve
+// preferences must not be populated.
 func validateGenericConfigTLSInjected(modified *corev1.ConfigMap, fieldName string, expectedKind, expectedAPIVersion string, expectedCiphers []string, expectedMinTLSVersion string) error {
 	// Verify the field is still present
 	configYAML, ok := modified.Data[fieldName]
@@ -272,6 +278,12 @@ func validateGenericConfigTLSInjected(modified *corev1.ConfigMap, fieldName stri
 
 	if diff := cmp.Diff(expectedCiphers, cipherSuites); diff != "" {
 		return fmt.Errorf("list of ciphers mismatch (-want +got):\n%s", diff)
+	}
+
+	if _, found, err := unstructured.NestedFieldNoCopy(obj, "servingInfo", "curvePreferences"); err != nil {
+		return fmt.Errorf("failed to get servingInfo.curvePreferences: %v", err)
+	} else if found {
+		return fmt.Errorf("servingInfo.curvePreferences was populated but should not be")
 	}
 
 	return nil
@@ -646,6 +658,7 @@ servingInfo:
 			// Create builder with fake client
 			b := &builder{
 				configClientv1: fakeClient.ConfigV1(),
+				gates:          featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion),
 			}
 
 			// Deep copy the ConfigMap before modification for comparison
@@ -861,6 +874,41 @@ servingInfo:
   minTLSVersion: VersionTLS13
 `,
 		},
+		{
+			name: "Set curvePreferences when found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+`,
+			tlsConf: &tlsConfig{
+				curvePreferences: optional[[]int32]{value: []int32{29, 23}, found: true},
+			},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  curvePreferences:
+  - 29
+  - 23
+`,
+		},
+		{
+			name: "Clear curvePreferences when not found",
+			inputYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+  curvePreferences:
+  - 29
+`,
+			tlsConf: &tlsConfig{},
+			expectedYAML: `apiVersion: operator.openshift.io/v1alpha1
+kind: GenericOperatorConfig
+servingInfo:
+  bindAddress: 0.0.0.0:8443
+`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -891,6 +939,185 @@ servingInfo:
 				if resultYAML != tt.expectedYAML {
 					t.Errorf("YAML mismatch.\nExpected:\n%s\nGot:\n%s", tt.expectedYAML, resultYAML)
 				}
+			}
+		})
+	}
+}
+
+func TestModifyConfigMapCurvePreferences(t *testing.T) {
+	// gatesWithTLSGroupPreferences returns a CvoGateChecker with the
+	// TLSGroupPreferences feature gate enabled or disabled.
+	gatesWithTLSGroupPreferences := func(enabled bool) featuregates.CvoGateChecker {
+		t.Helper()
+		if !enabled {
+			return featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion)
+		}
+		return featuregates.CvoGatesFromFeatureGate(
+			&configv1.FeatureGate{
+				Status: configv1.FeatureGateStatus{
+					FeatureGates: []configv1.FeatureGateDetails{
+						{
+							Version: "v1",
+							Enabled: []configv1.FeatureGateAttributes{
+								{
+									Name: features.FeatureGateTLSGroupPreferences,
+								},
+							},
+						},
+					},
+				},
+			},
+			"v1",
+		)
+	}
+	// curvePreferencesForProfile derives the expected curve IDs for a named
+	// TLS profile from the openshift/api profile declaration, rather than
+	// hardcoding them.
+	curvePreferencesForProfile := func(t *testing.T, profileType configv1.TLSProfileType) []int32 {
+		t.Helper()
+		profile, ok := configv1.TLSProfiles[profileType]
+		if !ok {
+			t.Fatalf("unknown TLS profile type %q", profileType)
+		}
+		curves, unrecognized := crypto.TLSGroupsToCurvePreferences(profile.Groups)
+		if len(unrecognized) > 0 {
+			t.Fatalf("profile %q declares unrecognized groups %v", profileType, unrecognized)
+		}
+		return curves
+	}
+
+	tests := []struct {
+		name                 string
+		apiServer            *configv1.APIServer
+		gateEnabled          bool
+		wantCurvePreferences []int32
+	}{
+		{
+			name:        "intermediate profile with gate enabled injects curve preferences",
+			gateEnabled: true,
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileIntermediateType,
+					},
+				},
+			},
+			wantCurvePreferences: curvePreferencesForProfile(t, configv1.TLSProfileIntermediateType),
+		},
+		{
+			name:        "modern profile with gate enabled injects curve preferences",
+			gateEnabled: true,
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileModernType,
+					},
+				},
+			},
+			wantCurvePreferences: curvePreferencesForProfile(t, configv1.TLSProfileModernType),
+		},
+		{
+			name:        "intermediate profile with gate disabled does not inject curve preferences",
+			gateEnabled: false,
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileIntermediateType,
+					},
+				},
+			},
+			wantCurvePreferences: nil,
+		},
+		{
+			name:        "custom profile with some invalid groups injects only recognized curve preferences",
+			gateEnabled: true,
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS12,
+								Groups: []configv1.TLSGroup{
+									configv1.TLSGroupX25519,
+									configv1.TLSGroup("BogusGroup"),
+									configv1.TLSGroupSecP256r1,
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCurvePreferences: []int32{
+				int32(tls.X25519),
+				int32(tls.CurveP256),
+			},
+		},
+		{
+			name:        "custom profile with only invalid groups does not inject curve preferences",
+			gateEnabled: true,
+			apiServer: &configv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Spec: configv1.APIServerSpec{
+					TLSSecurityProfile: &configv1.TLSSecurityProfile{
+						Type: configv1.TLSProfileCustomType,
+						Custom: &configv1.CustomTLSProfile{
+							TLSProfileSpec: configv1.TLSProfileSpec{
+								MinTLSVersion: configv1.VersionTLS12,
+								Groups: []configv1.TLSGroup{
+									configv1.TLSGroup("BogusGroup"),
+									configv1.TLSGroup("AnotherBogusGroup"),
+								},
+							},
+						},
+					},
+				},
+			},
+			wantCurvePreferences: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := &builder{
+				configClientv1: fakeconfigclientv1.NewClientset(tt.apiServer).ConfigV1(),
+				gates:          gatesWithTLSGroupPreferences(tt.gateEnabled),
+			}
+
+			cm := makeConfigMap(
+				"true",
+				map[string]string{
+					genericOperatorConfigCMKey: makeGenericOperatorConfigYAML(
+						testCipherSuitesYml, tlsVersion12,
+					),
+				},
+			)
+
+			if err := b.modifyConfigMap(t.Context(), cm); err != nil {
+				t.Fatalf("modifyConfigMap() error: %v", err)
+			}
+
+			var parsed operatorv1alpha1.GenericOperatorConfig
+			if err := k8syaml.Unmarshal([]byte(cm.Data[genericOperatorConfigCMKey]), &parsed); err != nil {
+				t.Fatalf("failed to unmarshal injected config: %v", err)
+			}
+
+			if diff := cmp.Diff(tt.wantCurvePreferences, parsed.ServingInfo.CurvePreferences); diff != "" {
+				t.Errorf("servingInfo.curvePreferences mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

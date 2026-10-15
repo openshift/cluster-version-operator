@@ -12,16 +12,45 @@ import (
 	operatorv1alpha1 "github.com/openshift/client-go/operator/listers/operator/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // EtcdBackupInformer provides access to a shared informer and lister for
-// EtcdBackups.
+// EtcdBackups. Prefer using the type-safe variant (see [TypedEtcdBackupInformer]).
 type EtcdBackupInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorv1alpha1.EtcdBackupLister
 }
+
+// TypedEtcdBackupInformer provides access to a shared informer and lister for
+// EtcdBackups, including the type-safe TypedInformer variant.
+// It is a superset of EtcdBackupInformer.
+type TypedEtcdBackupInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() EtcdBackupIndexInformer
+	Lister() operatorv1alpha1.EtcdBackupLister
+}
+
+// EtcdBackupIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type EtcdBackupIndexInformer cache.TypedSharedIndexInformer[*apioperatorv1alpha1.EtcdBackup]
+
+// EtcdBackupHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for EtcdBackup.
+type EtcdBackupHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apioperatorv1alpha1.EtcdBackup]
+
+// EtcdBackupDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for EtcdBackup.
+type EtcdBackupDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apioperatorv1alpha1.EtcdBackup]
+
+// EtcdBackupFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for EtcdBackup.
+type EtcdBackupFilteringHandler = cache.TypedFilteringResourceEventHandler[*apioperatorv1alpha1.EtcdBackup]
+
+// EtcdBackupIndexers is a specialization of [cache.TypedIndexers] for EtcdBackup.
+type EtcdBackupIndexers = cache.TypedIndexers[*apioperatorv1alpha1.EtcdBackup]
+
+// DeletedEtcdBackup is a specialization of [cache.DeletedObject] for EtcdBackup.
+type DeletedEtcdBackup = cache.DeletedObject[*apioperatorv1alpha1.EtcdBackup]
 
 type etcdBackupInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type etcdBackupInformer struct {
 // NewEtcdBackupInformer constructs a new informer for EtcdBackup type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedEtcdBackupInformer]).
 func NewEtcdBackupInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredEtcdBackupInformer(client, resyncPeriod, indexers, nil)
+	return NewEtcdBackupInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedEtcdBackupInformer constructs a new informer for EtcdBackup type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedEtcdBackupInformer(client versioned.Interface, resyncPeriod time.Duration, indexers EtcdBackupIndexers) EtcdBackupIndexInformer {
+	return NewTypedEtcdBackupInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredEtcdBackupInformer constructs a new informer for EtcdBackup type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredEtcdBackupInformer]).
 func NewFilteredEtcdBackupInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
+	return NewTypedEtcdBackupInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredEtcdBackupInformer constructs a new informer for EtcdBackup type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredEtcdBackupInformer(client versioned.Interface, resyncPeriod time.Duration, indexers EtcdBackupIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) EtcdBackupIndexInformer {
+	return NewTypedEtcdBackupInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewEtcdBackupInformerWithOptions constructs a new informer for EtcdBackup type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedEtcdBackupInformerWithOptions]).
+func NewEtcdBackupInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedEtcdBackupInformerWithOptions(client, options)
+}
+
+// NewTypedEtcdBackupInformerWithOptions constructs a new informer for EtcdBackup type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedEtcdBackupInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) EtcdBackupIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1alpha1", Resource: "etcdbackups"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1alpha1.EtcdBackup](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
-			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(opts v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1alpha1().EtcdBackups().List(context.Background(), options)
+				return client.OperatorV1alpha1().EtcdBackups().List(context.Background(), opts)
 			},
-			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1alpha1().EtcdBackups().Watch(context.Background(), options)
+				return client.OperatorV1alpha1().EtcdBackups().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1alpha1().EtcdBackups().List(ctx, options)
+				return client.OperatorV1alpha1().EtcdBackups().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1alpha1().EtcdBackups().Watch(ctx, options)
+				return client.OperatorV1alpha1().EtcdBackups().Watch(ctx, opts)
 			},
 		}, client),
 		&apioperatorv1alpha1.EtcdBackup{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *etcdBackupInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredEtcdBackupInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedEtcdBackupInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *etcdBackupInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apioperatorv1alpha1.EtcdBackup{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *etcdBackupInformer) TypedInformer() EtcdBackupIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1alpha1.EtcdBackup](f.factory.InformerFor(&apioperatorv1alpha1.EtcdBackup{}, f.defaultInformer))
 }
 
 func (f *etcdBackupInformer) Lister() operatorv1alpha1.EtcdBackupLister {
 	return operatorv1alpha1.NewEtcdBackupLister(f.Informer().GetIndexer())
+}
+
+// ToTypedEtcdBackupInformer converts an untyped informer into a TypedEtcdBackupInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *EtcdBackup. If that is not the case, calling type-safe methods of the returned
+// TypedEtcdBackupInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedEtcdBackupInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedEtcdBackupInformer(informer EtcdBackupInformer) TypedEtcdBackupInformer {
+	if informer, ok := informer.(TypedEtcdBackupInformer); ok {
+		return informer
+	}
+	return &etcdBackupTypedInformerAdapter{informer}
+}
+
+type etcdBackupTypedInformerAdapter struct {
+	EtcdBackupInformer
+}
+
+func (a *etcdBackupTypedInformerAdapter) TypedInformer() EtcdBackupIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1alpha1.EtcdBackup](a.Informer())
+}
+
+// ToEtcdBackupIndexInformer converts an untyped informer into a EtcdBackupIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *EtcdBackup. If that is not the case, calling type-safe methods of the returned
+// EtcdBackupIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a EtcdBackupIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToEtcdBackupIndexInformer(informer cache.SharedIndexInformer) EtcdBackupIndexInformer {
+	if informer, ok := informer.(EtcdBackupIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1alpha1.EtcdBackup](informer)
 }

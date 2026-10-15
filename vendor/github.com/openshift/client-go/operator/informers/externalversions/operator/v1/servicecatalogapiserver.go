@@ -12,16 +12,45 @@ import (
 	operatorv1 "github.com/openshift/client-go/operator/listers/operator/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
+	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
 )
 
 // ServiceCatalogAPIServerInformer provides access to a shared informer and lister for
-// ServiceCatalogAPIServers.
+// ServiceCatalogAPIServers. Prefer using the type-safe variant (see [TypedServiceCatalogAPIServerInformer]).
 type ServiceCatalogAPIServerInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() operatorv1.ServiceCatalogAPIServerLister
 }
+
+// TypedServiceCatalogAPIServerInformer provides access to a shared informer and lister for
+// ServiceCatalogAPIServers, including the type-safe TypedInformer variant.
+// It is a superset of ServiceCatalogAPIServerInformer.
+type TypedServiceCatalogAPIServerInformer interface {
+	Informer() cache.SharedIndexInformer
+	TypedInformer() ServiceCatalogAPIServerIndexInformer
+	Lister() operatorv1.ServiceCatalogAPIServerLister
+}
+
+// ServiceCatalogAPIServerIndexInformer is a wrapper around the underlying [cache.SharedIndexInformer]
+// with type-safe variants of several methods.
+type ServiceCatalogAPIServerIndexInformer cache.TypedSharedIndexInformer[*apioperatorv1.ServiceCatalogAPIServer]
+
+// ServiceCatalogAPIServerHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerFuncs] for ServiceCatalogAPIServer.
+type ServiceCatalogAPIServerHandlerFuncs = cache.TypedResourceEventHandlerFuncs[*apioperatorv1.ServiceCatalogAPIServer]
+
+// ServiceCatalogAPIServerDetailedHandlerFuncs is a specialization of [cache.TypedResourceEventHandlerDetailedFuncs] for ServiceCatalogAPIServer.
+type ServiceCatalogAPIServerDetailedHandlerFuncs = cache.TypedResourceEventHandlerDetailedFuncs[*apioperatorv1.ServiceCatalogAPIServer]
+
+// ServiceCatalogAPIServerFilteringHandler is a specialization of [cache.TypedFilteringResourceEventHandler] for ServiceCatalogAPIServer.
+type ServiceCatalogAPIServerFilteringHandler = cache.TypedFilteringResourceEventHandler[*apioperatorv1.ServiceCatalogAPIServer]
+
+// ServiceCatalogAPIServerIndexers is a specialization of [cache.TypedIndexers] for ServiceCatalogAPIServer.
+type ServiceCatalogAPIServerIndexers = cache.TypedIndexers[*apioperatorv1.ServiceCatalogAPIServer]
+
+// DeletedServiceCatalogAPIServer is a specialization of [cache.DeletedObject] for ServiceCatalogAPIServer.
+type DeletedServiceCatalogAPIServer = cache.DeletedObject[*apioperatorv1.ServiceCatalogAPIServer]
 
 type serviceCatalogAPIServerInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
@@ -31,55 +60,132 @@ type serviceCatalogAPIServerInformer struct {
 // NewServiceCatalogAPIServerInformer constructs a new informer for ServiceCatalogAPIServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedServiceCatalogAPIServerInformer]).
 func NewServiceCatalogAPIServerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredServiceCatalogAPIServerInformer(client, resyncPeriod, indexers, nil)
+	return NewServiceCatalogAPIServerInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers})
+}
+
+// NewTypedServiceCatalogAPIServerInformer constructs a new informer for ServiceCatalogAPIServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedServiceCatalogAPIServerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers ServiceCatalogAPIServerIndexers) ServiceCatalogAPIServerIndexInformer {
+	return NewTypedServiceCatalogAPIServerInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers)})
 }
 
 // NewFilteredServiceCatalogAPIServerInformer constructs a new informer for ServiceCatalogAPIServer type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedFilteredServiceCatalogAPIServerInformer]).
 func NewFilteredServiceCatalogAPIServerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
-	return cache.NewSharedIndexInformer(
+	return NewTypedServiceCatalogAPIServerInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: indexers, TweakListOptions: tweakListOptions})
+}
+
+// NewTypedFilteredServiceCatalogAPIServerInformer constructs a new informer for ServiceCatalogAPIServer type.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedFilteredServiceCatalogAPIServerInformer(client versioned.Interface, resyncPeriod time.Duration, indexers ServiceCatalogAPIServerIndexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) ServiceCatalogAPIServerIndexInformer {
+	return NewTypedServiceCatalogAPIServerInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.TypedIndexersToIndexers(indexers), TweakListOptions: tweakListOptions})
+}
+
+// NewServiceCatalogAPIServerInformerWithOptions constructs a new informer for ServiceCatalogAPIServer type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+// If you really need an independent one, prefer using the type-safe variant (see [NewTypedServiceCatalogAPIServerInformerWithOptions]).
+func NewServiceCatalogAPIServerInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) cache.SharedIndexInformer {
+	return NewTypedServiceCatalogAPIServerInformerWithOptions(client, options)
+}
+
+// NewTypedServiceCatalogAPIServerInformerWithOptions constructs a new informer for ServiceCatalogAPIServer type with additional options.
+// Always prefer using an informer factory to get a shared informer instead of getting an independent
+// one. This reduces memory footprint and number of connections to the server.
+func NewTypedServiceCatalogAPIServerInformerWithOptions(client versioned.Interface, options internalinterfaces.InformerOptions) ServiceCatalogAPIServerIndexInformer {
+	gvr := schema.GroupVersionResource{Group: "operator.openshift.io", Version: "v1", Resource: "servicecatalogapiservers"}
+	identifier := options.InformerName.WithResource(gvr)
+	tweakListOptions := options.TweakListOptions
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.ServiceCatalogAPIServer](cache.NewSharedIndexInformerWithOptions(
 		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
-			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			ListFunc: func(opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().ServiceCatalogAPIServers().List(context.Background(), options)
+				return client.OperatorV1().ServiceCatalogAPIServers().List(context.Background(), opts)
 			},
-			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
+			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().ServiceCatalogAPIServers().Watch(context.Background(), options)
+				return client.OperatorV1().ServiceCatalogAPIServers().Watch(context.Background(), opts)
 			},
-			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+			ListWithContextFunc: func(ctx context.Context, opts metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().ServiceCatalogAPIServers().List(ctx, options)
+				return client.OperatorV1().ServiceCatalogAPIServers().List(ctx, opts)
 			},
-			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+			WatchFuncWithContext: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
-					tweakListOptions(&options)
+					tweakListOptions(&opts)
 				}
-				return client.OperatorV1().ServiceCatalogAPIServers().Watch(ctx, options)
+				return client.OperatorV1().ServiceCatalogAPIServers().Watch(ctx, opts)
 			},
 		}, client),
 		&apioperatorv1.ServiceCatalogAPIServer{},
-		resyncPeriod,
-		indexers,
-	)
+		cache.SharedIndexInformerOptions{
+			ResyncPeriod: options.ResyncPeriod,
+			Indexers:     options.Indexers,
+			Identifier:   identifier,
+		},
+	))
 }
 
 func (f *serviceCatalogAPIServerInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredServiceCatalogAPIServerInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewTypedServiceCatalogAPIServerInformerWithOptions(client, internalinterfaces.InformerOptions{ResyncPeriod: resyncPeriod, Indexers: cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, InformerName: f.factory.InformerName(), TweakListOptions: f.tweakListOptions})
 }
 
 func (f *serviceCatalogAPIServerInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&apioperatorv1.ServiceCatalogAPIServer{}, f.defaultInformer)
+	return f.TypedInformer()
+}
+
+func (f *serviceCatalogAPIServerInformer) TypedInformer() ServiceCatalogAPIServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.ServiceCatalogAPIServer](f.factory.InformerFor(&apioperatorv1.ServiceCatalogAPIServer{}, f.defaultInformer))
 }
 
 func (f *serviceCatalogAPIServerInformer) Lister() operatorv1.ServiceCatalogAPIServerLister {
 	return operatorv1.NewServiceCatalogAPIServerLister(f.Informer().GetIndexer())
+}
+
+// ToTypedServiceCatalogAPIServerInformer converts an untyped informer into a TypedServiceCatalogAPIServerInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ServiceCatalogAPIServer. If that is not the case, calling type-safe methods of the returned
+// TypedServiceCatalogAPIServerInformer leads to runtime panics. A safer alternative is to pass
+// around a TypedServiceCatalogAPIServerInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToTypedServiceCatalogAPIServerInformer(informer ServiceCatalogAPIServerInformer) TypedServiceCatalogAPIServerInformer {
+	if informer, ok := informer.(TypedServiceCatalogAPIServerInformer); ok {
+		return informer
+	}
+	return &serviceCatalogAPIServerTypedInformerAdapter{informer}
+}
+
+type serviceCatalogAPIServerTypedInformerAdapter struct {
+	ServiceCatalogAPIServerInformer
+}
+
+func (a *serviceCatalogAPIServerTypedInformerAdapter) TypedInformer() ServiceCatalogAPIServerIndexInformer {
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.ServiceCatalogAPIServer](a.Informer())
+}
+
+// ToServiceCatalogAPIServerIndexInformer converts an untyped informer into a ServiceCatalogAPIServerIndexInformer.
+//
+// WARNING: this conversion is only safe if the informer handles objects of type
+// *ServiceCatalogAPIServer. If that is not the case, calling type-safe methods of the returned
+// ServiceCatalogAPIServerIndexInformer leads to runtime panics. A safer alternative is to pass
+// around a ServiceCatalogAPIServerIndexInformer instances that was obtained from a
+// SharedInformerFactory.
+func ToServiceCatalogAPIServerIndexInformer(informer cache.SharedIndexInformer) ServiceCatalogAPIServerIndexInformer {
+	if informer, ok := informer.(ServiceCatalogAPIServerIndexInformer); ok {
+		return informer
+	}
+	return cache.NewTypedSharedIndexInformer[*apioperatorv1.ServiceCatalogAPIServer](informer)
 }

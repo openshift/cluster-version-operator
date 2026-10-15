@@ -35,6 +35,7 @@ import (
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourcedelete"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 // builder manages single-manifest cluster reconciliation and monitoring.
@@ -42,6 +43,7 @@ type builder struct {
 	raw      []byte
 	mode     Mode
 	modifier MetaV1ObjectModifierFunc
+	gates    featuregates.CvoGateChecker
 
 	admissionregistrationClientv1 admissionregistrationclientv1.AdmissionregistrationV1Interface
 	apiextensionsClientv1         apiextensionsclientv1.ApiextensionsV1Interface
@@ -58,7 +60,8 @@ type builder struct {
 
 func newBuilder(config *rest.Config, m manifest.Manifest) Interface {
 	return &builder{
-		raw: m.Raw,
+		raw:   m.Raw,
+		gates: featuregates.CvoGates{},
 
 		admissionregistrationClientv1: admissionregistrationclientv1.NewForConfigOrDie(withProtobuf(config)),
 		apiextensionsClientv1:         apiextensionsclientv1.NewForConfigOrDie(withProtobuf(config)),
@@ -81,6 +84,11 @@ func (b *builder) WithMode(m Mode) Interface {
 
 func (b *builder) WithModifier(f MetaV1ObjectModifierFunc) Interface {
 	b.modifier = f
+	return b
+}
+
+func (b *builder) WithFeatureGates(gates featuregates.CvoGateChecker) Interface {
+	b.gates = gates
 	return b
 }
 

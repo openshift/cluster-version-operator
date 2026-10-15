@@ -15,6 +15,8 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientv1 "github.com/openshift/client-go/config/clientset/versioned/fake"
+
+	"github.com/openshift/cluster-version-operator/pkg/featuregates"
 )
 
 const (
@@ -84,6 +86,7 @@ func TestModifyConfigMapWithBuilder(t *testing.T) {
 				configClientv1: fakeConfigClient.ConfigV1(),
 				coreClientv1:   fakeKubeClient.CoreV1(),
 				raw:            configMapYAML,
+				gates:          featuregates.DefaultCvoGates(featuregates.StubOpenShiftVersion),
 			}
 
 			// Call Do()

@@ -19,6 +19,7 @@ import (
 	operatorv1alpha1 "github.com/openshift/api/operator/v1alpha1"
 	configclientv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/crypto"
 	"github.com/openshift/library-go/pkg/operator/configobserver/apiserver"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resourcesynccontroller"
@@ -35,8 +36,9 @@ type optional[T any] struct {
 }
 
 type tlsConfig struct {
-	minTLSVersion optional[string]
-	cipherSuites  optional[[]string]
+	minTLSVersion    optional[string]
+	cipherSuites     optional[[]string]
+	curvePreferences optional[[]int32]
 }
 
 // modifyConfigMap sets/clears minTLSVersion and cipherSuites in the CM's data entries if
@@ -71,6 +73,14 @@ func (b *builder) modifyConfigMap(ctx context.Context, cm *corev1.ConfigMap) err
 	}
 	klog.V(4).Infof("ConfigMap %s/%s will apply observed minTLSVersion=%v, cipherSuites=%v",
 		cm.Namespace, cm.Name, minTLSLog, cipherSuitesLog)
+
+	if b.gates.TLSGroupPreferences() {
+		curvePreferencesLog := "<not found>"
+		if tlsConf.curvePreferences.found {
+			curvePreferencesLog = fmt.Sprintf("%v", tlsConf.curvePreferences.value)
+		}
+		klog.V(4).Infof("ConfigMap %s/%s will apply observed curvePreferences=%v", cm.Namespace, cm.Name, curvePreferencesLog)
+	}
 
 	// Process each data key
 	for key, value := range cm.Data {
@@ -129,7 +139,24 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 	recorder := events.NewInMemoryRecorder("configmap-tls-injection", clock.RealClock{})
 
 	// Call ObserveTLSSecurityProfile to get TLS configuration
-	observedConfig, errs := apiserver.ObserveTLSSecurityProfile(listers, recorder, map[string]any{})
+	var observedConfig map[string]any
+	var errs []error
+	if b.gates.TLSGroupPreferences() {
+		observedConfig, errs = apiserver.ObserveTLSSecurityProfileWithGroupPaths(
+			listers,
+			recorder,
+			map[string]any{},
+			[]string{"servingInfo", "minTLSVersion"},
+			[]string{"servingInfo", "cipherSuites"},
+			[]string{"servingInfo", "groups"},
+		)
+	} else {
+		observedConfig, errs = apiserver.ObserveTLSSecurityProfile(
+			listers,
+			recorder,
+			map[string]any{},
+		)
+	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("error observing TLS profile for ConfigMap %s/%s: %w", cm.Namespace, cm.Name, errors.Join(errs...))
 	}
@@ -152,12 +179,30 @@ func (b *builder) observeTLSConfiguration(ctx context.Context, cm *corev1.Config
 		config.cipherSuites = optional[[]string]{value: cipherSuites, found: true}
 	}
 
+	// Extract the TLS group preferences when enabled and convert the observed group
+	// names to the numeric curve IDs used by the ServingInfo.curvePreferences field.
+	// An empty result (no recognized groups) is left unset so the field is cleared and
+	// the operand falls back to its default curve set.
+	if b.gates.TLSGroupPreferences() {
+		if groups, groupsFound, err := unstructured.NestedStringSlice(observedConfig, "servingInfo", "groups"); err != nil {
+			return nil, err
+		} else if groupsFound {
+			curvePreferences, unrecognized := crypto.TLSGroupsToCurvePreferences(groups)
+			if len(unrecognized) > 0 {
+				klog.Warningf("ConfigMap %s/%s observed unrecognized TLS groups %v; omitting them from curvePreferences", cm.Namespace, cm.Name, unrecognized)
+			}
+			if len(curvePreferences) > 0 {
+				config.curvePreferences = optional[[]int32]{value: curvePreferences, found: true}
+			}
+		}
+	}
+
 	return config, nil
 }
 
 // updateRNodeWithTLSSettings injects TLS settings into an RNode while preserving structure.
 // Assumes a GenericOperatorConfig or GenericControllerConfig schema.
-// If a field in tlsConf is not found, the corresponding field will be deleted from the RNode.
+// If a field in tlsConf is not found, the corresponding field is deleted from the RNode.
 func updateRNodeWithTLSSettings(rnode *yaml.RNode, tlsConf *tlsConfig) error {
 	servingInfo, err := rnode.Pipe(yaml.LookupCreate(yaml.MappingNode, "servingInfo"))
 	if err != nil {
@@ -183,6 +228,21 @@ func updateRNodeWithTLSSettings(rnode *yaml.RNode, tlsConf *tlsConfig) error {
 		}
 	} else {
 		if err := servingInfo.PipeE(yaml.Clear("minTLSVersion")); err != nil {
+			return err
+		}
+	}
+
+	// Handle curvePreferences field
+	if tlsConf.curvePreferences.found {
+		curveNode := &yaml.Node{}
+		if err := curveNode.Encode(tlsConf.curvePreferences.value); err != nil {
+			return err
+		}
+		if err := servingInfo.PipeE(yaml.SetField("curvePreferences", yaml.NewRNode(curveNode))); err != nil {
+			return err
+		}
+	} else {
+		if err := servingInfo.PipeE(yaml.Clear("curvePreferences")); err != nil {
 			return err
 		}
 	}
