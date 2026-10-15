@@ -89,6 +89,49 @@ func TestUpdatePodSpecWithProxy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:           "proxy info, invalid container name",
+			containerNames: []string{"foo", "invalid"},
+			httpsProxy:     "httpsProxy-val",
+			noProxy:        "noProxy-val",
+			input: &corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					{Name: "init-foo"},
+				},
+				Containers: []corev1.Container{
+					{Name: "foo"},
+				},
+			},
+			expectedErr: "requested injection for non-existent containers: invalid",
+		},
+		{
+			name:           "no proxy info, invalid container name",
+			containerNames: []string{"foo", "invalid"},
+			input: &corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					{Name: "init-foo"},
+				},
+				Containers: []corev1.Container{
+					{Name: "foo"},
+				},
+			},
+			expectedErr: "requested injection for non-existent containers: invalid",
+		},
+		{
+			name:           "proxy info, multiple invalid container names",
+			containerNames: []string{"foo", "invalid1", "invalid2"},
+			httpsProxy:     "httpsProxy-val",
+			noProxy:        "noProxy-val",
+			input: &corev1.PodSpec{
+				InitContainers: []corev1.Container{
+					{Name: "init-foo"},
+				},
+				Containers: []corev1.Container{
+					{Name: "foo"},
+				},
+			},
+			expectedErr: "requested injection for non-existent containers: invalid1, invalid2",
+		},
 	}
 
 	for _, test := range tests {
@@ -104,7 +147,7 @@ func TestUpdatePodSpecWithProxy(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if !reflect.DeepEqual(test.input, test.expected) {
+			if test.expectedErr == "" && !reflect.DeepEqual(test.input, test.expected) {
 				t.Error(cmp.Diff(test.input, test.expected))
 			}
 		})
