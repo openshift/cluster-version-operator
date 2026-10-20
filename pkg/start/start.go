@@ -4,6 +4,7 @@ package start
 
 import (
 	"context"
+	gotls "crypto/tls"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -658,6 +659,19 @@ func (o *Options) NewControllerContext(
 		return nil, fmt.Errorf("failed to initialize TLS profile manager: %w", err)
 	}
 
+	// The profile manager sets CurvePreferences as well but those should
+	// only be set when the TLSGroupPreferences feature gate is on. Here
+	// we strip them out when needed. The Curves (aka Groups) will be GA
+	// eventually so just removing this wrapper should get the job done
+	// when the GA happens.
+	applyTLSConfig := tlsProfileMgr.ApplySettings
+	if !startingCvoGates.TLSGroupPreferences() {
+		applyTLSConfig = func(config *gotls.Config) {
+			tlsProfileMgr.ApplySettings(config)
+			config.CurvePreferences = nil
+		}
+	}
+
 	cvo, err := cvo.New(
 		o.NodeName,
 		o.Namespace, o.Name,
@@ -671,7 +685,7 @@ func (o *Options) NewControllerContext(
 		configInformerFactory.Config().V1().Proxies(),
 		operatorInformerFactory,
 		configInformerFactory.Config().V1().FeatureGates(),
-		tlsProfileMgr.ApplySettings,
+		applyTLSConfig,
 		cb.ClientOrDie(o.Namespace),
 		cvoKubeClient,
 		dynamicClient,
