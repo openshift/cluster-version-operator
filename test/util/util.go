@@ -143,6 +143,37 @@ func SkipIfNotTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config)
 	}
 }
 
+// IsFeatureGateEnabled reports whether the named feature gate is enabled in the cluster's
+// FeatureGate status for any version listed there. During an update the status carries an
+// entry per version, and the answer is intentionally conservative: a gate enabled for any
+// of them is reported as enabled.
+func IsFeatureGateEnabled(ctx context.Context, restConfig *rest.Config, name configv1.FeatureGateName) bool {
+	configClient, err := GetConfigClient(restConfig)
+	o.Expect(err).NotTo(o.HaveOccurred())
+	featureGate, err := configClient.ConfigV1().FeatureGates().Get(ctx, "cluster", metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		o.Expect(err).NotTo(o.HaveOccurred(), "could not retrieve feature-gate: %v", err)
+	}
+	for _, version := range featureGate.Status.FeatureGates {
+		for _, enabled := range version.Enabled {
+			if enabled.Name == name {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// SkipIfFeatureGateEnabled skips the test if the named feature gate is enabled in the cluster.
+func SkipIfFeatureGateEnabled(ctx context.Context, restConfig *rest.Config, name configv1.FeatureGateName) {
+	if IsFeatureGateEnabled(ctx, restConfig, name) {
+		g.Skip(fmt.Sprintf("This test is skipped because the %s feature gate is enabled", name))
+	}
+}
+
 // SkipIfNoAPI skips the test if the cluster does not have a particular CustomResourceDefinition.
 func SkipIfNoAPI(ctx context.Context, restConfig *rest.Config, apiName string) {
 	apiExtensionsClient, err := apiextensionsclientset.NewForConfig(restConfig)
