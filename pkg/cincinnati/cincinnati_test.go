@@ -1,6 +1,7 @@
 package cincinnati
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,12 +9,13 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/blang/semver/v4"
 	"github.com/google/uuid"
 
-	_ "k8s.io/klog/v2" // integration tests set glog flags.
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 
@@ -799,6 +801,107 @@ func TestGetUpdates(t *testing.T) {
 				t.Errorf("expected query to be %q, got: %q", e, a)
 			}
 		})
+	}
+}
+
+// TestGetUpdatesWithFleet is isolated from TestGetUpdates because checking the
+// pruning warning requires temporarily redirecting the process-global klog output.
+func TestGetUpdatesWithFleet(t *testing.T) {
+	state := klog.CaptureState()
+	defer state.Restore()
+
+	var out bytes.Buffer
+	klog.LogToStderr(false) // required: stderr bypasses SetOutput
+	klog.SetOutput(&out)
+
+	const graph = `{
+  "nodes": [
+    {
+      "version": "4.1.0",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.0",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.0",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    },
+    {
+      "version": "4.1.1",
+      "payload": "quay.io/openshift-release-dev/ocp-release:4.1.1",
+      "metadata": {
+        "url": "https://example.com/errata/4.1.1",
+        "io.openshift.upgrades.graph.release.channels": "test-channel"
+      }
+    }
+  ],
+  "conditionalEdges": [
+    {
+      "edges": [{"from": "4.1.0", "to": "4.1.1"}],
+      "risks": [
+        {
+          "url": "https://example.com/bug/123",
+          "name": "BugA",
+          "message": "A Fleet condition must not discard a valid PromQL condition.",
+          "matchingRules": [
+            {
+              "type": "PromQL",
+              "promql": {"promql": "max(cluster_proxy_enabled{type=~\"https?\"})"}
+            },
+            {
+              "type": "Fleet",
+              "fleet": {"doesNotMatch": ["ARO-HCP"]}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}`
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, err := w.Write([]byte(graph)); err != nil {
+			t.Errorf("failed to write graph response: %v", err)
+		}
+	}))
+	defer ts.Close()
+
+	uri, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientID := uuid.Must(uuid.Parse("01234567-0123-0123-0123-0123456789ab"))
+	c := NewClient(clientID, nil, "", standard.NewConditionRegistry(clusterconditions.DefaultPromQLTarget()))
+	_, updates, conditionalUpdates, err := c.GetUpdates(context.Background(), uri, "test-arch", "test-arch", "test-channel", semver.MustParse("4.1.0"))
+	if err != nil {
+		t.Fatalf("GetUpdates() error = %v", err)
+	}
+	if updates != nil {
+		t.Fatalf("GetUpdates() updates = %#v, want nil", updates)
+	}
+
+	want := []configv1.ConditionalUpdate{{
+		Release: configv1.Release{
+			Version:  "4.1.1",
+			Image:    "quay.io/openshift-release-dev/ocp-release:4.1.1",
+			URL:      "https://example.com/errata/4.1.1",
+			Channels: []string{"test-channel"},
+		},
+		Risks: []configv1.ConditionalUpdateRisk{{
+			URL:     "https://example.com/bug/123",
+			Name:    "BugA",
+			Message: "A Fleet condition must not discard a valid PromQL condition.",
+			MatchingRules: []configv1.ClusterCondition{{
+				Type: "PromQL",
+				PromQL: &configv1.PromQLClusterCondition{
+					PromQL: "max(cluster_proxy_enabled{type=~\"https?\"})",
+				},
+			}},
+		}},
+	}}
+	if !reflect.DeepEqual(conditionalUpdates, want) {
+		t.Errorf("GetUpdates() conditional updates = %#v, want %#v", conditionalUpdates, want)
+	}
+	if !strings.Contains(out.String(), "skipping unrecognized cluster condition type \"Fleet\"") {
+		t.Errorf("expected Fleet pruning log message, got %q", out.String())
 	}
 }
 
