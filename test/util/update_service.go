@@ -30,7 +30,7 @@ const toolsImage = "image-registry.openshift-image-registry.svc:5000/openshift/t
 
 // GenerateGraph builds a Cincinnati update graph for the given channel, using
 // current as the cluster's current release. Channel selects the topology
-// (e.g. "risks-always"). Release URL and multi-arch metadata are populated to
+// (e.g. "risks-always" or "aro-hcp-fleet"). Release URL and multi-arch metadata are populated to
 // match Cincinnati node metadata conventions.
 func GenerateGraph(current configv1.Release, channel string) ([]byte, error) {
 	currentVersion, err := semver.Parse(current.Version)
@@ -42,11 +42,64 @@ func GenerateGraph(current configv1.Release, channel string) ([]byte, error) {
 	switch channel {
 	case "risks-always":
 		graph = generateRisksAlwaysGraph(current, currentVersion, channel)
+	case "aro-hcp-fleet":
+		graph = generateFleetGraph(current, currentVersion, channel)
 	default:
 		return nil, fmt.Errorf("unsupported channel %q", channel)
 	}
 
 	return json.Marshal(graph)
+}
+
+// generateFleetGraph builds the graph used by the Fleet compatibility e2e.
+// The current configv1 API has no Fleet fields, but its condition type is
+// sufficient to exercise CVO's handling of an unrecognized condition.
+func generateFleetGraph(current configv1.Release, currentVersion semver.Version, channel string) cincinnati.Graph {
+	unconditionalPatch := currentVersion
+	unconditionalPatch.Patch++
+	unconditionalPatch.Pre = nil
+
+	failingPatch := unconditionalPatch
+	failingPatch.Patch++
+
+	matchingMinor := currentVersion
+	matchingMinor.Minor++
+	matchingMinor.Patch = 0
+	matchingMinor.Pre = nil
+
+	nonMatchingMinor := matchingMinor
+	nonMatchingMinor.Patch++
+
+	return cincinnati.Graph{
+		Nodes: []cincinnati.Node{
+			{Version: currentVersion, Image: current.Image, Metadata: nodeMetadata(channel, "https://example.com/current", current.Architecture)},
+			{Version: unconditionalPatch, Image: "quay.io/openshift-release-dev/ocp-release@sha256:0000000000000000000000000000000000000000000000000000000000000000", Metadata: nodeMetadata(channel, generateReleaseURL(unconditionalPatch), current.Architecture)},
+			{Version: failingPatch, Image: "quay.io/openshift-release-dev/ocp-release@sha256:1111111111111111111111111111111111111111111111111111111111111111", Metadata: nodeMetadata(channel, generateReleaseURL(failingPatch), current.Architecture)},
+			{Version: matchingMinor, Image: "quay.io/openshift-release-dev/ocp-release@sha256:2222222222222222222222222222222222222222222222222222222222222222", Metadata: nodeMetadata(channel, generateReleaseURL(matchingMinor), current.Architecture)},
+			{Version: nonMatchingMinor, Image: "quay.io/openshift-release-dev/ocp-release@sha256:3333333333333333333333333333333333333333333333333333333333333333", Metadata: nodeMetadata(channel, generateReleaseURL(nonMatchingMinor), current.Architecture)},
+		},
+		Edges: []cincinnati.Edge{{Origin: 0, Destination: 1}},
+		ConditionalEdges: []cincinnati.ConditionalEdges{
+			fleetConditionalEdge(currentVersion, failingPatch, "FleetCannotEvaluate", "this will fail; muahaha", "cannot be evaluated"),
+			fleetConditionalEdge(currentVersion, matchingMinor, "FleetMatches", "vector(1)", "matches"),
+			fleetConditionalEdge(currentVersion, nonMatchingMinor, "FleetDoesNotMatch", "vector(0)", "does not match"),
+		},
+	}
+}
+
+func fleetConditionalEdge(from, to semver.Version, name, promQL, result string) cincinnati.ConditionalEdges {
+	return cincinnati.ConditionalEdges{
+		Edges: []cincinnati.ConditionalEdge{{From: from.String(), To: to.String()}},
+		Risks: []configv1.ConditionalUpdateRisk{{
+			URL:     "https://example.com/fleet",
+			Name:    name,
+			Message: fmt.Sprintf("Testing a PromQL rule that %s while also including an unrecognized Fleet condition.", result),
+			MatchingRules: []configv1.ClusterCondition{
+				{Type: "PromQL", PromQL: &configv1.PromQLClusterCondition{PromQL: promQL}},
+				{Type: "Fleet"},
+			},
+		}},
+	}
 }
 
 // generateRisksAlwaysGraph builds a three-node graph with the current version
