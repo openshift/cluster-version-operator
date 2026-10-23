@@ -45,12 +45,22 @@ type Source interface {
 	Risks(ctx context.Context, versions []string) ([]configv1.ConditionalUpdateRisk, map[string][]string, error)
 }
 
-// Merge updates the input updates and conditionalUpdates by merging
-// additional risks.  The versions map has risk names as the key, and
-// a slice of version strings that risk should be merged into as the
-// value.  It returns the modified updates and conditionalUpdates slices.
-func Merge(updates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, risks []configv1.ConditionalUpdateRisk, versions map[string][]string) ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+// validate reduces the Merge input to the subset that can actually be
+// merged, so the merging logic itself does not have to reason about bad
+// input.  It returns an index of the well-formed risks, the risk names
+// from versions worth visiting in sorted order, a copy of versions
+// holding only releases the cluster knows about, and every problem it
+// found along the way.
+//
+// Dropping an entry is never fatal: each one contributes an error, and
+// the remaining entries are still merged.  That keeps a single bad risk
+// from hiding the rest of a source's output.
+func validate(updates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, risks []configv1.ConditionalUpdateRisk, versions map[string][]string) (map[string]configv1.ConditionalUpdateRisk, []string, map[string][]string, []error) {
 	var errs []error
+
+	// Index the risks, rejecting malformed names and definitions that
+	// disagree with an earlier entry for the same name.  Conditions are
+	// ignored.
 	riskMap := make(map[string]configv1.ConditionalUpdateRisk, len(risks))
 	invalidRiskMap := make(map[string]struct{}, len(risks))
 	for _, risk := range risks {
@@ -70,28 +80,117 @@ func Merge(updates []configv1.Release, conditionalUpdates []configv1.Conditional
 		riskMap[risk.Name] = risk
 	}
 
-	riskMissMap := make(map[string]struct{}, len(versions))
-	versionRiskNames := make([]string, 0, len(versions))
+	// Index what the cluster already carries, keeping the first
+	// definition of each name and reporting any later one that
+	// disagrees with it.
+	carriedRisks := make(map[string]configv1.ConditionalUpdateRisk)
+	for _, conditionalUpdate := range conditionalUpdates {
+		for _, risk := range conditionalUpdate.Risks {
+			carriedRisk, ok := carriedRisks[risk.Name]
+			if !ok {
+				carriedRisks[risk.Name] = risk
+				continue
+			}
+			if diff := cmp.Diff(carriedRisk, risk, cmpopts.IgnoreFields(configv1.ConditionalUpdateRisk{}, "Conditions")); diff != "" {
+				errs = append(errs, fmt.Errorf("divergent definitions of risk %q on release %q:\n%s", risk.Name, conditionalUpdate.Release.Version, diff))
+			}
+		}
+	}
+
+	// Collect the releases a risk can be merged into.  Merge moves
+	// releases from updates to conditionalUpdates as it goes, so the
+	// union of the two is what stays constant.
+	knownVersions := make(map[string]struct{}, len(updates)+len(conditionalUpdates))
+	for _, update := range updates {
+		knownVersions[update.Version] = struct{}{}
+	}
+	for _, conditionalUpdate := range conditionalUpdates {
+		knownVersions[conditionalUpdate.Release.Version] = struct{}{}
+	}
+
+	// Walk the requested merges in sorted order, so the errors below
+	// come out the same way on every call.
+	riskNames := make([]string, 0, len(versions))
 	for riskName := range versions {
 		if _, ok := invalidRiskMap[riskName]; ok {
 			continue // we're already complaining about these
 		}
-		versionRiskNames = append(versionRiskNames, riskName)
+		riskNames = append(riskNames, riskName)
 	}
-	sort.Strings(versionRiskNames)
-	for _, riskName := range versionRiskNames {
+	sort.Strings(riskNames)
+
+	// A risk name should mean one thing, so hold each risk about to be
+	// merged against what the cluster already carries under that name.
+	// Merging can then take the first match for a name as the only one
+	// worth considering.
+	for _, riskName := range riskNames {
 		risk, ok := riskMap[riskName]
 		if !ok {
-			riskMissMap[riskName] = struct{}{}
+			continue // reported as an unknown risk below
+		}
+		carriedRisk, ok := carriedRisks[riskName]
+		if !ok {
 			continue
 		}
+		if diff := cmp.Diff(carriedRisk, risk, cmpopts.IgnoreFields(configv1.ConditionalUpdateRisk{}, "Conditions")); diff != "" {
+			errs = append(errs, fmt.Errorf("divergent definitions of risk %q:\n%s", riskName, diff))
+		}
+	}
+
+	var riskMisses []string
+	mergeable := make(map[string][]string, len(riskNames))
+	mergeableNames := make([]string, 0, len(riskNames))
+	for _, riskName := range riskNames {
+		if _, ok := riskMap[riskName]; !ok {
+			riskMisses = append(riskMisses, riskName)
+			continue
+		}
+		mergeableVersions := make([]string, 0, len(versions[riskName]))
 		for _, version := range versions[riskName] {
-			found := false
+			if _, ok := knownVersions[version]; !ok {
+				errs = append(errs, fmt.Errorf("cannot merge risk %q into unknown release version %q", riskName, version))
+				continue
+			}
+			mergeableVersions = append(mergeableVersions, version)
+		}
+		if len(mergeableVersions) == 0 {
+			continue
+		}
+		mergeable[riskName] = mergeableVersions
+		mergeableNames = append(mergeableNames, riskName)
+	}
+	if len(riskMisses) > 0 {
+		errs = append(errs, fmt.Errorf("merge versions referenced unknown risks: %s", strings.Join(riskMisses, ", ")))
+	}
+
+	return riskMap, mergeableNames, mergeable, errs
+}
+
+// Merge updates the input updates and conditionalUpdates by merging
+// additional risks.  The versions map has risk names as the key, and
+// a slice of version strings that risk should be merged into as the
+// value.  It returns the modified updates and conditionalUpdates slices.
+//
+// Every error comes from validate, which rejects unmergeable input up
+// front.  Merging itself cannot fail: it only ever sees input validate
+// has already vouched for, and the valid remainder is merged whatever
+// else was rejected.
+func Merge(updates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, risks []configv1.ConditionalUpdateRisk, versions map[string][]string) ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+	riskMap, versionRiskNames, versions, errs := validate(updates, conditionalUpdates, risks, versions)
+
+	// Merge each risk into its versions.  validate has already dropped
+	// anything unmergeable, so every name resolves and every version
+	// names a release that is present in one of the two slices.
+	for _, riskName := range versionRiskNames {
+		risk := riskMap[riskName]
+		for _, version := range versions[riskName] {
+			moved := false
 			for i, update := range updates {
 				if update.Version != version {
 					continue
 				}
-				found = true
+				moved = true
+				// move the update from updates to conditionalUpdates
 				conditionalUpdates = append(conditionalUpdates, configv1.ConditionalUpdate{
 					Release: update,
 					Risks:   []configv1.ConditionalUpdateRisk{risk},
@@ -102,44 +201,36 @@ func Merge(updates []configv1.Release, conditionalUpdates []configv1.Conditional
 				}
 				break
 			}
-			if found {
-				continue
+			if moved {
+				continue // it carries the risk already
 			}
+
+			// the release was already conditional, so merge into it
 			for i, conditionalUpdate := range conditionalUpdates {
 				if conditionalUpdate.Release.Version != version {
 					continue
 				}
-				found = true
 				riskFound := false
 				for _, existingRisk := range conditionalUpdate.Risks {
 					if existingRisk.Name != risk.Name {
 						continue
 					}
+					// the risk is already attached to this release, so
+					// there is nothing to append below.  validate has
+					// reported it if the two definitions disagree.
 					riskFound = true
-					if diff := cmp.Diff(existingRisk, risk, cmpopts.IgnoreFields(configv1.ConditionalUpdateRisk{}, "Conditions")); diff != "" {
-						errs = append(errs, fmt.Errorf("divergent definitions of risk %q:\n%s", risk.Name, diff))
-						continue
-					}
 					break
 				}
 				if !riskFound {
+					// associate the new risk with the conditional update
 					conditionalUpdates[i].Risks = append(conditionalUpdate.Risks, risk)
 				}
 			}
-			if !found {
-				errs = append(errs, fmt.Errorf("cannot merge risk %q into unknown release version %q", risk.Name, version))
-			}
 		}
-	}
-	if len(riskMissMap) > 0 {
-		riskMisses := make([]string, 0, len(riskMissMap))
-		for riskName := range riskMissMap {
-			riskMisses = append(riskMisses, riskName)
-		}
-		sort.Strings(riskMisses)
-		errs = append(errs, fmt.Errorf("merge versions referenced unknown risks: %s", strings.Join(riskMisses, ", ")))
 	}
 
+	// Sort for stable returns: conditional updates by version, each one's
+	// risks by name.
 	slices.SortFunc(conditionalUpdates, func(a, b configv1.ConditionalUpdate) int {
 		va, errA := semver.Parse(a.Release.Version)
 		vb, errB := semver.Parse(b.Release.Version)

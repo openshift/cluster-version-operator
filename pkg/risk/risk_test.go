@@ -208,6 +208,181 @@ func Test_Merge(t *testing.T) {
   }
 `,
 		},
+		{
+			name:    "versions reference an undefined risk",
+			updates: []configv1.Release{{Version: "1.2.3"}},
+			risks: &mock.Mock{
+				InternalName: "Mock",
+				InternalRisks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+				InternalVersions: map[string][]string{
+					"RiskA":      {"1.2.3"},
+					"UndefinedB": {"1.2.3"},
+					"UndefinedA": {"1.2.3"},
+				},
+			},
+			expectedConditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+			}},
+			expectedError: `merge versions referenced unknown risks: UndefinedA, UndefinedB`,
+		},
+		{
+			name:    "versions reference an unknown release",
+			updates: []configv1.Release{{Version: "1.2.3"}, {Version: "1.2.4"}},
+			risks: &mock.Mock{
+				InternalName: "Mock",
+				InternalRisks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+				InternalVersions: map[string][]string{"RiskA": {"1.2.3", "9.9.9"}},
+			},
+			expectedUpdates: []configv1.Release{{Version: "1.2.4"}},
+			expectedConditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+			}},
+			expectedError: `cannot merge risk "RiskA" into unknown release version "9.9.9"`,
+		},
+		{
+			name: "divergences are reported before unknown risk names",
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary 1.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+			}},
+			risks: &mock.Mock{
+				InternalName: "Mock",
+				InternalRisks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary 2.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+				InternalVersions: map[string][]string{
+					"RiskA":     {"1.2.3"},
+					"Undefined": {"1.2.3"},
+				},
+			},
+			expectedConditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{{
+					Name:          "RiskA",
+					Message:       "Test summary 1.",
+					URL:           "https://example.com/testAlert",
+					MatchingRules: []configv1.ClusterCondition{{Type: "Always"}},
+				}},
+			}},
+			expectedError: `divergent definitions of risk "RiskA":
+  v1.ConditionalUpdateRisk{
+  	... // 1 ignored field
+  	URL:           "https://example.com/testAlert",
+  	Name:          "RiskA",
+- 	Message:       "Test summary 1.",
++ 	Message:       "Test summary 2.",
+  	MatchingRules: {{Type: "Always"}},
+  }
+
+merge versions referenced unknown risks: Undefined`,
+		},
+		{
+			name: "several divergences are reported in risk name order",
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{Name: "RiskB", Message: "Carried B."},
+					{Name: "RiskA", Message: "Carried A."},
+				},
+			}},
+			risks: &mock.Mock{
+				InternalName: "Mock",
+				InternalRisks: []configv1.ConditionalUpdateRisk{
+					{Name: "RiskB", Message: "Source B."},
+					{Name: "RiskA", Message: "Source A."},
+				},
+				InternalVersions: map[string][]string{"RiskA": {"1.2.3"}, "RiskB": {"1.2.3"}},
+			},
+			expectedConditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{Name: "RiskA", Message: "Carried A."},
+					{Name: "RiskB", Message: "Carried B."},
+				},
+			}},
+			expectedError: `divergent definitions of risk "RiskA":
+  v1.ConditionalUpdateRisk{
+  	... // 1 ignored field
+  	URL:           "",
+  	Name:          "RiskA",
+- 	Message:       "Carried A.",
++ 	Message:       "Source A.",
+  	MatchingRules: nil,
+  }
+
+divergent definitions of risk "RiskB":
+  v1.ConditionalUpdateRisk{
+  	... // 1 ignored field
+  	URL:           "",
+  	Name:          "RiskB",
+- 	Message:       "Carried B.",
++ 	Message:       "Source B.",
+  	MatchingRules: nil,
+  }
+`,
+		},
+		{
+			name: "a release carrying two definitions of one risk is reported",
+			conditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{Name: "RiskA", Message: "Test summary 1."},
+					{Name: "RiskA", Message: "Test summary 2."},
+				},
+			}},
+			risks: &mock.Mock{
+				InternalName:     "Mock",
+				InternalRisks:    []configv1.ConditionalUpdateRisk{{Name: "RiskB", Message: "Test summary."}},
+				InternalVersions: map[string][]string{},
+			},
+			expectedConditionalUpdates: []configv1.ConditionalUpdate{{
+				Release: configv1.Release{Version: "1.2.3"},
+				Risks: []configv1.ConditionalUpdateRisk{
+					{Name: "RiskA", Message: "Test summary 1."},
+					{Name: "RiskA", Message: "Test summary 2."},
+				},
+			}},
+			expectedError: `divergent definitions of risk "RiskA" on release "1.2.3":
+  v1.ConditionalUpdateRisk{
+  	... // 1 ignored field
+  	URL:           "",
+  	Name:          "RiskA",
+- 	Message:       "Test summary 1.",
++ 	Message:       "Test summary 2.",
+  	MatchingRules: nil,
+  }
+`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
