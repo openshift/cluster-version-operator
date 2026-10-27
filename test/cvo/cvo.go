@@ -99,4 +99,52 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		sccAnnotation := cvoPod.Annotations["openshift.io/scc"]
 		o.Expect(sccAnnotation).To(o.Equal("hostaccess"), "Expected the annotation 'openshift.io/scc annotation' on pod %s to have the value 'hostaccess', but got %s", cvoPod.Name, sccAnnotation)
 	})
+
+	/*// Migrated from case NonHyperShiftHOST-Author:dis-High-OCP-33876-Clusterversion status has metadata stored
+	g.It("Clusterversion status has metadata stored", func() {
+		ctx := context.Background()
+		err := util.SkipIfHypershift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		g.By("Checking that the Clusterversion status has metadata stored")
+		clusterversion, err := kubeClient.ConfigV1().ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get Clusterversion")
+	})*/
+
+	// Migrated from case NonHyperShiftHOST-Author:dis-Medium-OCP-54887-The default channel should be corret
+	g.It("The default channel should be correct", func() {
+		ctx := context.Background()
+		err := util.SkipIfHypershift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is HyperShift")
+		err = util.SkipIfMicroshift(ctx, restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to determine if cluster is MicroShift")
+
+		g.By("Checking that the default channel matches the cluster version")
+		configClient, err := util.GetConfigClient(restCfg)
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to create config client")
+		clusterversion, err := configClient.ConfigV1().ClusterVersions().Get(ctx, "version", metav1.GetOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred(), "Failed to get Clusterversion")
+
+		g.By("Extracting version details from ClusterVersion status")
+		o.Expect(clusterversion.Status.Desired.Version).NotTo(o.BeEmpty(), "ClusterVersion desired version should not be empty")
+		version := clusterversion.Status.Desired.Version
+		logger.Info("Cluster version detected", "version", version)
+
+		g.By("Verifying the cluster is using a signed build")
+		o.Expect(clusterversion.Status.History).NotTo(o.BeEmpty(), "ClusterVersion history should not be empty")
+		currentUpdate := clusterversion.Status.History[0]
+		o.Expect(currentUpdate.Verified).To(o.BeTrue(), "Expected the cluster build to be signed and verified, but Verified is false. Version: %s, Image: %s", currentUpdate.Version, currentUpdate.Image)
+		logger.Info("Cluster build is verified", "version", currentUpdate.Version, "image", currentUpdate.Image, "verified", currentUpdate.Verified)
+
+		g.By("Validating default channel format matches stable-<major>.<minor>")
+		channel := clusterversion.Spec.Channel
+		o.Expect(channel).To(o.MatchRegexp(`^stable-\d+\.\d+$`), "Expected channel to match pattern 'stable-<major>.<minor>', but got %s", channel)
+
+		g.By("Verifying channel matches the cluster's major.minor version")
+		expectedChannelPrefix := util.GetExpectedChannelPrefix(version)
+		o.Expect(channel).To(o.Equal(expectedChannelPrefix), "Expected channel to be %s based on version %s, but got %s", expectedChannelPrefix, version, channel)
+		logger.Info("Deafault channel for version is correct", "version:", version, "channel:", channel)
+	})
 })
