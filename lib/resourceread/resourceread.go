@@ -21,7 +21,7 @@ import (
 
 var (
 	scheme  = runtime.NewScheme()
-	codecs  = serializer.NewCodecFactory(scheme)
+	codecs  = serializer.NewCodecFactory(scheme, serializer.EnableStrict)
 	decoder runtime.Decoder
 )
 

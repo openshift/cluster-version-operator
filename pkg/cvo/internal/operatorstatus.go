@@ -25,7 +25,7 @@ import (
 
 var (
 	osScheme = runtime.NewScheme()
-	osCodecs = serializer.NewCodecFactory(osScheme)
+	osCodecs = serializer.NewCodecFactory(osScheme, serializer.EnableStrict)
 
 	osMapper = resourcebuilder.NewResourceMapper()
 )
