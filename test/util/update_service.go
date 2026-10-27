@@ -156,6 +156,9 @@ func generateReleaseURL(version semver.Version) string {
 // runUpdateService:
 // https://github.com/openshift/origin/blob/87d5d4fbdda3e68d57aaf5428dbda9f8d11cd52f/test/extended/cli/adm_upgrade/recommend.go#L317
 //
+// It returns once the service serves the graph, so the caller can point
+// ClusterVersion at the returned URL without racing the server's startup.
+//
 // The caller owns namespace lifecycle (create before, delete after).
 func RunUpdateService(ctx context.Context, kubeClient kubernetes.Interface, namespace, graphJSON string) (*url.URL, error) {
 	const (
@@ -202,6 +205,20 @@ python3 -m http.server --bind ::
 							Name:          "update-service",
 							ContainerPort: port,
 						}},
+						// Without this probe the pod is Ready as soon as the shell
+						// starts, so the Service gets an endpoint while python is
+						// still coming up. A caller that points ClusterVersion at
+						// the Service right then spends CVO's retrieval attempt on
+						// a refused connection, and CVO does not retry promptly.
+						ReadinessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								HTTPGet: &corev1.HTTPGetAction{
+									Path: "/graph",
+									Port: intstr.FromInt32(port),
+								},
+							},
+							PeriodSeconds: 1,
+						},
 						Resources: corev1.ResourceRequirements{
 							Requests: corev1.ResourceList{
 								corev1.ResourceCPU:    resource.MustParse("10m"),
@@ -245,6 +262,9 @@ python3 -m http.server --bind ::
 	}, nil
 }
 
+// waitForDeploymentAvailable waits for every replica of the deployment to be
+// available. The update service pod carries a readiness probe against /graph,
+// so an available replica is one that serves the graph.
 func waitForDeploymentAvailable(ctx context.Context, kubeClient kubernetes.Interface, namespace, name string, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
 		deployment, err := kubeClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
