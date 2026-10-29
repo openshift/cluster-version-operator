@@ -26,8 +26,9 @@ type ProfileManager struct {
 }
 
 type Settings struct {
-	MinVersion   uint16
-	CipherSuites []uint16
+	MinVersion       uint16
+	CipherSuites     []uint16
+	CurvePreferences []tls.CurveID
 }
 
 const (
@@ -141,6 +142,16 @@ func resolveTLSProfile(apiServer *configv1.APIServer) (func(*tls.Config), error)
 // ApplySettings applies the TLS configuration to the provided config.
 // Applies: crypto defaults → central profile → overrides
 func (m *ProfileManager) ApplySettings(config *tls.Config) {
+	m.applySettings(config, true)
+}
+
+// ApplySettingsExcludingProfileGroups skips groups from the watched profile.
+// Explicit curve preferences still take precedence.
+func (m *ProfileManager) ApplySettingsExcludingProfileGroups(config *tls.Config) {
+	m.applySettings(config, false)
+}
+
+func (m *ProfileManager) applySettings(config *tls.Config, applyGroupsFromProfile bool) {
 	config = crypto.SecureTLSConfig(config)
 
 	m.mu.RLock()
@@ -150,6 +161,9 @@ func (m *ProfileManager) ApplySettings(config *tls.Config) {
 	if m.applyProfile != nil {
 		m.applyProfile(config)
 	}
+	if !applyGroupsFromProfile {
+		config.CurvePreferences = nil
+	}
 
 	// Apply overrides (these take final precedence)
 	if m.overrides != nil {
@@ -158,6 +172,9 @@ func (m *ProfileManager) ApplySettings(config *tls.Config) {
 		}
 		if len(m.overrides.CipherSuites) > 0 {
 			config.CipherSuites = m.overrides.CipherSuites
+		}
+		if len(m.overrides.CurvePreferences) > 0 {
+			config.CurvePreferences = m.overrides.CurvePreferences
 		}
 	}
 }
@@ -170,6 +187,10 @@ type Options struct {
 	// CipherSuitesOverride is the list of allowed cipher suites for the server.
 	// When set, it takes precedence over the central TLS profile.
 	CipherSuitesOverride []string
+
+	// CurvePreferencesOverride is the list of allowed TLS group IDs for the server.
+	// When set, it takes precedence over the central TLS profile.
+	CurvePreferencesOverride []int32
 
 	settings *Settings
 }
@@ -184,7 +205,7 @@ func (o *Options) GetOverrides() *Settings {
 // Returns nil if no overrides are configured.
 func (o *Options) CreateOverrides() error {
 	// If no overrides, return nil (central profile or defaults will be used)
-	if o.MinVersionOverride == "" && len(o.CipherSuitesOverride) == 0 {
+	if o.MinVersionOverride == "" && len(o.CipherSuitesOverride) == 0 && len(o.CurvePreferencesOverride) == 0 {
 		return nil
 	}
 
@@ -204,6 +225,14 @@ func (o *Options) CreateOverrides() error {
 			return fmt.Errorf("invalid --tls-cipher-suites: %w", err)
 		}
 		validated.CipherSuites = cipherSuites
+	}
+
+	if len(o.CurvePreferencesOverride) > 0 {
+		curvePreferences, err := cliflag.TLSCurvePreferences(o.CurvePreferencesOverride)
+		if err != nil {
+			return fmt.Errorf("invalid --tls-curve-preferences: %w", err)
+		}
+		validated.CurvePreferences = curvePreferences
 	}
 
 	o.settings = validated

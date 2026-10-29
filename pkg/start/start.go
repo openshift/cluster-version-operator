@@ -4,7 +4,6 @@ package start
 
 import (
 	"context"
-	gotls "crypto/tls"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -187,6 +186,9 @@ func (o *Options) ValidateAndComplete() error {
 		}
 		if len(overrides.CipherSuites) > 0 {
 			klog.V(2).Infof("TLS cipher suites override: %v (will override central TLS profile)", overrides.CipherSuites)
+		}
+		if len(overrides.CurvePreferences) > 0 {
+			klog.V(2).Infof("TLS curve preferences override: %v (will override central TLS profile)", overrides.CurvePreferences)
 		}
 	}
 	return nil
@@ -659,17 +661,13 @@ func (o *Options) NewControllerContext(
 		return nil, fmt.Errorf("failed to initialize TLS profile manager: %w", err)
 	}
 
-	// The profile manager sets CurvePreferences as well but those should
-	// only be set when the TLSGroupPreferences feature gate is on. Here
-	// we strip them out when needed. The Curves (aka Groups) will be GA
-	// eventually so just removing this wrapper should get the job done
-	// when the GA happens.
+	// The profile manager sets CurvePreferences from the watched profile, but
+	// those groups should only be applied when the TLSGroupPreferences feature
+	// gate is on. The gate-off path strips profile groups while preserving
+	// explicit CLI overrides. Once groups are GA, remove the gate-off path.
 	applyTLSConfig := tlsProfileMgr.ApplySettings
 	if !startingCvoGates.TLSGroupPreferences() {
-		applyTLSConfig = func(config *gotls.Config) {
-			tlsProfileMgr.ApplySettings(config)
-			config.CurvePreferences = nil
-		}
+		applyTLSConfig = tlsProfileMgr.ApplySettingsExcludingProfileGroups
 	}
 
 	cvo, err := cvo.New(
