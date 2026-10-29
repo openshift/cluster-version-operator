@@ -17,10 +17,10 @@ import (
 var featureGatedCapabilities = map[configv1.ClusterVersionCapability][]configv1.FeatureGateName{
 	configv1.ClusterVersionCapabilityCompatibilityRequirements: {
 		features.FeatureGateCRDCompatibilityRequirementOperator,
-		features.FeatureGateClusterAPIMachineManagement,
+		features.FeatureGateClusterAPIOperator,
 	},
 	configv1.ClusterVersionCapabilityClusterAPI: {
-		features.FeatureGateClusterAPIMachineManagement,
+		features.FeatureGateClusterAPIOperator,
 	},
 }
 

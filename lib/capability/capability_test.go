@@ -15,6 +15,7 @@ import (
 var allFeatureGates = sets.New[string](
 	string(features.FeatureGateCRDCompatibilityRequirementOperator),
 	string(features.FeatureGateClusterAPIMachineManagement),
+	string(features.FeatureGateClusterAPIOperator),
 )
 
 func filterExcluded(capabilities []configv1.ClusterVersionCapability, enabledGates sets.Set[string]) []configv1.ClusterVersionCapability {
@@ -130,6 +131,28 @@ func TestSetCapabilities(t *testing.T) {
 				"cap2",
 				"cap3",
 			},
+		},
+		{name: "capabilities nil (default set), only ClusterAPIOperator: enables ClusterAPI and CompatibilityRequirements",
+			config:          &configv1.ClusterVersion{},
+			enabledGates:    sets.New(string(features.FeatureGateClusterAPIOperator)),
+			wantKnownKeys:   configv1.KnownClusterVersionCapabilities,
+			wantEnabledKeys: configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent],
+		},
+		{name: "capabilities nil (default set), only CRDCompatibilityRequirementOperator: enables CompatibilityRequirements, excludes ClusterAPI",
+			config:       &configv1.ClusterVersion{},
+			enabledGates: sets.New(string(features.FeatureGateCRDCompatibilityRequirementOperator)),
+			wantKnownKeys: sets.New(configv1.KnownClusterVersionCapabilities...).
+				Delete(configv1.ClusterVersionCapabilityClusterAPI).UnsortedList(),
+			wantEnabledKeys: sets.New(configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]...).
+				Delete(configv1.ClusterVersionCapabilityClusterAPI).UnsortedList(),
+		},
+		{name: "capabilities nil (default set), only ClusterAPIMachineManagement: excludes ClusterAPI and CompatibilityRequirements",
+			config:       &configv1.ClusterVersion{},
+			enabledGates: sets.New(string(features.FeatureGateClusterAPIMachineManagement)),
+			wantKnownKeys: sets.New(configv1.KnownClusterVersionCapabilities...).
+				Delete(configv1.ClusterVersionCapabilityClusterAPI, configv1.ClusterVersionCapabilityCompatibilityRequirements).UnsortedList(),
+			wantEnabledKeys: sets.New(configv1.ClusterVersionCapabilitySets[configv1.ClusterVersionCapabilitySetCurrent]...).
+				Delete(configv1.ClusterVersionCapabilityClusterAPI, configv1.ClusterVersionCapabilityCompatibilityRequirements).UnsortedList(),
 		},
 		{name: "capabilities nil, no gates enabled",
 			config:       &configv1.ClusterVersion{},
