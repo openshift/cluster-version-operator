@@ -162,6 +162,233 @@ Update path: Recommended
 	}
 }
 
+func TestSync_LifecycleWithExecutionPhase(t *testing.T) {
+	updatesGetter := func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+		return []configv1.Release{{Version: "5.0.1"}}, nil, nil
+	}
+	cvGetter := func(_ string) (*configv1.ClusterVersion, error) {
+		return &configv1.ClusterVersion{
+			ObjectMeta: metav1.ObjectMeta{Name: "version"},
+			Spec:       configv1.ClusterVersionSpec{Channel: "stable-5.0"},
+		}, nil
+	}
+	currentVersion := "5.0.0"
+	expiredTimestamp := metav1.Time{Time: time.Now().Add(-25 * time.Hour)}
+
+	existingRun := func(conditions []metav1.Condition) *agenticrunv1alpha1.AgenticRun {
+		return &agenticrunv1alpha1.AgenticRun{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:              "ota-5-0-0-to-5-0-1",
+				Namespace:         "openshift-lightspeed",
+				CreationTimestamp: expiredTimestamp,
+				Labels: map[string]string{
+					labelKeySource:         labelValueSource,
+					labelKeyCurrentVersion: "5.0.0",
+					labelKeyTargetVersion:  "5.0.1",
+				},
+			},
+			Status: agenticrunv1alpha1.AgenticRunStatus{
+				Conditions: conditions,
+			},
+		}
+	}
+
+	tests := []struct {
+		name            string
+		conditions      []metav1.Condition
+		expectPreserved bool
+	}{
+		{
+			name:            "expired Pending run is deleted and recreated",
+			conditions:      nil,
+			expectPreserved: false,
+		},
+		{
+			name: "expired Completed run is deleted and recreated",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: false,
+		},
+		{
+			name: "expired Executing run is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired Verifying run is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionUnknown},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired execution-Failed run is NOT deleted (no auto-retry)",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired verification-Failed run is NOT deleted (execution already modified cluster)",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired analysis-Failed run IS deleted and recreated",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionFalse},
+			},
+			expectPreserved: false,
+		},
+		{
+			name: "expired EmergencyStopped run with execution attempted is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+				{Type: agenticrunv1alpha1.AgenticRunConditionEmergencyStopped, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired EmergencyStopped run during execution (Executed=Unknown) is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+				{Type: agenticrunv1alpha1.AgenticRunConditionEmergencyStopped, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired Escalated run with execution attempted is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionEscalated, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: true,
+		},
+		{
+			name: "expired EmergencyStopped during verification retry (Executed absent, Verified=False/RetryingExecution) is NOT deleted",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionFalse, Reason: agenticrunv1alpha1.ReasonRetryingExecution},
+				{Type: agenticrunv1alpha1.AgenticRunConditionEmergencyStopped, Status: metav1.ConditionTrue},
+			},
+			expectPreserved: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			existing := existingRun(tt.conditions)
+			client := fake.NewClientBuilder().WithObjects(existing).Build()
+			c := NewController(updatesGetter, client, nil, cvGetter, func() string {
+				return currentVersion
+			}, nil)
+			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
+			c.crdAvailableCache = true
+			c.crdLastChecked = time.Now()
+
+			if err := c.Sync(context.Background(), tt.name); err != nil {
+				t.Fatalf("Sync returned error: %v", err)
+			}
+
+			got := &agenticrunv1alpha1.AgenticRun{}
+			err := client.Get(context.Background(), ctrlruntimeclient.ObjectKey{
+				Name: "ota-5-0-0-to-5-0-1", Namespace: "openshift-lightspeed",
+			}, got)
+
+			if err != nil {
+				t.Fatalf("expected agentic run to exist, got error: %v", err)
+			}
+
+			if tt.expectPreserved {
+				if len(got.Status.Conditions) != len(tt.conditions) {
+					t.Errorf("expected original run with %d conditions to be preserved, got %d conditions", len(tt.conditions), len(got.Status.Conditions))
+				}
+			} else {
+				if len(got.Status.Conditions) != 0 {
+					t.Errorf("expected a fresh recreated run with no conditions, got %d conditions", len(got.Status.Conditions))
+				}
+			}
+		})
+	}
+}
+
+func TestExecutionAttempted(t *testing.T) {
+	tests := []struct {
+		name       string
+		conditions []metav1.Condition
+		expected   bool
+	}{
+		{
+			name:     "no conditions",
+			expected: false,
+		},
+		{
+			name: "analysis failed",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionFalse},
+			},
+			expected: false,
+		},
+		{
+			name: "execution failed",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionFalse},
+			},
+			expected: true,
+		},
+		{
+			name: "execution in progress",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionUnknown},
+			},
+			expected: true,
+		},
+		{
+			name: "execution succeeded",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionExecuted, Status: metav1.ConditionTrue},
+			},
+			expected: true,
+		},
+		{
+			name: "verified present without executed (retry path)",
+			conditions: []metav1.Condition{
+				{Type: agenticrunv1alpha1.AgenticRunConditionAnalyzed, Status: metav1.ConditionTrue},
+				{Type: agenticrunv1alpha1.AgenticRunConditionVerified, Status: metav1.ConditionFalse, Reason: agenticrunv1alpha1.ReasonRetryingExecution},
+			},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := executionAttempted(tt.conditions)
+			if got != tt.expected {
+				t.Errorf("executionAttempted() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestClassifyUpdate(t *testing.T) {
 	tests := []struct {
 		name     string
