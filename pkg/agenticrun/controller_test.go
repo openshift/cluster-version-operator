@@ -730,7 +730,7 @@ func TestOwnedByCVO(t *testing.T) {
 	}
 }
 
-func TestGetAgenticRuns(t *testing.T) {
+func TestSyncAgenticRuns(t *testing.T) {
 	tests := []struct {
 		name               string
 		availableUpdates   []configv1.Release
@@ -957,17 +957,19 @@ Other recommended versions available:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agenticRuns, err := getAgenticRuns(
-				context.Background(),
-				nil,
-				tt.availableUpdates,
-				tt.conditionalUpdates,
-				tt.namespace,
-				tt.currentVersion,
-				tt.channel,
-				tt.systemPrompt,
-				testSkillsImage,
-			)
+			client := fake.NewClientBuilder().Build()
+			c := NewController(nil, client, nil, nil, nil, nil)
+			c.config = Config{Namespace: tt.namespace, SkillsImage: testSkillsImage}
+			err := c.syncAgenticRuns(context.Background(), tt.availableUpdates, tt.conditionalUpdates, tt.currentVersion, tt.channel, tt.systemPrompt)
+			list := &agenticrunv1alpha1.AgenticRunList{}
+			if listErr := client.List(context.Background(), list); listErr != nil {
+				t.Fatal(listErr)
+			}
+			var agenticRuns []*agenticrunv1alpha1.AgenticRun
+			for i := range list.Items {
+				list.Items[i].ResourceVersion = ""
+				agenticRuns = append(agenticRuns, &list.Items[i])
+			}
 
 			if diff := cmp.Diff(err, tt.expectError, cmp.Transformer("Error", func(e error) string {
 				if e == nil {
@@ -1045,7 +1047,7 @@ func newFakeDynamicClient(objects ...runtime.Object) *dynamicfake.FakeDynamicCli
 	return dynamicfake.NewSimpleDynamicClientWithCustomListKinds(s, gvrs, objects...)
 }
 
-func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
+func TestSyncAgenticRuns_WithReadinessData(t *testing.T) {
 	dc := newFakeDynamicClient(
 		// ClusterVersion
 		&unstructured.Unstructured{Object: map[string]interface{}{
@@ -1157,17 +1159,15 @@ func TestGetAgenticRuns_WithReadinessData(t *testing.T) {
 		}},
 	)
 
-	agenticRuns, err := getAgenticRuns(
-		context.Background(),
-		dc,
-		[]configv1.Release{{Version: "4.21.8"}},
-		nil,
-		"openshift-lightspeed",
-		"4.21.5",
-		"stable-4.21",
-		"Test prompt",
-		testSkillsImage,
-	)
+	client := fake.NewClientBuilder().Build()
+	c := NewController(nil, client, dc, nil, nil, nil)
+	c.config = Config{Namespace: "openshift-lightspeed", SkillsImage: testSkillsImage}
+	err := c.syncAgenticRuns(context.Background(), []configv1.Release{{Version: "4.21.8"}}, nil, "4.21.5", "stable-4.21", "Test prompt")
+	list := &agenticrunv1alpha1.AgenticRunList{}
+	if listErr := client.List(context.Background(), list); listErr != nil {
+		t.Fatal(listErr)
+	}
+	agenticRuns := list.Items
 	if err != nil {
 		t.Fatalf("getAgenticRuns returned error: %v", err)
 	}
