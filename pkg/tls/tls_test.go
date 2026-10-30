@@ -3,6 +3,7 @@ package tls
 import (
 	"context"
 	"crypto/tls"
+	"slices"
 	"testing"
 	"time"
 
@@ -185,11 +186,12 @@ func Test_applyTLSProfile(t *testing.T) {
 // Test_applyTLSOptions tests the override flag behavior
 func Test_applyTLSOptions(t *testing.T) {
 	tests := []struct {
-		name               string
-		options            Options
-		expectValidateErr  bool
-		expectMinVersion   uint16
-		expectCipherSuites int
+		name                   string
+		options                Options
+		expectValidateErr      bool
+		expectMinVersion       uint16
+		expectCipherSuites     int
+		expectCurvePreferences []tls.CurveID
 	}{
 		{
 			name: "no overrides - fallback to TLS 1.2",
@@ -222,6 +224,14 @@ func Test_applyTLSOptions(t *testing.T) {
 			expectCipherSuites: 1,
 		},
 		{
+			name: "curve preferences override only",
+			options: Options{
+				CurvePreferencesOverride: []int32{int32(tls.X25519), int32(tls.CurveP256)},
+			},
+			expectMinVersion:       tls.VersionTLS12,
+			expectCurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256},
+		},
+		{
 			name: "both overrides",
 			options: Options{
 				MinVersionOverride:   "VersionTLS13",
@@ -244,6 +254,20 @@ func Test_applyTLSOptions(t *testing.T) {
 			options: Options{
 				MinVersionOverride:   "",
 				CipherSuitesOverride: []string{"INVALID_CIPHER"},
+			},
+			expectValidateErr: true,
+		},
+		{
+			name: "unsupported curve preference",
+			options: Options{
+				CurvePreferencesOverride: []int32{9999},
+			},
+			expectValidateErr: true,
+		},
+		{
+			name: "duplicate curve preference",
+			options: Options{
+				CurvePreferencesOverride: []int32{int32(tls.X25519), int32(tls.X25519)},
 			},
 			expectValidateErr: true,
 		},
@@ -285,7 +309,60 @@ func Test_applyTLSOptions(t *testing.T) {
 			if tt.expectCipherSuites > 0 && len(config.CipherSuites) != tt.expectCipherSuites {
 				t.Errorf("expected %d cipher suites, got %d", tt.expectCipherSuites, len(config.CipherSuites))
 			}
+			if !slices.Equal(config.CurvePreferences, tt.expectCurvePreferences) {
+				t.Errorf("expected curve preferences %v, got %v", tt.expectCurvePreferences, config.CurvePreferences)
+			}
 		})
+	}
+}
+
+func Test_curvePreferencesOverridePrecedence(t *testing.T) {
+	apiServer := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		Spec: configv1.APIServerSpec{
+			TLSAdherence: configv1.TLSAdherencePolicyStrictAllComponents,
+			TLSSecurityProfile: &configv1.TLSSecurityProfile{
+				Type: configv1.TLSProfileCustomType,
+				Custom: &configv1.CustomTLSProfile{TLSProfileSpec: configv1.TLSProfileSpec{
+					MinTLSVersion: configv1.VersionTLS12,
+					Ciphers:       []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+				}},
+			},
+		},
+	}
+	apiServerInformer, cancel := setupInformer(t, apiServer)
+	defer cancel()
+
+	withoutOverride, err := NewProfileManager(apiServerInformer, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := &tls.Config{}
+	withoutOverride.ApplySettings(config)
+	if !slices.Equal(config.CurvePreferences, []tls.CurveID{tls.X25519}) {
+		t.Fatalf("expected profile group X25519, got %v", config.CurvePreferences)
+	}
+	config = &tls.Config{}
+	withoutOverride.ApplySettingsExcludingProfileGroups(config)
+	if len(config.CurvePreferences) != 0 {
+		t.Fatalf("expected no profile groups when feature gate is disabled, got %v", config.CurvePreferences)
+	}
+
+	options := Options{CurvePreferencesOverride: []int32{int32(tls.CurveP256)}}
+	if err := options.CreateOverrides(); err != nil {
+		t.Fatal(err)
+	}
+	withOverride, err := NewProfileManager(apiServerInformer, options.GetOverrides())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, apply := range []func(*tls.Config){withOverride.ApplySettings, withOverride.ApplySettingsExcludingProfileGroups} {
+		config = &tls.Config{}
+		apply(config)
+		if !slices.Equal(config.CurvePreferences, []tls.CurveID{tls.CurveP256}) {
+			t.Errorf("expected explicit curve preference to override profile, got %v", config.CurvePreferences)
+		}
 	}
 }
 
