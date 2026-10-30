@@ -33,7 +33,7 @@ HyperShift. CVO reads the image from the `cluster-update-console-plugin` entry i
 The controller applies the [embedded manifests](../../pkg/agenticrun/bindata/assets/) for the namespace, service
 account, network policies, nginx ConfigMap, deployment, service, and `ConsolePlugin` resource. Once the deployment
 has an available replica, CVO adds the plugin to `spec.plugins` of the console operator's `cluster` configuration.
-When the AgenticRun CRD is absent, CVO removes the plugin from that list and cleans up its manifests.
+When the AgenticRun CRD is absent, CVO attempts to remove the plugin from that list and cleans up its manifests only if removal succeeds.
 
 The [nginx ConfigMap](../../pkg/agenticrun/bindata/assets/configmap.yaml) serves files from
 `/usr/share/nginx/html` using the serving certificate requested by the
