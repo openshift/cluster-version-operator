@@ -95,6 +95,17 @@ make verify-update      # Ensures generated files are up-to-date
 - Checks prevent upgrades when cluster is in unhealthy state
 - ClusterVersion-specific preconditions in `precondition/clusterversion/`
 
+#### AgenticRun Update Assessments (pkg/agenticrun/controller.go)
+- CVO creates AgenticRun requests for recommended and conditional update targets, refreshes expired runs, and removes CVO-owned runs that are no longer relevant. The [Lightspeed agentic operator](https://github.com/openshift/lightspeed-agentic-operator) defines and processes those runs; CVO does not perform their analysis.
+- CVO supplies cluster readiness data and an upgrade assessment prompt. See `docs/dev/agentic-runs.md` for the creation conditions and lifecycle.
+
+#### Cluster Update Console Plugin (pkg/agenticrun/consoleplugin.go)
+- The web console UI source lives in the separate [openshift/cluster-update-console-plugin](https://github.com/openshift/cluster-update-console-plugin) repository. It shows update plans with readiness and risk information and operator compatibility when that data is available. Views and actions can vary by release and enabled features.
+- The plugin watches AgenticRuns and AnalysisResults and renders the analysis result referenced by the selected run; CVO does not read the result back.
+- CVO reads the `cluster-update-console-plugin` image from the release payload's `image-references` and applies the embedded manifests in `pkg/agenticrun/bindata/assets/`.
+- The plugin requires the AgenticRun CRD, a supported cluster version (major version 5 or later), the Console capability, and a non-HyperShift cluster. CVO enables it in the console operator configuration after its deployment is available.
+- `consoleplugin.go` renders nginx TLS settings from the cluster's APIServer TLS profile and manages the plugin resources. See `docs/dev/cluster-update-console-plugin.md` for deployment and configuration details.
+
 ### Entry Points
 
 #### cmd/cluster-version-operator/main.go
@@ -158,6 +169,8 @@ oc adm upgrade
   - `README.md` - Building, testing, and publishing development CVO images
   - `feed-cvo-custom-graphs.md` - Testing with custom update graphs
   - `run-cvo-locally.md` - Running CVO outside cluster
+  - `agentic-runs.md` - AgenticRun update assessment lifecycle
+  - `cluster-update-console-plugin.md` - Console plugin deployment and configuration
 
 ## Commit Message Format
 
