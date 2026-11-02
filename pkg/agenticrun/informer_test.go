@@ -2,11 +2,17 @@ package agenticrun
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/go-logr/logr/funcr"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,14 +23,54 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	clienttesting "k8s.io/client-go/testing"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"k8s.io/klog/v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	agenticrunv1alpha1 "github.com/openshift/lightspeed-agentic-operator/api/v1alpha1"
 
 	"github.com/openshift/cluster-version-operator/pkg/readiness"
 )
+
+func TestRunInformerDoesNotLogTransportError(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	logs := make(chan string, 1)
+	ctx = klog.NewContext(ctx, funcr.New(func(_, message string) {
+		if strings.Contains(message, "AgenticRun watch unavailable; will retry") {
+			select {
+			case logs <- message:
+			default:
+			}
+		}
+	}, funcr.Options{Verbosity: 2}))
+	gvr := agenticrunv1alpha1.GroupVersion.WithResource("agenticruns")
+	dc := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), map[schema.GroupVersionResource]string{gvr: "AgenticRunList"})
+	dc.PrependReactor("list", "agenticruns", func(clienttesting.Action) (bool, runtime.Object, error) {
+		return true, nil, &url.Error{
+			Op:  "Get",
+			URL: "https://test-user:test-password@api.private.example/apis/agentic.openshift.io/v1alpha1/agenticruns?token=test-token",
+			Err: errors.New("transport failure"),
+		}
+	})
+	c := NewController(nil, nil, dc, nil, nil, nil)
+	defer c.queue.ShutDown()
+	done := make(chan error, 1)
+	go func() { done <- c.RunInformer(ctx) }()
+	select {
+	case message := <-logs:
+		for _, sensitive := range []string{"https://", "test-user", "test-password", "api.private.example", "test-token"} {
+			if strings.Contains(message, sensitive) {
+				t.Errorf("retry log contains request detail %q: %s", sensitive, message)
+			}
+		}
+	case <-ctx.Done():
+		t.Fatal("transport error did not produce a retry log")
+	}
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestRunInformer(t *testing.T) {
 	for _, absentInitially := range []bool{false, true} {

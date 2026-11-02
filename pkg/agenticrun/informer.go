@@ -40,8 +40,9 @@ func (c *Controller) RunInformer(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
-	if err := informer.SetWatchErrorHandlerWithContext(func(ctx context.Context, _ *cache.Reflector, err error) {
-		klog.FromContext(ctx).V(2).Info("AgenticRun watch unavailable; will retry", "error", err)
+	if err := informer.SetWatchErrorHandlerWithContext(func(ctx context.Context, _ *cache.Reflector, _ error) {
+		// Transport errors can include request URLs; omit them from retry logs.
+		klog.FromContext(ctx).V(2).Info("AgenticRun watch unavailable; will retry")
 	}); err != nil {
 		return err
 	}
