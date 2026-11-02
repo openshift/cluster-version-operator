@@ -160,7 +160,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		g.By("Deleting an assessment as the console Re-analyse action does")
 		key := ctrlruntimeclient.ObjectKeyFromObject(created)
 		deletedAt := time.Now()
-		o.Expect(rtClient.Delete(ctx, created, ctrlruntimeclient.Preconditions{UID: &created.UID})).To(o.Succeed())
+		o.Expect(rtClient.Delete(ctx, created, ctrlruntimeclient.Preconditions{UID: &created.UID})).To(o.Succeed(), "failed to delete AgenticRun %s", key.String())
 
 		g.By("Recreating the same update path promptly with a new run identity")
 		// Shorter than the default minimum update-check interval (two minutes).
