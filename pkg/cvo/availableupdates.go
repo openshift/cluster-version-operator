@@ -437,8 +437,11 @@ type riskWithVersion struct {
 func loadRiskVersions(conditionalUpdates []configv1.ConditionalUpdate) map[string]riskWithVersion {
 	riskVersions := map[string]riskWithVersion{}
 	for _, conditionalUpdate := range conditionalUpdates {
+		if len(conditionalUpdate.Risks) == 0 {
+			continue
+		}
+		candidate := semver.MustParse(conditionalUpdate.Release.Version)
 		for _, risk := range conditionalUpdate.Risks {
-			candidate := semver.MustParse(conditionalUpdate.Release.Version)
 			if v, ok := riskVersions[risk.Name]; !ok || candidate.GT(v.version) {
 				riskVersions[risk.Name] = riskWithVersion{
 					version: candidate,
