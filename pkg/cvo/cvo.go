@@ -373,6 +373,7 @@ func New(
 		},
 		apiServerLister,
 	)
+	optr.agenticRunController.SetTLSGroupPreferences(cvoGates.TLSGroupPreferences())
 
 	return optr, nil
 }
