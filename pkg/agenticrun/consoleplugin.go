@@ -45,7 +45,7 @@ func resolveTLSProfileSpec(tlsSecurityProfile *configv1.TLSSecurityProfile) *con
 	return configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
 }
 
-func nginxTLSDirectives(profile *configv1.TLSProfileSpec) (sslProtocols, sslCiphers string) {
+func nginxTLSDirectives(profile *configv1.TLSProfileSpec, groupsEnabled bool) (sslProtocols, sslCiphers, sslGroups string) {
 	sslProtocols, ok := tlsVersionToNginxProtocols[profile.MinTLSVersion]
 	if !ok {
 		klog.Warningf("No nginx protocol mapping for MinTLSVersion %q, falling back to TLS 1.2", profile.MinTLSVersion)
@@ -77,7 +77,21 @@ func nginxTLSDirectives(profile *configv1.TLSProfileSpec) (sslProtocols, sslCiph
 	}
 
 	sslCiphers = strings.Join(ciphers, ":")
-	return sslProtocols, sslCiphers
+
+	// Preserve the API's IANA group names for OpenSSL to resolve. OpenSSL 3.3+
+	// ignores unavailable groups prefixed with '?'. If no configured groups are
+	// usable, TLS handshakes may fail and make the plugin unavailable. This is
+	// preferred over fallback groups that could broaden the configured list.
+	// Leave group availability and FIPS enforcement to the operand's system OpenSSL.
+	sslGroups = "auto"
+	if groupsEnabled && len(profile.Groups) > 0 {
+		names := make([]string, 0, len(profile.Groups))
+		for _, group := range profile.Groups {
+			names = append(names, "?"+string(group))
+		}
+		sslGroups = strings.Join(names, ":")
+	}
+	return sslProtocols, sslCiphers, sslGroups
 }
 
 var consolePluginAssets = []string{
@@ -91,12 +105,13 @@ var consolePluginAssets = []string{
 	"assets/consoleplugin.yaml",
 }
 
-func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.Client, image string, tlsProfile *configv1.TLSProfileSpec) error {
-	sslProtocols, sslCiphers := nginxTLSDirectives(tlsProfile)
+func applyConsolePluginManifests(ctx context.Context, client ctrlruntimeclient.Client, image string, tlsProfile *configv1.TLSProfileSpec, groupsEnabled bool) error {
+	sslProtocols, sslCiphers, sslGroups := nginxTLSDirectives(tlsProfile, groupsEnabled)
 
 	configMapRaw := bindata.MustAsset("assets/configmap.yaml")
 	rendered := strings.ReplaceAll(string(configMapRaw), "${SSL_PROTOCOLS}", sslProtocols)
 	rendered = strings.ReplaceAll(rendered, "${SSL_CIPHERS}", sslCiphers)
+	rendered = strings.ReplaceAll(rendered, "${SSL_GROUPS}", sslGroups)
 	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(rendered)))
 
 	for _, asset := range consolePluginAssets {

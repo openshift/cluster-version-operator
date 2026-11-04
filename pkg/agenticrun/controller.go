@@ -57,21 +57,22 @@ func analysisOutputSchema() *apiextensionsv1.JSONSchemaProps {
 }
 
 type Controller struct {
-	queueKey              string
-	queue                 workqueue.TypedRateLimitingInterface[any]
-	updatesGetterFunc     updatesGetterFunc
-	client                ctrlruntimeclient.Client
-	dynamicClient         dynamic.Interface
-	cvGetterFunc          cvGetterFunc
-	getCurrentVersionFunc getCurrentVersionFunc
-	apiServerLister       configlistersv1.APIServerLister
-	config                Config
-	consolePluginImage    string
-	consolePluginEnabled  bool
-	crdAvailableCache     bool
-	crdLastChecked        time.Time
-	hypershift            bool
-	hasConsoleCapability  func() bool
+	queueKey                   string
+	queue                      workqueue.TypedRateLimitingInterface[any]
+	updatesGetterFunc          updatesGetterFunc
+	client                     ctrlruntimeclient.Client
+	dynamicClient              dynamic.Interface
+	cvGetterFunc               cvGetterFunc
+	getCurrentVersionFunc      getCurrentVersionFunc
+	apiServerLister            configlistersv1.APIServerLister
+	config                     Config
+	consolePluginImage         string
+	consolePluginEnabled       bool
+	crdAvailableCache          bool
+	crdLastChecked             time.Time
+	hypershift                 bool
+	hasConsoleCapability       func() bool
+	tlsGroupPreferencesEnabled bool
 }
 
 const controllerName = "agenticrun-lifecycle-controller"
@@ -154,6 +155,12 @@ func (c *Controller) SetConsolePluginImage(image string) {
 	c.consolePluginImage = image
 }
 
+// SetTLSGroupPreferences configures the startup-resolved feature gate. Gate
+// changes restart CVO, so this must be called before starting the controller.
+func (c *Controller) SetTLSGroupPreferences(enabled bool) {
+	c.tlsGroupPreferencesEnabled = enabled
+}
+
 func (c *Controller) SetSkillsImage(image string) {
 	c.config.SkillsImage = image
 }
@@ -204,7 +211,7 @@ func (c *Controller) ensureConsolePlugin(ctx context.Context) error {
 		tlsProfile = resolveTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
 	}
 
-	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage, tlsProfile)
+	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage, tlsProfile, c.tlsGroupPreferencesEnabled)
 }
 
 func (c *Controller) Sync(ctx context.Context, key string) error {
