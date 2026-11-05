@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	GVRClusterExtension  = schema.GroupVersionResource{Group: "olm.operatorframework.io", Version: "v1", Resource: "clusterextensions"}
 	GVRClusterVersion    = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusterversions"}
 	GVRClusterOperator   = schema.GroupVersionResource{Group: "config.openshift.io", Version: "v1", Resource: "clusteroperators"}
 	GVRMachineConfigPool = schema.GroupVersionResource{Group: "machineconfiguration.openshift.io", Version: "v1", Resource: "machineconfigpools"}
@@ -31,6 +32,7 @@ var (
 	GVRNodeMetrics       = schema.GroupVersionResource{Group: "metrics.k8s.io", Version: "v1beta1", Resource: "nodes"}
 	GVRValidatingWebhook = schema.GroupVersionResource{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "validatingwebhookconfigurations"}
 	GVRMutatingWebhook   = schema.GroupVersionResource{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "mutatingwebhookconfigurations"}
+
 )
 
 // GetResource fetches a single cluster-scoped resource by name.

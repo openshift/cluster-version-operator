@@ -40,11 +40,13 @@ func (c *OLMOperatorLifecycleCheck) Run(ctx context.Context, dc dynamic.Interfac
 	var (
 		csvs         []unstructured.Unstructured
 		pkgManifests []unstructured.Unstructured
+		ces 		 []unstructured.Unstructured
 		csvErr       error
 		pkgErr       error
+		ceErr 		 error
 		fetchWG      sync.WaitGroup
 	)
-	fetchWG.Add(2)
+	fetchWG.Add(3)
 	go func() {
 		defer fetchWG.Done()
 		csvs, csvErr = ListResources(ctx, dc, GVRCSV, "")
@@ -52,6 +54,10 @@ func (c *OLMOperatorLifecycleCheck) Run(ctx context.Context, dc dynamic.Interfac
 	go func() {
 		defer fetchWG.Done()
 		pkgManifests, pkgErr = ListResources(ctx, dc, GVRPackageManifest, "")
+	}()
+	go func() {
+		defer fetchWG.Done()
+		ces, ceErr = ListResources(ctx, dc, GVRClusterExtension, "")
 	}()
 	fetchWG.Wait()
 
@@ -61,6 +67,10 @@ func (c *OLMOperatorLifecycleCheck) Run(ctx context.Context, dc dynamic.Interfac
 	if pkgErr != nil {
 		SectionError(&sectionErrors, "packagemanifests", pkgErr)
 	}
+	if ceErr != nil {
+		SectionError(&sectionErrors, "clusterextensions", ceErr)
+	}
+
 
 	csvIndex := indexByNamespacedName(csvs)
 	pkgIndex := indexByNamespacedName(pkgManifests)
@@ -181,9 +191,24 @@ func (c *OLMOperatorLifecycleCheck) Run(ctx context.Context, dc dynamic.Interfac
 		operators = append(operators, entry)
 	}
 
+	for _, c := range ces {
+		entry := map[string]any{
+			"name":      c.GetName(),
+			"namespace": NestedString(c.Object, "spec", "namespace"),
+		}
+		entry["channel"] = fmt.Sprintf("%s", NestedSlice(c.Object, "spec", "source","catalog","channels"))
+		entry["package"] = NestedString(c.Object, "spec", "source","catalog","packageName")
+		entry["version_range"] = NestedString(c.Object, "spec", "source","catalog","version")
+		entry["installed_bundle"] = NestedString(c.Object, "status", "install", "bundle", "name")
+		entry["installed_version"] = NestedString(c.Object, "status", "install", "bundle", "version")
+		entry["compatible_with_target"] = false
+		incompatibleWithTarget++
+		operators = append(operators, entry)
+	}
+
 	result["operators"] = operators
 	result["summary"] = map[string]any{
-		"total_operators":          len(subs),
+		"total_operators":          len(subs) + len(ces),
 		"pending_upgrades":         pendingUpgradeCount,
 		"manual_approval":          manualApprovalCount,
 		"incompatible_with_target": incompatibleWithTarget,
