@@ -88,26 +88,31 @@ func TestNginxTLSDirectives(t *testing.T) {
 	tests := []struct {
 		name             string
 		profile          *configv1.TLSProfileSpec
+		groupsEnabled    bool
 		wantProtocols    string
 		wantCiphers      string
+		wantGroups       string
 		noCipherContains string // substring that must NOT appear in ciphers
 	}{
 		{
 			name:          "Intermediate profile",
 			profile:       configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
 			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantGroups:    "auto",
 		},
 		{
 			name:             "Modern profile uses TLS 1.3 only with placeholder cipher",
 			profile:          configv1.TLSProfiles[configv1.TLSProfileModernType],
 			wantProtocols:    "TLSv1.3",
 			wantCiphers:      "ECDHE-ECDSA-AES128-GCM-SHA256",
+			wantGroups:       "auto",
 			noCipherContains: "TLS_",
 		},
 		{
 			name:          "Old profile",
 			profile:       configv1.TLSProfiles[configv1.TLSProfileOldType],
 			wantProtocols: "TLSv1 TLSv1.1 TLSv1.2 TLSv1.3",
+			wantGroups:    "auto",
 		},
 		{
 			name: "unknown MinTLSVersion falls back to TLS 1.2 protocols",
@@ -117,6 +122,7 @@ func TestNginxTLSDirectives(t *testing.T) {
 			},
 			wantProtocols: "TLSv1.2 TLSv1.3",
 			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "auto",
 		},
 		{
 			name: "TLS 1.3 ciphers are filtered out",
@@ -131,6 +137,7 @@ func TestNginxTLSDirectives(t *testing.T) {
 			},
 			wantProtocols:    "TLSv1.2 TLSv1.3",
 			wantCiphers:      "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384",
+			wantGroups:       "auto",
 			noCipherContains: "TLS_",
 		},
 		{
@@ -141,11 +148,82 @@ func TestNginxTLSDirectives(t *testing.T) {
 			},
 			wantProtocols: "TLSv1.3",
 			wantCiphers:   "ECDHE-ECDSA-AES128-GCM-SHA256",
+			wantGroups:    "auto",
+		},
+		{
+			name: "omitted groups use auto",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+			},
+			groupsEnabled: true,
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "auto",
+		},
+		{
+			name: "empty groups use auto",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{},
+			},
+			groupsEnabled: true,
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "auto",
+		},
+		{
+			name: "disabled group preferences ignore explicit groups",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519},
+			},
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "auto",
+		},
+		{
+			name: "group names and order are preserved",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{configv1.TLSGroupSecP384r1, configv1.TLSGroupSecP256r1, configv1.TLSGroupX25519},
+			},
+			groupsEnabled: true,
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "?secp384r1:?secp256r1:?X25519",
+		},
+		{
+			name: "hybrid groups are left to OpenSSL",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519MLKEM768, configv1.TLSGroupSecP256r1MLKEM768, configv1.TLSGroupSecP384r1MLKEM1024},
+			},
+			groupsEnabled: true,
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "?X25519MLKEM768:?SecP256r1MLKEM768:?SecP384r1MLKEM1024",
+		},
+		{
+			name: "unsupported groups are optional without adding defaults",
+			profile: &configv1.TLSProfileSpec{
+				MinTLSVersion: configv1.VersionTLS12,
+				Ciphers:       []string{"ECDHE-RSA-AES128-GCM-SHA256"},
+				Groups:        []configv1.TLSGroup{"UnsupportedGroup"},
+			},
+			groupsEnabled: true,
+			wantProtocols: "TLSv1.2 TLSv1.3",
+			wantCiphers:   "ECDHE-RSA-AES128-GCM-SHA256",
+			wantGroups:    "?UnsupportedGroup",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			protocols, ciphers := nginxTLSDirectives(tt.profile)
+			protocols, ciphers, groups := nginxTLSDirectives(tt.profile, tt.groupsEnabled)
 			if protocols != tt.wantProtocols {
 				t.Errorf("protocols = %q, want %q", protocols, tt.wantProtocols)
 			}
@@ -157,6 +235,9 @@ func TestNginxTLSDirectives(t *testing.T) {
 			}
 			if ciphers == "" {
 				t.Error("ciphers must never be empty (nginx rejects empty ssl_ciphers)")
+			}
+			if groups != tt.wantGroups {
+				t.Errorf("groups = %q, want %q", groups, tt.wantGroups)
 			}
 		})
 	}
