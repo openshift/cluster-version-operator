@@ -203,12 +203,11 @@ func TestOperator_syncFailingStatus(t *testing.T) {
 }
 
 type fakeRiFlags struct {
-	desiredVersion            string
-	unknownVersion            bool
-	statusReleaseArchitecture bool
-	cvoConfiguration          bool
-	acceptRisks               bool
-	tlsGroupPreferences       bool
+	desiredVersion      string
+	unknownVersion      bool
+	cvoConfiguration    bool
+	acceptRisks         bool
+	tlsGroupPreferences bool
 }
 
 func (f fakeRiFlags) DesiredVersion() string {
@@ -217,10 +216,6 @@ func (f fakeRiFlags) DesiredVersion() string {
 
 func (f fakeRiFlags) UnknownVersion() bool {
 	return f.unknownVersion
-}
-
-func (f fakeRiFlags) StatusReleaseArchitecture() bool {
-	return f.statusReleaseArchitecture
 }
 
 func (f fakeRiFlags) CVOConfiguration() bool {
