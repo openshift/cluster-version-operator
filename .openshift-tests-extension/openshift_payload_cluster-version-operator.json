@@ -102,6 +102,18 @@
     "environmentSelector": {}
   },
   {
+    "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator should ignore the unrecognized Fleet matching rules in a risk of a conditional update",
+    "labels": {
+      "Serial": {}
+    },
+    "resources": {
+      "isolation": {}
+    },
+    "source": "openshift:payload:cluster-version-operator",
+    "lifecycle": "blocking",
+    "environmentSelector": {}
+  },
+  {
     "name": "[Jira:\"Cluster Version Operator\"] cluster-version-operator readiness checks should run all checks without errors",
     "labels": {},
     "resources": {

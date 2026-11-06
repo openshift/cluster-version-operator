@@ -150,6 +150,13 @@ func SkipIfNotTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config)
 	}
 }
 
+// SkipIfTechPreviewNoUpgrade skips the test if a cluster is a TechPreviewNoUpgrade cluster
+func SkipIfTechPreviewNoUpgrade(ctx context.Context, restConfig *rest.Config) {
+	if IsTechPreviewNoUpgrade(ctx, restConfig) {
+		g.Skip("This test is skipped because the Tech Preview NoUpgrade is enabled")
+	}
+}
+
 // SkipIfNoAPI skips the test if the cluster does not have a particular CustomResourceDefinition.
 func SkipIfNoAPI(ctx context.Context, restConfig *rest.Config, apiName string) {
 	apiExtensionsClient, err := apiextensionsclientset.NewForConfig(restConfig)
