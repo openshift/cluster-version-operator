@@ -358,13 +358,7 @@ func New(
 	optr.configuration = configuration.NewClusterVersionOperatorConfiguration(operatorClient, operatorInformerFactory)
 
 	optr.agenticRunController = agenticrun.NewController(
-		func() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
-			availableUpdates := optr.getAvailableUpdates()
-			if availableUpdates == nil {
-				return nil, nil, nil
-			}
-			return availableUpdates.Updates, availableUpdates.ConditionalUpdates, nil
-		},
+		optr.getAgenticRunUpdates,
 		rtClient,
 		dynamicClient,
 		cvInformer.Lister().Get,
@@ -375,6 +369,14 @@ func New(
 	)
 
 	return optr, nil
+}
+
+func (optr *Operator) getAgenticRunUpdates() ([]configv1.Release, []configv1.ConditionalUpdate, error) {
+	updates := optr.getAvailableUpdates()
+	if updates == nil {
+		return nil, nil, fmt.Errorf("available updates have not been initialized")
+	}
+	return updates.Updates, updates.ConditionalUpdates, nil
 }
 
 // LoadInitialPayload waits until a ClusterVersion object exists. It then retrieves the payload contents, verifies the
@@ -609,6 +611,13 @@ func (optr *Operator) Run(runContext context.Context, shutdownContext context.Co
 	} else {
 		klog.Infof("The ClusterVersionOperatorConfiguration feature gate is disabled or HyperShift is detected; the configuration sync routine will not run.")
 	}
+
+	resultChannelCount++
+	go func() {
+		defer utilruntime.HandleCrash()
+		err := optr.agenticRunController.RunInformer(runContext)
+		resultChannel <- asyncResult{name: "agenticrun informer", error: err}
+	}()
 
 	resultChannelCount++
 	go func() {

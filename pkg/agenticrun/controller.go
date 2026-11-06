@@ -277,50 +277,59 @@ func (c *Controller) Sync(ctx context.Context, key string) error {
 		return kutilerrors.NewAggregate(errs)
 	}
 
-	agenticRuns, err := getAgenticRuns(ctx, c.dynamicClient, updates, conditionalUpdates, c.config.Namespace, currentVersion, cv.Spec.Channel, prompt, c.config.SkillsImage)
-	if err != nil {
-		klog.V(i.Normal).Infof("Getting agentic runs hit an error: %v", err)
-		return kutilerrors.NewAggregate(append(errs, err))
+	if err := c.syncAgenticRuns(ctx, updates, conditionalUpdates, currentVersion, cv.Spec.Channel, prompt); err != nil {
+		errs = append(errs, err)
 	}
-
-	for _, agenticRun := range agenticRuns {
-		existing := &agenticrunv1alpha1.AgenticRun{}
-		err := c.client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: agenticRun.Name, Namespace: agenticRun.Namespace}, existing)
-		if err != nil {
-			if !kerrors.IsNotFound(err) {
-				klog.V(i.Normal).Infof("Failed to get agentic run %s/%s: %v", agenticRun.Namespace, agenticRun.Name, err)
-				errs = append(errs, err)
-				continue
-			}
-		} else {
-			if !ownedByCVO(existing) {
-				klog.V(i.Normal).Infof("Ignored agentic run %s/%s not owned by CVO", agenticRun.Namespace, agenticRun.Name)
-				continue
-			}
-			if expired(existing) {
-				if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
-					errs = append(errs, err)
-					continue
-				}
-			} else {
-				klog.V(i.Debug).Infof("The existing agentic run %s/%s is not expired", agenticRun.Namespace, agenticRun.Name)
-				continue
-			}
-		}
-
-		if err := c.client.Create(ctx, agenticRun); err != nil {
-			if !kerrors.IsAlreadyExists(err) {
-				klog.V(i.Normal).Infof("Failed to create agentic run %s/%s: %v", agenticRun.Namespace, agenticRun.Name, err)
-				errs = append(errs, err)
-			} else {
-				klog.V(i.Debug).Infof("The agentic run %s/%s existed already", agenticRun.Namespace, agenticRun.Name)
-			}
-		} else {
-			klog.V(i.Debug).Infof("Created agentic run %s/%s", agenticRun.Namespace, agenticRun.Name)
-		}
-	}
-
 	return kutilerrors.NewAggregate(errs)
+}
+
+func (c *Controller) syncAgenticRuns(ctx context.Context, updates []configv1.Release, conditionalUpdates []configv1.ConditionalUpdate, currentVersion, channel, systemPrompt string) error {
+	var errs []error
+	for _, update := range updates {
+		if err := c.syncAgenticRun(ctx, currentVersion, update.Version, channel, updateKindRecommended, systemPrompt, updates); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	for _, update := range conditionalUpdates {
+		if err := c.syncAgenticRun(ctx, currentVersion, update.Release.Version, channel, updateKindConditional, systemPrompt, updates); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return kutilerrors.NewAggregate(errs)
+}
+
+func (c *Controller) syncAgenticRun(ctx context.Context, currentVersion, targetVersion, channel, updateKind, systemPrompt string, updates []configv1.Release) error {
+	key := ctrlruntimeclient.ObjectKey{Namespace: c.config.Namespace, Name: agenticRunName(currentVersion, targetVersion)}
+	existing := &agenticrunv1alpha1.AgenticRun{}
+	if err := c.client.Get(ctx, key, existing); err == nil {
+		if !ownedByCVO(existing) || !existing.DeletionTimestamp.IsZero() || !expired(existing) {
+			return nil
+		}
+		if err := deleteAgenticRun(ctx, c.client, existing, "expired"); err != nil {
+			return err
+		}
+		// Finalizers may keep the old run alive. Its eventual deletion also
+		// queues this controller, so do not collect readiness until it is gone.
+		if err := c.client.Get(ctx, key, existing); err == nil {
+			return nil
+		} else if !kerrors.IsNotFound(err) {
+			return err
+		}
+	} else if !kerrors.IsNotFound(err) {
+		return err
+	}
+
+	// Validate before making cluster queries, including malformed update targets.
+	agenticRun, err := getAgenticRun(c.config.Namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, "{}", updates, c.config.SkillsImage)
+	if err != nil {
+		return err
+	}
+	readinessJSON := runReadinessJSON(ctx, c.dynamicClient, currentVersion, targetVersion)
+	agenticRun.Spec.Request = buildRequest(systemPrompt, currentVersion, targetVersion, channel, classifyUpdate(currentVersion, targetVersion), updateKind, updates, readinessJSON)
+	if err := c.client.Create(ctx, agenticRun); err != nil && !kerrors.IsAlreadyExists(err) {
+		return err
+	}
+	return nil
 }
 
 func ownedByCVO(p *agenticrunv1alpha1.AgenticRun) bool {
@@ -397,47 +406,6 @@ func deleteAgenticRun(ctx context.Context, client ctrlruntimeclient.Client, agen
 
 	klog.V(i.Normal).Infof("Failed to delete not-found agentic run %s/%s", agenticRun.Namespace, agenticRun.Name)
 	return nil
-}
-
-func getAgenticRuns(
-	ctx context.Context,
-	dynamicClient dynamic.Interface,
-	availableUpdates []configv1.Release,
-	conditionalUpdates []configv1.ConditionalUpdate,
-	namespace string,
-	currentVersion, channel,
-	systemPrompt string,
-	skillsImage string,
-) ([]*agenticrunv1alpha1.AgenticRun, error) {
-	// TODO: Only 2 of 9 readiness checks (api_deprecations, olm_lifecycle) use the target version.
-	// The other 7 query cluster-wide state identical across targets. For clusters with many available
-	// updates, split into target-independent checks (run once) and target-dependent checks (run per
-	// target) to reduce redundant API calls.
-	var errs []error
-	var agenticRuns []*agenticrunv1alpha1.AgenticRun
-	for _, au := range availableUpdates {
-		targetVersion := au.Version
-		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindRecommended, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
-			errs = append(errs, err)
-			continue
-		} else {
-			agenticRuns = append(agenticRuns, agenticRun)
-		}
-	}
-
-	for _, cu := range conditionalUpdates {
-		targetVersion := cu.Release.Version
-		readinessJSON := runReadinessJSON(ctx, dynamicClient, currentVersion, targetVersion)
-		if agenticRun, err := getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKindConditional, systemPrompt, readinessJSON, availableUpdates, skillsImage); err != nil {
-			errs = append(errs, err)
-			continue
-		} else {
-			agenticRuns = append(agenticRuns, agenticRun)
-		}
-	}
-
-	return agenticRuns, kutilerrors.NewAggregate(errs)
 }
 
 func getAgenticRun(namespace, currentVersion, targetVersion, channel, updateKind, systemPrompt, readinessJSON string,
