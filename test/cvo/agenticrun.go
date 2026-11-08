@@ -11,6 +11,7 @@ import (
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -43,9 +44,10 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		rtClient     ctrlruntimeclient.Client
 		err          error
 
-		ctx         = context.Background()
-		needRecover bool
-		backup      configv1.ClusterVersionSpec
+		ctx                    = context.Background()
+		needRecover            bool
+		backup                 configv1.ClusterVersionSpec
+		updateServiceNamespace string
 	)
 
 	g.BeforeEach(func() {
@@ -70,6 +72,8 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			o.Expect(du.AcceptRisks).To(o.BeEmpty(), "found accept risks")
 		}
 		backup = *cv.Spec.DeepCopy()
+		needRecover = false
+		updateServiceNamespace = ""
 	})
 
 	g.AfterEach(func() {
@@ -80,19 +84,34 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 			_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
 			o.Expect(err).NotTo(o.HaveOccurred())
 		}
+		if updateServiceNamespace != "" {
+			err := kubeClient.CoreV1().Namespaces().Delete(ctx, updateServiceNamespace, metav1.DeleteOptions{})
+			o.Expect(err).NotTo(o.HaveOccurred())
+		}
 	})
 
 	g.It("should create agentic runs", g.Label("OTA-1966"), g.Label("Serial"), oteginkgo.Informing(), func() {
-		o.Expect(util.SkipIfNetworkRestricted(ctx, c, util.FauxinnatiAPIURL)).To(o.BeNil())
 		util.SkipIfNotTechPreviewNoUpgrade(ctx, c)
 		util.SkipIfNoAPI(ctx, c, "agenticruns.agentic.openshift.io")
 
 		cv, err := configClient.ClusterVersions().Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
 		o.Expect(err).NotTo(o.HaveOccurred())
 
-		g.By("Using fauxinnati as the upstream and its simple channel")
-		cv.Spec.Upstream = util.FauxinnatiAPIURL
-		channel := "simple"
+		const channel = "simple"
+		g.By("Creating an in-cluster update service")
+		ns, err := kubeClient.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{GenerateName: "e2e-cvo-update-service-"},
+		}, metav1.CreateOptions{})
+		o.Expect(err).NotTo(o.HaveOccurred())
+		updateServiceNamespace = ns.Name
+
+		graph, err := util.GenerateGraph(cv.Status.Desired, channel)
+		o.Expect(err).NotTo(o.HaveOccurred())
+		upstream, err := util.RunUpdateService(ctx, kubeClient, updateServiceNamespace, string(graph))
+		o.Expect(err).NotTo(o.HaveOccurred())
+
+		g.By("Pointing ClusterVersion at the in-cluster update service")
+		cv.Spec.Upstream = configv1.URL(upstream.String())
 		cv.Spec.Channel = channel
 
 		needRecover = true
