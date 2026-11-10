@@ -90,6 +90,7 @@ type getCurrentVersionFunc func() string
 // that are no longer supported next-hop options (e.g. because a channel change or cluster update), but preserves
 // AgenticRuns associated with versions in the ClusterVersion status.history (history already has its own
 // garbage-collection).
+// tlsGroupPreferencesEnabled is resolved at startup; feature gate changes restart CVO.
 func NewController(
 	updatesGetterFunc updatesGetterFunc,
 	client ctrlruntimeclient.Client,
@@ -97,19 +98,21 @@ func NewController(
 	cvGetterFunc cvGetterFunc,
 	getCurrentVersionFunc getCurrentVersionFunc,
 	apiServerLister configlistersv1.APIServerLister,
+	tlsGroupPreferencesEnabled bool,
 ) *Controller {
 	return &Controller{
 		queueKey: fmt.Sprintf("ClusterVersionOperator/%s", controllerName),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: controllerName}),
-		updatesGetterFunc:     updatesGetterFunc,
-		client:                client,
-		dynamicClient:         dynamicClient,
-		cvGetterFunc:          cvGetterFunc,
-		getCurrentVersionFunc: getCurrentVersionFunc,
-		apiServerLister:       apiServerLister,
-		config:                DefaultConfig(),
+		updatesGetterFunc:          updatesGetterFunc,
+		client:                     client,
+		dynamicClient:              dynamicClient,
+		cvGetterFunc:               cvGetterFunc,
+		getCurrentVersionFunc:      getCurrentVersionFunc,
+		apiServerLister:            apiServerLister,
+		config:                     DefaultConfig(),
+		tlsGroupPreferencesEnabled: tlsGroupPreferencesEnabled,
 	}
 }
 
@@ -153,12 +156,6 @@ func (c *Controller) SetConsoleCapabilityFunc(f func() bool) {
 
 func (c *Controller) SetConsolePluginImage(image string) {
 	c.consolePluginImage = image
-}
-
-// SetTLSGroupPreferences configures the startup-resolved feature gate. Gate
-// changes restart CVO, so this must be called before starting the controller.
-func (c *Controller) SetTLSGroupPreferences(enabled bool) {
-	c.tlsGroupPreferencesEnabled = enabled
 }
 
 func (c *Controller) SetSkillsImage(image string) {
