@@ -39,6 +39,8 @@ The [nginx ConfigMap](../../pkg/agenticrun/bindata/assets/configmap.yaml) serves
 `/usr/share/nginx/html` using the serving certificate requested by the
 [Service](../../pkg/agenticrun/bindata/assets/service.yaml). CVO renders nginx's TLS protocols and ciphers from the
 cluster's APIServer TLS security profile. It uses the Intermediate profile if it cannot read the APIServer config.
+CVO also renders profile groups through `ssl_ecdh_curve` when `TLSGroupPreferences` is enabled, using `auto`
+when the gate is disabled or groups are unspecified.
 A change to the rendered configuration updates the deployment's config hash so the pods roll out with the new
 configuration. The [ConsolePlugin resource](../../pkg/agenticrun/bindata/assets/consoleplugin.yaml) points the
 console at the service on port 9001.
