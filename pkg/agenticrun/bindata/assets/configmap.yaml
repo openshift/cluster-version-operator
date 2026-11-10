@@ -21,7 +21,7 @@ data:
         ssl_certificate_key /var/cert/tls.key;
         ssl_protocols       ${SSL_PROTOCOLS};
         ssl_ciphers         ${SSL_CIPHERS};
-        ssl_ecdh_curve      "${SSL_GROUPS}";
+        ssl_ecdh_curve      ${SSL_GROUPS};
         ssl_prefer_server_ciphers on;
         server_tokens       off;
         root                /usr/share/nginx/html;
