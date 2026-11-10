@@ -79,9 +79,10 @@ func nginxTLSDirectives(profile *configv1.TLSProfileSpec, groupsEnabled bool) (s
 	sslCiphers = strings.Join(ciphers, ":")
 
 	// Preserve the API's IANA group names for OpenSSL to resolve. OpenSSL 3.3+
-	// ignores unavailable groups prefixed with '?'. If no configured groups are
-	// usable, TLS handshakes may fail and make the plugin unavailable. This is
-	// preferred over fallback groups that could broaden the configured list.
+	// ignores unavailable groups prefixed with '?', allowing nginx to start even
+	// if none are implemented. With no usable groups, group-based TLS handshakes
+	// fail and the plugin may be unreachable even though nginx is running.
+	// Prefer this failure over fallback groups that could broaden the configured list.
 	// Leave group availability and FIPS enforcement to the operand's system OpenSSL.
 	sslGroups = "auto"
 	if groupsEnabled && len(profile.Groups) > 0 {
