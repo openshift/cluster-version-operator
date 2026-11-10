@@ -217,6 +217,7 @@ func newOperator(url string, cluster release, promqlMock clusterconditions.Condi
 			return operator.release.Version
 		},
 		nil,
+		false,
 	)
 	return availableUpdates, operator
 }
@@ -1254,7 +1255,7 @@ func TestOperator_syncAvailableUpdates_noticeResolvedAlertsQuickly(t *testing.T)
 		t.Fatalf("accept risk feature is not enabled")
 	}
 	optr.enabledCVOFeatureGates = cvgGates
-	optr.agenticRunController = agenticrun.NewController(nil, nil, nil, nil, nil, nil)
+	optr.agenticRunController = agenticrun.NewController(nil, nil, nil, nil, nil, nil, false)
 	err := optr.syncAvailableUpdates(context.Background(), &configv1.ClusterVersion{
 		Spec: configv1.ClusterVersionSpec{
 			DesiredUpdate: &configv1.Update{

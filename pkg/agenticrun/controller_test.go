@@ -140,7 +140,7 @@ Update path: Recommended
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func() string {
 				return "4.22.1"
-			}, nil)
+			}, nil, false)
 			c.config.SkillsImage = testSkillsImage
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
@@ -297,7 +297,7 @@ func TestSync_LifecycleWithExecutionPhase(t *testing.T) {
 			client := fake.NewClientBuilder().WithObjects(existing).Build()
 			c := NewController(updatesGetter, client, nil, cvGetter, func() string {
 				return currentVersion
-			}, nil)
+			}, nil, false)
 			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
