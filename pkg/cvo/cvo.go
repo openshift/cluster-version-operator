@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -730,14 +731,14 @@ func (optr *Operator) clusterOperatorEventHandler() cache.ResourceEventHandler {
 				return
 			}
 
-			versionName := "operator"
 			oldStruct := clusterOperatorInterfaceStructOrDie(old)
 			newStruct := clusterOperatorInterfaceStructOrDie(new)
 
-			oldVersion := clusterOperatorVersion(oldStruct, versionName)
-			newVersion := clusterOperatorVersion(newStruct, versionName)
-			if oldVersion != newVersion {
-				msg := fmt.Sprintf("Cluster operator %s changed versions[name=%q] from %q to %q", newStruct.Name, versionName, oldVersion, newVersion)
+			// The sync worker waits for every version in the manifest, operands included, so any of them can unblock it.
+			oldVersions := clusterOperatorVersions(oldStruct)
+			newVersions := clusterOperatorVersions(newStruct)
+			if !maps.Equal(oldVersions, newVersions) {
+				msg := fmt.Sprintf("Cluster operator %s changed versions from %v to %v", newStruct.Name, oldVersions, newVersions)
 				optr.configSync.NotifyAboutManagedResourceActivity(msg)
 				return
 			}
@@ -768,13 +769,15 @@ func clusterOperatorInterfaceStructOrDie(obj interface{}) *configv1.ClusterOpera
 	return co
 }
 
-func clusterOperatorVersion(co *configv1.ClusterOperator, name string) string {
+func clusterOperatorVersions(co *configv1.ClusterOperator) map[string]string {
+	versions := make(map[string]string, len(co.Status.Versions))
 	for _, version := range co.Status.Versions {
-		if version.Name == name {
-			return version.Version
+		// checkOperatorHealth reads the first entry for a name, so later duplicates are ignored here too.
+		if _, ok := versions[version.Name]; !ok {
+			versions[version.Name] = version.Version
 		}
 	}
-	return ""
+	return versions
 }
 
 func clusterOperatorConditionStatus(co *configv1.ClusterOperator, condType configv1.ClusterStatusConditionType) configv1.ConditionStatus {
