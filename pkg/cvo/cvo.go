@@ -366,6 +366,7 @@ func New(
 			return optr.release.Version
 		},
 		apiServerLister,
+		cvoGates.TLSGroupPreferences(),
 	)
 
 	return optr, nil

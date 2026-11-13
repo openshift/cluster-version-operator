@@ -57,21 +57,22 @@ func analysisOutputSchema() *apiextensionsv1.JSONSchemaProps {
 }
 
 type Controller struct {
-	queueKey              string
-	queue                 workqueue.TypedRateLimitingInterface[any]
-	updatesGetterFunc     updatesGetterFunc
-	client                ctrlruntimeclient.Client
-	dynamicClient         dynamic.Interface
-	cvGetterFunc          cvGetterFunc
-	getCurrentVersionFunc getCurrentVersionFunc
-	apiServerLister       configlistersv1.APIServerLister
-	config                Config
-	consolePluginImage    string
-	consolePluginEnabled  bool
-	crdAvailableCache     bool
-	crdLastChecked        time.Time
-	hypershift            bool
-	hasConsoleCapability  func() bool
+	queueKey                   string
+	queue                      workqueue.TypedRateLimitingInterface[any]
+	updatesGetterFunc          updatesGetterFunc
+	client                     ctrlruntimeclient.Client
+	dynamicClient              dynamic.Interface
+	cvGetterFunc               cvGetterFunc
+	getCurrentVersionFunc      getCurrentVersionFunc
+	apiServerLister            configlistersv1.APIServerLister
+	config                     Config
+	consolePluginImage         string
+	consolePluginEnabled       bool
+	crdAvailableCache          bool
+	crdLastChecked             time.Time
+	hypershift                 bool
+	hasConsoleCapability       func() bool
+	tlsGroupPreferencesEnabled bool
 }
 
 const controllerName = "agenticrun-lifecycle-controller"
@@ -89,6 +90,7 @@ type getCurrentVersionFunc func() string
 // that are no longer supported next-hop options (e.g. because a channel change or cluster update), but preserves
 // AgenticRuns associated with versions in the ClusterVersion status.history (history already has its own
 // garbage-collection).
+// tlsGroupPreferencesEnabled is resolved at startup; feature gate changes restart CVO.
 func NewController(
 	updatesGetterFunc updatesGetterFunc,
 	client ctrlruntimeclient.Client,
@@ -96,19 +98,21 @@ func NewController(
 	cvGetterFunc cvGetterFunc,
 	getCurrentVersionFunc getCurrentVersionFunc,
 	apiServerLister configlistersv1.APIServerLister,
+	tlsGroupPreferencesEnabled bool,
 ) *Controller {
 	return &Controller{
 		queueKey: fmt.Sprintf("ClusterVersionOperator/%s", controllerName),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig[any](
 			workqueue.DefaultTypedControllerRateLimiter[any](),
 			workqueue.TypedRateLimitingQueueConfig[any]{Name: controllerName}),
-		updatesGetterFunc:     updatesGetterFunc,
-		client:                client,
-		dynamicClient:         dynamicClient,
-		cvGetterFunc:          cvGetterFunc,
-		getCurrentVersionFunc: getCurrentVersionFunc,
-		apiServerLister:       apiServerLister,
-		config:                DefaultConfig(),
+		updatesGetterFunc:          updatesGetterFunc,
+		client:                     client,
+		dynamicClient:              dynamicClient,
+		cvGetterFunc:               cvGetterFunc,
+		getCurrentVersionFunc:      getCurrentVersionFunc,
+		apiServerLister:            apiServerLister,
+		config:                     DefaultConfig(),
+		tlsGroupPreferencesEnabled: tlsGroupPreferencesEnabled,
 	}
 }
 
@@ -204,7 +208,7 @@ func (c *Controller) ensureConsolePlugin(ctx context.Context) error {
 		tlsProfile = resolveTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
 	}
 
-	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage, tlsProfile)
+	return applyConsolePluginManifests(ctx, c.client, c.consolePluginImage, tlsProfile, c.tlsGroupPreferencesEnabled)
 }
 
 func (c *Controller) Sync(ctx context.Context, key string) error {
