@@ -366,6 +366,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 								Name:              "test",
 								CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
 							},
+							Spec: configv1.ClusterVersionSpec{
+								Channel: "test-channel",
+							},
 							Status: configv1.ClusterVersionStatus{
 								AvailableUpdates: []configv1.Release{
 									{Version: "1.0.1"},
@@ -382,7 +385,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				}
 				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
-				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[2], 2, map[string]string{"upstream": "<default>", "channel": "test-channel"})
 				expectMetric(t, metrics[3], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[4], 1, map[string]string{"type": ""})
 			},
@@ -397,6 +400,9 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 							ObjectMeta: metav1.ObjectMeta{
 								Name:              "test",
 								CreationTimestamp: metav1.Time{Time: time.Unix(2, 0)},
+							},
+							Spec: configv1.ClusterVersionSpec{
+								Channel: "test-channel",
 							},
 							Status: configv1.ClusterVersionStatus{
 								Conditions: []configv1.ClusterOperatorStatusCondition{
@@ -414,7 +420,7 @@ func Test_operatorMetrics_Collect(t *testing.T) {
 				expectMetric(t, metrics[0], 2, map[string]string{"type": "initial", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[1], 2, map[string]string{"type": "cluster", "version": "", "image": "", "from_version": ""})
 
-				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": ""})
+				expectMetric(t, metrics[2], 0, map[string]string{"upstream": "<default>", "channel": "test-channel"})
 				expectMetric(t, metrics[3], 1, map[string]string{"name": "version", "condition": "RetrievedUpdates", "reason": "Because stuff"})
 				expectMetric(t, metrics[4], 0, map[string]string{"type": "current", "version": "", "image": "", "from_version": ""})
 				expectMetric(t, metrics[5], 1, map[string]string{"type": ""})
