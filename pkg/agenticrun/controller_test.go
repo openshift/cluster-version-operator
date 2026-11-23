@@ -1185,7 +1185,7 @@ Other recommended versions available:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().Build()
-			c := NewController(nil, client, nil, nil, nil, nil)
+			c := NewController(nil, client, nil, nil, nil, nil, false)
 			c.config = Config{Namespace: tt.namespace, SkillsImage: testSkillsImage}
 			err := c.syncAgenticRuns(context.Background(), tt.availableUpdates, tt.conditionalUpdates, tt.currentVersion, tt.channel, tt.systemPrompt)
 			list := &agenticrunv1alpha1.AgenticRunList{}
@@ -1387,7 +1387,7 @@ func TestSyncAgenticRuns_WithReadinessData(t *testing.T) {
 	)
 
 	client := fake.NewClientBuilder().Build()
-	c := NewController(nil, client, dc, nil, nil, nil)
+	c := NewController(nil, client, dc, nil, nil, nil, false)
 	c.config = Config{Namespace: "openshift-lightspeed", SkillsImage: testSkillsImage}
 	err := c.syncAgenticRuns(context.Background(), []configv1.Release{{Version: "4.21.8"}}, nil, "4.21.5", "stable-4.21", "Test prompt")
 	list := &agenticrunv1alpha1.AgenticRunList{}

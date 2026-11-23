@@ -72,7 +72,7 @@ func TestReanalysisReconciliation(t *testing.T) {
 					return nil, nil, nil
 				}
 				return updates, nil, nil
-			}, client, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), func(string) (*configv1.ClusterVersion, error) { return cv, nil }, func() string { return "4.15.3" }, nil)
+			}, client, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), func(string) (*configv1.ClusterVersion, error) { return cv, nil }, func() string { return "4.15.3" }, nil, false)
 			c.config.SkillsImage = testSkillsImage
 			c.crdAvailableCache, c.crdLastChecked = true, time.Now()
 			defer c.queue.ShutDown()
