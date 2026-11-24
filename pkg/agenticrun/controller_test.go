@@ -140,7 +140,7 @@ Update path: Recommended
 		t.Run(tt.name, func(t *testing.T) {
 			c := NewController(tt.updatesGetterFunc, tt.client, nil, tt.cvGetterFunc, func() string {
 				return "4.22.1"
-			}, nil)
+			}, nil, false)
 			c.config.SkillsImage = testSkillsImage
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
@@ -297,7 +297,7 @@ func TestSync_LifecycleWithExecutionPhase(t *testing.T) {
 			client := fake.NewClientBuilder().WithObjects(existing).Build()
 			c := NewController(updatesGetter, client, nil, cvGetter, func() string {
 				return currentVersion
-			}, nil)
+			}, nil, false)
 			c.config.SkillsImage = "registry.example.com/agentic-skills:latest"
 			c.crdAvailableCache = true
 			c.crdLastChecked = time.Now()
@@ -1185,7 +1185,7 @@ Other recommended versions available:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			client := fake.NewClientBuilder().Build()
-			c := NewController(nil, client, nil, nil, nil, nil)
+			c := NewController(nil, client, nil, nil, nil, nil, false)
 			c.config = Config{Namespace: tt.namespace, SkillsImage: testSkillsImage}
 			err := c.syncAgenticRuns(context.Background(), tt.availableUpdates, tt.conditionalUpdates, tt.currentVersion, tt.channel, tt.systemPrompt)
 			list := &agenticrunv1alpha1.AgenticRunList{}
@@ -1387,7 +1387,7 @@ func TestSyncAgenticRuns_WithReadinessData(t *testing.T) {
 	)
 
 	client := fake.NewClientBuilder().Build()
-	c := NewController(nil, client, dc, nil, nil, nil)
+	c := NewController(nil, client, dc, nil, nil, nil, false)
 	c.config = Config{Namespace: "openshift-lightspeed", SkillsImage: testSkillsImage}
 	err := c.syncAgenticRuns(context.Background(), []configv1.Release{{Version: "4.21.8"}}, nil, "4.21.5", "stable-4.21", "Test prompt")
 	list := &agenticrunv1alpha1.AgenticRunList{}

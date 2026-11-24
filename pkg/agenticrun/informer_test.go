@@ -52,7 +52,7 @@ func TestRunInformerDoesNotLogTransportError(t *testing.T) {
 			Err: errors.New("transport failure"),
 		}
 	})
-	c := NewController(nil, nil, dc, nil, nil, nil)
+	c := NewController(nil, nil, dc, nil, nil, nil, false)
 	defer c.queue.ShutDown()
 	done := make(chan error, 1)
 	go func() { done <- c.RunInformer(ctx) }()
@@ -98,7 +98,7 @@ func TestRunInformer(t *testing.T) {
 				watches <- w
 				return true, w, nil
 			})
-			c := NewController(nil, nil, dc, nil, nil, nil)
+			c := NewController(nil, nil, dc, nil, nil, nil, false)
 			c.config.Namespace = "custom-namespace"
 			defer c.queue.ShutDown()
 			done := make(chan error, 1)
@@ -195,7 +195,7 @@ func TestDeletionRecreatesRunWithoutUpdateRefresh(t *testing.T) {
 		return []configv1.Release{{Version: "4.16.0"}}, nil, nil
 	}, client, dc, func(string) (*configv1.ClusterVersion, error) {
 		return &configv1.ClusterVersion{Spec: configv1.ClusterVersionSpec{Channel: "stable-4.16"}}, nil
-	}, func() string { return "4.15.3" }, nil)
+	}, func() string { return "4.15.3" }, nil, false)
 	c.config.SkillsImage = testSkillsImage
 	c.crdAvailableCache, c.crdLastChecked = true, time.Now()
 	defer c.queue.ShutDown()
