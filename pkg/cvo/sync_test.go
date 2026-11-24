@@ -475,6 +475,7 @@ func newAction(gvk schema.GroupVersionKind, namespace, name string) action {
 type fakeSyncRecorder struct {
 	Returns         *SyncWorkerStatus
 	Updates         []configv1.Update
+	Notifications   []string
 	initializedFunc func() bool
 }
 
@@ -490,6 +491,7 @@ func (r *fakeSyncRecorder) StatusCh() <-chan SyncWorkerStatus {
 
 // Inform the sync worker about activity for a managed resource.
 func (r *fakeSyncRecorder) NotifyAboutManagedResourceActivity(message string) {
+	r.Notifications = append(r.Notifications, message)
 }
 
 func (r *fakeSyncRecorder) CancelRetrieve() {

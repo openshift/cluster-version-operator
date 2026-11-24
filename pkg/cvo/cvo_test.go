@@ -3531,3 +3531,92 @@ func TestOperator_ownerReference(t *testing.T) {
 		})
 	}
 }
+
+func TestClusterOperatorEventHandler(t *testing.T) {
+	clusterOperator := func(conditions []configv1.ClusterOperatorStatusCondition, versions ...configv1.OperandVersion) *configv1.ClusterOperator {
+		return &configv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{Name: "openshift-apiserver"},
+			Status:     configv1.ClusterOperatorStatus{Conditions: conditions, Versions: versions},
+		}
+	}
+	condition := func(condType configv1.ClusterStatusConditionType, status configv1.ConditionStatus) []configv1.ClusterOperatorStatusCondition {
+		return []configv1.ClusterOperatorStatusCondition{{Type: condType, Status: status}}
+	}
+	operator := func(version string) configv1.OperandVersion {
+		return configv1.OperandVersion{Name: "operator", Version: version}
+	}
+	operand := func(version string) configv1.OperandVersion {
+		return configv1.OperandVersion{Name: "openshift-apiserver", Version: version}
+	}
+
+	tests := []struct {
+		name         string
+		old          *configv1.ClusterOperator
+		new          *configv1.ClusterOperator
+		expectNotify bool
+	}{
+		{
+			name:         "operator version changes",
+			old:          clusterOperator(nil, operator("1.0.0"), operand("1.0.0")),
+			new:          clusterOperator(nil, operator("1.0.1"), operand("1.0.0")),
+			expectNotify: true,
+		},
+		{
+			name:         "operand version changes after the operator version",
+			old:          clusterOperator(nil, operator("1.0.1"), operand("1.0.0")),
+			new:          clusterOperator(nil, operator("1.0.1"), operand("1.0.1")),
+			expectNotify: true,
+		},
+		{
+			name:         "operand version is reported for the first time",
+			old:          clusterOperator(nil, operator("1.0.1")),
+			new:          clusterOperator(nil, operator("1.0.1"), operand("1.0.1")),
+			expectNotify: true,
+		},
+		{
+			name: "versions are reordered",
+			old:  clusterOperator(nil, operator("1.0.1"), operand("1.0.1")),
+			new:  clusterOperator(nil, operand("1.0.1"), operator("1.0.1")),
+		},
+		{
+			name:         "first of two entries with the same name changes",
+			old:          clusterOperator(nil, operator("1.0.0"), operator("1.0.1")),
+			new:          clusterOperator(nil, operator("1.0.2"), operator("1.0.1")),
+			expectNotify: true,
+		},
+		{
+			name: "second of two entries with the same name changes",
+			old:  clusterOperator(nil, operator("1.0.1"), operator("1.0.0")),
+			new:  clusterOperator(nil, operator("1.0.1"), operator("1.0.2")),
+		},
+		{
+			name:         "Available changes",
+			old:          clusterOperator(condition(configv1.OperatorAvailable, configv1.ConditionFalse), operator("1.0.1")),
+			new:          clusterOperator(condition(configv1.OperatorAvailable, configv1.ConditionTrue), operator("1.0.1")),
+			expectNotify: true,
+		},
+		{
+			name:         "Degraded changes",
+			old:          clusterOperator(condition(configv1.OperatorDegraded, configv1.ConditionTrue), operator("1.0.1")),
+			new:          clusterOperator(condition(configv1.OperatorDegraded, configv1.ConditionFalse), operator("1.0.1")),
+			expectNotify: true,
+		},
+		{
+			name: "only Progressing changes",
+			old:  clusterOperator(condition(configv1.OperatorProgressing, configv1.ConditionTrue), operator("1.0.1"), operand("1.0.1")),
+			new:  clusterOperator(condition(configv1.OperatorProgressing, configv1.ConditionFalse), operator("1.0.1"), operand("1.0.1")),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := &fakeSyncRecorder{}
+			optr := &Operator{configSync: recorder}
+
+			optr.clusterOperatorEventHandler().OnUpdate(tt.old, tt.new)
+
+			if notified := len(recorder.Notifications) > 0; notified != tt.expectNotify {
+				t.Errorf("expected sync worker notified=%t, got notifications %q", tt.expectNotify, recorder.Notifications)
+			}
+		})
+	}
+}
