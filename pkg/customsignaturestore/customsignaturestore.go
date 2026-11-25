@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
-	"sync"
 
 	configv1listers "github.com/openshift/client-go/config/listers/config/v1"
 	"github.com/openshift/library-go/pkg/verify/store"
@@ -25,17 +23,11 @@ type Store struct {
 	// HTTPClient is called once for each Signatures call to ensure
 	// requests are made with the currently-recommended parameters.
 	HTTPClient sigstore.HTTPClient
-
-	// lock allows the store to be locked while mutating or accessing internal state.
-	lock sync.Mutex
-
-	// customURIs tracks the most-recently retrieved ClusterVersion configuration.
-	customURIs []*url.URL
 }
 
 // Signatures fetches signatures for the provided digest.
 func (s *Store) Signatures(ctx context.Context, name string, digest string, fn store.Callback) error {
-	uris, err := s.refreshConfiguration(ctx)
+	uris, err := s.refreshConfiguration()
 	if err != nil {
 		return err
 	}
@@ -73,7 +65,7 @@ func (s *Store) Signatures(ctx context.Context, name string, digest string, fn s
 	return errors.New("ClusterVersion spec.signatureStores exhausted without finding a valid signature")
 }
 
-func (s *Store) refreshConfiguration(ctx context.Context) ([]*url.URL, error) {
+func (s *Store) refreshConfiguration() ([]*url.URL, error) {
 	config, err := s.Lister.Get(s.Name)
 	if err != nil {
 		return nil, err
@@ -82,36 +74,30 @@ func (s *Store) refreshConfiguration(ctx context.Context) ([]*url.URL, error) {
 	var uris []*url.URL
 	if config.Spec.SignatureStores != nil {
 		uris = make([]*url.URL, 0, len(config.Spec.SignatureStores))
-		for _, store := range config.Spec.SignatureStores {
+		for i, store := range config.Spec.SignatureStores {
 			uri, err := url.Parse(store.URL)
 			if err != nil {
-				return uris, err
+				return uris, fmt.Errorf("invalid URL in ClusterVersion spec.signatureStores entry %d", i+1)
 			}
 
 			uris = append(uris, uri)
 		}
 	}
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	s.customURIs = uris
 	return uris, nil
 }
 
-// String returns a description of where this store finds
-// signatures.
+// String summarizes configuration without exposing store URLs or lookup details.
 func (s *Store) String() string {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	uris, err := s.refreshConfiguration()
+	if err != nil {
+		return "unable to load ClusterVersion signatureStores"
+	}
 
-	if s.customURIs == nil {
+	if uris == nil {
 		return "ClusterVersion signatureStores unset, falling back to default stores"
-	} else if len(s.customURIs) == 0 {
+	} else if len(uris) == 0 {
 		return "0 ClusterVersion signatureStores"
 	}
-	uris := make([]string, 0, len(s.customURIs))
-	for _, uri := range s.customURIs {
-		uris = append(uris, uri.String())
-	}
-	return fmt.Sprintf("ClusterVersion signatureStores: %s", strings.Join(uris, ", "))
+	return fmt.Sprintf("ClusterVersion signatureStores configured: %d", len(uris))
 }
