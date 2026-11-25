@@ -5,9 +5,12 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/library-go/pkg/manifest"
 )
@@ -165,6 +168,55 @@ func TestTaskString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.task.String(); !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("%s", cmp.Diff(tt.want, got))
+			}
+		})
+	}
+}
+
+func TestReasonForPayloadSyncErrorInvalid(t *testing.T) {
+	gk := schema.GroupKind{Group: "apiextensions.k8s.io", Kind: "CustomResourceDefinition"}
+	ownerRefs := field.NewPath("metadata", "ownerReferences")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{
+			name: "invalid without causes",
+			err:  apierrors.NewInvalid(gk, "clusterserviceversions.operators.coreos.com", nil),
+			want: "the object is invalid, possibly due to local cluster configuration",
+		},
+		{
+			name: "invalid with one cause",
+			err: apierrors.NewInvalid(gk, "clusterserviceversions.operators.coreos.com", field.ErrorList{
+				field.Invalid(ownerRefs, "x", `Only one reference can have Controller set to true. Found "true" in references for ClusterServiceVersion/rhsso-operator.7.6.9-opr-002 and ClusterVersion/version`),
+			}),
+			want: `the object is invalid, possibly due to local cluster configuration (metadata.ownerReferences: Invalid value: "x": Only one reference can have Controller set to true. Found "true" in references for ClusterServiceVersion/rhsso-operator.7.6.9-opr-002 and ClusterVersion/version)`,
+		},
+		{
+			name: "invalid with two causes",
+			err: apierrors.NewInvalid(gk, "a", field.ErrorList{
+				field.Required(field.NewPath("spec", "group"), ""),
+				field.Invalid(field.NewPath("spec", "scope"), "Bad", "unsupported"),
+			}),
+			want: `the object is invalid, possibly due to local cluster configuration (spec.group: Required value, spec.scope: Invalid value: "Bad": unsupported)`,
+		},
+		{
+			name: "wrapped invalid",
+			err: errors.Wrap(apierrors.NewInvalid(gk, "a", field.ErrorList{
+				field.Required(field.NewPath("spec", "group"), ""),
+			}), "error running apply"),
+			want: "the object is invalid, possibly due to local cluster configuration (spec.group: Required value)",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason, got := reasonForPayloadSyncError(tt.err)
+			if reason != "UpdatePayloadResourceInvalid" {
+				t.Errorf("reason = %q, want UpdatePayloadResourceInvalid", reason)
+			}
+			if got != tt.want {
+				t.Errorf("message = %q\nwant      %q", got, tt.want)
 			}
 		})
 	}

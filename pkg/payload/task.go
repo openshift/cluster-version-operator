@@ -220,7 +220,7 @@ func reasonForPayloadSyncError(err error) (string, string) {
 	case apierrors.IsInternalError(err):
 		return "UpdatePayloadClusterError", "the server is reporting an internal error"
 	case apierrors.IsInvalid(err):
-		return "UpdatePayloadResourceInvalid", "the object is invalid, possibly due to local cluster configuration"
+		return "UpdatePayloadResourceInvalid", invalidResourceMessage(err)
 	case apierrors.IsUnauthorized(err):
 		return "UpdatePayloadClusterUnauthorized", "could not authenticate to the server"
 	case apierrors.IsForbidden(err):
@@ -232,6 +232,27 @@ func reasonForPayloadSyncError(err error) (string, string) {
 	default:
 		return "UpdatePayloadFailed", ""
 	}
+}
+
+// invalidResourceMessage explains an Invalid error with the causes the API
+// server reported, so the reader can find the conflicting field without the
+// CVO log. For example, a foreign controller owner reference on a CRD is
+// reported as "metadata.ownerReferences: ... Only one reference can have
+// Controller set to true. Found ...".
+func invalidResourceMessage(err error) string {
+	message := "the object is invalid, possibly due to local cluster configuration"
+	var status apierrors.APIStatus
+	if !errors.As(err, &status) || status.Status().Details == nil {
+		return message
+	}
+	var causes []string
+	for _, cause := range status.Status().Details.Causes {
+		causes = append(causes, fmt.Sprintf("%s: %s", cause.Field, cause.Message))
+	}
+	if len(causes) == 0 {
+		return message
+	}
+	return fmt.Sprintf("%s (%s)", message, strings.Join(causes, ", "))
 }
 
 func SummaryForReason(reason, name string) string {
