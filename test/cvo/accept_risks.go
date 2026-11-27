@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -314,13 +315,7 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 
 		g.By("Accepting all risks")
 		o.Expect(acceptRisks).NotTo(o.BeEmpty())
-		if cv.Spec.DesiredUpdate == nil {
-			cv.Spec.DesiredUpdate = &configv1.Update{}
-		}
-		cv.Spec.DesiredUpdate.AcceptRisks = acceptRisks
-
-		_, err = configClient.ClusterVersions().Update(ctx, cv, metav1.UpdateOptions{})
-		o.Expect(err).NotTo(o.HaveOccurred())
+		o.Expect(updateAcceptedRisks(ctx, configClient.ClusterVersions(), acceptRisks)).NotTo(o.HaveOccurred())
 
 		g.By("Checking that all conditional updates are recommended")
 		var releasesNow []configv1.Release
@@ -353,6 +348,21 @@ var _ = g.Describe(`[Jira:"Cluster Version Operator"] cluster-version-operator`,
 		}
 	})
 })
+
+func updateAcceptedRisks(ctx context.Context, client configv1client.ClusterVersionInterface, acceptRisks []configv1.AcceptRisk) error {
+	return retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		cv, err := client.Get(ctx, external.DefaultClusterVersionName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if cv.Spec.DesiredUpdate == nil {
+			cv.Spec.DesiredUpdate = &configv1.Update{}
+		}
+		cv.Spec.DesiredUpdate.AcceptRisks = acceptRisks
+		_, err = client.Update(ctx, cv, metav1.UpdateOptions{})
+		return err
+	})
+}
 
 func getYaml(obj runtime.Object) string {
 	raw, err := yaml.Marshal(obj)
